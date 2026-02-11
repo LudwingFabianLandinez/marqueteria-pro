@@ -3,148 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventario y Proveedores - Marquetería</title>
-    
-    <script>
-        // Si por error se intenta cargar esta página, saltar de inmediato al Dashboard profesional
-        window.location.replace("dashboard.html");
-    </script>
-
+    <title>Historial de Ventas - Marquetería</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
-        :root {
-            --primary: #3498db;
-            --secondary: #2c3e50;
-            --success: #2ecc71;
-            --warning: #f1c40f;
-            --danger: #e74c3c;
-            --purple: #9b59b6;
-        }
-
-        body { background-color: #f4f7f6; margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; }
         
-        .sidebar { width: 250px; background-color: var(--secondary); color: white; height: 100vh; padding: 20px; position: fixed; }
-        .sidebar h2 { font-size: 1.2rem; text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
+        /* Sidebar unificado */
+        .sidebar { width: 250px; background-color: #2c3e50; color: white; height: 100vh; padding: 20px; position: fixed; }
+        .sidebar h1 { font-size: 1.2rem; text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
         .sidebar a { display: block; color: white; text-decoration: none; padding: 15px; border-radius: 8px; margin: 10px 0; transition: 0.3s; }
         .sidebar a:hover { background-color: #34495e; transform: translateX(5px); }
-        
-        .inventory-container { margin-left: 250px; padding: 40px; width: calc(100% - 250px); }
-        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; gap: 20px; }
-        
-        .btn-purchase { background: var(--success); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-provider { background: var(--purple); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; transition: 0.3s; }
-        .btn-purchase:hover, .btn-provider:hover { filter: brightness(1.1); transform: translateY(-2px); }
-        
-        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background-color: var(--primary); color: white; font-weight: 600; }
+        .sidebar a.active { background-color: #3498db; }
 
-        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
-        .stock-low { background: #ffeaa7; color: #d35400; }
-        .stock-ok { background: #dff9fb; color: #0984e3; }
+        .main-content { margin-left: 250px; flex-grow: 1; padding: 40px; }
 
-        /* --- FIX PARA EVITAR PANTALLA BORROSA --- */
-        .modal { 
-            display: none !important; 
-            position: fixed; 
-            z-index: 1000 !important; 
-            left: 0; top: 0; width: 100%; height: 100%; 
-            background-color: rgba(0,0,0,0.6) !important; 
-            backdrop-filter: blur(4px);
-            overflow-y: auto; 
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content { 
-            background-color: white; 
-            margin: auto; 
+        .history-container { 
+            background: white; 
             padding: 30px; 
             border-radius: 15px; 
-            width: 90%;
-            max-width: 500px; 
-            box-shadow: 0 5px 30px rgba(0,0,0,0.3); 
-            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        }
+
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #3498db; color: white; border-radius: 5px; }
+
+        .price-tag { color: #27ae60; font-weight: bold; }
+        .date-tag { color: #7f8c8d; font-size: 0.9em; }
+        
+        .empty-state { text-align: center; padding: 50px; color: #95a5a6; }
+        .empty-state i { font-size: 3rem; margin-bottom: 15px; display: block; }
+
+        @media print {
+            .sidebar { display: none; }
+            .main-content { margin: 0; padding: 20px; }
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h2><i class="fas fa-cut"></i> MARQUETERÍA</h2>
-        <nav>
-            <a href="index.html"><i class="fas fa-home"></i> Inicio</a>
-            <a href="dashboard.html" style="background: var(--primary);"><i class="fas fa-box"></i> Inventario</a>
-            <a href="quotes.html"><i class="fas fa-file-invoice-dollar"></i> Nueva Cotización</a>
-            <a href="suppliers.html"><i class="fas fa-truck"></i> Proveedores</a>
+
+    <aside class="sidebar">
+        <div class="logo"><h1>MARQUETERÍA</h1></div>
+        <nav class="menu">
+            <a href="index.html" class="menu-item">🏠 Inicio</a>
+            <a href="dashboard.html" class="menu-item">📦 Inventario</a>
+            <a href="quotes.html" class="menu-item">💰 Nueva Cotización</a>
+            <a href="history.html" class="menu-item active">📜 Historial de Ventas</a>
         </nav>
-    </div>
+    </aside>
 
-    <div class="inventory-container">
-        <h2>Control de Existencias y Compras</h2>
-        
-        <div class="header-actions">
-            <div style="position: relative; flex-grow: 1;">
-                <i class="fas fa-search" style="position: absolute; left: 15px; top: 15px; color: #95a5a6;"></i>
-                <input type="text" id="searchInput" placeholder="Buscar material por nombre..." style="padding:12px 12px 12px 40px; border-radius:8px; border:1px solid #ddd; width:100%; max-width: 400px;">
+    <main class="main-content">
+        <div class="history-container">
+            <div class="header-flex">
+                <h2><i class="fas fa-history"></i> Historial de Ventas Realizadas</h2>
+                <button onclick="window.print()" class="btn-cancel" style="padding: 10px 20px; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; background: white;">
+                    <i class="fas fa-print"></i> Imprimir Reporte
+                </button>
             </div>
-            <div>
-                <button class="btn-provider" onclick="abrirModalProveedores()"><i class="fas fa-users"></i> Gestionar Proveedores</button>
-                <button class="btn-purchase" onclick="abrirModalCompra()"><i class="fas fa-plus"></i> Nueva Compra</button>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Detalle de la Obra</th>
+                        <th>Dimensiones</th>
+                        <th>Total Venta</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    </tbody>
+            </table>
+            
+            <div id="noData" class="empty-state" style="display: none;">
+                <i class="fas fa-folder-open"></i>
+                <p>No hay ventas registradas en el historial aún.</p>
             </div>
         </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Material</th>
-                    <th>Medidas (cm)</th>
-                    <th>Costo M²</th>
-                    <th>Stock Actual</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="inventoryTable">
-                </tbody>
-        </table>
-    </div>
-
-    <div id="modalCompra" class="modal">
-        <div class="modal-content">
-            <h3><i class="fas fa-shopping-cart"></i> Registrar Compra</h3>
-            <form id="purchaseForm">
-                <label>Material</label>
-                <input type="text" id="nombreMaterial" list="listaMateriales" placeholder="Nombre del material..." required>
-                <datalist id="listaMateriales"></datalist>
-                <button type="submit" class="btn-purchase" style="width:100%; padding: 15px;">FINALIZAR E INGRESAR</button>
-                <button type="button" onclick="cerrarModales()" style="width:100%; margin-top:10px; background:none; border:none; cursor:pointer; color: #7f8c8d;">Cancelar</button>
-            </form>
-        </div>
-    </div>
+    </main>
 
     <script src="js/api.js"></script>
-    <script src="js/inventory.js"></script>
     <script>
-        function cerrarModales() {
-            document.querySelectorAll('.modal').forEach(m => {
-                m.style.setProperty('display', 'none', 'important');
-            });
+        async function cargarHistorial() {
+            const tableBody = document.getElementById('historyBody');
+            const noData = document.getElementById('noData');
+            
+            try {
+                // Suponiendo que tu API tiene este método para traer ventas
+                const ventas = await API.getSales(); 
+                
+                if (!ventas || ventas.length === 0) {
+                    noData.style.display = 'block';
+                    return;
+                }
+
+                tableBody.innerHTML = '';
+                ventas.forEach(venta => {
+                    const row = `
+                        <tr>
+                            <td class="date-tag">${new Date(venta.fecha).toLocaleDateString()}</td>
+                            <td><strong>${venta.descripcion || 'Venta de Marquetería'}</strong></td>
+                            <td>${venta.ancho} x ${venta.largo} cm</td>
+                            <td class="price-tag">$ ${venta.total.toLocaleString()}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+
+            } catch (error) {
+                console.error("Error cargando historial:", error);
+                tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Error al cargar los datos.</td></tr>';
+            }
         }
 
-        function abrirModalProveedores() {
-            const mod = document.getElementById('modalProveedores');
-            if (mod) mod.style.setProperty('display', 'flex', 'important');
-            if(typeof cargarProveedoresEnLista === 'function') cargarProveedoresEnLista();
-        }
-
-        function abrirModalCompra() {
-            const mod = document.getElementById('modalCompra');
-            if (mod) mod.style.setProperty('display', 'flex', 'important');
-        }
-
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) cerrarModales();
-        }
+        // Ejecutar al cargar la página
+        document.addEventListener('DOMContentLoaded', cargarHistorial);
     </script>
 </body>
 </html>
