@@ -288,3 +288,14 @@ function actualizarDatalistMateriales() {
     const list = document.getElementById('listaMateriales');
     if (list) list.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
+
+window.abrirModalProveedores = function() {
+    const modal = document.getElementById('modalAgenda'); // Asegúrate que el ID sea correcto
+    if (modal) {
+        modal.style.display = 'block';
+        if (typeof renderAgendaProveedores === 'function') renderAgendaProveedores();
+    } else {
+        // Si no hay modal, mejor redirigir
+        window.location.href = 'suppliers.html';
+    }
+};

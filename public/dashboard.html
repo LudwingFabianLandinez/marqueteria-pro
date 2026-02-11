@@ -36,14 +36,10 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
 
-        /* Colores específicos */
         .btn-reg-prov { background: #9b59b6; color: white; }
         .btn-consulta-azul { background: #3498db; color: white; }
         .btn-nueva-compra { background: #27ae60; color: white; }
 
-        /* ------------------------------------------
-            BOTONES DE ACCIÓN (TABLA)
-        ------------------------------------------ */
         .actions-cell {
             display: flex;
             gap: 8px;
@@ -75,7 +71,6 @@
             font-size: 0.75rem;
         }
 
-        /* AJUSTES PARA MÓVIL CORREGIDOS */
         .mobile-header {
             display: none;
             background: #1e293b;
@@ -191,6 +186,31 @@
                     <input type="text" id="nombreMaterial" list="listaMateriales" placeholder="Busca o escribe el material..." required>
                     <datalist id="listaMateriales"></datalist>
                 </div>
+                <div class="form-row" style="display:flex; gap:10px; margin-bottom:10px;">
+                    <div style="flex:1;">
+                        <label>Ancho (cm)</label>
+                        <input type="number" id="ancho_compra" step="0.1" required>
+                    </div>
+                    <div style="flex:1;">
+                        <label>Largo (cm)</label>
+                        <input type="number" id="largo_compra" step="0.1" required>
+                    </div>
+                </div>
+                <div class="form-row" style="display:flex; gap:10px; margin-bottom:10px;">
+                    <div style="flex:1;">
+                        <label>Precio Total</label>
+                        <input type="number" id="precio_compra" required>
+                    </div>
+                    <div style="flex:1;">
+                        <label>Cantidad (Uds)</label>
+                        <input type="number" id="cantidad_compra" value="1" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Proveedor</label>
+                    <select id="proveedorSelect" required></select>
+                </div>
+
                 <div style="display: flex; gap: 10px; margin-top: 15px;">
                     <button type="submit" class="btn-save" style="flex: 2;">Finalizar e Ingresar</button>
                     <button type="button" onclick="cerrarModales()" class="btn-close" style="flex: 1;">Cerrar</button>
@@ -210,26 +230,66 @@
         </div>
     </div>
 
-    <div id="modalAjuste" class="modal"><div class="modal-content" id="modalAjusteContent"></div></div>
-    <div id="modalHistorialPrecios" class="modal"><div class="modal-content" id="modalHistorialContent"></div></div>
+    <div id="modalAjuste" class="modal">
+        <div class="modal-content">
+            <h2 style="background: #e67e22; color: white; padding: 15px; border-radius: 8px 8px 0 0; margin-top:0;">Ajustar Inventario</h2>
+            <form id="adjustForm" style="padding: 20px;">
+                <input type="hidden" id="adjustId">
+                <p>Ajustando: <strong id="adjustMaterialNombre">---</strong></p>
+                <div class="form-group">
+                    <label>Nueva Cantidad Total (m²)</label>
+                    <input type="number" id="adjustCantidad" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Punto de Reorden (m²)</label>
+                    <input type="number" id="adjustReorden" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <input type="text" id="adjustMotivo" placeholder="Ej: Daño de material, error de conteo">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button type="submit" class="btn-save" style="flex: 2;">Guardar Ajuste</button>
+                    <button type="button" onclick="cerrarModales()" class="btn-close" style="flex: 1;">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalHistorialPrecios" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 style="background: #2980b9; color: white; padding: 15px; border-radius: 8px 8px 0 0; margin-top:0;">
+                Movimientos: <span id="historialMaterialNombre"></span>
+            </h2>
+            <div id="listaHistorialPrecios" style="padding: 20px; max-height: 400px; overflow-y: auto;">
+                </div>
+            <div style="padding: 10px; text-align: right;">
+                <button type="button" onclick="cerrarModales()" class="btn-close">Cerrar</button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/api.js"></script>
     <script src="js/inventory.js"></script>
     <script>
+        // Funciones de UI sincronizadas con inventory.js
         function toggleMenu() {
             const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('active');
+            if(sidebar) sidebar.classList.toggle('active');
         }
 
-        // FUNCIONES DE CONTROL DE INTERFAZ
         function abrirModalCompra() {
-            document.getElementById('modalCompra').style.display = 'block';
+            const m = document.getElementById('modalCompra');
+            if(m) m.style.display = 'block';
         }
 
         function abrirAgenda() {
-            document.getElementById('modalAgenda').style.display = 'block';
-            if (typeof renderAgendaProveedores === 'function') {
-                renderAgendaProveedores();
+            const m = document.getElementById('modalAgenda');
+            if (m) {
+                m.style.display = 'block';
+                if (typeof renderAgendaProveedores === 'function') renderAgendaProveedores();
+            } else {
+                window.location.href = 'suppliers.html';
             }
         }
 
@@ -239,14 +299,6 @@
 
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) cerrarModales();
-            
-            if (window.innerWidth <= 768) {
-                const sidebar = document.getElementById('sidebar');
-                const toggleBtn = document.querySelector('.menu-toggle');
-                if (sidebar && !sidebar.contains(event.target) && !toggleBtn.contains(event.target) && sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
-                }
-            }
         };
     </script>
 </body>
