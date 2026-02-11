@@ -20,30 +20,32 @@
             margin: 0;
             padding: 20px;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
             min-height: 100vh;
         }
 
-        .modal-content {
+        /* Contenedor Principal (Simulando el modal pero fijo en pantalla) */
+        .main-card {
             background: white;
             width: 100%;
             max-width: 500px;
             border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 15px 35px rgba(30, 58, 138, 0.15);
+            margin-top: 20px;
         }
 
-        .modal-header {
+        .card-header {
             background-color: var(--purple-header);
             color: white;
-            padding: 30px 25px;
+            padding: 25px;
             text-align: center;
         }
 
-        .modal-header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 0.5px; }
+        .card-header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 0.5px; }
 
-        .modal-body { padding: 30px; }
+        .card-body { padding: 30px; }
 
         .form-group { margin-bottom: 18px; }
 
@@ -71,7 +73,7 @@
             margin-bottom: 18px;
         }
 
-        .modal-footer {
+        .card-footer {
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -86,17 +88,18 @@
             font-size: 1rem;
             cursor: pointer;
             border: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
             text-transform: uppercase;
-            letter-spacing: 1px;
             background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-blue) 100%);
             color: white;
             box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
         }
+
+        .btn-save:hover { transform: translateY(-2px); opacity: 0.9; }
 
         .btn-consult {
             background: #10b981;
@@ -129,15 +132,16 @@
             transition: all 0.3s ease;
         }
 
+        /* Estilos de la Consulta (Overlay) */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7) !important;
+            background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(5px);
-            display: none !important;
+            display: none; /* Se activa con JS */
             justify-content: center;
             align-items: center;
-            z-index: 9999 !important;
+            z-index: 9999;
         }
 
         .modal-view {
@@ -149,24 +153,23 @@
             padding: 25px;
             overflow-y: auto;
             position: relative;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th { background: var(--bg-light); padding: 12px; text-align: left; position: sticky; top: 0; }
+        th { background: var(--bg-light); padding: 12px; text-align: left; }
         td { padding: 12px; border-bottom: 1.5px solid #f1f5f9; }
     </style>
 </head>
 <body>
 
-<div class="modal-content">
-    <div class="modal-header">
+<div class="main-card">
+    <div class="card-header">
         <h2><i class="fas fa-truck-loading"></i> Nuevo Proveedor</h2>
     </div>
-    <div class="modal-body">
+    <div class="card-body">
         <form id="supplierForm">
             <div class="form-group">
-                <input type="text" id="nombre" name="nombre" placeholder="Nombre Comercial (Ej: Vidrios El Mono) *" required>
+                <input type="text" id="nombre" name="nombre" placeholder="Nombre Comercial *" required>
             </div>
             
             <div class="form-row">
@@ -193,7 +196,7 @@
                 </select>
             </div>
 
-            <div class="modal-footer">
+            <div class="card-footer">
                 <button type="submit" class="btn-save">
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
@@ -230,49 +233,65 @@
 </div>
 
 <script src="js/api.js"></script>
-<script src="js/suppliers.js"></script>
-
 <script>
+    // Manejo del Formulario
+    document.getElementById('supplierForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('.btn-save');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
+
+        const datos = {
+            nombre: document.getElementById('nombre').value,
+            nit: document.getElementById('nit').value,
+            contacto: document.getElementById('contacto').value,
+            telefono: document.getElementById('telefono').value,
+            correo: document.getElementById('correo').value,
+            direccion: document.getElementById('direccion').value,
+            categoria: document.getElementById('categoria').value
+        };
+
+        try {
+            // Asegúrate de que API.saveProvider exista en api.js
+            await API.saveProvider(datos);
+            alert("✅ Proveedor guardado correctamente");
+            window.location.href = "dashboard.html";
+        } catch (error) {
+            alert("❌ Error al guardar: " + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS';
+        }
+    });
+
     async function abrirConsulta() {
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
         
-        modal.style.setProperty('display', 'flex', 'important');
-        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando proveedores...</td></tr>';
+        modal.style.display = 'flex';
+        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
 
         try {
-            const response = await API.getProviders();
-            const proveedores = response.data || response; 
-
-            if(Array.isArray(proveedores) && proveedores.length > 0) {
+            const proveedores = await API.getProviders();
+            if(proveedores && proveedores.length > 0) {
                 tabla.innerHTML = '';
                 proveedores.forEach(p => {
                     tabla.innerHTML += `
                         <tr>
-                            <td><strong>${p.nombre || 'Sin nombre'}</strong></td>
+                            <td><strong>${p.nombre}</strong></td>
                             <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'General'}</span></td>
                             <td>${p.telefono || 'N/A'}</td>
-                        </tr>
-                    `;
+                        </tr>`;
                 });
             } else {
-                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No se encontraron proveedores.</td></tr>';
+                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores.</td></tr>';
             }
         } catch (e) {
-            console.error(e);
-            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al conectar con la base de datos.</td></tr>';
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al cargar datos.</td></tr>';
         }
     }
 
     function cerrarConsulta() {
-        document.getElementById('modalConsultar').style.setProperty('display', 'none', 'important');
-    }
-
-    window.onclick = function(event) {
-        const modal = document.getElementById('modalConsultar');
-        if (event.target == modal) {
-            cerrarConsulta();
-        }
+        document.getElementById('modalConsultar').style.display = 'none';
     }
 </script>
 
