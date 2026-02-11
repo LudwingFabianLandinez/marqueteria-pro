@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 3.7 - Fix "Cannot set properties of null" & Global Binding
+ * Versión: 3.8 - FIX FINAL: Implementación de Agenda y Global Binding
  */
 
 let todosLosMateriales = [];
@@ -202,13 +202,40 @@ function configurarEventos() {
 
 // --- FUNCIONES GLOBALES (VINCULADAS A WINDOW) ---
 
+/**
+ * ESTA ES LA FUNCIÓN QUE FALTABA PARA EL BOTÓN AZUL
+ */
+window.renderAgendaProveedores = function() {
+    const contenedor = document.getElementById('agendaContent');
+    if (!contenedor) return;
+
+    if (todosLosProveedores.length === 0) {
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
+        return;
+    }
+
+    contenedor.innerHTML = todosLosProveedores.map(p => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
+            <div>
+                <div style="font-weight:bold; color:#1e293b;">${p.nombre}</div>
+                <div style="font-size:0.8rem; color:#64748b;">
+                    <i class="fas fa-phone"></i> ${p.telefono || 'Sin teléfono'} | 
+                    <i class="fas fa-tag"></i> ${p.contacto || 'Sin contacto'}
+                </div>
+            </div>
+            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
+                <i class="fas fa-phone-alt"></i>
+            </a>
+        </div>
+    `).join('');
+};
+
 window.verHistorial = async function(id, nombre) {
     console.log("Consultando historial para:", nombre);
     try {
         const response = await fetch(`/api/inventory/history/${id}`);
         const result = await response.json();
         
-        // ELEMENTOS CON PROTECCIÓN (Evita el error de 'null')
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedor = document.getElementById('listaHistorialPrecios');
         const labelNombre = document.getElementById('historialMaterialNombre');
@@ -289,13 +316,12 @@ function actualizarDatalistMateriales() {
     if (list) list.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
 
-window.abrirModalProveedores = function() {
-    const modal = document.getElementById('modalAgenda'); // Asegúrate que el ID sea correcto
+window.abrirAgenda = function() {
+    const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
-        if (typeof renderAgendaProveedores === 'function') renderAgendaProveedores();
+        window.renderAgendaProveedores();
     } else {
-        // Si no hay modal, mejor redirigir
         window.location.href = 'suppliers.html';
     }
 };
