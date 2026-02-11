@@ -173,8 +173,7 @@
                             <th style="text-align: center;">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="inventoryTable">
-                        </tbody>
+                    <tbody id="inventoryTable"></tbody>
                 </table>
             </div>
         </div> 
@@ -229,16 +228,17 @@
                 <h2 style="margin:0;"><i class="fas fa-address-book"></i> Directorio de Proveedores</h2>
                 <button onclick="cerrarModales()" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
-            <div id="agendaContent" class="agenda-container" style="padding: 20px;">
-                </div>
+            <div id="agendaContent" class="agenda-container" style="padding: 20px;"></div>
         </div>
     </div>
 
     <div id="modalAjuste" class="modal"><div class="modal-content" id="modalAjusteContent"></div></div>
     <div id="modalHistorialPrecios" class="modal"><div class="modal-content" id="modalHistorialContent"></div></div>
 
-    <script src="js/api.js?v=1.2"></script>
-    <script src="js/inventory.js?v=1.2"></script>
+    <script src="js/api.js?v=1.4"></script>
+    <script src="js/inventory.js?v=1.4"></script>
+    <script src="js/suppliers.js?v=1.4"></script> 
+
     <script>
         function toggleMenu() {
             const sidebar = document.getElementById('sidebar');
@@ -250,19 +250,22 @@
             if(modal) modal.style.display = 'block';
         }
 
-        // FUNCIÓN MEJORADA: Si el modal no existe o falla, redirige a la página
         function abrirAgenda() {
+            console.log("Intentando abrir agenda...");
             const modal = document.getElementById('modalAgenda');
             if (modal) {
                 modal.style.display = 'block';
-                // Intentamos llamar a la función de inventory.js si existe
-                if (typeof renderAgendaProveedores === 'function') {
-                    renderAgendaProveedores();
+                
+                // Buscamos la función en el objeto window para asegurar compatibilidad
+                const func = window.renderAgendaProveedores || (typeof renderAgendaProveedores === 'function' ? renderAgendaProveedores : null);
+                
+                if (func) {
+                    func();
                 } else {
-                    console.warn("La función renderAgendaProveedores no está lista aún.");
+                    console.error("Función renderAgendaProveedores no encontrada.");
+                    // Si no carga la lista, al menos mostramos el modal vacío o mensaje
+                    document.getElementById('agendaContent').innerHTML = '<p>Cargando proveedores o función no disponible...</p>';
                 }
-            } else {
-                window.location.href = 'suppliers.html';
             }
         }
 
