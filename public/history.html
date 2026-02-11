@@ -37,33 +37,8 @@
             margin-bottom: 24px;
         }
 
-        .btn-report {
-            background: #4f46e5;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 10px;
-            border: none;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .btn-excel {
-            background: #107c41; /* Color verde Excel */
-            color: white;
-            padding: 12px 20px;
-            border-radius: 10px;
-            border: none;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
+        .btn-report { background: #4f46e5; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; }
+        .btn-excel { background: #107c41; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; }
         .btn-report:hover { background: #4338ca; transform: translateY(-2px); }
 
         .search-container {
@@ -90,19 +65,8 @@
         }
         .search-box input { border: none; outline: none; width: 100%; margin-left: 10px; }
 
-        .date-filters {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        .date-filters input { 
-            padding: 8px; 
-            border-radius: 6px; 
-            border: 1px solid var(--border-color);
-            color: #475569;
-        }
+        .date-filters { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; }
+        .date-filters input { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); color: #475569; }
 
         .history-table { width: 100%; border-collapse: separate; border-spacing: 0; }
         .history-table th { background: #f8fafc; color: #64748b; padding: 16px; text-align: left; font-size: 0.75rem; text-transform: uppercase; border-bottom: 2px solid var(--border-color); }
@@ -121,12 +85,12 @@
 
         .report-table { width: 100%; font-size: 0.85rem; margin-top: 15px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; }
         .report-table th { background: #1e293b; color: white; padding: 12px; text-align: left; }
-        .report-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        .report-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
         
         .report-summary-box { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
-        .summary-card { padding: 15px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; }
-        .summary-card span { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 5px; }
-        .summary-card strong { font-size: 1.1rem; color: #1e293b; }
+        .summary-card { padding: 15px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; text-align: center; }
+        .summary-card span { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase; }
+        .summary-card strong { font-size: 1.2rem; color: #1e293b; }
 
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); overflow-y: auto; }
         .modal-content { background: white; margin: 5vh auto; border-radius: 20px; width: 95%; max-width: 900px; padding: 30px; position: relative; }
@@ -234,7 +198,7 @@
     <div id="modalReporte" class="modal">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px;">
-                <h2 style="margin:0; color:var(--primary-blue);"><i class="fas fa-file-invoice-dollar"></i> Reporte Diario</h2>
+                <h2 style="margin:0; color:var(--primary-blue);"><i class="fas fa-file-invoice-dollar"></i> Reporte Consolidado de Hoy</h2>
                 <div style="display: flex; gap: 10px;">
                     <button onclick="window.print()" style="background:#64748b; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer;"><i class="fas fa-print"></i> Imprimir</button>
                     <button onclick="document.getElementById('modalReporte').style.display='none'" style="background:none; border:none; font-size:1.8rem; cursor:pointer;">&times;</button>
@@ -259,7 +223,7 @@
                     facturasFiltradas = [...facturasCargadas];
                     renderTable(facturasFiltradas);
                 }
-            } catch (error) { console.error("Error:", error); }
+            } catch (error) { console.error("Error al cargar facturas:", error); }
         }
 
         function renderTable(data) {
@@ -290,7 +254,7 @@
                         <td><span class="badge ${badgeClass}">${estadoTexto}</span></td>
                         <td>
                             <div class="actions-cell">
-                                <button class="btn-action btn-view" title="Ver Detalles" onclick="verDetalle('${inv._id}')"><i class="fas fa-eye"></i></button>
+                                <button class="btn-action btn-view" title="Ver Detalles / Abonar" onclick="verDetalle('${inv._id}')"><i class="fas fa-eye"></i></button>
                                 <button class="btn-action btn-delete" title="Anular" onclick="eliminarFactura('${inv._id}', '${inv.numeroFactura}')"><i class="fas fa-trash-alt"></i></button>
                             </div>
                         </td>
@@ -322,25 +286,6 @@
             renderTable(facturasFiltradas);
         }
 
-        function exportarExcel() {
-            if (facturasFiltradas.length === 0) return alert("No hay datos para exportar");
-            
-            const datosExcel = facturasFiltradas.map(f => ({
-                Fecha: new Date(f.fecha).toLocaleDateString(),
-                OT: f.numeroFactura,
-                Cliente: f.cliente.nombre,
-                Total: f.totalFactura,
-                Abonado: f.totalPagado || 0,
-                Saldo: f.totalFactura - (f.totalPagado || 0)
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(datosExcel);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Ordenes");
-            XLSX.writeFile(wb, `Historial_Morales_${new Date().toISOString().slice(0,10)}.xlsx`);
-        }
-
-        // --- Funciones de Gestión (Abonos, Reporte, etc.) ---
         async function verDetalle(id) {
             facturaSeleccionadaId = id;
             try {
@@ -350,7 +295,7 @@
                     const inv = result.data;
                     const saldo = inv.totalFactura - (inv.totalPagado || 0);
                     document.getElementById('detNumeroFactura').innerText = `Orden ${inv.numeroFactura}`;
-                    document.getElementById('detInfoCliente').innerHTML = `<strong>Cliente:</strong> ${inv.cliente.nombre}<br><strong>Tel:</strong> ${inv.cliente.telefono || 'N/A'}`;
+                    document.getElementById('detInfoCliente').innerHTML = `<strong>Cliente:</strong> ${inv.cliente.nombre}<br><strong>Tel:</strong> ${inv.cliente.telefono || 'Sin teléfono'}`;
                     document.getElementById('detTotalVenta').innerText = formatter.format(inv.totalFactura);
                     document.getElementById('detTotalPagado').innerText = formatter.format(inv.totalPagado || 0);
                     document.getElementById('detSaldoPendiente').innerText = formatter.format(saldo);
@@ -362,52 +307,110 @@
 
         async function procesarPago() {
             const monto = parseFloat(document.getElementById('montoNuevoAbono').value);
-            if(!monto || monto <= 0) return alert("Ingrese un monto válido");
+            if(!monto || monto <= 0) return alert("Por favor, ingrese un monto válido.");
+            
             try {
                 const res = await fetch(`/api/invoices/${facturaSeleccionadaId}/payment`, {
-                    method: 'PATCH',
+                    method: 'PUT', // Ajustado a la ruta de invoiceRoutes.js
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ montoAbono: monto })
                 });
-                if((await res.json()).success) {
+                
+                const result = await res.json();
+                if(result.success) {
                     cerrarModal();
+                    document.getElementById('montoNuevoAbono').value = '';
                     cargarFacturas();
+                    alert("Abono registrado con éxito.");
+                } else {
+                    alert("Error: " + result.error);
                 }
-            } catch (error) { alert("Error al procesar pago"); }
+            } catch (error) { alert("Error de conexión al procesar pago"); }
         }
 
         async function eliminarFactura(id, num) {
-            if (confirm(`¿Anular orden ${num}? Se devolverán materiales al inventario.`)) {
+            if (confirm(`¿Está seguro de anular la orden ${num}? Esta acción reintegrará los materiales al inventario y no se puede deshacer.`)) {
                 try {
                     const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
-                    if ((await res.json()).success) cargarFacturas();
-                } catch (error) { alert("Error al eliminar"); }
+                    const result = await res.json();
+                    if (result.success) {
+                        alert("Orden anulada con éxito.");
+                        cargarFacturas();
+                    }
+                } catch (error) { alert("Error al eliminar la orden"); }
             }
-        }
-
-        function cerrarModal() { 
-            document.getElementById('modalDetalle').style.display = 'none'; 
         }
 
         async function generarReporteDiario() {
             try {
                 const response = await fetch('/api/invoices/report/daily');
                 const result = await response.json();
-                if (result.success && result.data.length > 0) {
-                    let totalV = 0, totalC = 0;
-                    let html = `<table class="report-table"><thead><tr><th>OT/Cliente</th><th>Materiales</th><th>Costo</th><th>Venta</th></tr></thead><tbody>`;
-                    result.data.forEach(item => {
-                        totalV += item.totalVenta; totalC += item.costoBaseTotal;
-                        html += `<tr><td><b>${item.ot}</b><br>${item.cliente}</td><td>${item.materiales.map(m=>m.material).join(', ')}</td><td>${formatter.format(item.costoBaseTotal)}</td><td style="color:green; font-weight:bold">${formatter.format(item.totalVenta)}</td></tr>`;
+                
+                if (result.success && result.data.ordenes.length > 0) {
+                    const { ordenes, totalVentas, totalAbonos, totalPendiente } = result.data;
+                    
+                    let html = `
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Orden</th>
+                                    <th>Cliente</th>
+                                    <th>Total OT</th>
+                                    <th>Pagado</th>
+                                    <th>Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    ordenes.forEach(item => {
+                        const saldo = item.total - item.pagado;
+                        html += `
+                            <tr>
+                                <td><b>${item.numero}</b></td>
+                                <td>${item.cliente}</td>
+                                <td>${formatter.format(item.total)}</td>
+                                <td style="color:green;">${formatter.format(item.pagado)}</td>
+                                <td style="color:${saldo > 0 ? 'red' : 'green'};">${formatter.format(saldo)}</td>
+                            </tr>`;
                     });
-                    html += `</tbody></table><div class="report-summary-box">
-                        <div class="summary-card"><span>Ventas Hoy</span><strong>${formatter.format(totalV)}</strong></div>
-                        <div class="summary-card"><span>Utilidad Bruta</span><strong>${formatter.format(totalV - totalC)}</strong></div>
-                    </div>`;
+
+                    html += `
+                        </tbody>
+                        </table>
+                        <div class="report-summary-box">
+                            <div class="summary-card"><span>Ventas Nuevas</span><strong>${formatter.format(totalVentas)}</strong></div>
+                            <div class="summary-card"><span>Recaudo Total</span><strong>${formatter.format(totalAbonos)}</strong></div>
+                            <div class="summary-card"><span>Por Cobrar</span><strong>${formatter.format(totalPendiente)}</strong></div>
+                        </div>`;
+                    
                     document.getElementById('reportContent').innerHTML = html;
                     document.getElementById('modalReporte').style.display = 'block';
-                } else { alert("No hay ventas hoy"); }
-            } catch (e) { alert("Error en reporte"); }
+                } else {
+                    alert("Hoy no se han registrado movimientos financieros.");
+                }
+            } catch (e) { alert("Error al generar el reporte diario."); }
+        }
+
+        function exportarExcel() {
+            if (facturasFiltradas.length === 0) return alert("No hay datos para exportar.");
+            
+            const datosExcel = facturasFiltradas.map(f => ({
+                Fecha: new Date(f.fecha).toLocaleDateString(),
+                OT: f.numeroFactura,
+                Cliente: f.cliente.nombre,
+                'Total Factura': f.totalFactura,
+                'Total Abonado': f.totalPagado || 0,
+                'Saldo Pendiente': f.totalFactura - (f.totalPagado || 0)
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(datosExcel);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Historial Ventas");
+            XLSX.writeFile(wb, `Reporte_Ventas_Morales_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function cerrarModal() { 
+            document.getElementById('modalDetalle').style.display = 'none'; 
         }
 
         document.getElementById('searchInput').addEventListener('input', aplicarFiltros);
