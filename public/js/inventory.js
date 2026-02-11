@@ -1,20 +1,22 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 3.9 - FIX DEFINITIVO: Global Binding y Protección de Nulos
+ * Versión: 4.0 - FIX TOTAL: Prioridad Global y Binding Forzado
  */
 
+// --- VARIABLES DE ESTADO ---
 let todosLosMateriales = [];
 let todosLosProveedores = [];
 
+// --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado");
+    console.log("🚀 Sistema de Gestión Iniciado v4.0");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
 });
 
-// --- LÓGICA DE MENÚ MÓVIL ---
+// --- FUNCIONES DE NAVEGACIÓN (GLOBALES) ---
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
@@ -23,13 +25,48 @@ window.toggleMenu = function() {
     }
 }
 
-// --- CARGA DE DATOS ---
+// ESTA FUNCIÓN ES LA QUE ACTIVA EL BOTÓN AZUL
+window.abrirAgenda = function() {
+    console.log("🔔 Intentando abrir agenda (Función Global)...");
+    const modal = document.getElementById('modalAgenda');
+    if (modal) {
+        modal.style.display = 'block';
+        window.renderAgendaProveedores();
+    } else {
+        console.error("❌ Error: No existe el elemento 'modalAgenda' en el HTML.");
+    }
+};
 
+window.renderAgendaProveedores = function() {
+    const contenedor = document.getElementById('agendaContent');
+    if (!contenedor) return;
+
+    if (todosLosProveedores.length === 0) {
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados o cargando...</p>';
+        return;
+    }
+
+    contenedor.innerHTML = todosLosProveedores.map(p => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
+            <div>
+                <div style="font-weight:bold; color:#1e293b;">${p.nombre}</div>
+                <div style="font-size:0.8rem; color:#64748b;">
+                    <i class="fas fa-phone"></i> ${p.telefono || 'Sin teléfono'} | 
+                    <i class="fas fa-tag"></i> ${p.contacto || 'Sin contacto'}
+                </div>
+            </div>
+            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
+                <i class="fas fa-phone-alt"></i>
+            </a>
+        </div>
+    `).join('');
+};
+
+// --- CARGA DE DATOS DESDE API ---
 async function fetchInventory() {
     try {
         const response = await fetch('/api/inventory');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
         const result = await response.json();
         
         if (result.success) {
@@ -41,19 +78,11 @@ async function fetchInventory() {
                 precio_m2_costo: Number(m.precio_m2_costo) || 0,
                 punto_reorden: Number(m.punto_reorden) || 1.5
             }));
-
             renderTable(todosLosMateriales);
             actualizarDatalistMateriales();
-
-            const materialesConProblemas = todosLosMateriales.filter(m => m.stock_actual_m2 < 0);
-            if (materialesConProblemas.length > 0) {
-                console.warn("⚠️ Detectados materiales con stock negativo.");
-            }
         }
     } catch (error) {
         console.error("❌ Error inventario:", error);
-        const tableBody = document.getElementById('inventoryTable');
-        if (tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Error al conectar con el servidor.</td></tr>';
     }
 }
 
@@ -61,13 +90,12 @@ async function fetchProviders() {
     try {
         const response = await fetch('/api/providers');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
         const result = await response.json();
         const data = result.success ? result.data : result; 
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
-            // Si la agenda está abierta mientras se cargan, la refrescamos
+            // Refrescar si el modal está abierto
             if (document.getElementById('modalAgenda')?.style.display === 'block') {
                 window.renderAgendaProveedores();
             }
@@ -78,12 +106,10 @@ async function fetchProviders() {
 }
 
 // --- RENDERIZADO DE TABLA ---
-
 function renderTable(materials) {
     const tableBody = document.getElementById('inventoryTable');
     if (!tableBody) return;
     tableBody.innerHTML = '';
-
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
     materials.forEach(m => {
@@ -148,8 +174,7 @@ function renderTable(materials) {
     });
 }
 
-// --- EVENTOS ---
-
+// --- CONFIGURACIÓN DE EVENTOS ---
 function configurarEventos() {
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
@@ -176,7 +201,7 @@ function configurarEventos() {
                 body: JSON.stringify(data)
             });
             if (res.ok) { 
-                cerrarModales(); 
+                window.cerrarModales(); 
                 await fetchInventory(); 
                 e.target.reset(); 
                 alert("✅ Stock actualizado exitosamente");
@@ -198,44 +223,17 @@ function configurarEventos() {
             body: JSON.stringify(payload)
         });
         if (res.ok) { 
-            cerrarModales(); 
+            window.cerrarModales(); 
             await fetchInventory();
         }
     });
 }
 
-// --- FUNCIONES GLOBALES (VINCULADAS A WINDOW) ---
-
-window.renderAgendaProveedores = function() {
-    const contenedor = document.getElementById('agendaContent');
-    if (!contenedor) return;
-
-    if (todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados o cargando...</p>';
-        return;
-    }
-
-    contenedor.innerHTML = todosLosProveedores.map(p => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
-            <div>
-                <div style="font-weight:bold; color:#1e293b;">${p.nombre}</div>
-                <div style="font-size:0.8rem; color:#64748b;">
-                    <i class="fas fa-phone"></i> ${p.telefono || 'Sin teléfono'} | 
-                    <i class="fas fa-tag"></i> ${p.contacto || 'Sin contacto'}
-                </div>
-            </div>
-            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
-                <i class="fas fa-phone-alt"></i>
-            </a>
-        </div>
-    `).join('');
-};
-
+// --- FUNCIONES DE MODAL Y UTILIDADES (GLOBALES) ---
 window.verHistorial = async function(id, nombre) {
     try {
         const response = await fetch(`/api/inventory/history/${id}`);
         const result = await response.json();
-        
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedor = document.getElementById('listaHistorialPrecios');
         const labelNombre = document.getElementById('historialMaterialNombre');
@@ -266,11 +264,8 @@ window.verHistorial = async function(id, nombre) {
         } else {
             if (contenedor) contenedor.innerHTML = `<div style="text-align:center; padding:10px; font-size:0.8rem;">Sin movimientos registrados.</div>`;
         }
-        
         if (modal) modal.style.display = 'block';
-    } catch (error) { 
-        console.error("Error historial:", error); 
-    }
+    } catch (error) { console.error("Error historial:", error); }
 };
 
 window.eliminarMaterial = async function(id) {
@@ -278,9 +273,7 @@ window.eliminarMaterial = async function(id) {
         try {
             const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
             if (res.ok) await fetchInventory();
-        } catch (error) {
-            console.error("Error al eliminar:", error);
-        }
+        } catch (error) { console.error("Error al eliminar:", error); }
     }
 };
 
@@ -291,16 +284,12 @@ window.cerrarModales = function() {
 window.prepararAjuste = function(id, nombre, stockActual, puntoReorden) {
     const adjustId = document.getElementById('adjustId');
     if (adjustId) adjustId.value = id;
-    
     const nameLabel = document.getElementById('adjustMaterialNombre');
     if (nameLabel) nameLabel.innerText = nombre;
-    
     const qtyInput = document.getElementById('adjustCantidad');
     if (qtyInput) qtyInput.value = stockActual;
-    
     const reorderInput = document.getElementById('adjustReorden');
     if (reorderInput) reorderInput.value = puntoReorden || 1.5;
-    
     const modal = document.getElementById('modalAjuste');
     if (modal) modal.style.display = 'block';
 };
@@ -315,13 +304,3 @@ function actualizarDatalistMateriales() {
     const list = document.getElementById('listaMateriales');
     if (list) list.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
-
-// Función que dispara el botón azul en el HTML
-window.abrirAgenda = function() {
-    console.log("Abriendo agenda...");
-    const modal = document.getElementById('modalAgenda');
-    if (modal) {
-        modal.style.display = 'block';
-        window.renderAgendaProveedores();
-    }
-};
