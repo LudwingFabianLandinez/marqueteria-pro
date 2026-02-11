@@ -20,7 +20,7 @@
         body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; display: flex; background-color: #f4f7f6; }
 
         /* Sidebar */
-        .sidebar { width: 250px; background-color: var(--primary); color: white; height: 100vh; padding: 20px; position: fixed; }
+        .sidebar { width: 250px; background-color: var(--primary); color: white; height: 100vh; padding: 20px; position: fixed; z-index: 1000; }
         .sidebar h2 { text-align: center; border-bottom: 2px solid var(--accent); padding-bottom: 15px; font-size: 1.2rem; }
         .sidebar nav a { display: block; color: white; text-decoration: none; padding: 15px; margin: 10px 0; border-radius: 8px; transition: 0.3s; }
         .sidebar nav a:hover { background-color: var(--secondary); padding-left: 25px; }
@@ -111,7 +111,7 @@
                     </tr>
                 </thead>
                 <tbody id="tablaVentas">
-                    </tbody>
+                </tbody>
             </table>
         </div>
     </div>
@@ -124,41 +124,42 @@
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 // Llamada a la API de estadísticas
-                const response = await fetch('/api/stats/dashboard');
+                const response = await fetch('/.netlify/functions/server/stats/dashboard'); // Ruta corregida para Netlify
                 const result = await response.json();
 
                 if (result.success) {
                     const { ventasHoy, numVentasHoy, alertas, ultimasVentas } = result.data;
 
-                    // 1. Actualizar Tarjetas
-                    document.getElementById('totalVentas').innerText = formatoMoneda.format(ventasHoy);
-                    document.getElementById('cantidadVentas').innerText = `${numVentasHoy} ventas hoy`;
-                    document.getElementById('clientesHoy').innerText = numVentasHoy;
+                    document.getElementById('totalVentas').innerText = formatoMoneda.format(ventasHoy || 0);
+                    document.getElementById('cantidadVentas').innerText = `${numVentasHoy || 0} ventas hoy`;
+                    document.getElementById('clientesHoy').innerText = numVentasHoy || 0;
 
-                    // 2. Gestionar Alertas de Inventario
                     const contAlertas = document.getElementById('contenedorAlertas');
-                    if (alertas.length === 0) {
+                    if (!alertas || alertas.length === 0) {
                         contAlertas.innerHTML = '<p style="color:var(--success); font-weight:bold;"><i class="fas fa-check-circle"></i> Stock al día</p>';
                     } else {
                         contAlertas.innerHTML = alertas.map(m => `
                             <div class="alert-item">
                                 <span>${m.nombre}</span>
-                                <span class="badge-danger">${m.stock_actual_m2.toFixed(2)} m²</span>
+                                <span class="badge-danger">${(m.stock_actual_m2 || 0).toFixed(2)} m²</span>
                             </div>
                         `).join('');
                     }
 
-                    // 3. Llenar Tabla de Ventas
                     const tabla = document.getElementById('tablaVentas');
-                    tabla.innerHTML = ultimasVentas.map(v => `
-                        <tr>
-                            <td><strong>#${v.numeroFactura}</strong></td>
-                            <td><i class="far fa-user"></i> ${v.cliente.nombre || 'Mostrador'}</td>
-                            <td>${new Date(v.createdAt).toLocaleDateString()}</td>
-                            <td><span style="color: var(--success); font-size: 0.85rem;"><i class="fas fa-check"></i> Pagado</span></td>
-                            <td><span class="badge-price">${formatoMoneda.format(v.totalFactura)}</span></td>
-                        </tr>
-                    `).join('');
+                    if (ultimasVentas && ultimasVentas.length > 0) {
+                        tabla.innerHTML = ultimasVentas.map(v => `
+                            <tr>
+                                <td><strong>#${v.numeroFactura}</strong></td>
+                                <td><i class="far fa-user"></i> ${v.cliente?.nombre || 'Mostrador'}</td>
+                                <td>${new Date(v.createdAt).toLocaleDateString()}</td>
+                                <td><span style="color: var(--success); font-size: 0.85rem;"><i class="fas fa-check"></i> Pagado</span></td>
+                                <td><span class="badge-price">${formatoMoneda.format(v.totalFactura)}</span></td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tabla.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay ventas registradas hoy</td></tr>';
+                    }
                 }
             } catch (error) { 
                 console.error("Error cargando dashboard:", error);
