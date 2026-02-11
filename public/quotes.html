@@ -4,11 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cotizador Pro - Marquetería</title>
-    <link rel="stylesheet" href="/css/styles.css?v=1.2">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/dist/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
         body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; }
+        .sidebar { width: 250px; background-color: #2c3e50; color: white; height: 100vh; padding: 20px; position: fixed; }
+        .sidebar h1 { font-size: 1.2rem; text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
+        .sidebar a { display: block; color: white; text-decoration: none; padding: 15px; border-radius: 8px; margin: 10px 0; transition: 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background-color: #34495e; transform: translateX(5px); }
+        .sidebar a.active { background-color: #3498db; }
+
         .main-content { margin-left: 250px; flex-grow: 1; padding: 40px; }
 
         .quote-container { 
@@ -69,15 +75,6 @@
             background: #f0f7ff; 
         }
 
-        .confirm-sale-box {
-            background: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #c8e6c9;
-            margin-top: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
-
         .res-line { display: flex; justify-content: space-between; margin-bottom: 8px; color: #2c3e50; }
         .total-final { 
             font-size: 1.5em; 
@@ -88,16 +85,8 @@
             font-weight: bold; 
         }
 
-        .abono-destacado {
-            background: #fff9c4;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #fbc02d;
-            margin: 15px 0;
-        }
-
         @media print {
-            .sidebar, .btn-calc, .input-group, .materials-grid, h2, label, .confirm-sale-box { display: none !important; }
+            .sidebar, .btn-calc, .input-group, .materials-grid, h2, label { display: none !important; }
             .main-content { margin: 0; padding: 0; }
             .quote-container { box-shadow: none; border: none; }
             #resultado { border: none; background: white; display: block !important; }
@@ -109,10 +98,10 @@
     <aside class="sidebar">
         <div class="logo"><h1>MARQUETERÍA</h1></div>
         <nav class="menu">
-            <a href="/dashboard.html" class="menu-item">🏠 Inicio</a>
-            <a href="/dashboard.html" class="menu-item">📦 Inventario</a>
-            <a href="/quotes.html" class="menu-item active">💰 Nueva Cotización</a>
-            <a href="/history.html" class="menu-item">📜 Historial de Ventas</a>
+            <a href="inventory.html" class="menu-item">🏠 Inicio</a>
+            <a href="inventory.html" class="menu-item">📦 Inventario</a>
+            <a href="quotes.html" class="menu-item active">💰 Nueva Cotización</a>
+            <a href="history.html" class="menu-item">📜 Historial de Ventas</a>
         </nav>
     </aside>
 
@@ -207,6 +196,7 @@
         </div>
     </main>
 
+    <script src="js/api.js"></script>
     <script src="js/quotes.js"></script>
 </body>
 </html>
