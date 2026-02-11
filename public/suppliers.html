@@ -25,7 +25,6 @@
             min-height: 100vh;
         }
 
-        /* Contenedor Principal */
         .main-card {
             background: white;
             width: 100%;
@@ -44,9 +43,7 @@
         }
 
         .card-header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 0.5px; }
-
         .card-body { padding: 30px; }
-
         .form-group { margin-bottom: 18px; }
 
         input, select {
@@ -58,12 +55,6 @@
             font-size: 0.95rem;
             background-color: #ffffff;
             transition: all 0.3s ease;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
         }
 
         .form-row {
@@ -85,10 +76,8 @@
             padding: 16px;
             border-radius: 12px;
             font-weight: 700;
-            font-size: 1rem;
             cursor: pointer;
             border: none;
-            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -96,10 +85,7 @@
             text-transform: uppercase;
             background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-blue) 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
         }
-
-        .btn-save:hover { transform: translateY(-2px); opacity: 0.9; }
 
         .btn-consult {
             background: #10b981;
@@ -113,26 +99,20 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            transition: 0.3s;
         }
-
-        .btn-consult:hover { background: #059669; }
 
         .btn-cancel {
             width: 100%;
             padding: 12px;
             border-radius: 12px;
             font-weight: 600;
-            cursor: pointer;
             border: 1.5px solid #e2e8f0;
             background: #ffffff;
             color: #64748b;
             text-decoration: none;
             text-align: center;
-            transition: all 0.3s ease;
         }
 
-        /* Estilos de la Consulta (Overlay) */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -153,7 +133,6 @@
             padding: 25px;
             overflow-y: auto;
             position: relative;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -168,27 +147,27 @@
         <h2><i class="fas fa-truck-loading"></i> Nuevo Proveedor</h2>
     </div>
     <div class="card-body">
-        <form id="supplierForm">
+        <form id="supplierForm" onsubmit="event.preventDefault(); manejarGuardado();">
             <div class="form-group">
-                <input type="text" id="nombre" name="nombre" placeholder="Nombre Comercial *" required>
+                <input type="text" id="nombre" placeholder="Nombre Comercial *" required>
             </div>
             
             <div class="form-row">
-                <input type="text" id="nit" name="nit" placeholder="NIT o Identificación">
-                <input type="text" id="contacto" name="contacto" placeholder="Nombre del Contacto">
+                <input type="text" id="nit" placeholder="NIT o Identificación">
+                <input type="text" id="contacto" placeholder="Nombre del Contacto">
             </div>
 
             <div class="form-row">
-                <input type="text" id="telefono" name="telefono" placeholder="Teléfono / WhatsApp">
-                <input type="email" id="correo" name="correo" placeholder="Correo Electrónico">
+                <input type="text" id="telefono" placeholder="Teléfono / WhatsApp">
+                <input type="email" id="correo" placeholder="Correo Electrónico">
             </div>
 
             <div class="form-group">
-                <input type="text" id="direccion" name="direccion" placeholder="Dirección de la Bodega">
+                <input type="text" id="direccion" placeholder="Dirección de la Bodega">
             </div>
 
             <div class="form-group">
-                <select id="categoria" name="categoria">
+                <select id="categoria">
                     <option value="">-- Categoría de Insumos --</option>
                     <option value="Vidrios">Vidrios</option>
                     <option value="Marcos">Marcos / Molduras</option>
@@ -202,23 +181,21 @@
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
                 
-                <button type="button" id="btnConsultarProveedores" class="btn-consult">
+                <button type="button" class="btn-consult" onclick="abrirModalConsulta()">
                     <i class="fas fa-search"></i> CONSULTAR PROVEEDORES
                 </button>
 
-                <a href="dashboard.html" class="btn-cancel">
-                    Descartar y Salir
-                </a>
+                <a href="dashboard.html" class="btn-cancel">Descartar y Salir</a>
             </div>
         </form>
     </div>
 </div>
 
-<div id="modalConsultar" class="modal-overlay">
+<div id="modalConsultar" class="modal-overlay" onclick="if(event.target==this) cerrarModal()">
     <div class="modal-view">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
             <h3 style="margin:0; color: var(--primary-dark);">Proveedores Registrados</h3>
-            <button id="btnCerrarModal" style="cursor:pointer; border:none; background:#fee2e2; color:#ef4444; padding: 5px 12px; border-radius: 8px; font-size: 1.2rem; font-weight: bold;">&times; Cerrar</button>
+            <button onclick="cerrarModal()" style="cursor:pointer; border:none; background:#fee2e2; color:#ef4444; padding: 5px 12px; border-radius: 8px; font-weight: bold;">&times; Cerrar</button>
         </div>
         <table>
             <thead>
@@ -235,97 +212,79 @@
 
 <script src="js/api.js"></script>
 <script>
-    // Usamos window.onload para asegurar que TODO (incluyendo api.js) esté listo
-    window.onload = function() {
-        console.log("Sistema cargado y listo.");
+    /**
+     * LAS FUNCIONES AHORA SON GLOBALES (window.xxx)
+     * Esto garantiza que los botones las encuentren siempre.
+     */
 
-        const form = document.getElementById('supplierForm');
-        const btnConsultar = document.getElementById('btnConsultarProveedores');
-        const btnCerrar = document.getElementById('btnCerrarModal');
+    window.abrirModalConsulta = async function() {
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
+        
+        // 1. Mostrar modal inmediatamente para confirmar que el botón sirve
+        modal.style.display = 'flex';
+        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos...</td></tr>';
 
-        // 1. MANEJO DEL FORMULARIO (GUARDAR)
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            const btnSave = document.getElementById('btnGuardarDB');
-            const originalHTML = btnSave.innerHTML;
-            
-            btnSave.disabled = true;
-            btnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
+        try {
+            // 2. Intentar llamar a la API
+            if (window.API && window.API.getProviders) {
+                const res = await window.API.getProviders();
+                const proveedores = res.data || res;
 
-            const datos = {
-                nombre: document.getElementById('nombre').value,
-                nit: document.getElementById('nit').value,
-                contacto: document.getElementById('contacto').value,
-                telefono: document.getElementById('telefono').value,
-                correo: document.getElementById('correo').value,
-                direccion: document.getElementById('direccion').value,
-                categoria: document.getElementById('categoria').value
-            };
-
-            try {
-                // Verificación de seguridad de la API
-                if(window.API && (window.API.saveSupplier || window.API.saveProvider)) {
-                    const saveFunc = window.API.saveSupplier || window.API.saveProvider;
-                    await saveFunc(datos);
-                    alert("✅ Proveedor guardado correctamente");
-                    window.location.href = "dashboard.html";
+                if (Array.isArray(proveedores) && proveedores.length > 0) {
+                    tabla.innerHTML = proveedores.map(p => `
+                        <tr>
+                            <td><strong>${p.nombre || 'N/A'}</strong></td>
+                            <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'Gral'}</span></td>
+                            <td>${p.telefono || 'N/A'}</td>
+                        </tr>
+                    `).join('');
                 } else {
-                    throw new Error("La conexión con la base de datos no está lista.");
+                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados.</td></tr>';
                 }
-            } catch (error) {
-                console.error(error);
-                alert("❌ Error: " + error.message);
-                btnSave.disabled = false;
-                btnSave.innerHTML = originalHTML;
+            } else {
+                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange; padding:20px;">Error: api.js no cargado correctamente.</td></tr>';
             }
+        } catch (error) {
+            console.error(error);
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error de conexión con el servidor.</td></tr>';
+        }
+    };
+
+    window.cerrarModal = function() {
+        document.getElementById('modalConsultar').style.display = 'none';
+    };
+
+    window.manejarGuardado = async function() {
+        const btn = document.getElementById('btnGuardarDB');
+        const originalText = btn.innerHTML;
+        
+        const datos = {
+            nombre: document.getElementById('nombre').value,
+            nit: document.getElementById('nit').value,
+            contacto: document.getElementById('contacto').value,
+            telefono: document.getElementById('telefono').value,
+            correo: document.getElementById('correo').value,
+            direccion: document.getElementById('direccion').value,
+            categoria: document.getElementById('categoria').value
         };
 
-        // 2. LÓGICA DE CONSULTA (ABRIR MODAL)
-        btnConsultar.onclick = async () => {
-            console.log("Intentando abrir modal...");
-            modal.style.display = 'flex';
-            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos...</td></tr>';
+        try {
+            btn.disabled = true;
+            btn.innerHTML = "GUARDANDO...";
 
-            try {
-                if(window.API && window.API.getProviders) {
-                    const proveedoresRaw = await window.API.getProviders();
-                    const proveedores = proveedoresRaw.data || proveedoresRaw;
-
-                    if(Array.isArray(proveedores) && proveedores.length > 0) {
-                        tabla.innerHTML = '';
-                        proveedores.forEach(p => {
-                            tabla.innerHTML += `
-                                <tr>
-                                    <td><strong>${p.nombre || 'Sin nombre'}</strong></td>
-                                    <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'General'}</span></td>
-                                    <td>${p.telefono || 'N/A'}</td>
-                                </tr>`;
-                        });
-                    } else {
-                        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados aún.</td></tr>';
-                    }
-                } else {
-                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange; padding:20px;">Error: La API no respondió. Revisa js/api.js</td></tr>';
-                }
-            } catch (e) {
-                console.error("Error en consulta:", e);
-                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al conectar con el servidor.</td></tr>';
+            if (window.API && window.API.saveSupplier) {
+                await window.API.saveSupplier(datos);
+                alert("✅ Proveedor guardado correctamente");
+                window.location.href = "dashboard.html";
+            } else {
+                throw new Error("API no disponible");
             }
-        };
-
-        // 3. CERRAR MODAL
-        btnCerrar.onclick = () => {
-            modal.style.display = 'none';
-        };
-
-        // 4. CERRAR AL HACER CLIC FUERA
-        window.onclick = (event) => {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        };
+        } catch (error) {
+            alert("❌ Error: " + error.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     };
 </script>
 
