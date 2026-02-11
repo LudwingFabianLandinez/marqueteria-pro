@@ -98,13 +98,22 @@
             box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
         }
 
-        .btn-save:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
-            filter: brightness(1.1);
+        .btn-consult {
+            background: #10b981; /* Verde esmeralda */
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: 0.3s;
         }
 
-        .btn-save:active { transform: translateY(-1px); }
+        .btn-consult:hover { background: #059669; }
 
         .btn-cancel {
             width: 100%;
@@ -118,11 +127,31 @@
             transition: all 0.3s ease;
         }
 
-        .btn-cancel:hover {
-            background: #fff1f1;
-            color: #ef4444;
-            border-color: #fecaca;
+        /* --- ESTILOS PARA EL MODAL DE CONSULTA (EVITA PANTALLA BORROSA) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
         }
+
+        .modal-view {
+            background: white;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            border-radius: 20px;
+            padding: 25px;
+            overflow-y: auto;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: var(--bg-light); padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1.5px solid #f1f5f9; }
     </style>
 </head>
 <body>
@@ -165,6 +194,11 @@
                 <button type="submit" class="btn-save">
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
+                
+                <button type="button" class="btn-consult" onclick="abrirConsulta()">
+                    <i class="fas fa-search"></i> CONSULTAR PROVEEDORES
+                </button>
+
                 <button type="button" class="btn-cancel" onclick="window.history.back()">
                     Descartar y Salir
                 </button>
@@ -173,8 +207,64 @@
     </div>
 </div>
 
-<script src="/js/api.js"></script>
-<script src="/js/suppliers.js"></script>
+<div id="modalConsultar" class="modal-overlay">
+    <div class="modal-view">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Proveedores Registrados</h3>
+            <button onclick="cerrarConsulta()" style="cursor:pointer; border:none; background:none; font-size:1.5rem;">&times;</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th>Teléfono</th>
+                </tr>
+            </thead>
+            <tbody id="listaProveedoresBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/suppliers.js"></script>
+
+<script>
+    // Lógica para el Modal de Consulta
+    async function abrirConsulta() {
+        const modal = document.getElementById('modalConsultar');
+        const tabla = document.getElementById('listaProveedoresBody');
+        
+        modal.style.display = 'flex';
+        tabla.innerHTML = '<tr><td colspan="3">Cargando...</td></tr>';
+
+        try {
+            // Usamos el objeto API que definimos en api.js
+            const response = await API.getProviders();
+            if(response.success) {
+                tabla.innerHTML = '';
+                response.data.forEach(p => {
+                    tabla.innerHTML += `
+                        <tr>
+                            <td>${p.nombre}</td>
+                            <td>${p.categoria}</td>
+                            <td>${p.telefono}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tabla.innerHTML = '<tr><td colspan="3">No hay datos.</td></tr>';
+            }
+        } catch (e) {
+            tabla.innerHTML = '<tr><td colspan="3">Error al conectar.</td></tr>';
+        }
+    }
+
+    function cerrarConsulta() {
+        document.getElementById('modalConsultar').style.display = 'none';
+    }
+</script>
 
 </body>
 </html>
