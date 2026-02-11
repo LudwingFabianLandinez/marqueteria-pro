@@ -8,6 +8,41 @@ const API_URL = window.location.hostname === 'localhost' || window.location.host
     ? 'http://localhost:4000/api'  // URL para desarrollo local
     : '/api';                      // URL para Netlify (Producción)
 
-// Exportar para que otros archivos lo usen si es necesario
-// Aunque en tu caso, al cargarlo en el HTML, API_URL se vuelve global.
+// Objeto Global API para centralizar las llamadas de todos los módulos
+const API = {
+    /**
+     * Obtener lista de proveedores
+     */
+    getProviders: async () => {
+        try {
+            const response = await fetch(`${API_URL}/providers`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("🚨 Error en API.getProviders:", error);
+            return { success: false, data: [], error: error.message };
+        }
+    },
+
+    /**
+     * Guardar un nuevo proveedor
+     */
+    saveSupplier: async (supplierData) => {
+        try {
+            const response = await fetch(`${API_URL}/providers`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(supplierData)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("🚨 Error en API.saveSupplier:", error);
+            return { success: false, message: "No se pudo conectar con el servidor" };
+        }
+    }
+};
+
+// Log de confirmación
 console.log(`🔌 Conectado a la API en: ${API_URL}`);
