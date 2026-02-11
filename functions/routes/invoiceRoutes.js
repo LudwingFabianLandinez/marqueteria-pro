@@ -15,54 +15,67 @@ const {
  * Versión con Blindaje de Reportes y Manejo de Errores (Anti-Crash)
  */
 
+// Middleware de Logging específico para Facturación
+router.use((req, res, next) => {
+    const fecha = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+    console.log(`[BillingLog] ${fecha} - ${req.method} ${req.url}`);
+    next();
+});
+
 // 1. OBTENER REPORTE DIARIO 
 // SUMADO: Protección contra fallos de agregación si no hay datos hoy
 router.get('/report/daily', (req, res, next) => {
     try {
-        const ahora = new Date();
-        const fechaLocal = ahora.toLocaleString('es-CO', { timeZone: 'America/Bogota' });
-        
-        console.log(`📊 Petición de Reporte Consolidado: ${fechaLocal}`);
-        
-        // El middleware pasa al controlador getDailyReport
+        console.log(`📊 Generando Reporte Consolidado...`);
         next();
     } catch (error) {
         console.error("❌ Error en el middleware de reporte:", error);
-        // SUMADO: Respuesta JSON limpia para evitar el cartel "Error en reporte" en el front
-        res.status(200).json({ success: false, data: [], message: "No se pudo preparar el reporte" });
+        res.status(200).json({ 
+            success: false, 
+            data: { totalVentas: 0, totalAbonos: 0, totalPendiente: 0, ordenes: [] }, 
+            message: "No se pudo preparar el reporte diario." 
+        });
     }
 }, getDailyReport);
 
 // 2. CREAR NUEVA ORDEN DE TRABAJO
 // CORRECCIÓN: Blindaje para permitir costos en 0 si es necesario (evita bloqueos de órdenes de prueba)
 router.post('/', async (req, res, next) => {
-    console.log("📝 Iniciando guardado de OT...");
+    console.log("📝 Validando integridad de la nueva OT...");
     
     // Capturamos las variantes del frontend con valores por defecto seguros
     const totalFactura = Number(req.body.totalFactura) || 0;
     const itemsAProcesar = req.body.items || req.body.materiales || [];
     const manoObra = Number(req.body.manoObraTotal || req.body.manoObra) || 0;
+    const cliente = req.body.cliente;
 
-    // VALIDACIÓN FINANCIERA: Si el total es 0, enviamos error claro en lugar de dejar que el servidor falle
-    if (totalFactura <= 0) {
+    // VALIDACIÓN DE CLIENTE: Mínimo el nombre es requerido
+    if (!cliente || !cliente.nombre) {
         return res.status(400).json({ 
             success: false, 
-            error: "La orden no puede procesarse con valor total de $0." 
+            error: "⚠️ El nombre del cliente es obligatorio para registrar la venta." 
         });
     }
 
-    console.log(`💰 Verificación financiera: Venta: ${totalFactura} | MO: ${manoObra}`);
+    // VALIDACIÓN FINANCIERA: Si el total es 0, enviamos error claro
+    if (totalFactura <= 0) {
+        return res.status(400).json({ 
+            success: false, 
+            error: "⚠️ La orden no puede procesarse con valor total de $0." 
+        });
+    }
+
+    console.log(`💰 Verificación: Venta: ${totalFactura} | Items: ${itemsAProcesar.length} | MO: ${manoObra}`);
     
-    // VALIDACIÓN DE MATERIALES: Ahora permitimos continuar si es un servicio puro (solo mano de obra)
-    // Esto previene el error cuando el array de materiales llega vacío pero hay un total de venta.
+    // VALIDACIÓN DE MATERIALES O SERVICIO
     if (!Array.isArray(itemsAProcesar) || itemsAProcesar.length === 0) {
         if (manoObra <= 0) {
             return res.status(400).json({ 
                 success: false, 
-                error: "La orden debe incluir al menos un material o mano de obra." 
+                error: "⚠️ La orden debe incluir al menos un material o mano de obra." 
             });
         }
-        console.warn("⚠️ Orden sin materiales pero con Mano de Obra detectada.");
+        console.warn("⚠️ Orden de servicio puro detectada (Solo Mano de Obra).");
     }
 
     next();
@@ -77,30 +90,32 @@ router.get('/:id', getInvoiceById);
 // 5. REGISTRAR ABONO A UNA CUENTA PENDIENTE
 router.put('/:id/payment', (req, res, next) => {
     const montoAbono = Number(req.body.montoAbono) || 0;
-    console.log(`💰 Procesando abono de ${montoAbono} para factura ID: ${req.params.id}`);
     
     if (montoAbono <= 0) {
-        return res.status(400).json({ success: false, error: "El monto del abono debe ser mayor a 0." });
+        return res.status(400).json({ 
+            success: false, 
+            error: "⚠️ El monto del abono debe ser un número positivo." 
+        });
     }
+    
+    console.log(`💰 Registrando abono: ${montoAbono} a Factura ID: ${req.params.id}`);
     next();
 }, addPayment);
 
 // 6. ELIMINAR / ANULAR FACTURA
 router.delete('/:id', (req, res, next) => {
-    console.warn(`⚠️ ALERTA: Anulando factura ID: ${req.params.id}. Se reintegrará stock.`);
+    console.warn(`🚨 SOLICITUD DE ANULACIÓN: Factura ID ${req.params.id}. Se procederá a reintegrar stock.`);
     next();
 }, deleteInvoice);
 
 // SUMADO: MANEJADOR DE ERRORES GLOBAL PARA ESTE ROUTER
-// Esto captura cualquier error de MongoDB (como los de tus capturas) y evita que el front muestre "Error en reporte"
+// Esto captura fallos de MongoDB o errores de lógica en el controlador
 router.use((err, req, res, next) => {
-    console.error("🚨 ERROR INTERCEPTADO EN EL SERVIDOR:", err.message);
+    console.error("🚨 ERROR INTERCEPTADO EN FACTURACIÓN:", err.message);
     
-    // Si el error viene de un fallo de cálculo o dato nulo en la BD
-    res.status(200).json({ 
+    res.status(500).json({ 
         success: false, 
-        message: "Ocurrió un problema con los datos de esta orden.",
-        data: [], // Enviamos array vacío para que el reporte no se rompa
+        message: "Ocurrió un error al procesar la transacción financiera.",
         error: err.message 
     });
 });
