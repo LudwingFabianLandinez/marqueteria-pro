@@ -132,14 +132,13 @@ body {
 }
 
 /* ============================================ */
-/* CONTENIDO PRINCIPAL - CENTRADO MEJORADO */
+/* CONTENIDO PRINCIPAL */
 /* ============================================ */
 .main-content {
     margin-left: 280px;
     flex: 1;
     padding: 30px 40px;
     background: var(--gray-100);
-    /* Ajuste para centrar contenido en pantallas grandes */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -147,11 +146,10 @@ body {
 
 .container-fluid {
     width: 100%;
-    max-width: 1200px; /* Limita el ancho para que no se vea estirado */
+    max-width: 1200px;
     margin: 0 auto;
 }
 
-/* HEADER */
 .page-header {
     margin-bottom: 35px;
     width: 100%;
@@ -197,18 +195,6 @@ body {
     overflow: hidden;
 }
 
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100px;
-    height: 100px;
-    background: linear-gradient(135deg, transparent 0%, var(--gray-100) 100%);
-    border-radius: 0 0 0 100px;
-    opacity: 0.5;
-}
-
 .stat-card:hover {
     transform: translateY(-5px);
     box-shadow: var(--shadow-xl);
@@ -219,40 +205,8 @@ body {
 .stat-card.info { border-left-color: var(--info); }
 .stat-card.danger { border-left-color: var(--danger); }
 
-.stat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.stat-label {
-    font-size: 14px;
-    color: var(--gray-700);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-icon {
-    font-size: 28px;
-    opacity: 0.7;
-}
-
-.stat-value {
-    font-size: 32px;
-    font-weight: 700;
-    color: var(--gray-900);
-    margin-bottom: 5px;
-}
-
-.stat-description {
-    font-size: 13px;
-    color: var(--gray-700);
-}
-
 /* ============================================ */
-/* CONTROLES - AJUSTE DE ALINEACIÓN */
+/* CONTROLES */
 /* ============================================ */
 .controls {
     background: white;
@@ -284,82 +238,8 @@ body {
     background: var(--gray-50);
 }
 
-.search-box input:focus {
-    outline: none;
-    border-color: var(--primary-light);
-    background: white;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.search-box::before {
-    content: '🔍';
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 18px;
-}
-
-.controls-buttons {
-    display: flex;
-    gap: 12px;
-}
-
-/* BOTONES PROFESIONALES */
-.btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: var(--shadow-sm);
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
-    color: white;
-}
-
-.btn-success {
-    background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
-    color: white;
-}
-
-.btn-warning {
-    background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
-    color: white;
-}
-
-.btn-info {
-    background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
-    color: white;
-}
-
-.btn-nueva-compra {
-    background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
-    color: white;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    box-shadow: var(--shadow-sm);
-}
-
 /* ============================================ */
-/* TABLAS - CENTRADO DE DATOS */
+/* TABLAS */
 /* ============================================ */
 .table-container {
     background: white;
@@ -379,113 +259,54 @@ body {
     color: white;
 }
 
-.inventory-table th {
+.inventory-table th, .inventory-table td {
     padding: 18px 20px;
-    text-align: center; /* Encabezados centrados */
-    font-weight: 600;
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Alineación específica para legibilidad */
-.inventory-table th:first-child, 
-.inventory-table td:first-child {
-    text-align: left; /* Nombres a la izquierda */
-}
-
-.inventory-table tbody tr {
-    border-bottom: 1px solid var(--gray-200);
-    transition: all 0.2s;
-}
-
-.inventory-table tbody tr:hover {
-    background: var(--gray-50);
-}
-
-.inventory-table td {
-    padding: 18px 20px;
-    font-size: 15px;
-    color: var(--gray-700);
-    text-align: center; /* Celdas de datos centradas */
-}
-
-/* Cajas de Stock centradas */
-.inventory-table td div {
-    margin: 0 auto; 
+    text-align: center;
 }
 
 /* ============================================ */
-/* HISTORIAL DE MOVIMIENTOS */
+/* SOLUCIÓN QUIRÚRGICA PARA MODALES (ANTI-BORROSO) */
 /* ============================================ */
-.movimiento-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 25px;
-    border-bottom: 1px solid var(--gray-100);
-    transition: background 0.2s;
-}
-
-.movimiento-item:hover {
-    background-color: var(--gray-50);
-}
-
-.movimiento-info {
-    text-align: left;
-}
-
-.movimiento-valor {
-    text-align: right;
-    font-weight: 700;
-}
-
-/* Colores por tipo de movimiento */
-.tipo-venta { color: var(--danger); }
-.tipo-compra { color: var(--success); }
-
-/* ============================================ */
-/* MODALES PROFESIONALES */
-/* ============================================ */
-.modal {
-    display: none;
+.modal, .modal-overlay {
+    display: none !important; /* Totalmente oculto */
     position: fixed;
-    z-index: 2000;
+    z-index: 9999 !important;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(8px);
-    animation: fadeIn 0.3s ease;
+    background: rgba(15, 23, 42, 0) !important; /* Fondo transparente inicial */
+    backdrop-filter: none !important;           /* SIN DESENFOQUE inicial */
+    transition: background 0.3s ease, backdrop-filter 0.3s ease;
+    align-items: center;
+    justify-content: center;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+/* Esta clase se añade por JS para mostrar el modal sin errores visuales */
+.modal.active, .modal-overlay.active {
+    display: flex !important;
+    background: rgba(15, 23, 42, 0.75) !important;
+    backdrop-filter: blur(8px) !important;      /* El blur SOLO aparece cuando está activo */
 }
 
 .modal-content {
     background: white;
-    margin: 3% auto;
+    margin: auto;
     padding: 0;
     border-radius: 16px;
     width: 90%;
     max-width: 650px;
     box-shadow: var(--shadow-xl);
-    animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
+    filter: none !important; /* Protege el contenido del desenfoque */
 }
 
-@keyframes slideUp {
-    from {
-        transform: translateY(50px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+.modal.active .modal-content, .modal-overlay.active .modal-view {
+    transform: translateY(0);
+    opacity: 1;
 }
 
 .modal-content h2 {
@@ -495,9 +316,6 @@ body {
     margin: 0;
     font-size: 24px;
     font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 12px;
 }
 
 .modal-content form {
@@ -507,130 +325,25 @@ body {
     gap: 20px;
 }
 
-.modal-content input,
-.modal-content select,
-.modal-content textarea {
-    padding: 14px 16px;
-    border: 2px solid var(--gray-200);
+/* ============================================ */
+/* BOTONES Y OTROS ESTILOS MANTENIDOS */
+/* ============================================ */
+.btn {
+    padding: 12px 24px;
+    border: none;
     border-radius: 10px;
     font-size: 15px;
-    transition: all 0.3s;
-    background: var(--gray-50);
-}
-
-.modal-content input:focus,
-.modal-content select:focus {
-    outline: none;
-    border-color: var(--primary-light);
-    background: white;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* ============================================ */
-/* LISTA DE PROVEEDORES */
-/* ============================================ */
-#listaProveedoresContenedor {
-    max-height: 450px;
-    overflow-y: auto;
-    border: 2px solid var(--gray-200);
-    border-radius: 10px;
-    margin-top: 10px;
-    background: white;
-}
-
-#listaProveedoresContenedor > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 2px solid var(--gray-100);
-}
-
-/* ============================================ */
-/* BOTONES DE ACCIÓN MEJORADOS */
-/* ============================================ */
-.btn-reg-prov, .btn-consulta-azul {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    height: 45px;
-    padding: 0 20px;
-    border: none;
-    border-radius: 8px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.btn-reg-prov {
-    background-color: #f5f3ff;
-    color: #7c3aed;
-    border: 1px solid #ddd6fe;
-}
+.btn-primary { background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%); color: white; }
+.btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; }
 
-.btn-reg-prov:hover {
-    background-color: #7c3aed;
-    color: white;
-}
-
-.btn-consulta-azul {
-    background-color: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #dbeafe;
-}
-
-.btn-consulta-azul:hover {
-    background-color: #2563eb;
-    color: white;
-}
-
-/* ============================================ */
-/* SCROLLBAR PERSONALIZADO */
-/* ============================================ */
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--gray-100);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--gray-300);
-    border-radius: 10px;
-}
-
-/* ============================================ */
-/* RESPONSIVE */
-/* ============================================ */
-@media (max-width: 1024px) {
-    .sidebar { width: 240px; }
-    .main-content { margin-left: 240px; }
-}
-
-@media (max-width: 768px) {
-    .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-    }
-    .main-content {
-        margin-left: 0;
-        padding: 20px;
-    }
-    .controls { flex-direction: column; }
-}
-
-/* UTILIDADES */
-.text-center { text-align: center; }
-.mb-20 { margin-bottom: 20px; }
-.flex { display: flex; }
-.gap-10 { gap: 10px; }
-
-/* Botones de acción dentro de los formularios/modales */
 .btn-save, .btn-close {
     border: none;
     padding: 12px 20px;
@@ -638,50 +351,11 @@ body {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-size: 0.95rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Estilo para "Guardar / Finalizar" (Generalmente verde o el color del modal) */
-.btn-save {
-    background: #27ae60;
-    color: white;
-}
+.btn-save { background: #27ae60; color: white; }
+.btn-close { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
 
-.btn-save:hover {
-    background: #219150;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-/* Estilo para "Cancelar / Cerrar" */
-.btn-close {
-    background: #f1f5f9;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
-}
-
-.btn-close:hover {
-    background: #e2e8f0;
-    color: #475569;
-}
-
-/* Ajuste específico para el modal de Proveedor para que use su color temático */
-#modalRegistroProv .btn-save {
-    background: #9b59b6;
-}
-#modalRegistroProv .btn-save:hover {
-    background: #8e44ad;
-}
-
-/* Ajuste específico para el modal de Ajuste (Naranja) */
-#modalAjuste .btn-save {
-    background: #f39c12;
-}
-#modalAjuste .btn-save:hover {
-    background: #e67e22;
-}
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 10px; }
