@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proveedores - Marquetería La Chica Morales</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-dark: #1e3a8a;
+            --primary-blue: #2563eb;
+            --purple-header: #9b59b6; 
+            --bg-light: #f1f5f9;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-light);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(30, 58, 138, 0.15);
+        }
+
+        .modal-header {
+            background-color: var(--purple-header);
+            color: white;
+            padding: 30px 25px;
+            text-align: center;
+        }
+
+        .modal-header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 0.5px; }
+
+        .modal-body { padding: 30px; }
+
+        .form-group { margin-bottom: 18px; }
+
+        input, select {
+            width: 100%;
+            padding: 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            background-color: #ffffff;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 18px;
+        }
+
+        .modal-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-top: 15px;
+        }
+
+        .btn-save {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-blue) 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-save:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn-save:active { transform: translateY(-1px); }
+
+        .btn-cancel {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid #e2e8f0;
+            background: #ffffff;
+            color: #64748b;
+            transition: all 0.3s ease;
+        }
+
+        .btn-cancel:hover {
+            background: #fff1f1;
+            color: #ef4444;
+            border-color: #fecaca;
+        }
+    </style>
+</head>
+<body>
+
+<div class="modal-content">
+    <div class="modal-header">
+        <h2><i class="fas fa-truck-loading"></i> Nuevo Proveedor</h2>
+    </div>
+    <div class="modal-body">
+        <form id="supplierForm">
+            <div class="form-group">
+                <input type="text" id="nombre" name="nombre" placeholder="Nombre Comercial (Ej: Vidrios El Mono) *" required>
+            </div>
+            
+            <div class="form-row">
+                <input type="text" id="nit" name="nit" placeholder="NIT o Identificación">
+                <input type="text" id="contacto" name="contacto" placeholder="Nombre del Contacto">
+            </div>
+
+            <div class="form-row">
+                <input type="text" id="telefono" name="telefono" placeholder="Teléfono / WhatsApp">
+                <input type="email" id="correo" name="correo" placeholder="Correo Electrónico">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="direccion" name="direccion" placeholder="Dirección de la Bodega">
+            </div>
+
+            <div class="form-group">
+                <select id="categoria" name="categoria">
+                    <option value="">-- Categoría de Insumos --</option>
+                    <option value="Vidrios">Vidrios</option>
+                    <option value="Marcos">Marcos / Molduras</option>
+                    <option value="Herrajes">Herrajes</option>
+                    <option value="Insumos">Insumos Generales</option>
+                </select>
+            </div>
+
+            <div class="modal-footer">
+                <button type="submit" class="btn-save">
+                    <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
+                </button>
+                <button type="button" class="btn-cancel" onclick="window.history.back()">
+                    Descartar y Salir
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/suppliers.js"></script>
+
+</body>
+</html>

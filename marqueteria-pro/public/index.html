@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Marquetería La Chica Morales</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2c3e50; 
+            --secondary: #34495e; 
+            --accent: #3498db;
+            --danger: #e74c3c; 
+            --success: #2ecc71; 
+            --light: #ecf0f1;
+            --warning: #f1c40f;
+        }
+
+        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; display: flex; background-color: #f4f7f6; }
+
+        /* Sidebar */
+        .sidebar { width: 250px; background-color: var(--primary); color: white; height: 100vh; padding: 20px; position: fixed; }
+        .sidebar h2 { text-align: center; border-bottom: 2px solid var(--accent); padding-bottom: 15px; font-size: 1.2rem; }
+        .sidebar nav a { display: block; color: white; text-decoration: none; padding: 15px; margin: 10px 0; border-radius: 8px; transition: 0.3s; }
+        .sidebar nav a:hover { background-color: var(--secondary); padding-left: 25px; }
+        .sidebar nav a.active { background-color: var(--accent); }
+
+        /* Main Content */
+        .main-content { margin-left: 250px; padding: 40px; width: calc(100% - 250px); }
+        .main-content h1 { color: var(--primary); margin-bottom: 30px; }
+
+        /* Stats Cards */
+        .stats-container { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 25px; 
+            margin-bottom: 40px; 
+        }
+        
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); position: relative; overflow: hidden; }
+        .card h3 { margin: 0; color: #7f8c8d; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 2.2em; font-weight: bold; margin: 15px 0; color: var(--primary); }
+        .card i { position: absolute; right: 20px; top: 20px; font-size: 2rem; opacity: 0.1; }
+
+        /* Alertas e Inventario */
+        .alert-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; align-items: center; }
+        .badge-danger { background-color: var(--danger); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.8em; font-weight: bold; }
+
+        /* Tabla de Ventas */
+        .recent-sales { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .recent-sales h3 { margin-bottom: 20px; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 15px; border-bottom: 2px solid #f1f1f1; color: #7f8c8d; font-weight: 600; }
+        td { padding: 15px; border-bottom: 1px solid #eee; }
+        .badge-price { background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 8px; font-weight: bold; }
+        
+        tr:hover { background-color: #fafafa; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>MARQUETERÍA<br>LA CHICA MORALES</h2>
+        <nav>
+            <a href="index.html" class="active"><i class="fas fa-chart-line"></i> Inicio</a>
+            <a href="inventory.html"><i class="fas fa-boxes"></i> Inventario</a>
+            <a href="quotes.html"><i class="fas fa-file-invoice-dollar"></i> Nueva Cotización</a>
+            <a href="suppliers.html"><i class="fas fa-truck"></i> Proveedores</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <h1><i class="fas fa-tachometer-alt"></i> Panel de Control</h1>
+
+        <div class="stats-container">
+            <div class="card">
+                <i class="fas fa-cash-register"></i>
+                <h3>Ventas de Hoy</h3>
+                <div class="value" id="totalVentas">$ 0</div>
+                <p id="cantidadVentas" style="color: var(--success); font-weight: 500;">0 transacciones</p>
+            </div>
+
+            <div class="card">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Alertas de Stock</h3>
+                <div id="contenedorAlertas" style="margin-top: 10px; max-height: 120px; overflow-y: auto;">
+                    <p>Cargando alertas...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <i class="fas fa-users"></i>
+                <h3>Clientes Atendidos</h3>
+                <div class="value" id="clientesHoy">0</div>
+                <p style="color: #7f8c8d;">Impacto comercial hoy</p>
+            </div>
+        </div>
+
+        <div class="recent-sales">
+            <h3><i class="fas fa-history"></i> Últimas Ventas Realizadas</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>N° Factura</th>
+                        <th>Cliente</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaVentas">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const formatoMoneda = new Intl.NumberFormat('es-CO', {
+            style: 'currency', currency: 'COP', minimumFractionDigits: 0
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Llamada a la API de estadísticas
+                const response = await fetch('/api/stats/dashboard');
+                const result = await response.json();
+
+                if (result.success) {
+                    const { ventasHoy, numVentasHoy, alertas, ultimasVentas } = result.data;
+
+                    // 1. Actualizar Tarjetas
+                    document.getElementById('totalVentas').innerText = formatoMoneda.format(ventasHoy);
+                    document.getElementById('cantidadVentas').innerText = `${numVentasHoy} ventas hoy`;
+                    document.getElementById('clientesHoy').innerText = numVentasHoy;
+
+                    // 2. Gestionar Alertas de Inventario
+                    const contAlertas = document.getElementById('contenedorAlertas');
+                    if (alertas.length === 0) {
+                        contAlertas.innerHTML = '<p style="color:var(--success); font-weight:bold;"><i class="fas fa-check-circle"></i> Stock al día</p>';
+                    } else {
+                        contAlertas.innerHTML = alertas.map(m => `
+                            <div class="alert-item">
+                                <span>${m.nombre}</span>
+                                <span class="badge-danger">${m.stock_actual_m2.toFixed(2)} m²</span>
+                            </div>
+                        `).join('');
+                    }
+
+                    // 3. Llenar Tabla de Ventas
+                    const tabla = document.getElementById('tablaVentas');
+                    tabla.innerHTML = ultimasVentas.map(v => `
+                        <tr>
+                            <td><strong>#${v.numeroFactura}</strong></td>
+                            <td><i class="far fa-user"></i> ${v.cliente.nombre || 'Mostrador'}</td>
+                            <td>${new Date(v.createdAt).toLocaleDateString()}</td>
+                            <td><span style="color: var(--success); font-size: 0.85rem;"><i class="fas fa-check"></i> Pagado</span></td>
+                            <td><span class="badge-price">${formatoMoneda.format(v.totalFactura)}</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) { 
+                console.error("Error cargando dashboard:", error);
+                document.getElementById('contenedorAlertas').innerHTML = '<p style="color:var(--danger)">Error al conectar con el servidor</p>';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial de Compras - La Chica Morales</title>
+    <link rel="stylesheet" href="css/styles.css?v=1.2">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/dist/css/all.min.css">
+    <style>
+        /* Estilos específicos para un acabado profesional y moderno */
+        body { background-color: #f8fafc; }
+
+        .main-container { padding: 40px; max-width: 1400px; margin: 0 auto; }
+
+        /* Contenedor Principal Estilo Premium */
+        .content-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        /* Buscador estilizado igual al Dashboard */
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            max-width: 500px;
+        }
+        .search-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 12px 12px 45px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            background: #f1f5f9;
+            transition: 0.3s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #1e3a8a;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+        }
+
+        /* Botón Regresar */
+        .btn-regresar {
+            background: #1e293b;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.3s;
+        }
+        .btn-regresar:hover { background: #334155; transform: translateY(-2px); }
+
+        /* Tabla Estilizada */
+        .custom-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 10px;
+        }
+        .custom-table th {
+            background: #1e3a8a;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+        }
+        .custom-table th:first-child { border-radius: 10px 0 0 0; }
+        .custom-table th:last-child { border-radius: 0 10px 0 0; }
+        
+        .custom-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            font-size: 0.95rem;
+        }
+        .custom-table tr:hover td { background-color: #f8fafc; }
+
+        .badge-material {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .price-text { font-weight: bold; color: #059669; }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        
+        <header class="header-flex">
+            <div>
+                <h1 style="color: #1e3a8a; margin: 0; font-size: 1.8rem;">
+                    <i class="fas fa-file-invoice-dollar"></i> Historial de Compras
+                </h1>
+                <p style="color: #64748b; margin-top: 5px;">Registro cronológico de entrada de materiales y pagos a proveedores</p>
+            </div>
+            <a href="dashboard.html" class="btn-regresar">
+                <i class="fas fa-chevron-left"></i> Volver al Panel
+            </a>
+        </header>
+
+        <div class="content-card">
+            <div class="header-flex" style="margin-bottom: 20px;">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="purchaseSearch" class="search-input" placeholder="Buscar por proveedor, material o fecha...">
+                </div>
+                <div class="actions">
+                    <button class="btn-regresar" style="background: #059669;" onclick="window.print()">
+                        <i class="fas fa-print"></i> Imprimir Reporte
+                    </button>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Proveedor</th>
+                            <th>Material / Categoría</th>
+                            <th style="text-align: center;">Cantidad (m²)</th>
+                            <th style="text-align: right;">Costo Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchasesTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i><br><br>
+                                Cargando historial de compras...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/purchases.js"></script>
+</body>
+</html>

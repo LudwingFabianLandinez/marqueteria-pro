@@ -1,0 +1,34 @@
+{
+  "name": "marqueteria-pro",
+  "version": "1.0.0",
+  "description": "Sistema de gestión para marquetería - La Chica Morales",
+  "main": "functions/server.js",
+  "scripts": {
+    "start": "node functions/server.js",
+    "dev": "nodemon functions/server.js",
+    "build": "echo 'Preparando funciones para Netlify...'"
+  },
+  "keywords": [
+    "inventario",
+    "marqueteria",
+    "node",
+    "express",
+    "mongodb",
+    "netlify-functions"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "mongoose": "^7.0.3",
+    "serverless-http": "^4.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

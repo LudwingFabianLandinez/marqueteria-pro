@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario y Proveedores - Marquetería</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2c3e50;
+            --success: #2ecc71;
+            --warning: #f1c40f;
+            --danger: #e74c3c;
+            --purple: #9b59b6;
+        }
+
+        body { background-color: #f4f7f6; margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; }
+        
+        .sidebar { width: 250px; background-color: var(--secondary); color: white; height: 100vh; padding: 20px; position: fixed; }
+        .sidebar h2 { font-size: 1.2rem; text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
+        .sidebar a { display: block; color: white; text-decoration: none; padding: 15px; border-radius: 8px; margin: 10px 0; transition: 0.3s; }
+        .sidebar a:hover { background-color: #34495e; transform: translateX(5px); }
+        
+        .inventory-container { margin-left: 250px; padding: 40px; width: calc(100% - 250px); }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; gap: 20px; }
+        
+        .btn-purchase { background: var(--success); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-provider { background: var(--purple); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; transition: 0.3s; }
+        .btn-purchase:hover, .btn-provider:hover { filter: brightness(1.1); transform: translateY(-2px); }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: var(--primary); color: white; font-weight: 600; }
+
+        /* Estados de Stock */
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+        .stock-low { background: #ffeaa7; color: #d35400; }
+        .stock-ok { background: #dff9fb; color: #0984e3; }
+
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); overflow-y: auto; }
+        .modal-content { background-color: white; margin: 2% auto; padding: 30px; border-radius: 15px; width: 500px; box-shadow: 0 5px 30px rgba(0,0,0,0.3); }
+        .modal-content h3 { margin-top: 0; color: var(--secondary); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .modal-content input, .modal-content select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        
+        .provider-list-item { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
+        
+        .actions-cell button { border: none; background: none; cursor: pointer; color: #7f8c8d; font-size: 1.1rem; margin-right: 10px; transition: 0.2s; }
+        .actions-cell button:hover { color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2><i class="fas fa-cut"></i> MARQUETERÍA</h2>
+        <nav>
+            <a href="index.html"><i class="fas fa-home"></i> Inicio</a>
+            <a href="inventory.html" style="background: var(--primary);"><i class="fas fa-box"></i> Inventario</a>
+            <a href="quotes.html"><i class="fas fa-file-invoice-dollar"></i> Nueva Cotización</a>
+            <a href="suppliers.html"><i class="fas fa-truck"></i> Proveedores</a>
+        </nav>
+    </div>
+
+    <div class="inventory-container">
+        <h2>Control de Existencias y Compras</h2>
+        
+        <div class="header-actions">
+            <div style="position: relative; flex-grow: 1;">
+                <i class="fas fa-search" style="position: absolute; left: 15px; top: 15px; color: #95a5a6;"></i>
+                <input type="text" id="searchInput" placeholder="Buscar material por nombre..." style="padding:12px 12px 12px 40px; border-radius:8px; border:1px solid #ddd; width:100%; max-width: 400px;">
+            </div>
+            <div>
+                <button class="btn-provider" onclick="abrirModalProveedores()"><i class="fas fa-users"></i> Gestionar Proveedores</button>
+                <button class="btn-purchase" onclick="document.getElementById('modalCompra').style.display='block'"><i class="fas fa-plus"></i> Nueva Compra</button>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Medidas (cm)</th>
+                    <th>Costo M²</th>
+                    <th>Stock Actual</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="inventoryTable">
+                </tbody>
+        </table>
+    </div>
+
+    <div id="modalCompra" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-shopping-cart"></i> Registrar Compra</h3>
+            <form id="purchaseForm">
+                <label>Material</label>
+                <input type="text" id="nombreMaterial" list="listaMateriales" placeholder="Nombre del material..." required>
+                <datalist id="listaMateriales"></datalist>
+
+                <label>Proveedor</label>
+                <select id="proveedorSelect">
+                    <option value="">-- Seleccionar Proveedor --</option>
+                </select>
+
+                <div style="display:flex; gap:10px;">
+                    <div>
+                        <label>Ancho (cm)</label>
+                        <input type="number" id="ancho_compra" placeholder="Ej: 120" required>
+                    </div>
+                    <div>
+                        <label>Largo (cm)</label>
+                        <input type="number" id="largo_compra" placeholder="Ej: 240" required>
+                    </div>
+                </div>
+
+                <label>Precio Total de la Lámina ($)</label>
+                <input type="number" id="precio_compra" placeholder="Costo total sin IVA" required>
+                
+                <label>Cantidad de Láminas</label>
+                <input type="number" id="cantidad_compra" value="1" required>
+
+                <button type="submit" class="btn-purchase" style="width:100%; padding: 15px;">FINALIZAR E INGRESAR</button>
+                <button type="button" onclick="cerrarModales()" style="width:100%; margin-top:10px; background:none; border:none; cursor:pointer; color: #7f8c8d;">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalProveedores" class="modal">
+        <div class="modal-content">
+            <h3>👥 Agenda de Proveedores</h3>
+            <form id="providerForm">
+                <input type="text" id="provNombre" placeholder="Nombre de la Empresa" required>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="provNit" placeholder="NIT / Cédula">
+                    <input type="text" id="provTel" placeholder="Teléfono">
+                </div>
+                <button type="submit" style="background:var(--primary); color:white; width:100%; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">+ Agregar Proveedor</button>
+            </form>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+            <div id="listaProveedoresContenedor" style="max-height: 250px; overflow-y: auto;">
+                </div>
+            <button type="button" onclick="cerrarModales()" style="width:100%; margin-top:15px; padding:10px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;">Cerrar Ventana</button>
+        </div>
+    </div>
+
+    <div id="modalAjuste" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-tools"></i> Ajuste de Inventario</h3>
+            <p id="nombreMaterialAjuste" style="font-weight: bold; color: var(--primary);"></p>
+            <form id="adjustForm">
+                <input type="hidden" id="materialIdAjuste">
+                <label>Nueva Cantidad Total (M²)</label>
+                <input type="number" step="0.01" id="nuevaCantidad" placeholder="Ingrese el stock real medido" required>
+                <label>Motivo del Ajuste</label>
+                <input type="text" id="motivoAjuste" placeholder="Ej: Rotura en taller, error conteo" required>
+                <button type="submit" class="btn-purchase" style="background:#e67e22; width:100%; padding: 15px;">ACTUALIZAR STOCK</button>
+                <button type="button" onclick="cerrarModales()" style="width:100%; margin-top:10px; background:none; border:none; cursor:pointer;">Volver</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/inventory.js"></script>
+    <script>
+        function cerrarModales() {
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        }
+        function abrirModalProveedores() {
+            document.getElementById('modalProveedores').style.display = 'block';
+            // Aquí llamarías a cargarProveedores() si está en tu JS
+        }
+        window.onclick = function(event) {
+            if (event.target.className === 'modal') cerrarModales();
+        }
+    </script>
+</body>
+</html>
