@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventario y Proveedores - Marquetería</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -82,11 +82,12 @@
                     <th>Medidas (cm)</th>
                     <th>Costo M²</th>
                     <th>Stock Actual</th>
+                    <th>Estado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
             <tbody id="inventoryTable">
-            </tbody>
+                </tbody>
         </table>
     </div>
 
@@ -147,21 +148,20 @@
     <div id="modalAjuste" class="modal">
         <div class="modal-content">
             <h3><i class="fas fa-tools"></i> Ajuste de Inventario</h3>
-            <p id="adjustMaterialNombre" style="font-weight: bold; color: var(--primary);"></p>
+            <p id="nombreMaterialAjuste" style="font-weight: bold; color: var(--primary);"></p>
             <form id="adjustForm">
-                <input type="hidden" id="adjustId">
+                <input type="hidden" id="materialIdAjuste">
                 <label>Nueva Cantidad Total (M²)</label>
-                <input type="number" step="0.01" id="adjustCantidad" placeholder="Ingrese el stock real medido" required>
-                <label>Punto de Reorden (M²)</label>
-                <input type="number" step="0.01" id="adjustReorden" value="1.5">
+                <input type="number" step="0.01" id="nuevaCantidad" placeholder="Ingrese el stock real medido" required>
                 <label>Motivo del Ajuste</label>
-                <input type="text" id="adjustMotivo" placeholder="Ej: Rotura en taller, error conteo" required>
+                <input type="text" id="motivoAjuste" placeholder="Ej: Rotura en taller, error conteo" required>
                 <button type="submit" class="btn-purchase" style="background:#e67e22; width:100%; padding: 15px;">ACTUALIZAR STOCK</button>
                 <button type="button" onclick="cerrarModales()" style="width:100%; margin-top:10px; background:none; border:none; cursor:pointer;">Volver</button>
             </form>
         </div>
     </div>
 
+    <script src="js/api.js"></script>
     <script src="js/inventory.js"></script>
     <script>
         function cerrarModales() {
@@ -169,6 +169,7 @@
         }
         function abrirModalProveedores() {
             document.getElementById('modalProveedores').style.display = 'block';
+            // Aquí llamarías a cargarProveedores() si está en tu JS
         }
         window.onclick = function(event) {
             if (event.target.className === 'modal') cerrarModales();
