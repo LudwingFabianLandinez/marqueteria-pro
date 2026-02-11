@@ -25,7 +25,7 @@
             min-height: 100vh;
         }
 
-        /* Contenedor Principal (Simulando el modal pero fijo en pantalla) */
+        /* Contenedor Principal */
         .main-card {
             background: white;
             width: 100%;
@@ -138,10 +138,10 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(5px);
-            display: none; /* Se activa con JS */
+            display: none; 
             justify-content: center;
             align-items: center;
-            z-index: 9999;
+            z-index: 10000;
         }
 
         .modal-view {
@@ -153,11 +153,12 @@
             padding: 25px;
             overflow-y: auto;
             position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th { background: var(--bg-light); padding: 12px; text-align: left; }
-        td { padding: 12px; border-bottom: 1.5px solid #f1f5f9; }
+        th { background: #f8fafc; padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
     </style>
 </head>
 <body>
@@ -201,7 +202,7 @@
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
                 
-                <button type="button" class="btn-consult" onclick="abrirConsulta()">
+                <button type="button" id="btnConsultarProveedores" class="btn-consult" onclick="abrirConsulta()">
                     <i class="fas fa-search"></i> CONSULTAR PROVEEDORES
                 </button>
 
@@ -234,7 +235,7 @@
 
 <script src="js/api.js"></script>
 <script>
-    // Manejo del Formulario
+    // 1. Manejo del Formulario (Guardar)
     document.getElementById('supplierForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('.btn-save');
@@ -254,10 +255,13 @@
         };
 
         try {
-            // Se usa saveSupplier que es el nombre en tu api.js
-            await API.saveSupplier(datos);
-            alert("✅ Proveedor guardado correctamente");
-            window.location.href = "dashboard.html";
+            if(typeof API !== 'undefined') {
+                await API.saveSupplier(datos);
+                alert("✅ Proveedor guardado correctamente");
+                window.location.href = "dashboard.html";
+            } else {
+                throw new Error("API no cargada");
+            }
         } catch (error) {
             alert("❌ Error al guardar: " + error.message);
             btn.disabled = false;
@@ -265,43 +269,56 @@
         }
     });
 
+    // 2. Lógica de Consulta (Abrir Modal)
     async function abrirConsulta() {
+        console.log("Iniciando consulta..."); // Debug en consola
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
         
-        // Forzar visualización del modal
         modal.style.display = 'flex';
-        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
+        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos...</td></tr>';
 
         try {
-            const proveedoresRaw = await API.getProviders();
-            // Validamos si los datos vienen en una propiedad .data o directo
-            const proveedores = proveedoresRaw.data || proveedoresRaw;
+            if(typeof API !== 'undefined') {
+                const proveedoresRaw = await API.getProviders();
+                const proveedores = proveedoresRaw.data || proveedoresRaw;
 
-            if(Array.isArray(proveedores) && proveedores.length > 0) {
-                tabla.innerHTML = '';
-                proveedores.forEach(p => {
-                    tabla.innerHTML += `
-                        <tr>
-                            <td><strong>${p.nombre || 'N/A'}</strong></td>
-                            <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'General'}</span></td>
-                            <td>${p.telefono || 'N/A'}</td>
-                        </tr>`;
-                });
+                if(Array.isArray(proveedores) && proveedores.length > 0) {
+                    tabla.innerHTML = '';
+                    proveedores.forEach(p => {
+                        tabla.innerHTML += `
+                            <tr>
+                                <td><strong>${p.nombre || 'Sin nombre'}</strong></td>
+                                <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'General'}</span></td>
+                                <td>${p.telefono || 'N/A'}</td>
+                            </tr>`;
+                    });
+                } else {
+                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados aún.</td></tr>';
+                }
             } else {
-                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados.</td></tr>';
+                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange;">Error: API.js no se cargó correctamente.</td></tr>';
             }
         } catch (e) {
-            console.error(e);
-            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al cargar datos.</td></tr>';
+            console.error("Error en consulta:", e);
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al conectar con el servidor.</td></tr>';
         }
     }
 
+    // 3. Cerrar Modal
     function cerrarConsulta() {
         document.getElementById('modalConsultar').style.display = 'none';
     }
 
-    // Cerrar modal al hacer clic fuera del contenido
+    // 4. Asegurar evento de clic (Doble vía)
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('btnConsultarProveedores');
+        if(btn) {
+            btn.addEventListener('click', abrirConsulta);
+        }
+    });
+
+    // 5. Cerrar al hacer clic fuera
     window.onclick = function(event) {
         const modal = document.getElementById('modalConsultar');
         if (event.target == modal) {
