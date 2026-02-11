@@ -25,6 +25,7 @@
             min-height: 100vh;
         }
 
+        /* Contenedor Principal */
         .main-card {
             background: white;
             width: 100%;
@@ -43,7 +44,9 @@
         }
 
         .card-header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 0.5px; }
+
         .card-body { padding: 30px; }
+
         .form-group { margin-bottom: 18px; }
 
         input, select {
@@ -55,6 +58,12 @@
             font-size: 0.95rem;
             background-color: #ffffff;
             transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
         }
 
         .form-row {
@@ -76,6 +85,7 @@
             padding: 16px;
             border-radius: 12px;
             font-weight: 700;
+            font-size: 1rem;
             cursor: pointer;
             border: none;
             display: flex;
@@ -85,6 +95,7 @@
             text-transform: uppercase;
             background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-blue) 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
         }
 
         .btn-consult {
@@ -99,6 +110,7 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            transition: 0.3s;
         }
 
         .btn-cancel {
@@ -106,6 +118,7 @@
             padding: 12px;
             border-radius: 12px;
             font-weight: 600;
+            cursor: pointer;
             border: 1.5px solid #e2e8f0;
             background: #ffffff;
             color: #64748b;
@@ -113,6 +126,7 @@
             text-align: center;
         }
 
+        /* Estilos de la Consulta (Overlay) */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -133,6 +147,7 @@
             padding: 25px;
             overflow-y: auto;
             position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -149,25 +164,25 @@
     <div class="card-body">
         <form id="supplierForm" onsubmit="event.preventDefault(); manejarGuardado();">
             <div class="form-group">
-                <input type="text" id="nombre" placeholder="Nombre Comercial *" required>
+                <input type="text" id="nombre" name="nombre" placeholder="Nombre Comercial *" required>
             </div>
             
             <div class="form-row">
-                <input type="text" id="nit" placeholder="NIT o Identificación">
-                <input type="text" id="contacto" placeholder="Nombre del Contacto">
+                <input type="text" id="nit" name="nit" placeholder="NIT o Identificación">
+                <input type="text" id="contacto" name="contacto" placeholder="Nombre del Contacto">
             </div>
 
             <div class="form-row">
-                <input type="text" id="telefono" placeholder="Teléfono / WhatsApp">
-                <input type="email" id="correo" placeholder="Correo Electrónico">
+                <input type="text" id="telefono" name="telefono" placeholder="Teléfono / WhatsApp">
+                <input type="email" id="correo" name="correo" placeholder="Correo Electrónico">
             </div>
 
             <div class="form-group">
-                <input type="text" id="direccion" placeholder="Dirección de la Bodega">
+                <input type="text" id="direccion" name="direccion" placeholder="Dirección de la Bodega">
             </div>
 
             <div class="form-group">
-                <select id="categoria">
+                <select id="categoria" name="categoria">
                     <option value="">-- Categoría de Insumos --</option>
                     <option value="Vidrios">Vidrios</option>
                     <option value="Marcos">Marcos / Molduras</option>
@@ -181,11 +196,13 @@
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
                 
-                <button type="button" class="btn-consult" onclick="abrirModalConsulta()">
+                <button type="button" id="btnConsultarProveedores" class="btn-consult" onclick="abrirModalConsulta()">
                     <i class="fas fa-search"></i> CONSULTAR PROVEEDORES
                 </button>
 
-                <a href="dashboard.html" class="btn-cancel">Descartar y Salir</a>
+                <a href="dashboard.html" class="btn-cancel">
+                    Descartar y Salir
+                </a>
             </div>
         </form>
     </div>
@@ -195,7 +212,7 @@
     <div class="modal-view">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
             <h3 style="margin:0; color: var(--primary-dark);">Proveedores Registrados</h3>
-            <button onclick="cerrarModal()" style="cursor:pointer; border:none; background:#fee2e2; color:#ef4444; padding: 5px 12px; border-radius: 8px; font-weight: bold;">&times; Cerrar</button>
+            <button onclick="cerrarModal()" style="cursor:pointer; border:none; background:#fee2e2; color:#ef4444; padding: 5px 12px; border-radius: 8px; font-size: 1.2rem; font-weight: bold;">&times; Cerrar</button>
         </div>
         <table>
             <thead>
@@ -211,28 +228,31 @@
 </div>
 
 <script src="js/api.js"></script>
+
 <script>
     /**
-     * LAS FUNCIONES AHORA SON GLOBALES (window.xxx)
-     * Esto garantiza que los botones las encuentren siempre.
+     * ESCUDO DE EMERGENCIA
+     * Estas funciones se definen en el objeto global 'window' para que el 
+     * HTML las vea incluso si el archivo js/api.js tiene errores internos.
      */
 
     window.abrirModalConsulta = async function() {
+        console.log("Acción: Abrir consulta");
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
         
-        // 1. Mostrar modal inmediatamente para confirmar que el botón sirve
+        // Abrir el modal inmediatamente (esto prueba que el botón sirve)
         modal.style.display = 'flex';
-        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos...</td></tr>';
+        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos de la nube...</td></tr>';
 
         try {
-            // 2. Intentar llamar a la API
+            // Verificamos si la API cargó bien
             if (window.API && window.API.getProviders) {
-                const res = await window.API.getProviders();
-                const proveedores = res.data || res;
+                const proveedores = await window.API.getProviders();
+                const lista = proveedores.data || proveedores;
 
-                if (Array.isArray(proveedores) && proveedores.length > 0) {
-                    tabla.innerHTML = proveedores.map(p => `
+                if (Array.isArray(lista) && lista.length > 0) {
+                    tabla.innerHTML = lista.map(p => `
                         <tr>
                             <td><strong>${p.nombre || 'N/A'}</strong></td>
                             <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'Gral'}</span></td>
@@ -240,14 +260,14 @@
                         </tr>
                     `).join('');
                 } else {
-                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados.</td></tr>';
+                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No se encontraron proveedores.</td></tr>';
                 }
             } else {
-                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange; padding:20px;">Error: api.js no cargado correctamente.</td></tr>';
+                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange; padding:20px;">Aviso: Esperando conexión con el servidor (api.js)...</td></tr>';
             }
         } catch (error) {
             console.error(error);
-            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error de conexión con el servidor.</td></tr>';
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al conectar con la base de datos.</td></tr>';
         }
     };
 
@@ -269,19 +289,22 @@
             categoria: document.getElementById('categoria').value
         };
 
+        if (!datos.nombre) return alert("Por favor, escribe el nombre del proveedor.");
+
         try {
             btn.disabled = true;
-            btn.innerHTML = "GUARDANDO...";
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
 
-            if (window.API && window.API.saveSupplier) {
-                await window.API.saveSupplier(datos);
-                alert("✅ Proveedor guardado correctamente");
+            if (window.API && (window.API.saveSupplier || window.API.saveProvider)) {
+                const saveFunc = window.API.saveSupplier || window.API.saveProvider;
+                await saveFunc(datos);
+                alert("✅ Proveedor guardado con éxito.");
                 window.location.href = "dashboard.html";
             } else {
-                throw new Error("API no disponible");
+                throw new Error("El sistema de guardado no está listo (api.js no cargó).");
             }
         } catch (error) {
-            alert("❌ Error: " + error.message);
+            alert("❌ Fallo el guardado: " + error.message);
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
