@@ -1,23 +1,23 @@
 /**
- * Configuración central de la API
- * Este archivo detecta automáticamente si estás en tu PC (localhost)
- * o en la nube (Netlify) para conectar con el servidor correcto.
+ * Configuración central de la API - Blindada
+ * Detecta el entorno y asegura que las funciones existan siempre.
  */
 
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:4000/api'  // URL para desarrollo local
-    : '/api';                      // URL para Netlify (Producción)
+    ? 'http://localhost:4000/api'  // Desarrollo local
+    : 'https://tu-servidor-backend.com/api'; // <--- ASEGÚRATE DE PONER TU URL REAL DE RENDER/RAILWAY AQUÍ
 
-// Objeto Global API para centralizar las llamadas de todos los módulos
+// Objeto Global API
 const API = {
     /**
      * Obtener lista de proveedores
      */
     getProviders: async () => {
         try {
+            console.log("📡 Solicitando proveedores a:", `${API_URL}/providers`);
             const response = await fetch(`${API_URL}/providers`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
-            // Si la respuesta viene envuelta en un objeto { success: true, data: [...] }
             return data.data || data; 
         } catch (error) {
             console.error("🚨 Error en API.getProviders:", error);
@@ -32,27 +32,25 @@ const API = {
         try {
             const response = await fetch(`${API_URL}/providers`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(supplierData)
             });
             return await response.json();
         } catch (error) {
             console.error("🚨 Error en API.saveSupplier:", error);
-            return { success: false, message: "No se pudo conectar con el servidor" };
+            return { success: false, message: "Error de conexión" };
         }
     },
 
     /**
-     * ALIAS DE SEGURIDAD:
-     * Esto evita el error "API.saveProvider is not a function" 
-     * si se llama desde el HTML con el otro nombre.
+     * ALIAS DE SEGURIDAD (Mapeo de nombres)
+     * Estos nombres aseguran que si el HTML llama a la función de forma distinta, NO se rompa.
      */
-    saveProvider: async function(data) {
-        return this.saveSupplier(data);
-    }
+    saveProvider: async function(data) { return this.saveSupplier(data); },
+    getSuppliers: async function() { return this.getProviders(); }
 };
 
-// Log de confirmación
-console.log(`🔌 Conectado a la API en: ${API_URL}`);
+// Hacer que API sea accesible globalmente de forma explícita
+window.API = API;
+
+console.log(`🔌 API configurada en: ${API_URL}`);
