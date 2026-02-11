@@ -198,7 +198,7 @@
             </div>
 
             <div class="card-footer">
-                <button type="submit" class="btn-save">
+                <button type="submit" class="btn-save" id="btnGuardarDB">
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
                 
@@ -235,19 +235,20 @@
 
 <script src="js/api.js"></script>
 <script>
-    // Todo envuelto en DOMContentLoaded para asegurar que los elementos existan
-    document.addEventListener('DOMContentLoaded', () => {
-        
+    // Usamos window.onload para asegurar que TODO (incluyendo api.js) esté listo
+    window.onload = function() {
+        console.log("Sistema cargado y listo.");
+
         const form = document.getElementById('supplierForm');
         const btnConsultar = document.getElementById('btnConsultarProveedores');
         const btnCerrar = document.getElementById('btnCerrarModal');
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
 
-        // 1. Manejo del Formulario (Guardar)
-        form.addEventListener('submit', async (e) => {
+        // 1. MANEJO DEL FORMULARIO (GUARDAR)
+        form.onsubmit = async (e) => {
             e.preventDefault();
-            const btnSave = e.target.querySelector('.btn-save');
+            const btnSave = document.getElementById('btnGuardarDB');
             const originalHTML = btnSave.innerHTML;
             
             btnSave.disabled = true;
@@ -264,29 +265,32 @@
             };
 
             try {
-                if(typeof API !== 'undefined' && API.saveSupplier) {
-                    await API.saveSupplier(datos);
+                // Verificación de seguridad de la API
+                if(window.API && (window.API.saveSupplier || window.API.saveProvider)) {
+                    const saveFunc = window.API.saveSupplier || window.API.saveProvider;
+                    await saveFunc(datos);
                     alert("✅ Proveedor guardado correctamente");
                     window.location.href = "dashboard.html";
                 } else {
-                    throw new Error("La función API.saveSupplier no está disponible.");
+                    throw new Error("La conexión con la base de datos no está lista.");
                 }
             } catch (error) {
-                alert("❌ Error al guardar: " + error.message);
+                console.error(error);
+                alert("❌ Error: " + error.message);
                 btnSave.disabled = false;
                 btnSave.innerHTML = originalHTML;
             }
-        });
+        };
 
-        // 2. Lógica de Consulta (Abrir Modal)
-        btnConsultar.addEventListener('click', async () => {
-            console.log("Abriendo consulta de proveedores...");
+        // 2. LÓGICA DE CONSULTA (ABRIR MODAL)
+        btnConsultar.onclick = async () => {
+            console.log("Intentando abrir modal...");
             modal.style.display = 'flex';
             tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos...</td></tr>';
 
             try {
-                if(typeof API !== 'undefined' && API.getProviders) {
-                    const proveedoresRaw = await API.getProviders();
+                if(window.API && window.API.getProviders) {
+                    const proveedoresRaw = await window.API.getProviders();
                     const proveedores = proveedoresRaw.data || proveedoresRaw;
 
                     if(Array.isArray(proveedores) && proveedores.length > 0) {
@@ -303,26 +307,26 @@
                         tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados aún.</td></tr>';
                     }
                 } else {
-                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange;">Error: api.js no cargado.</td></tr>';
+                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange; padding:20px;">Error: La API no respondió. Revisa js/api.js</td></tr>';
                 }
             } catch (e) {
                 console.error("Error en consulta:", e);
                 tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al conectar con el servidor.</td></tr>';
             }
-        });
+        };
 
-        // 3. Cerrar Modal
-        btnCerrar.addEventListener('click', () => {
+        // 3. CERRAR MODAL
+        btnCerrar.onclick = () => {
             modal.style.display = 'none';
-        });
+        };
 
-        // 4. Cerrar al hacer clic fuera del cuadro blanco
-        window.addEventListener('click', (event) => {
+        // 4. CERRAR AL HACER CLIC FUERA
+        window.onclick = (event) => {
             if (event.target == modal) {
                 modal.style.display = 'none';
             }
-        });
-    });
+        };
+    };
 </script>
 
 </body>
