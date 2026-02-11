@@ -238,6 +238,8 @@
     document.getElementById('supplierForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('.btn-save');
+        const originalHTML = btn.innerHTML;
+        
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
 
@@ -252,14 +254,14 @@
         };
 
         try {
-            // Asegúrate de que API.saveProvider exista en api.js
-            await API.saveProvider(datos);
+            // Se usa saveSupplier que es el nombre en tu api.js
+            await API.saveSupplier(datos);
             alert("✅ Proveedor guardado correctamente");
             window.location.href = "dashboard.html";
         } catch (error) {
             alert("❌ Error al guardar: " + error.message);
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS';
+            btn.innerHTML = originalHTML;
         }
     });
 
@@ -267,31 +269,44 @@
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
         
+        // Forzar visualización del modal
         modal.style.display = 'flex';
         tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
 
         try {
-            const proveedores = await API.getProviders();
-            if(proveedores && proveedores.length > 0) {
+            const proveedoresRaw = await API.getProviders();
+            // Validamos si los datos vienen en una propiedad .data o directo
+            const proveedores = proveedoresRaw.data || proveedoresRaw;
+
+            if(Array.isArray(proveedores) && proveedores.length > 0) {
                 tabla.innerHTML = '';
                 proveedores.forEach(p => {
                     tabla.innerHTML += `
                         <tr>
-                            <td><strong>${p.nombre}</strong></td>
+                            <td><strong>${p.nombre || 'N/A'}</strong></td>
                             <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'General'}</span></td>
                             <td>${p.telefono || 'N/A'}</td>
                         </tr>`;
                 });
             } else {
-                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores.</td></tr>';
+                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados.</td></tr>';
             }
         } catch (e) {
+            console.error(e);
             tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al cargar datos.</td></tr>';
         }
     }
 
     function cerrarConsulta() {
         document.getElementById('modalConsultar').style.display = 'none';
+    }
+
+    // Cerrar modal al hacer clic fuera del contenido
+    window.onclick = function(event) {
+        const modal = document.getElementById('modalConsultar');
+        if (event.target == modal) {
+            cerrarConsulta();
+        }
     }
 </script>
 
