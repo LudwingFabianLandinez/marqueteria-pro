@@ -1,11 +1,16 @@
 const Material = require('../models/Material');
 const { calcularCostoMaterial } = require('../utils/calculator');
 
-// 1. OBTENER MATERIALES ORGANIZADOS (Filtrado estricto por categoría)
+// 1. OBTENER MATERIALES ORGANIZADOS
 exports.getQuotationMaterials = async (req, res) => {
     try {
+        // Traemos solo los materiales que tienen stock o precio definido
         const materials = await Material.find().sort({ nombre: 1 });
         
+        if (!materials || materials.length === 0) {
+            console.log("⚠️ No se encontraron materiales en la base de datos.");
+        }
+
         const categorizados = {
             vidrios: materials.filter(m => 
                 m.nombre.toLowerCase().includes('vidrio') || 
@@ -29,17 +34,24 @@ exports.getQuotationMaterials = async (req, res) => {
             chapilla: materials.filter(m => m.nombre.toLowerCase().includes('chapilla'))
         };
 
-        res.status(200).json({ success: true, data: categorizados });
+        // Enviamos la respuesta. Este es el trigger que quita el "Cargando..."
+        res.status(200).json({ 
+            success: true, 
+            count: materials.length,
+            data: categorizados 
+        });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error("🚨 Error en getQuotationMaterials:", error);
+        res.status(500).json({ success: false, error: "Error al organizar materiales" });
     }
 };
 
-// 2. GENERAR COTIZACIÓN (Calcula costos y prepara datos para la venta)
+// 2. GENERAR COTIZACIÓN
 exports.generateQuote = async (req, res) => {
     try {
         const { ancho, largo, materialesIds, manoObra = 0 } = req.body;
 
+        // Validación de entrada
         if (!ancho || !largo || !materialesIds) {
             return res.status(400).json({ 
                 success: false, 
@@ -47,30 +59,39 @@ exports.generateQuote = async (req, res) => {
             });
         }
 
+        // Normalizamos IDs a un Array
         const ids = Array.isArray(materialesIds) ? materialesIds : [materialesIds].filter(id => id && id !== "");
+        
+        // Buscamos materiales en la DB
         const materialesDB = await Material.find({ _id: { $in: ids } });
         
         let costoMaterialesTotal = 0;
         let listaDetallada = [];
-        const area_m2 = (Number(ancho) * Number(largo) / 10000);
+        
+        // Cálculo de área con seguridad contra ceros
+        const area_m2 = (Math.max(0, Number(ancho)) * Math.max(0, Number(largo)) / 10000);
 
         materialesDB.forEach(mat => {
-            // Calculamos el costo real de este pedazo de material
-            const costoItem = calcularCostoMaterial(Number(ancho), Number(largo), mat.precio_m2_costo);
+            // Usamos el calculador de utilidad para obtener el costo base
+            const precioCostoM2 = mat.precio_m2_costo || 0;
+            const costoItem = calcularCostoMaterial(Number(ancho), Number(largo), precioCostoM2);
+            
             costoMaterialesTotal += costoItem;
             
-            // AGREGAMOS DATOS CRÍTICOS: id, costo_m2_base y area_m2 para el reporte de utilidad
             listaDetallada.push({ 
                 id: mat._id,
                 nombre: mat.nombre, 
-                costo_m2_base: mat.precio_m2_costo, // Precio de compra original
-                area_m2: area_m2.toFixed(4),
-                precio_proporcional: Math.round(costoItem) // Lo que te costó a ti ese pedazo
+                costo_m2_base: precioCostoM2,
+                area_m2: area_m2,
+                precio_proporcional: Math.round(costoItem)
             });
         });
 
         const mo = parseFloat(manoObra) || 0;
-        const subtotalCostoBase = Math.round(costoMaterialesTotal + mo);
+        const totalBaseCosto = Math.round(costoMaterialesTotal + mo);
+        
+        // REGLA DE ORO: Costo x 3 + Mano de Obra
+        const precioSugerido = Math.round((costoMaterialesTotal * 3) + mo);
 
         res.status(200).json({
             success: true,
@@ -83,15 +104,14 @@ exports.generateQuote = async (req, res) => {
                 costos: {
                     valor_materiales: Math.round(costoMaterialesTotal),
                     valor_mano_obra: mo,
-                    total_base: subtotalCostoBase,
-                    // Regla de Negocio: (Costo Total Materiales * 3) + Mano de Obra
-                    precio_sugerido: Math.round((costoMaterialesTotal * 3) + mo) 
+                    total_base: totalBaseCosto,
+                    precio_sugerido: precioSugerido 
                 }
             }
         });
 
     } catch (error) {
-        console.error("🚨 Error en quoteController:", error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error("🚨 Error en generateQuote:", error);
+        res.status(500).json({ success: false, error: "Error interno en el cálculo." });
     }
 };

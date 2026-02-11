@@ -1,10 +1,12 @@
 /**
- * Script para cargar materiales iniciales (Vidrios, Espejos, MDF, etc.)
+ * Script para cargar materiales iniciales en MONGODB LOCAL (Compass)
  */
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const Material = require('./models/Material');
+// Mantenemos la ruta de tu estructura actual de carpetas
+const Material = require('./functions/models/Material');
 
+// Carga las variables del archivo .env
 dotenv.config();
 
 const materialesIniciales = [
@@ -12,8 +14,8 @@ const materialesIniciales = [
         nombre: "Vidrio 3mm",
         ancho_lamina_cm: 183,
         largo_lamina_cm: 244,
-        precio_total_lamina: 131378, // Precio basado en tus cálculos
-        stock_actual_m2: 4.46, // Una lámina completa
+        precio_total_lamina: 131378,
+        stock_actual_m2: 4.46,
         stock_minimo_m2: 1.0,
         tipo: 'm2'
     },
@@ -48,22 +50,38 @@ const materialesIniciales = [
 
 const seedDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log("🔌 Conectado a MongoDB para la carga de datos...");
+        // En tu .env local DEBE decir: MONGODB_URI=mongodb://localhost:27017/marqueteria
+        const uri = process.env.MONGODB_URI;
+        
+        if (!uri) {
+            throw new Error("La variable MONGODB_URI no está definida en el archivo .env");
+        }
 
-        // Limpiamos la colección actual para evitar duplicados
+        console.log("⏳ Conectando a MongoDB Compass (Entorno Local)...");
+        
+        // Conexión directa a Localhost
+        await mongoose.connect(uri);
+
+        console.log("🔌 ¡CONECTADO EXITOSAMENTE AL COMPASS!");
+
+        // Limpiamos la colección para evitar que los datos se dupliquen cada vez que corras el script
         await Material.deleteMany({});
-        console.log("🗑️ Inventario antiguo limpiado.");
+        console.log("🗑️ Inventario local anterior limpiado.");
 
-        // Insertamos los nuevos materiales
+        // Insertamos los materiales del array
         await Material.insertMany(materialesIniciales);
-        console.log("✅ Materiales cargados exitosamente:");
+        console.log("✅ DATOS CARGADOS EN COMPASS:");
         materialesIniciales.forEach(m => console.log(`   - ${m.nombre}`));
 
-        mongoose.connection.close();
-        console.log("🔌 Conexión cerrada. Script finalizado.");
+        // Cerramos la conexión para liberar la terminal
+        await mongoose.connection.close();
+        console.log("🔌 Conexión cerrada. Script finalizado con éxito.");
+        process.exit(0);
+
     } catch (error) {
-        console.error("❌ Error al cargar materiales:", error);
+        console.error("❌ Error en la carga local:");
+        console.error(error.message);
+        console.log("\n💡 TIP: Asegúrate de que MongoDB Compass esté conectado y el servicio activo.");
         process.exit(1);
     }
 };
