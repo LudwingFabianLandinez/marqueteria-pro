@@ -232,12 +232,49 @@
         </div>
     </div>
 
-    <div id="modalAjuste" class="modal"><div class="modal-content" id="modalAjusteContent"></div></div>
-    <div id="modalHistorialPrecios" class="modal"><div class="modal-content" id="modalHistorialContent"></div></div>
+    <div id="modalAjuste" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 style="background: #f39c12; color: white; padding: 15px; border-radius: 8px 8px 0 0; margin-top:0;">Ajustar Inventario</h2>
+            <form id="adjustForm" style="padding: 20px;">
+                <input type="hidden" id="adjustId">
+                <p>Ajustando: <strong id="adjustMaterialNombre"></strong></p>
+                <div class="form-group">
+                    <label>Nueva Cantidad M²</label>
+                    <input type="number" id="adjustCantidad" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Punto de Reorden M²</label>
+                    <input type="number" id="adjustReorden" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <select id="adjustMotivo">
+                        <option value="Ajuste manual">Ajuste manual</option>
+                        <option value="Error de conteo">Error de conteo</option>
+                        <option value="Daño de material">Daño de material</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button type="submit" class="btn-save" style="flex: 2;">Guardar Ajuste</button>
+                    <button type="button" onclick="cerrarModales()" class="btn-close" style="flex: 1;">Cerrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    <script src="js/api.js?v=1.4"></script>
-    <script src="js/inventory.js?v=1.4"></script>
-    <script src="js/suppliers.js?v=1.4"></script> 
+    <div id="modalHistorialPrecios" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div style="background: #1e3a8a; color: white; padding: 15px; border-radius: 8px 8px 0 0; display:flex; justify-content:space-between;">
+                <h2 style="margin:0; font-size:1.2rem;">Movimientos: <span id="historialMaterialNombre"></span></h2>
+                <button onclick="cerrarModales()" style="color:white; background:none; border:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+            </div>
+            <div id="listaHistorialPrecios" style="max-height: 400px; overflow-y: auto; padding: 10px;">
+                </div>
+        </div>
+    </div>
+
+    <script src="js/api.js?v=2.1"></script>
+    <script src="js/inventory.js?v=2.1"></script>
 
     <script>
         function toggleMenu() {
@@ -251,20 +288,15 @@
         }
 
         function abrirAgenda() {
-            console.log("Intentando abrir agenda...");
+            console.log("Intentando abrir agenda v2.1...");
             const modal = document.getElementById('modalAgenda');
             if (modal) {
                 modal.style.display = 'block';
-                
-                // Buscamos la función en el objeto window para asegurar compatibilidad
-                const func = window.renderAgendaProveedores || (typeof renderAgendaProveedores === 'function' ? renderAgendaProveedores : null);
-                
-                if (func) {
-                    func();
+                // Llama a la función global de inventory.js
+                if (typeof window.renderAgendaProveedores === 'function') {
+                    window.renderAgendaProveedores();
                 } else {
-                    console.error("Función renderAgendaProveedores no encontrada.");
-                    // Si no carga la lista, al menos mostramos el modal vacío o mensaje
-                    document.getElementById('agendaContent').innerHTML = '<p>Cargando proveedores o función no disponible...</p>';
+                    document.getElementById('agendaContent').innerHTML = '<p>Cargando lista...</p>';
                 }
             }
         }
