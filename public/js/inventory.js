@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 3.8 - FIX FINAL: Implementación de Agenda y Global Binding
+ * Versión: 3.9 - FIX DEFINITIVO: Global Binding y Protección de Nulos
  */
 
 let todosLosMateriales = [];
@@ -67,6 +67,10 @@ async function fetchProviders() {
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
+            // Si la agenda está abierta mientras se cargan, la refrescamos
+            if (document.getElementById('modalAgenda')?.style.display === 'block') {
+                window.renderAgendaProveedores();
+            }
         }
     } catch (error) { 
         console.error("❌ Error proveedores:", error); 
@@ -202,20 +206,17 @@ function configurarEventos() {
 
 // --- FUNCIONES GLOBALES (VINCULADAS A WINDOW) ---
 
-/**
- * ESTA ES LA FUNCIÓN QUE FALTABA PARA EL BOTÓN AZUL
- */
 window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
     if (todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados o cargando...</p>';
         return;
     }
 
     contenedor.innerHTML = todosLosProveedores.map(p => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9; hover:background:#f8fafc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
             <div>
                 <div style="font-weight:bold; color:#1e293b;">${p.nombre}</div>
                 <div style="font-size:0.8rem; color:#64748b;">
@@ -231,7 +232,6 @@ window.renderAgendaProveedores = function() {
 };
 
 window.verHistorial = async function(id, nombre) {
-    console.log("Consultando historial para:", nombre);
     try {
         const response = await fetch(`/api/inventory/history/${id}`);
         const result = await response.json();
@@ -316,12 +316,12 @@ function actualizarDatalistMateriales() {
     if (list) list.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
 
+// Función que dispara el botón azul en el HTML
 window.abrirAgenda = function() {
+    console.log("Abriendo agenda...");
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
         window.renderAgendaProveedores();
-    } else {
-        window.location.href = 'suppliers.html';
     }
 };
