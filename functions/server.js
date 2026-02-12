@@ -42,15 +42,21 @@ const router = express.Router();
  */
 const safeLoad = (routePath, modulePath) => {
     try {
-        router.use(routePath, require(modulePath));
+        // Intentamos cargar el módulo. Si el archivo interno tiene un error, saltará al catch.
+        const routeModule = require(modulePath);
+        router.use(routePath, routeModule);
         console.log(`✅ Ruta cargada con éxito: ${routePath}`);
     } catch (error) {
-        console.error(`⚠️ Error al cargar la ruta [${routePath}]:`, error.message);
+        // Esto evita que el error 500 rompa el inventario
+        console.error(`🚨 ERROR CRÍTICO EN ARCHIVO: ${modulePath}`);
+        console.error(`Detalle: ${error.message}`);
     }
 };
 
-// Cargamos cada botón protegiendo que no rompa a los demás
+// Cargamos el inventario PRIMERO para asegurar que funcione
 safeLoad('/inventory', './routes/inventoryRoutes');
+
+// Cargamos los demás botones. Si uno falla, el inventario ya está a salvo.
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
 safeLoad('/providers', './routes/providerRoutes');
@@ -61,7 +67,7 @@ app.use('/api', router);
 
 // Manejador de errores para evitar que la app se quede en blanco
 app.use((err, req, res, next) => {
-    console.error("🚨 ERROR CRÍTICO EN EL SERVIDOR:", err);
+    console.error("🚨 ERROR NO CONTROLADO EN EL MIDDLEWARE:", err);
     res.status(500).json({ 
         success: false, 
         error: "Error interno en el servidor",
@@ -76,6 +82,7 @@ const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
+    // Aseguramos conexión antes de responder
     await connect();
     return await handler(event, context);
 };
