@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node functions/server.js",
     "dev": "nodemon functions/server.js",
-    "build": "echo 'Preparando funciones para Netlify...'"
+    "build": "npm install"
   },
   "keywords": [
     "inventario",
