@@ -1,28 +1,16 @@
 [build]
   publish = "."
-  command = "npm install"
+  command = "#"
 
 [functions]
   directory = "functions"
-  node_bundle = true
 
-# REGLA DE REDIRECCIÓN MAESTRA
-# Esta regla redirige /api/materiales a /.netlify/functions/server/api/materiales
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/api/:splat"
   status = 200
 
-# Redirección para Single Page Application (evita errores al recargar)
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/dashboard.html"
   status = 200
-
-# Blindaje de permisos (Headers)
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With"
