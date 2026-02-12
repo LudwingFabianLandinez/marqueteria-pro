@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.1 - FIX FINAL: Globalización de Botones de Tabla
+ * Versión: 4.3 - FIX DEFINITIVO: Conexión Blindada a Render
  */
 
 // --- VARIABLES DE ESTADO ---
@@ -10,7 +10,7 @@ let todosLosProveedores = [];
 
 // --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.1");
+    console.log("🚀 Sistema de Gestión Iniciado v4.3");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -62,36 +62,36 @@ window.renderAgendaProveedores = function() {
     `).join('');
 };
 
-// --- CARGA DE DATOS DESDE API ---
+// --- CARGA DE DATOS DESDE API (USANDO WINDOW.API) ---
 async function fetchInventory() {
     try {
-        const response = await fetch('/api/inventory');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const result = await response.json();
+        // Llamada a la API Blindada
+        const result = await window.API.getInventory();
         
         if (result.success) {
             todosLosMateriales = result.data.map(m => ({
                 ...m,
                 nombre: m.nombre || "Material sin nombre",
                 categoria: m.categoria || "General",
-                stock_actual_m2: Number(m.stock_actual_m2) || 0,
-                precio_m2_costo: Number(m.precio_m2_costo) || 0,
+                stock_actual_m2: Number(m.stock_actual_m2 || m.cantidad_m2) || 0,
+                precio_m2_costo: Number(m.precio_m2_costo || m.costo_m2) || 0,
                 punto_reorden: Number(m.punto_reorden) || 1.5
             }));
             renderTable(todosLosMateriales);
             actualizarDatalistMateriales();
+        } else {
+            console.warn("⚠️ El servidor respondió pero no hubo éxito en los datos.");
         }
     } catch (error) {
         console.error("❌ Error inventario:", error);
+        const tableBody = document.getElementById('inventoryTable');
+        if(tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Error al conectar con Render. Reintente...</td></tr>';
     }
 }
 
 async function fetchProviders() {
     try {
-        const response = await fetch('/api/providers');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const result = await response.json();
-        const data = result.success ? result.data : result; 
+        const data = await window.API.getProviders();
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
@@ -113,8 +113,8 @@ function renderTable(materials) {
 
     materials.forEach(m => {
         const tr = document.createElement('tr');
-        const ancho = Number(m.ancho_lamina_cm) || 0;
-        const largo = Number(m.largo_lamina_cm) || 0;
+        const ancho = Number(m.ancho_lamina_cm || m.ancho) || 0;
+        const largo = Number(m.largo_lamina_cm || m.largo) || 0;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         const stockActual = Number(m.stock_actual_m2) || 0;
         const puntoReorden = Number(m.punto_reorden) || 1.5;
@@ -194,12 +194,8 @@ function configurarEventos() {
         };
         if(btn) btn.disabled = true;
         try {
-            const res = await fetch('/api/inventory/purchase', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (res.ok) { 
+            const res = await window.API.registerPurchase(data);
+            if (res.success || res._id) { 
                 window.cerrarModales(); 
                 await fetchInventory(); 
                 e.target.reset(); 
@@ -216,24 +212,19 @@ function configurarEventos() {
             punto_reorden: parseFloat(document.getElementById('adjustReorden')?.value) || 0,
             motivo: document.getElementById('adjustMotivo').value || "Ajuste manual"
         };
-        const res = await fetch('/api/inventory/adjust', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) { 
+        const res = await window.API.adjustStock(payload);
+        if (res.success || res._id) { 
             window.cerrarModales(); 
             await fetchInventory();
         }
     });
 }
 
-// --- FUNCIONES DE MODAL Y UTILIDADES (GLOBALES CON BINDING FORZADO) ---
+// --- FUNCIONES DE MODAL Y UTILIDADES (GLOBALES) ---
 
 window.verHistorial = async function(id, nombre) {
     try {
-        const response = await fetch(`/api/inventory/history/${id}`);
-        const result = await response.json();
+        const result = await window.API.getHistory(id);
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedor = document.getElementById('listaHistorialPrecios');
         const labelNombre = document.getElementById('historialMaterialNombre');
@@ -271,7 +262,7 @@ window.verHistorial = async function(id, nombre) {
 window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿Eliminar este material permanentemente?")) {
         try {
-            const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${window.API.url}/inventory/${id}`, { method: 'DELETE' });
             if (res.ok) await fetchInventory();
         } catch (error) { console.error("Error al eliminar:", error); }
     }
