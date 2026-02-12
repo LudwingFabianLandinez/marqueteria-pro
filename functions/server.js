@@ -5,12 +5,12 @@ const serverless = require('serverless-http');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
-// IMPORTANTE: Cargamos los modelos estandarizados para evitar errores de registro
+// IMPORTANTE: Cargamos los modelos estandarizados
 require('./models/Provider');
 require('./models/Material');
 require('./models/Invoice'); 
 require('./models/Transaction'); 
-require('./models/Purchase'); // <--- ACTIVADO: Ahora que el archivo existe
+require('./models/Purchase'); 
 
 const app = express();
 
@@ -24,7 +24,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Gestión de Conexión a MongoDB (Optimizado para Netlify)
+// 2. Gestión de Conexión a MongoDB
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
@@ -37,7 +37,7 @@ const connect = async () => {
     }
 };
 
-// 3. Sistema de Carga de Rutas (Capa de Protección)
+// 3. Sistema de Carga de Rutas
 const router = express.Router();
 
 const safeLoad = (routePath, modulePath) => {
@@ -46,7 +46,6 @@ const safeLoad = (routePath, modulePath) => {
         router.use(routePath, routeModule);
         console.log(`✅ Ruta activa: ${routePath}`);
     } catch (error) {
-        // Muestra el error en logs pero no tumba el despliegue
         console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]: Verifica que ${modulePath} exista.`);
         console.error(`Detalle: ${error.message}`);
     }
@@ -57,14 +56,15 @@ safeLoad('/inventory', './routes/inventoryRoutes');
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
 safeLoad('/stats', './routes/statsRoutes');
-safeLoad('/purchases', './routes/purchaseRoutes'); // <--- ACTIVADO: Ruta de compras lista
-
-// UNIFICACIÓN QUIRÚRGICA: 
-// Ambas rutas apuntan al mismo controlador para compatibilidad total
+safeLoad('/purchases', './routes/purchaseRoutes'); 
 safeLoad('/providers', './routes/providerRoutes'); 
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
+// AJUSTE CRÍTICO AQUÍ:
+// Netlify a veces requiere que la base sea /.netlify/functions/server
+// Pero para que tu frontend actual no se rompa, mantenemos /api
 app.use('/api', router);
+app.use('/.netlify/functions/server', router); // Esto asegura que funcione en la nube
 
 // Manejador Global de Errores
 app.use((err, req, res, next) => {

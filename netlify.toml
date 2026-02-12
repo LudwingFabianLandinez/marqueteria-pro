@@ -1,15 +1,20 @@
 [build]
+  # El comando de build no puede ser "#". Debe instalar dependencias para que el backend funcione.
+  command = "npm install"
   publish = "."
-  command = "#"
 
 [functions]
   directory = "functions"
+  node_bundle = true
 
+# REGLA MAESTRA PARA LA API
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/server/api/:splat"
+  # Eliminamos el '/api' extra de la ruta de destino para que coincida con tu server.js
+  to = "/.netlify/functions/server/:splat"
   status = 200
 
+# REGLA PARA NAVEGACIÓN SPA (Solo si no encuentra un archivo real)
 [[redirects]]
   from = "/*"
   to = "/dashboard.html"
