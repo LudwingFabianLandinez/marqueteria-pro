@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 
-// 1. CORS Totalmente Abierto para que ningún botón se bloquee por seguridad
+// 1. CORS Totalmente Abierto para evitar bloqueos en los botones
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -17,7 +17,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Conexión a Base de Datos
+// 2. Conexión a Base de Datos (Optimizada para evitar caídas)
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
@@ -32,31 +32,36 @@ const connect = async () => {
 connect();
 
 // ==========================================
-// 3. RUTAS DE LA API (Activación de todos los botones)
+// 3. RUTAS DE LA API (Carga Protegida Quirúrgica)
 // ==========================================
 const router = express.Router();
 
-// Estas líneas mapean los clics del frontend con tus archivos en la carpeta 'routes'
-router.use('/inventory', require('./routes/inventoryRoutes'));
-router.use('/quotes', require('./routes/quoteRoutes'));
-router.use('/invoices', require('./routes/invoiceRoutes'));
+/**
+ * Función de seguridad: Si un archivo de ruta tiene errores, 
+ * no detiene el resto del servidor.
+ */
+const safeLoad = (routePath, modulePath) => {
+    try {
+        router.use(routePath, require(modulePath));
+        console.log(`✅ Ruta cargada con éxito: ${routePath}`);
+    } catch (error) {
+        console.error(`⚠️ Error al cargar la ruta [${routePath}]:`, error.message);
+    }
+};
 
-// Activación del botón de Proveedores (Soportamos ambos nombres comunes en tu proyecto)
-router.use('/providers', require('./routes/providerRoutes'));
-router.use('/suppliers', require('./routes/supplierRoutes'));
-
-// Activación de Estadísticas e Historiales
-try {
-    router.use('/stats', require('./routes/statsRoutes'));
-} catch (e) {
-    console.log("ℹ️ Ruta /stats no disponible");
-}
+// Cargamos cada botón protegiendo que no rompa a los demás
+safeLoad('/inventory', './routes/inventoryRoutes');
+safeLoad('/quotes', './routes/quoteRoutes');
+safeLoad('/invoices', './routes/invoiceRoutes');
+safeLoad('/providers', './routes/providerRoutes');
+safeLoad('/suppliers', './routes/supplierRoutes');
+safeLoad('/stats', './routes/statsRoutes');
 
 app.use('/api', router);
 
-// Manejador de errores para que la app no se "congele" y dé respuestas claras
+// Manejador de errores para evitar que la app se quede en blanco
 app.use((err, req, res, next) => {
-    console.error("🚨 ERROR EN EL SERVIDOR:", err);
+    console.error("🚨 ERROR CRÍTICO EN EL SERVIDOR:", err);
     res.status(500).json({ 
         success: false, 
         error: "Error interno en el servidor",
