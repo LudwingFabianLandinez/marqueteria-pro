@@ -4,17 +4,16 @@
 
 [functions]
   directory = "functions"
-  node_bundle = true
+  # Se cambió de booleano a objeto para evitar el error de sintaxis
+  node_bundle = {} 
 
 [[redirects]]
-  # Esto conecta tu JS con el server.js que está dentro de functions
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
 [[redirects]]
-  # Esto hace que al entrar al link se vea tu dashboard
   from = "/*"
   to = "/dashboard.html"
   status = 200
