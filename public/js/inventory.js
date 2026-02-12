@@ -1,22 +1,19 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.5 - FIX MULTI-UNIDAD: Soporte m2 y ml + Sincronización Backend
+ * Versión: 4.6 - NETLIFY SYNC FIX
  */
 
-// --- VARIABLES DE ESTADO ---
 let todosLosMateriales = [];
 let todosLosProveedores = [];
 
-// --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.5");
+    console.log("🚀 Sistema de Gestión Iniciado v4.6 - Netlify Ready");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
 });
 
-// --- FUNCIONES DE NAVEGACIÓN (GLOBALES) ---
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('active');
@@ -33,12 +30,10 @@ window.abrirAgenda = function() {
 window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
-
     if (todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
-
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
             <div>
@@ -55,47 +50,42 @@ window.renderAgendaProveedores = function() {
     `).join('');
 };
 
-// --- CARGA DE DATOS ---
 async function fetchInventory() {
     try {
         const result = await window.API.getInventory();
+        // Soporte para ambos formatos de respuesta: {success: true, data: []} o directamente []
+        const data = result.success ? result.data : (Array.isArray(result) ? result : []);
         
-        if (result.success) {
-            todosLosMateriales = result.data.map(m => ({
-                ...m,
-                nombre: m.nombre || "Material sin nombre",
-                categoria: m.categoria || "General",
-                proveedorNombre: m.proveedor ? m.proveedor.nombre : "Sin proveedor",
-                // Sincronización con el nuevo campo del modelo
-                stock_actual: Number(m.stock_actual) || 0,
-                precio_m2_costo: Number(m.precio_m2_costo) || 0,
-                stock_minimo: Number(m.stock_minimo) || 2
-            }));
-            renderTable(todosLosMateriales);
-            actualizarDatalistMateriales();
-        }
+        todosLosMateriales = data.map(m => ({
+            ...m,
+            nombre: m.nombre || "Material sin nombre",
+            categoria: m.categoria || "General",
+            proveedorNombre: m.proveedor ? (m.proveedor.nombre || m.proveedor) : "Sin proveedor",
+            stock_actual: Number(m.stock_actual) || 0,
+            precio_m2_costo: Number(m.precio_m2_costo) || 0,
+            stock_minimo: Number(m.stock_minimo) || 2
+        }));
+        
+        renderTable(todosLosMateriales);
+        actualizarDatalistMateriales();
     } catch (error) {
         console.error("❌ Error inventario:", error);
         const tableBody = document.getElementById('inventoryTable');
-        if(tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Error al cargar datos.</td></tr>';
+        if(tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Error al conectar con el servidor.</td></tr>';
     }
 }
 
 async function fetchProviders() {
     try {
         const result = await window.API.getProviders();
-        // Result suele venir como {success: true, data: [...]}
-        const data = result.data || result; 
+        const data = result.success ? result.data : (Array.isArray(result) ? result : []); 
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
         }
-    } catch (error) { 
-        console.error("❌ Error proveedores:", error); 
-    }
+    } catch (error) { console.error("❌ Error proveedores:", error); }
 }
 
-// --- RENDERIZADO DE TABLA ---
 function renderTable(materials) {
     const tableBody = document.getElementById('inventoryTable');
     if (!tableBody) return;
@@ -110,7 +100,6 @@ function renderTable(materials) {
         const stockMinimo = Number(m.stock_minimo) || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // Cálculo de unidades físicas (Láminas o Tiras)
         let unidadesCompletas = 0;
         let remanente = 0;
         let etiquetaUnidad = 'Láminas';
@@ -177,7 +166,6 @@ function renderTable(materials) {
     });
 }
 
-// --- CONFIGURACIÓN DE EVENTOS ---
 function configurarEventos() {
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
@@ -187,13 +175,11 @@ function configurarEventos() {
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
-        
-        // Detección automática de tipo basado en categoría
-        const categoria = document.getElementById('nombreMaterial').value.toLowerCase();
-        const esMarco = categoria.includes('marco') || categoria.includes('moldura');
+        const nombreMat = document.getElementById('nombreMaterial').value;
+        const esMarco = nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura');
 
         const data = {
-            nombre: document.getElementById('nombreMaterial').value.trim(),
+            nombre: nombreMat.trim(),
             tipo: esMarco ? 'ml' : 'm2',
             proveedor: document.getElementById('proveedorSelect').value,
             ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
@@ -209,13 +195,10 @@ function configurarEventos() {
                 window.cerrarModales(); 
                 await fetchInventory(); 
                 e.target.reset(); 
-                alert("✅ Inventario actualizado correctamente");
+                alert("✅ Inventario actualizado");
             }
-        } catch (err) { 
-            alert("❌ Error al registrar entrada"); 
-        } finally { 
-            if(btn) btn.disabled = false; 
-        }
+        } catch (err) { alert("❌ Error al registrar"); } 
+        finally { if(btn) btn.disabled = false; }
     });
 
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
@@ -234,7 +217,6 @@ function configurarEventos() {
     });
 }
 
-// --- UTILIDADES GLOBALES ---
 window.verHistorial = async function(id, nombre) {
     try {
         const result = await window.API.getHistory(id);
@@ -244,11 +226,13 @@ window.verHistorial = async function(id, nombre) {
 
         if (labelNombre) labelNombre.innerText = nombre;
 
-        if (result.success && result.data.length > 0) {
+        const data = result.success ? result.data : result;
+
+        if (Array.isArray(data) && data.length > 0) {
             const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-            contenedor.innerHTML = result.data.map(h => {
+            contenedor.innerHTML = data.map(h => {
                 const esCompra = h.tipo === 'COMPRA';
-                const procedencia = h.proveedor ? h.proveedor.nombre : (h.tipo === 'VENTA' ? 'Orden Trabajo' : 'Ajuste');
+                const procedencia = h.proveedor?.nombre || (h.tipo === 'VENTA' ? 'Orden Trabajo' : 'Ajuste');
                 return `
                     <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items:center;">
                         <div style="flex: 1;">
@@ -259,23 +243,23 @@ window.verHistorial = async function(id, nombre) {
                             <span style="font-weight: bold; color: ${esCompra ? '#10b981' : '#f43f5e'};">
                                 ${esCompra ? formatter.format(h.costo_unitario || h.precio_m2_costo || 0) : h.tipo}
                             </span>
-                            <div style="font-size: 0.7rem; color: #64748b;">${Number(h.cantidad || h.cantidad_m2 || 0).toFixed(2)} unidades</div>
+                            <div style="font-size: 0.7rem; color: #64748b;">${Number(h.cantidad || h.cantidad_m2 || 0).toFixed(2)} uds</div>
                         </div>
                     </div>`;
             }).join('');
         } else {
-            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos registrados.</div>`;
+            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`;
         }
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
 };
 
 window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Eliminar este material? Esta acción borrará también su historial.")) {
+    if (confirm("⚠️ ¿Eliminar este material?")) {
         try {
             const res = await window.API.deleteMaterial(id);
             if (res.success) await fetchInventory();
-        } catch (error) { console.error("Error al eliminar:", error); }
+        } catch (error) { console.error("Error:", error); }
     }
 };
 

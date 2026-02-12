@@ -13,8 +13,35 @@ window.API = {
         } catch (err) { return { success: false, error: err.message }; }
     },
 
+    adjustStock: async function(data) {
+        try {
+            const response = await fetch(`${this.url}/inventory/adjust`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    deleteMaterial: async function(id) {
+        try {
+            const response = await fetch(`${this.url}/inventory/${id}`, {
+                method: 'DELETE'
+            });
+            return await response.json();
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    getHistory: async function(id) {
+        try {
+            const response = await fetch(`${this.url}/inventory/history/${id}`);
+            return await response.json();
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
     // ==========================================
-    // PROVEEDORES (Consultas y Registro)
+    // PROVEEDORES
     // ==========================================
     getProviders: async function() {
         try {
@@ -45,9 +72,9 @@ window.API = {
     },
 
     // ==========================================
-    // COMPRAS (Para el modal de Nueva Compra)
+    // COMPRAS
     // ==========================================
-    savePurchase: async function(purchaseData) {
+    registerPurchase: async function(purchaseData) {
         try {
             const response = await fetch(`${this.url}/purchases`, {
                 method: 'POST',
@@ -56,5 +83,9 @@ window.API = {
             });
             return await response.json();
         } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    savePurchase: async function(purchaseData) {
+        return this.registerPurchase(purchaseData);
     }
 };
