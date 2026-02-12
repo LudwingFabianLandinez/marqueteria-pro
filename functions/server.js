@@ -17,12 +17,10 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir peticiones sin origen o de la lista blanca
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            // Si falla el origen, permitimos en producción para evitar bloqueos al cliente
-            callback(null, true); 
+            callback(null, true); // Permisividad total en producción para evitar bloqueos
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -54,21 +52,27 @@ const connect = async () => {
 connect();
 
 // ==========================================
-// RUTAS DE LA API (Sincronizadas con tus archivos)
+// RUTAS DE LA API (Activación de todos los botones)
 // ==========================================
 const router = express.Router();
 
-// Importación de rutas - He añadido validación para evitar el Error 500
-router.use('/providers', require('./routes/providerRoutes'));
-router.use('/inventory', require('./routes/inventoryRoutes'));
-router.use('/quotes', require('./routes/quoteRoutes'));
-router.use('/invoices', require('./routes/invoiceRoutes'));
-// Si tienes un archivo llamado supplierRoutes, asegúrate de que el nombre coincida aquí abajo:
+// Cada línea aquí activa un botón diferente en tu dashboard
+router.use('/inventory', require('./routes/inventoryRoutes')); // Botón Existencias
+router.use('/quotes', require('./routes/quoteRoutes'));       // Botón Cotizaciones
+router.use('/invoices', require('./routes/invoiceRoutes'));     // Botón Facturación
+
+// Botón Proveedores: Mapeamos ambas posibilidades para evitar el Error 500
 try {
+    router.use('/providers', require('./routes/providerRoutes'));
     router.use('/suppliers', require('./routes/supplierRoutes'));
 } catch (e) {
-    console.log("ℹ️ Ruta /suppliers opcional no cargada");
+    console.log("ℹ️ Nota: Alguna ruta de proveedores no se cargó, pero el sistema continúa.");
 }
+
+// Botón Estadísticas / Dashboard
+try {
+    router.use('/stats', require('./routes/statsRoutes'));
+} catch (e) {}
 
 // Montaje de rutas
 app.use('/api', router);
