@@ -143,4 +143,4 @@ InvoiceSchema.pre('save', function(next) {
     next();
 });
 
-module.exports = mongoose.model('Invoice', InvoiceSchema);
+module.exports = mongoose.models.Invoice || mongoose.model('Invoice', InvoiceSchema, 'facturas');

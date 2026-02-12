@@ -5,13 +5,16 @@ const serverless = require('serverless-http');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
-// IMPORTANTE: Cargamos los modelos aquí para que Mongoose los reconozca globalmente
+// IMPORTANTE: Cargamos los modelos estandarizados para evitar el error "Schema hasn't been registered"
 require('./models/Provider');
 require('./models/Material');
+require('./models/Invoice'); 
+require('./models/Transaction'); 
+require('./models/Purchase'); // Añadido para soportar el registro de nuevas compras
 
 const app = express();
 
-// 1. CORS Totalmente Abierto para evitar bloqueos en los botones
+// 1. Configuración de Seguridad y Datos
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -21,7 +24,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Conexión a Base de Datos (Optimizada para Serverless)
+// 2. Gestión de Conexión a MongoDB (Anti-fugas de memoria en Netlify)
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
@@ -30,74 +33,64 @@ const connect = async () => {
         isConnected = true;
         console.log("🟢 MongoDB Conectado a Atlas");
     } catch (err) {
-        console.error("🚨 Error DB:", err);
+        console.error("🚨 Error Crítico de Conexión DB:", err);
     }
 };
 
-// ==========================================
-// 3. RUTAS DE LA API (Carga Protegida Quirúrgica)
-// ==========================================
+// 3. Sistema de Carga de Rutas (Capa de Protección)
 const router = express.Router();
 
-/**
- * Función de seguridad: Si un archivo de ruta tiene errores, 
- * no detiene el resto del servidor.
- */
 const safeLoad = (routePath, modulePath) => {
     try {
         const routeModule = require(modulePath);
         router.use(routePath, routeModule);
-        console.log(`✅ Ruta cargada con éxito: ${routePath}`);
+        console.log(`✅ Ruta activa: ${routePath}`);
     } catch (error) {
-        console.error(`🚨 ERROR CRÍTICO EN ARCHIVO: ${modulePath}`);
-        console.error(`Detalle: ${error.message}`);
+        // Si borraste un archivo que aquí se llama, este mensaje te avisará sin tumbar el servidor
+        console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]: Verifica que ${modulePath} exista.`);
+        console.error(`Detalle técnico: ${error.message}`);
     }
 };
 
-// Cargamos el inventario PRIMERO para asegurar que funcione
+// --- MAPEO DE RUTAS DE LA API ---
 safeLoad('/inventory', './routes/inventoryRoutes');
-
-// Cargamos los demás botones.
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
-safeLoad('/providers', './routes/providerRoutes');
-// Nota: 'suppliers' se mantiene por compatibilidad si tienes código viejo, 
-// pero 'providers' es ahora el estándar que configuramos.
-safeLoad('/suppliers', './routes/supplierRoutes');
 safeLoad('/stats', './routes/statsRoutes');
+safeLoad('/purchases', './routes/purchaseRoutes'); // Habilitamos la ruta para guardar compras
+
+// UNIFICACIÓN QUIRÚRGICA: 
+// Ambas rutas ahora usan 'providerRoutes.js'. 
+// Esto permite borrar 'supplierRoutes.js' y 'supplierController.js' sin romper el frontend viejo.
+safeLoad('/providers', './routes/providerRoutes'); 
+safeLoad('/suppliers', './routes/providerRoutes'); 
 
 app.use('/api', router);
 
-// Manejador de errores para evitar que la app se quede en blanco
+// Manejador Global de Errores
 app.use((err, req, res, next) => {
-    console.error("🚨 ERROR NO CONTROLADO EN EL MIDDLEWARE:", err);
+    console.error("🚨 ERROR NO CONTROLADO:", err.stack);
     res.status(500).json({ 
         success: false, 
-        error: "Error interno en el servidor",
-        message: err.message
+        error: "Error interno en el servidor", 
+        message: err.message 
     });
 });
 
-// ==========================================
-// 4. EXPORTACIÓN PARA NETLIFY
-// ==========================================
+// 4. Exportación para Netlify Functions
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Esto es vital para que Netlify no se quede esperando y responda rápido
     context.callbackWaitsForEmptyEventLoop = false;
-    
-    // Aseguramos conexión antes de responder a la petición
     await connect();
-    
     return await handler(event, context);
 };
 
-// Desarrollo local
+// Modo Desarrollo Local
 if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
     const PORT = process.env.PORT || 4000;
     app.listen(PORT, () => {
-        connect(); // Conectamos también en local
-        console.log(`✅ Servidor local en puerto ${PORT}`);
+        connect();
+        console.log(`🚀 Servidor de Pruebas: http://localhost:${PORT}`);
     });
 }

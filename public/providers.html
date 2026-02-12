@@ -162,7 +162,7 @@
         <h2><i class="fas fa-truck-loading"></i> Nuevo Proveedor</h2>
     </div>
     <div class="card-body">
-        <form id="supplierForm" onsubmit="event.preventDefault(); manejarGuardado();">
+        <form id="providerForm" onsubmit="event.preventDefault(); manejarGuardado();">
             <div class="form-group">
                 <input type="text" id="nombre" name="nombre" placeholder="Nombre Comercial *" required>
             </div>
@@ -231,9 +231,7 @@
 
 <script>
     /**
-     * ESCUDO DE EMERGENCIA
-     * Estas funciones se definen en el objeto global 'window' para que el 
-     * HTML las vea incluso si el archivo js/api.js tiene errores internos.
+     * ESCUDO DE EMERGENCIA ACTUALIZADO
      */
 
     window.abrirModalConsulta = async function() {
@@ -241,14 +239,14 @@
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
         
-        // Abrir el modal inmediatamente (esto prueba que el botón sirve)
         modal.style.display = 'flex';
         tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos de la nube...</td></tr>';
 
         try {
-            // Verificamos si la API cargó bien
-            if (window.API && window.API.getProviders) {
-                const proveedores = await window.API.getProviders();
+            // Intentamos buscar la función tanto con el nombre nuevo como con el viejo
+            if (window.API && (window.API.getProviders || window.API.getSuppliers)) {
+                const fetchFunc = window.API.getProviders || window.API.getSuppliers;
+                const proveedores = await fetchFunc();
                 const lista = proveedores.data || proveedores;
 
                 if (Array.isArray(lista) && lista.length > 0) {
@@ -295,8 +293,9 @@
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
 
-            if (window.API && (window.API.saveSupplier || window.API.saveProvider)) {
-                const saveFunc = window.API.saveSupplier || window.API.saveProvider;
+            // El escudo ahora busca saveProvider primero, luego saveSupplier
+            if (window.API && (window.API.saveProvider || window.API.saveSupplier)) {
+                const saveFunc = window.API.saveProvider || window.API.saveSupplier;
                 await saveFunc(datos);
                 alert("✅ Proveedor guardado con éxito.");
                 window.location.href = "dashboard.html";

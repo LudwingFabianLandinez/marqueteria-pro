@@ -1,16 +1,22 @@
 const Material = require('../models/Material');
+// Importamos Provider en lugar de Supplier
+const Provider = require('../models/Provider');
+// Importamos Transaction (asegúrate de que el modelo Transaction también apunte a la colección correcta si existe)
 const Transaction = require('../models/Transaction');
-const Supplier = require('../models/Supplier');
 
 /**
  * CONTROLADOR DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
- * Gestión de existencias y trazabilidad [cite: 2026-02-05]
+ * Gestión de existencias y trazabilidad
  */
 
-// 1. Obtener materiales (Ordenados alfabéticamente)
+// 1. Obtener materiales (Poblando los datos del proveedor automáticamente)
 exports.getMaterials = async (req, res) => {
     try {
-        const materials = await Material.find().sort({ nombre: 1 }).lean();
+        // Hacemos .populate('proveedor') para que en el frontend aparezca el NOMBRE del proveedor y no solo el ID
+        const materials = await Material.find()
+            .populate('proveedor', 'nombre') 
+            .sort({ nombre: 1 })
+            .lean();
         res.status(200).json({ success: true, data: materials || [] });
     } catch (error) {
         console.error("❌ Error en getMaterials:", error);
@@ -18,18 +24,16 @@ exports.getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra (Cálculos automáticos y trazabilidad)
+// 2. Registrar compra (Sincronizado con el modelo Provider)
 exports.registerPurchase = async (req, res) => {
     try {
-        const { nombre, ancho_lamina_cm, largo_lamina_cm, precio_total_lamina, cantidad_laminas, proveedorId } = req.body;
+        const { nombre, ancho_lamina_cm, largo_lamina_cm, precio_total_lamina, cantidad_laminas, proveedor } = req.body;
 
-        // Normalización de números para evitar NaN en la DB [cite: 2026-02-05]
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || 0;
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || 0;
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 0;
 
-        // Cálculos de área y costos [cite: 2026-02-05]
         const areaM2Unitario = (ancho * largo) / 10000;
         const areaM2Total = areaM2Unitario * cantidad;
         const costoM2 = areaM2Unitario > 0 ? (precioTotalUnitario / areaM2Unitario) : 0;
@@ -38,7 +42,7 @@ exports.registerPurchase = async (req, res) => {
         const nombreLimpio = nombre ? nombre.trim() : "Material Sin Nombre";
         const nombreBusqueda = nombreLimpio.toLowerCase();
 
-        // Categorización automática inteligente mejorada
+        // Categorización automática
         let categoria = 'Otros';
         const reglas = [
             { regex: /vidrio|espejo/i, cat: 'Vidrio' },
@@ -52,7 +56,6 @@ exports.registerPurchase = async (req, res) => {
         const reglaEncontrada = reglas.find(r => r.regex.test(nombreBusqueda));
         if (reglaEncontrada) categoria = reglaEncontrada.cat;
 
-        // Buscar o crear material (Case Insensitive)
         let material = await Material.findOne({ 
             nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
         });
@@ -64,6 +67,8 @@ exports.registerPurchase = async (req, res) => {
             material.ancho_lamina_cm = ancho;
             material.largo_lamina_cm = largo;
             material.categoria = categoria; 
+            // Sincronizamos con el campo 'proveedor' del modelo
+            material.proveedor = (proveedor && proveedor !== "") ? proveedor : material.proveedor;
             await material.save();
         } else {
             material = new Material({
@@ -74,23 +79,25 @@ exports.registerPurchase = async (req, res) => {
                 precio_total_lamina: precioTotalUnitario,
                 precio_m2_costo: costoM2,
                 stock_actual_m2: areaM2Total,
-                proveedor: (proveedorId && proveedorId !== "") ? proveedorId : null
+                proveedor: (proveedor && proveedor !== "") ? proveedor : null
             });
             await material.save();
         }
 
         // Registrar transacción para el historial
-        const trans = new Transaction({
-            materialId: material._id,
-            tipo: 'COMPRA',
-            cantidad_m2: areaM2Total,
-            costo_unitario_m2: costoM2, 
-            costo_total: inversionTotalCompra,
-            proveedorId: (proveedorId && proveedorId !== "") ? proveedorId : null,
-            motivo: `Compra de ${cantidad} láminas (${ancho}x${largo}cm)`,
-            fecha: new Date()
-        });
-        await trans.save();
+        if (Transaction) {
+            const trans = new Transaction({
+                materialId: material._id,
+                tipo: 'COMPRA',
+                cantidad_m2: areaM2Total,
+                precio_m2_costo: costoM2, 
+                costo_total: inversionTotalCompra,
+                proveedor: (proveedor && proveedor !== "") ? proveedor : null,
+                motivo: `Compra de ${cantidad} unidades (${ancho}x${largo}cm)`,
+                fecha: new Date()
+            });
+            await trans.save();
+        }
 
         res.status(201).json({ success: true, data: material });
     } catch (error) {
@@ -99,12 +106,12 @@ exports.registerPurchase = async (req, res) => {
     }
 };
 
-// 3. Obtener todas las compras (Para la tabla de historial)
+// 3. Obtener todas las compras
 exports.getAllPurchases = async (req, res) => {
     try {
         const purchases = await Transaction.find({ tipo: 'COMPRA' })
             .populate({ path: 'materialId', select: 'nombre categoria' })
-            .populate({ path: 'proveedorId', select: 'nombre' })
+            .populate({ path: 'proveedor', select: 'nombre' })
             .sort({ fecha: -1 })
             .lean();
 
@@ -114,7 +121,7 @@ exports.getAllPurchases = async (req, res) => {
     }
 };
 
-// 4. Resumen de KPIs (Para las tarjetas del Dashboard)
+// 4. Resumen de KPIs
 exports.getPurchasesSummary = async (req, res) => {
     try {
         const stats = await Transaction.aggregate([
@@ -134,11 +141,11 @@ exports.getPurchasesSummary = async (req, res) => {
     }
 };
 
-// 5. Historial de un material específico (Modal Reloj)
+// 5. Historial de un material específico
 exports.getMaterialHistory = async (req, res) => {
     try {
         const history = await Transaction.find({ materialId: req.params.id })
-            .populate({ path: 'proveedorId', select: 'nombre' })
+            .populate({ path: 'proveedor', select: 'nombre' })
             .sort({ fecha: -1 })
             .limit(30)
             .lean();
@@ -160,15 +167,17 @@ exports.getLowStockMaterials = async (req, res) => {
     }
 };
 
-// 7. Ajuste manual de stock (Mermas) [cite: 2026-02-05]
+// 7. Ajuste manual de stock
 exports.manualAdjustment = async (req, res) => {
     try {
-        const { materialId, nuevaCantidadM2, motivo } = req.body;
+        const { materialId, nuevaCantidadM2, stock_minimo_m2, motivo } = req.body;
         const material = await Material.findById(materialId);
         if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
 
         const diferencia = parseFloat(nuevaCantidadM2) - material.stock_actual_m2;
         material.stock_actual_m2 = parseFloat(nuevaCantidadM2);
+        if (stock_minimo_m2) material.stock_minimo_m2 = parseFloat(stock_minimo_m2);
+        
         await material.save();
 
         const trans = new Transaction({
@@ -201,7 +210,7 @@ exports.bulkPriceUpdate = async (req, res) => {
 exports.deleteMaterial = async (req, res) => {
     try {
         await Material.findByIdAndDelete(req.params.id);
-        await Transaction.deleteMany({ materialId: req.params.id });
+        if (Transaction) await Transaction.deleteMany({ materialId: req.params.id });
         res.status(200).json({ success: true, message: "Material eliminado" });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error al eliminar" });
