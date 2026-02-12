@@ -1,17 +1,25 @@
 [build]
-  publish = "public"
+  publish = "."
   command = "npm install"
 
 [functions]
   directory = "functions"
+  node_bundle = true
 
-# Regla de redirección para que /api/ viaje hacia las funciones de Netlify
+# REGLA DE REDIRECCIÓN MAESTRA
+# Esta regla redirige /api/materiales a /.netlify/functions/server/api/materiales
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/server/:splat"
+  to = "/.netlify/functions/server/api/:splat"
   status = 200
 
-# Añadimos esta sección para blindar los permisos de red (Headers)
+# Redirección para Single Page Application (evita errores al recargar)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Blindaje de permisos (Headers)
 [[headers]]
   for = "/*"
   [headers.values]
