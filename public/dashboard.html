@@ -274,8 +274,7 @@
 
     <script src="js/api.js?v=4.1"></script>
     <script src="js/inventory.js?v=4.1"></script>
-
-    <script>
+    <script src="js/dashboard.js?v=4.1"></script> <script>
         // Funciones de utilidad local integradas con el scope global
         window.abrirModalCompra = function() {
             const modal = document.getElementById('modalCompra');
@@ -287,6 +286,12 @@
             if (event.target.classList.contains('modal')) {
                 window.cerrarModales();
             }
+        };
+
+        // Función para el menú móvil
+        window.toggleMenu = function() {
+            const sidebar = document.getElementById('sidebar');
+            if(sidebar) sidebar.classList.toggle('active');
         };
     </script>
 </body>
