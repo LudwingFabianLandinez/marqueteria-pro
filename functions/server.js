@@ -5,12 +5,12 @@ const serverless = require('serverless-http');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
-// IMPORTANTE: Cargamos los modelos estandarizados para evitar el error "Schema hasn't been registered"
+// IMPORTANTE: Cargamos los modelos estandarizados
 require('./models/Provider');
 require('./models/Material');
 require('./models/Invoice'); 
 require('./models/Transaction'); 
-require('./models/Purchase'); // Añadido para soportar el registro de nuevas compras
+// require('./models/Purchase'); // Comentado temporalmente hasta que crees el archivo físico
 
 const app = express();
 
@@ -24,7 +24,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Gestión de Conexión a MongoDB (Anti-fugas de memoria en Netlify)
+// 2. Gestión de Conexión a MongoDB
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
@@ -37,7 +37,7 @@ const connect = async () => {
     }
 };
 
-// 3. Sistema de Carga de Rutas (Capa de Protección)
+// 3. Sistema de Carga de Rutas
 const router = express.Router();
 
 const safeLoad = (routePath, modulePath) => {
@@ -46,9 +46,8 @@ const safeLoad = (routePath, modulePath) => {
         router.use(routePath, routeModule);
         console.log(`✅ Ruta activa: ${routePath}`);
     } catch (error) {
-        // Si borraste un archivo que aquí se llama, este mensaje te avisará sin tumbar el servidor
         console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]: Verifica que ${modulePath} exista.`);
-        console.error(`Detalle técnico: ${error.message}`);
+        // No lanzamos el error para que el servidor no se caiga si falta una ruta secundaria
     }
 };
 
@@ -57,11 +56,9 @@ safeLoad('/inventory', './routes/inventoryRoutes');
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
 safeLoad('/stats', './routes/statsRoutes');
-safeLoad('/purchases', './routes/purchaseRoutes'); // Habilitamos la ruta para guardar compras
+// safeLoad('/purchases', './routes/purchaseRoutes'); // Comentado hasta que el archivo exista
 
 // UNIFICACIÓN QUIRÚRGICA: 
-// Ambas rutas ahora usan 'providerRoutes.js'. 
-// Esto permite borrar 'supplierRoutes.js' y 'supplierController.js' sin romper el frontend viejo.
 safeLoad('/providers', './routes/providerRoutes'); 
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
