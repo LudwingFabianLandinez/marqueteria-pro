@@ -5,12 +5,12 @@ const serverless = require('serverless-http');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
-// IMPORTANTE: Cargamos los modelos estandarizados
+// IMPORTANTE: Cargamos los modelos estandarizados para evitar errores de registro
 require('./models/Provider');
 require('./models/Material');
 require('./models/Invoice'); 
 require('./models/Transaction'); 
-// require('./models/Purchase'); // Comentado temporalmente hasta que crees el archivo físico
+require('./models/Purchase'); // <--- ACTIVADO: Ahora que el archivo existe
 
 const app = express();
 
@@ -24,7 +24,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Gestión de Conexión a MongoDB
+// 2. Gestión de Conexión a MongoDB (Optimizado para Netlify)
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
@@ -37,7 +37,7 @@ const connect = async () => {
     }
 };
 
-// 3. Sistema de Carga de Rutas
+// 3. Sistema de Carga de Rutas (Capa de Protección)
 const router = express.Router();
 
 const safeLoad = (routePath, modulePath) => {
@@ -46,8 +46,9 @@ const safeLoad = (routePath, modulePath) => {
         router.use(routePath, routeModule);
         console.log(`✅ Ruta activa: ${routePath}`);
     } catch (error) {
+        // Muestra el error en logs pero no tumba el despliegue
         console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]: Verifica que ${modulePath} exista.`);
-        // No lanzamos el error para que el servidor no se caiga si falta una ruta secundaria
+        console.error(`Detalle: ${error.message}`);
     }
 };
 
@@ -56,9 +57,10 @@ safeLoad('/inventory', './routes/inventoryRoutes');
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
 safeLoad('/stats', './routes/statsRoutes');
-// safeLoad('/purchases', './routes/purchaseRoutes'); // Comentado hasta que el archivo exista
+safeLoad('/purchases', './routes/purchaseRoutes'); // <--- ACTIVADO: Ruta de compras lista
 
 // UNIFICACIÓN QUIRÚRGICA: 
+// Ambas rutas apuntan al mismo controlador para compatibilidad total
 safeLoad('/providers', './routes/providerRoutes'); 
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
