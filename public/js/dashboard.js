@@ -1,7 +1,7 @@
 /**
  * Lógica del Dashboard Principal - MARQUETERÍA LA CHICA MORALES
  * Incluye: Estadísticas, Alertas de Stock, Saneamiento Automático de Negativos
- * Versión: 4.1 - Integración con Agenda Global
+ * Versión: 4.2 - Activación de Botones y Control de Vistas
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,9 +11,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Cargar proveedores en segundo plano para tener la agenda lista
     fetchProvidersForAgenda();
+
+    // Vincular cierre de modales al hacer clic fuera de ellos
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            cerrarModales();
+        }
+    };
 });
 
-// Variable global para la agenda (solo si no está cargada desde inventory.js)
+// Variable global para la agenda
 let proveedoresAgenda = [];
 
 // --- 1. CARGA DE ESTADÍSTICAS Y ALERTAS ---
@@ -117,11 +124,37 @@ async function corregirStockCero(id, nombre) {
     }
 }
 
-// --- 4. INTEGRACIÓN GLOBAL DE AGENDA ---
+// --- 4. CONTROL DE BOTONES Y MODALES ---
 
-/**
- * Carga los proveedores para que la agenda esté lista
- */
+// Botón: Nueva Cotización
+window.nuevaCotizacion = function() {
+    console.log("📝 Abriendo Nueva Cotización...");
+    // Redirige a la página de facturación/cotización o abre modal
+    window.location.href = 'facturacion.html?tipo=cotizacion';
+};
+
+// Botón: Nueva Compra (Ingreso de Mercancía)
+window.nuevaCompra = function() {
+    console.log("📦 Abriendo Nueva Compra...");
+    const modal = document.getElementById('modalCompra'); // Asegúrate que este ID existe en tu HTML
+    if (modal) modal.style.display = 'block';
+    else alert("Módulo de compras en desarrollo o ID 'modalCompra' no encontrado.");
+};
+
+// Botón: Consultar Proveedores (Agenda)
+window.abrirAgenda = function() {
+    console.log("🟢 Abriendo agenda desde dashboard...");
+    const modal = document.getElementById('modalAgenda');
+    if (modal) {
+        modal.style.display = 'block';
+        window.renderAgendaProveedores();
+    } else {
+        console.error("❌ No se encontró el modal 'modalAgenda'");
+    }
+};
+
+// --- 5. INTEGRACIÓN GLOBAL DE AGENDA ---
+
 async function fetchProvidersForAgenda() {
     try {
         const response = await fetch('/api/providers');
@@ -135,41 +168,26 @@ async function fetchProvidersForAgenda() {
     }
 }
 
-/**
- * Función que dispara el botón azul (Agenda)
- */
-window.abrirAgenda = function() {
-    console.log("🟢 Abriendo agenda desde dashboard...");
-    const modal = document.getElementById('modalAgenda');
-    if (modal) {
-        modal.style.display = 'block';
-        window.renderAgendaProveedores();
-    } else {
-        console.error("❌ No se encontró el modal 'modalAgenda'");
-    }
-};
-
-/**
- * Renderiza la lista dentro del modal
- */
 window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
     if (proveedoresAgenda.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Cargando proveedores...</p>';
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px;">No hay proveedores registrados.</p>';
         return;
     }
 
     contenedor.innerHTML = proveedoresAgenda.map(p => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee;">
             <div>
-                <div style="font-weight:bold;">${p.nombre}</div>
-                <div style="font-size:0.8rem; color:#666;">${p.telefono || 'Sin número'}</div>
+                <div style="font-weight:bold; color: #1e3a8a;">${p.nombre}</div>
+                <div style="font-size:0.8rem; color:#64748b;">${p.telefono || 'Sin número'}</div>
             </div>
-            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
-                <i class="fas fa-phone-alt"></i>
-            </a>
+            <div style="display: flex; gap: 10px;">
+                <a href="tel:${p.telefono}" style="background:#10b981; color:white; width:35px; height:35px; border-radius:8px; display:flex; align-items:center; justify-content:center; text-decoration:none;">
+                    <i class="fas fa-phone-alt"></i>
+                </a>
+            </div>
         </div>
     `).join('');
 };
