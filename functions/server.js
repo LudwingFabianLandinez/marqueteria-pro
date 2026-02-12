@@ -5,7 +5,10 @@ const serverless = require('serverless-http');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
-// IMPORTANTE: Cargamos los modelos estandarizados
+/**
+ * CONFIGURACIÓN DE MODELOS
+ * Cargamos los modelos para asegurar que Mongoose los reconozca en todas las rutas
+ */
 require('./models/Provider');
 require('./models/Material');
 require('./models/Invoice'); 
@@ -14,7 +17,7 @@ require('./models/Purchase');
 
 const app = express();
 
-// 1. Configuración de Seguridad y Datos
+// 1. Configuración de Seguridad y Datos (CORS optimizado)
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -24,7 +27,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Gestión de Conexión a MongoDB
+// 2. Gestión de Conexión a MongoDB (Patrón Singleton para Serverless)
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
@@ -37,7 +40,7 @@ const connect = async () => {
     }
 };
 
-// 3. Sistema de Carga de Rutas
+// 3. Sistema de Carga de Rutas con Router
 const router = express.Router();
 
 const safeLoad = (routePath, modulePath) => {
@@ -60,13 +63,15 @@ safeLoad('/purchases', './routes/purchaseRoutes');
 safeLoad('/providers', './routes/providerRoutes'); 
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
-// AJUSTE CRÍTICO AQUÍ:
-// Netlify a veces requiere que la base sea /.netlify/functions/server
-// Pero para que tu frontend actual no se rompa, mantenemos /api
+/**
+ * AJUSTE DE RUTAS PARA NETLIFY
+ * Esto resuelve el error 404. El router ahora responde tanto en 
+ * /.netlify/functions/server como en /api
+ */
+app.use('/.netlify/functions/server', router);
 app.use('/api', router);
-app.use('/.netlify/functions/server', router); // Esto asegura que funcione en la nube
 
-// Manejador Global de Errores
+// Manejador Global de Errores (Devuelve JSON, no HTML)
 app.use((err, req, res, next) => {
     console.error("🚨 ERROR NO CONTROLADO:", err.stack);
     res.status(500).json({ 
@@ -80,6 +85,7 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
+    // Evita que Netlify espere a que el bucle de eventos esté vacío (optimiza conexión DB)
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);
