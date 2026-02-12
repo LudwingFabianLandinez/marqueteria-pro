@@ -5,7 +5,16 @@
 [functions]
   directory = "functions"
 
+# Regla de redirección para que /api/ viaje hacia las funciones de Netlify
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
+
+# Añadimos esta sección para blindar los permisos de red (Headers)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With"
