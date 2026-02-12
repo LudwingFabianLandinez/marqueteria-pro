@@ -1,11 +1,17 @@
 /**
- * Configuración central de la API - Versión Final de Supervivencia
- * Optimizada para trabajar en conjunto con inventory.js 4.1
+ * Configuración central de la API - Versión Blindada v4.2
+ * Forzamos la conexión directa a Render para evitar errores 500 en Netlify.
  */
 
-var API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+var API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:4000/api'
     : 'https://marqueteria-pro.onrender.com/api';
+
+// REFUERZO DE SEGURIDAD: Si no es localhost, forzamos que use Render 
+// Esto evita que Netlify intente resolver la ruta internamente.
+if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+    API_URL = 'https://marqueteria-pro.onrender.com/api';
+}
 
 // Objeto Global de API
 window.API = {
@@ -96,5 +102,4 @@ window.API = {
     getSuppliers: async function() { return this.getProviders(); }
 };
 
-// Eliminamos el window.abrirAgenda de aquí para que NO choque con el de inventory.js
-console.log("🔌 API centralizada y lista en: " + API_URL);
+console.log("🔌 API Blindada y lista en: " + API_URL);
