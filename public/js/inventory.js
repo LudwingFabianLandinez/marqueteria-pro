@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.3 - FIX DEFINITIVO: Conexión Blindada a Render
+ * Versión: 4.4 - FIX DEFINITIVO: Sincronización de Modelos y Nombres
  */
 
 // --- VARIABLES DE ESTADO ---
@@ -10,7 +10,7 @@ let todosLosProveedores = [];
 
 // --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.3");
+    console.log("🚀 Sistema de Gestión Iniciado v4.4");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -21,19 +21,15 @@ window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
         sidebar.classList.toggle('active');
-        console.log("Menú toggle: " + sidebar.classList.contains('active'));
     }
 }
 
-// ESTA FUNCIÓN ES LA QUE ACTIVA EL BOTÓN AZUL
 window.abrirAgenda = function() {
-    console.log("🔔 Intentando abrir agenda (Función Global)...");
+    console.log("🔔 Abriendo agenda de proveedores...");
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
         window.renderAgendaProveedores();
-    } else {
-        console.error("❌ Error: No existe el elemento 'modalAgenda' en el HTML.");
     }
 };
 
@@ -42,7 +38,7 @@ window.renderAgendaProveedores = function() {
     if (!contenedor) return;
 
     if (todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados o cargando...</p>';
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
 
@@ -62,10 +58,9 @@ window.renderAgendaProveedores = function() {
     `).join('');
 };
 
-// --- CARGA DE DATOS DESDE API (USANDO WINDOW.API) ---
+// --- CARGA DE DATOS ---
 async function fetchInventory() {
     try {
-        // Llamada a la API Blindada
         const result = await window.API.getInventory();
         
         if (result.success) {
@@ -73,19 +68,19 @@ async function fetchInventory() {
                 ...m,
                 nombre: m.nombre || "Material sin nombre",
                 categoria: m.categoria || "General",
-                stock_actual_m2: Number(m.stock_actual_m2 || m.cantidad_m2) || 0,
-                precio_m2_costo: Number(m.precio_m2_costo || m.costo_m2) || 0,
-                punto_reorden: Number(m.punto_reorden) || 1.5
+                // Aseguramos que lea 'proveedor' (en español) que viene poblado del backend
+                proveedorNombre: m.proveedor ? m.proveedor.nombre : "Sin proveedor",
+                stock_actual_m2: Number(m.stock_actual_m2) || 0,
+                precio_m2_costo: Number(m.precio_m2_costo) || 0,
+                stock_minimo_m2: Number(m.stock_minimo_m2) || 1.5
             }));
             renderTable(todosLosMateriales);
             actualizarDatalistMateriales();
-        } else {
-            console.warn("⚠️ El servidor respondió pero no hubo éxito en los datos.");
         }
     } catch (error) {
         console.error("❌ Error inventario:", error);
         const tableBody = document.getElementById('inventoryTable');
-        if(tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Error al conectar con Render. Reintente...</td></tr>';
+        if(tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Error al cargar datos.</td></tr>';
     }
 }
 
@@ -95,9 +90,6 @@ async function fetchProviders() {
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
-            if (document.getElementById('modalAgenda')?.style.display === 'block') {
-                window.renderAgendaProveedores();
-            }
         }
     } catch (error) { 
         console.error("❌ Error proveedores:", error); 
@@ -113,11 +105,11 @@ function renderTable(materials) {
 
     materials.forEach(m => {
         const tr = document.createElement('tr');
-        const ancho = Number(m.ancho_lamina_cm || m.ancho) || 0;
-        const largo = Number(m.largo_lamina_cm || m.largo) || 0;
+        const ancho = Number(m.ancho_lamina_cm) || 0;
+        const largo = Number(m.largo_lamina_cm) || 0;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         const stockActual = Number(m.stock_actual_m2) || 0;
-        const puntoReorden = Number(m.punto_reorden) || 1.5;
+        const stockMinimo = Number(m.stock_minimo_m2) || 1.5;
         
         const unidadesCompletas = areaUnaLaminaM2 > 0 ? Math.floor(stockActual / areaUnaLaminaM2) : 0;
         const remanenteM2 = areaUnaLaminaM2 > 0 ? (stockActual % areaUnaLaminaM2) : 0;
@@ -128,7 +120,7 @@ function renderTable(materials) {
         if (stockActual <= 0) {
             stockColor = '#ef4444'; 
             badgeAlerta = '<div style="color:#ef4444; font-size:0.6rem; font-weight:700;">⚠️ AGOTADO</div>';
-        } else if (stockActual <= puntoReorden) {
+        } else if (stockActual <= stockMinimo) {
             stockColor = '#f59e0b';
             badgeAlerta = `<div style="color:#f59e0b; font-size:0.6rem; font-weight:700;">⏳ REORDEN</div>`;
         }
@@ -136,7 +128,9 @@ function renderTable(materials) {
         tr.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
-                <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">${m.categoria}</div>
+                <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
+                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre}</span>
+                </div>
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
@@ -157,7 +151,7 @@ function renderTable(materials) {
             </td>
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
-                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m._id}', '${m.nombre}', ${stockActual}, ${puntoReorden})">
+                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m._id}', '${m.nombre}', ${stockActual}, ${stockMinimo})">
                         <i class="fas fa-sliders-h"></i> Ajustar
                     </button>
                     <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m._id}', '${m.nombre}')">
@@ -183,25 +177,30 @@ function configurarEventos() {
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
+        
         const data = {
             nombre: document.getElementById('nombreMaterial').value.trim(),
-            proveedorId: document.getElementById('proveedorSelect').value,
+            proveedor: document.getElementById('proveedorSelect').value, // Sincronizado con el backend
             ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value),
             largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value),
             precio_total_lamina: parseFloat(document.getElementById('precio_compra').value),
-            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value),
-            fecha: new Date().toISOString()
+            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value)
         };
+
         if(btn) btn.disabled = true;
         try {
             const res = await window.API.registerPurchase(data);
-            if (res.success || res._id) { 
+            if (res.success) { 
                 window.cerrarModales(); 
                 await fetchInventory(); 
                 e.target.reset(); 
                 alert("✅ Stock actualizado exitosamente");
             }
-        } catch (err) { alert("❌ Error de conexión"); } finally { if(btn) btn.disabled = false; }
+        } catch (err) { 
+            alert("❌ Error al registrar compra"); 
+        } finally { 
+            if(btn) btn.disabled = false; 
+        }
     });
 
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
@@ -209,19 +208,18 @@ function configurarEventos() {
         const payload = {
             materialId: document.getElementById('adjustId').value,
             nuevaCantidadM2: parseFloat(document.getElementById('adjustCantidad').value),
-            punto_reorden: parseFloat(document.getElementById('adjustReorden')?.value) || 0,
+            stock_minimo_m2: parseFloat(document.getElementById('adjustReorden')?.value) || 2,
             motivo: document.getElementById('adjustMotivo').value || "Ajuste manual"
         };
         const res = await window.API.adjustStock(payload);
-        if (res.success || res._id) { 
+        if (res.success) { 
             window.cerrarModales(); 
             await fetchInventory();
         }
     });
 }
 
-// --- FUNCIONES DE MODAL Y UTILIDADES (GLOBALES) ---
-
+// --- UTILIDADES GLOBALES ---
 window.verHistorial = async function(id, nombre) {
     try {
         const result = await window.API.getHistory(id);
@@ -233,27 +231,25 @@ window.verHistorial = async function(id, nombre) {
 
         if (result.success && result.data.length > 0) {
             const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-            if (contenedor) {
-                contenedor.innerHTML = result.data.map(h => {
-                    const esCompra = h.tipo && h.tipo.includes('COMPRA');
-                    const nombreEntidad = h.proveedorId ? h.proveedorId.nombre : (h.tipo === 'VENTA' ? 'Orden de Trabajo' : 'Ajuste');
-                    return `
+            contenedor.innerHTML = result.data.map(h => {
+                const esCompra = h.tipo === 'COMPRA';
+                const procedencia = h.proveedor ? h.proveedor.nombre : (h.tipo === 'VENTA' ? 'Orden Trabajo' : 'Ajuste');
+                return `
                     <div class="history-item" style="padding: 8px; font-size: 0.8rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
                         <div style="flex: 1;">
-                            <strong style="color: #1e3a8a;">${nombreEntidad}</strong>
-                            <div style="font-size: 0.7rem; color: #64748b;">${new Date(h.fecha).toLocaleDateString()} - ${h.motivo || ''}</div>
+                            <strong style="color: #1e3a8a;">${procedencia}</strong>
+                            <div style="font-size: 0.7rem; color: #64748b;">${new Date(h.createdAt).toLocaleDateString()}</div>
                         </div>
                         <div style="text-align: right;">
                             <span style="font-weight: bold; color: ${esCompra ? '#2ecc71' : '#e74c3c'};">
-                                ${esCompra ? formatter.format(h.costo_unitario_m2 || 0) : h.tipo}
+                                ${esCompra ? formatter.format(h.precio_m2_costo || 0) : h.tipo}
                             </span>
-                            <div style="font-size: 0.7rem; color: #94a3b8;">${Number(h.cantidad_m2).toFixed(2)} m²</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">${Number(h.cantidad_m2 || 0).toFixed(2)} m²</div>
                         </div>
                     </div>`;
-                }).join('');
-            }
+            }).join('');
         } else {
-            if (contenedor) contenedor.innerHTML = `<div style="text-align:center; padding:10px; font-size:0.8rem;">Sin movimientos registrados.</div>`;
+            contenedor.innerHTML = `<div style="text-align:center; padding:10px; font-size:0.8rem;">Sin movimientos registrados.</div>`;
         }
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
@@ -262,8 +258,8 @@ window.verHistorial = async function(id, nombre) {
 window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿Eliminar este material permanentemente?")) {
         try {
-            const res = await fetch(`${window.API.url}/inventory/${id}`, { method: 'DELETE' });
-            if (res.ok) await fetchInventory();
+            const res = await window.API.deleteMaterial(id);
+            if (res.success) await fetchInventory();
         } catch (error) { console.error("Error al eliminar:", error); }
     }
 };
@@ -272,23 +268,20 @@ window.cerrarModales = function() {
     document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
 };
 
-window.prepararAjuste = function(id, nombre, stockActual, puntoReorden) {
-    const adjustId = document.getElementById('adjustId');
-    if (adjustId) adjustId.value = id;
-    const nameLabel = document.getElementById('adjustMaterialNombre');
-    if (nameLabel) nameLabel.innerText = nombre;
-    const qtyInput = document.getElementById('adjustCantidad');
-    if (qtyInput) qtyInput.value = stockActual;
-    const reorderInput = document.getElementById('adjustReorden');
-    if (reorderInput) reorderInput.value = puntoReorden || 1.5;
-    const modal = document.getElementById('modalAjuste');
-    if (modal) modal.style.display = 'block';
+window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
+    if(document.getElementById('adjustId')) document.getElementById('adjustId').value = id;
+    if(document.getElementById('adjustMaterialNombre')) document.getElementById('adjustMaterialNombre').innerText = nombre;
+    if(document.getElementById('adjustCantidad')) document.getElementById('adjustCantidad').value = stockActual;
+    if(document.getElementById('adjustReorden')) document.getElementById('adjustReorden').value = stockMinimo;
+    if(document.getElementById('modalAjuste')) document.getElementById('modalAjuste').style.display = 'block';
 };
 
 function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
-    if (select) select.innerHTML = '<option value="">-- Proveedor --</option>' + 
-        todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre}</option>`).join('');
+    if (select) {
+        select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
+            todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre}</option>`).join('');
+    }
 }
 
 function actualizarDatalistMateriales() {

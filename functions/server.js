@@ -5,6 +5,10 @@ const serverless = require('serverless-http');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
+// IMPORTANTE: Cargamos los modelos aquí para que Mongoose los reconozca globalmente
+require('./models/Provider');
+require('./models/Material');
+
 const app = express();
 
 // 1. CORS Totalmente Abierto para evitar bloqueos en los botones
@@ -17,19 +21,18 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 2. Conexión a Base de Datos (Optimizada para evitar caídas)
+// 2. Conexión a Base de Datos (Optimizada para Serverless)
 let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
     try {
         await connectDB();
         isConnected = true;
-        console.log("🟢 MongoDB Conectado");
+        console.log("🟢 MongoDB Conectado a Atlas");
     } catch (err) {
         console.error("🚨 Error DB:", err);
     }
 };
-connect();
 
 // ==========================================
 // 3. RUTAS DE LA API (Carga Protegida Quirúrgica)
@@ -42,12 +45,10 @@ const router = express.Router();
  */
 const safeLoad = (routePath, modulePath) => {
     try {
-        // Intentamos cargar el módulo. Si el archivo interno tiene un error, saltará al catch.
         const routeModule = require(modulePath);
         router.use(routePath, routeModule);
         console.log(`✅ Ruta cargada con éxito: ${routePath}`);
     } catch (error) {
-        // Esto evita que el error 500 rompa el inventario
         console.error(`🚨 ERROR CRÍTICO EN ARCHIVO: ${modulePath}`);
         console.error(`Detalle: ${error.message}`);
     }
@@ -56,10 +57,12 @@ const safeLoad = (routePath, modulePath) => {
 // Cargamos el inventario PRIMERO para asegurar que funcione
 safeLoad('/inventory', './routes/inventoryRoutes');
 
-// Cargamos los demás botones. Si uno falla, el inventario ya está a salvo.
+// Cargamos los demás botones.
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
 safeLoad('/providers', './routes/providerRoutes');
+// Nota: 'suppliers' se mantiene por compatibilidad si tienes código viejo, 
+// pero 'providers' es ahora el estándar que configuramos.
 safeLoad('/suppliers', './routes/supplierRoutes');
 safeLoad('/stats', './routes/statsRoutes');
 
@@ -81,14 +84,20 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
+    // Esto es vital para que Netlify no se quede esperando y responda rápido
     context.callbackWaitsForEmptyEventLoop = false;
-    // Aseguramos conexión antes de responder
+    
+    // Aseguramos conexión antes de responder a la petición
     await connect();
+    
     return await handler(event, context);
 };
 
 // Desarrollo local
-if (process.env.NODE_ENV !== 'production' || !process.env.NETLIFY) {
+if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
     const PORT = process.env.PORT || 4000;
-    app.listen(PORT, () => console.log(`✅ Servidor local en puerto ${PORT}`));
+    app.listen(PORT, () => {
+        connect(); // Conectamos también en local
+        console.log(`✅ Servidor local en puerto ${PORT}`);
+    });
 }

@@ -44,12 +44,12 @@ const ProviderSchema = new mongoose.Schema({
         default: true
     }
 }, { 
-    timestamps: true // Reemplaza createdAt manual por manejo automático de fechas
+    timestamps: true // Manejo automático de fechas (createdAt, updatedAt)
 });
 
 /**
- * EXPORTACIÓN ROBUSTA:
- * mongoose.models.Provider verifica si el modelo ya fue compilado.
- * Esto es CRÍTICO para evitar el error "Cannot overwrite model once compiled" en Netlify Functions.
+ * EXPORTACIÓN ROBUSTA PARA NETLIFY:
+ * 1. Mantenemos el Singleton (mongoose.models.Provider) para evitar errores de compilación.
+ * 2. Añadimos 'proveedores' como tercer parámetro para forzar la conexión con la colección de Atlas.
  */
-module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema);
+module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'proveedores');

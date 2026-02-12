@@ -52,7 +52,7 @@ const MaterialSchema = new mongoose.Schema({
     }, 
     stock_minimo_m2: { 
         type: Number, 
-        default: 2 // Recomendado para alertas de stock bajo [cite: 2026-02-05]
+        default: 2 // Recomendado para alertas de stock bajo
     },
     area_por_lamina_m2: { 
         type: Number,
@@ -63,8 +63,8 @@ const MaterialSchema = new mongoose.Schema({
         default: 0
     },
     /**
-     * AJUSTE CRÍTICO: Referencia al modelo correcto
-     * Cambiamos 'Supplier' por 'Provider' para que coincida con tus archivos
+     * AJUSTE CRÍTICO: Referencia al modelo único Provider.
+     * Esto conecta con el archivo Provider.js que ajustaremos luego.
      */
     proveedor: { 
         type: mongoose.Schema.Types.ObjectId, 
@@ -80,7 +80,7 @@ const MaterialSchema = new mongoose.Schema({
  */
 MaterialSchema.pre('save', function(next) {
     if (this.tipo === 'm2') {
-        // 1. Cálculo del área: (Ancho * Largo) / 10,000 [cite: 2026-02-05]
+        // 1. Cálculo del área: (Ancho * Largo) / 10,000
         const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
         this.area_por_lamina_m2 = areaCalculada;
         
@@ -96,5 +96,9 @@ MaterialSchema.pre('save', function(next) {
     next();
 });
 
-// Exportación segura para entornos Serverless (Netlify Functions)
-module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema);
+/**
+ * EXPORTACIÓN CORREGIDA:
+ * 1. Mantenemos el Singleton para Netlify (mongoose.models.Material).
+ * 2. Forzamos el nombre de la colección a 'materiales' (en español) como tercer parámetro.
+ */
+module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');
