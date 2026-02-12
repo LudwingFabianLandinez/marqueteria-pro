@@ -7,9 +7,9 @@ require('dotenv').config();
 
 const app = express();
 
-// 1. Configuración de CORS Reforzada (Mata el error de "Access-Control-Allow-Origin")
+// 1. Configuración de CORS Blindada (Acepta Netlify y Localhost sin restricciones)
 const allowedOrigins = [
-    'https://meek-monstera-23f18d.netlify.app', // Tu frontend en Netlify
+    'https://meek-monstera-23f18d.netlify.app',
     'http://localhost:3000',
     'http://127.0.0.1:5500',
     'http://localhost:4000'
@@ -17,22 +17,23 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir peticiones sin origen (como Postman o llamadas del servidor)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            return callback(new Error('CORS: Origen no permitido por seguridad'), false);
+        // Permitir peticiones sin origen o si están en la lista blanca
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            // En caso de emergencia con el cliente, podrías cambiar la línea de abajo por: callback(null, true);
+            callback(new Error('CORS: Origen no permitido por seguridad'));
         }
-        return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Middleware de logging para depuración
+// Middleware de logging para depuración (Verás las rutas en los logs de Render)
 app.use((req, res, next) => {
     console.log(`📨 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
     next();
@@ -108,10 +109,10 @@ module.exports.handler = async (event, context) => {
     return await handler(event, context);
 };
 
-// Solo para desarrollo local
-if (process.env.NODE_ENV !== 'production') {
+// Solo para desarrollo local o Render (Non-serverless)
+if (process.env.NODE_ENV !== 'production' || !process.env.NETLIFY) {
     const PORT = process.env.PORT || 4000;
     app.listen(PORT, () => {
-        console.log(`\n✅ SERVIDOR LOCAL CORRIENDO EN EL PUERTO ${PORT}`);
+        console.log(`\n✅ SERVIDOR CORRIENDO EN EL PUERTO ${PORT}`);
     });
 }
