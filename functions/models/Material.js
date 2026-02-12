@@ -22,6 +22,7 @@ const MaterialSchema = new mongoose.Schema({
             'Foam', 
             'Tela', 
             'Chapilla',
+            'Moldura',
             'Otros'
         ],
         default: 'Otros'
@@ -31,6 +32,7 @@ const MaterialSchema = new mongoose.Schema({
         enum: ['m2', 'ml'], 
         default: 'm2' 
     },
+    // Dimensiones físicas
     ancho_lamina_cm: { 
         type: Number, 
         required: true,
@@ -41,34 +43,44 @@ const MaterialSchema = new mongoose.Schema({
         required: true,
         default: 0
     }, 
+    // Costos y Precios
     precio_total_lamina: { 
         type: Number, 
         required: true,
         default: 0
     }, 
-    stock_actual_m2: { 
+    precio_m2_costo: { 
+        type: Number,
+        default: 0
+    },
+    // Sugerencia: Precio de venta para que el cotizador funcione solo
+    precio_venta_sugerido: {
+        type: Number,
+        default: 0
+    },
+    // Gestión de existencias
+    stock_actual: { 
         type: Number, 
         default: 0 
     }, 
-    stock_minimo_m2: { 
+    stock_minimo: { 
         type: Number, 
-        default: 2 // Recomendado para alertas de stock bajo
+        default: 2 // Alerta visual en el dashboard
     },
     area_por_lamina_m2: { 
         type: Number,
         default: 0
     },
-    precio_m2_costo: { 
-        type: Number,
-        default: 0
-    },
     /**
-     * AJUSTE CRÍTICO: Referencia al modelo único Provider.
-     * Esto conecta con el archivo Provider.js que ajustaremos luego.
+     * Referencia al modelo único Provider.
      */
     proveedor: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Provider' 
+    },
+    notas: {
+        type: String,
+        trim: true
     }
 }, { 
     timestamps: true 
@@ -79,6 +91,7 @@ const MaterialSchema = new mongoose.Schema({
  * Realiza cálculos técnicos automáticos antes de guardar.
  */
 MaterialSchema.pre('save', function(next) {
+    // Caso de materiales por área (Vidrios, Foams, etc)
     if (this.tipo === 'm2') {
         // 1. Cálculo del área: (Ancho * Largo) / 10,000
         const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
@@ -88,17 +101,24 @@ MaterialSchema.pre('save', function(next) {
         if (areaCalculada > 0) {
             this.precio_m2_costo = Math.round(this.precio_total_lamina / areaCalculada);
         }
+    } 
+    // Caso de materiales por metro lineal (Marcos, Molduras)
+    else if (this.tipo === 'ml') {
+        if (this.largo_lamina_cm > 0) {
+            // El "precio_m2_costo" aquí actúa como precio por metro lineal
+            this.precio_m2_costo = Math.round(this.precio_total_lamina / (this.largo_lamina_cm / 100));
+        }
     }
     
     // Validar que el stock no sea negativo
-    if (this.stock_actual_m2 < 0) this.stock_actual_m2 = 0;
+    if (this.stock_actual < 0) this.stock_actual = 0;
 
     next();
 });
 
 /**
  * EXPORTACIÓN CORREGIDA:
- * 1. Mantenemos el Singleton para Netlify (mongoose.models.Material).
- * 2. Forzamos el nombre de la colección a 'materiales' (en español) como tercer parámetro.
+ * 1. Mantenemos el Singleton para Netlify.
+ * 2. Colección forzada a 'materiales'.
  */
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');

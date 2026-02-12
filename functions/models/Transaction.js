@@ -15,27 +15,31 @@ const TransactionSchema = new mongoose.Schema({
         enum: ['COMPRA', 'AJUSTE_MAS', 'AJUSTE_MENOS', 'VENTA'], 
         required: true 
     },
-    cantidad_m2: { 
+    // Este campo almacena la cantidad neta (sea m2 o ml según el material)
+    cantidad: { 
         type: Number, 
         required: true 
     },
-    // Precio por metro cuadrado en el momento de la transacción
-    costo_unitario_m2: { 
+    // Mantenemos este por compatibilidad con reportes viejos, pero usamos 'cantidad' para lo nuevo
+    cantidad_m2: { 
+        type: Number
+    },
+    // Precio por unidad (m2 o ml) en el momento de la transacción
+    costo_unitario: { 
         type: Number, 
         default: 0 
     },
-    // NUEVO/CRÍTICO: Campo para almacenar el desembolso total de la compra
-    // Sin este campo, la tabla de historial aparecerá vacía o sin montos [cite: 2026-02-05]
+    // Desembolso total de la operación
     costo_total: { 
         type: Number, 
         default: 0 
     },
-    // Relación con el proveedor
-    proveedorId: { 
+    // AJUSTE CRÍTICO: Referencia al modelo único Provider (antes Supplier)
+    proveedor: { 
         type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Supplier' 
+        ref: 'Provider' 
     },
-    // Descripción de la transacción (ej: "Compra de 5 láminas")
+    // Descripción de la transacción (ej: "Ajuste por rotura" o "Compra de 5 láminas")
     motivo: { 
         type: String 
     },
@@ -44,7 +48,19 @@ const TransactionSchema = new mongoose.Schema({
         default: Date.now 
     }
 }, { 
-    timestamps: true // Crea automáticamente createdAt y updatedAt
+    timestamps: true 
 });
 
-module.exports = mongoose.model('Transaction', TransactionSchema);
+/**
+ * MIDDLEWARE PRE-SAVE
+ * Asegura que cantidad_m2 siempre tenga un valor para no romper el dashboard viejo.
+ */
+TransactionSchema.pre('save', function(next) {
+    if (this.cantidad && !this.cantidad_m2) {
+        this.cantidad_m2 = this.cantidad;
+    }
+    next();
+});
+
+// Singleton para evitar errores de recompilación en Netlify
+module.exports = mongoose.models.Transaction || mongoose.model('Transaction', TransactionSchema);

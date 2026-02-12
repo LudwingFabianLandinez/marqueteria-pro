@@ -1,7 +1,5 @@
 const Material = require('../models/Material');
-// Importamos Provider en lugar de Supplier
 const Provider = require('../models/Provider');
-// Importamos Transaction (asegúrate de que el modelo Transaction también apunte a la colección correcta si existe)
 const Transaction = require('../models/Transaction');
 
 /**
@@ -9,13 +7,12 @@ const Transaction = require('../models/Transaction');
  * Gestión de existencias y trazabilidad
  */
 
-// 1. Obtener materiales (Poblando los datos del proveedor automáticamente)
+// 1. Obtener materiales (Con nombre de proveedor)
 exports.getMaterials = async (req, res) => {
     try {
-        // Hacemos .populate('proveedor') para que en el frontend aparezca el NOMBRE del proveedor y no solo el ID
         const materials = await Material.find()
             .populate('proveedor', 'nombre') 
-            .sort({ nombre: 1 })
+            .sort({ categoria: 1, nombre: 1 })
             .lean();
         res.status(200).json({ success: true, data: materials || [] });
     } catch (error) {
@@ -24,25 +21,38 @@ exports.getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra (Sincronizado con el modelo Provider)
+// 2. Registrar compra (Sincronizado con cálculos automáticos)
 exports.registerPurchase = async (req, res) => {
     try {
-        const { nombre, ancho_lamina_cm, largo_lamina_cm, precio_total_lamina, cantidad_laminas, proveedor } = req.body;
+        const { 
+            nombre, 
+            tipo, // 'm2' o 'ml'
+            ancho_lamina_cm, 
+            largo_lamina_cm, 
+            precio_total_lamina, 
+            cantidad_laminas, 
+            proveedor,
+            precio_venta_sugerido 
+        } = req.body;
 
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || 0;
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || 0;
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 0;
 
-        const areaM2Unitario = (ancho * largo) / 10000;
-        const areaM2Total = areaM2Unitario * cantidad;
-        const costoM2 = areaM2Unitario > 0 ? (precioTotalUnitario / areaM2Unitario) : 0;
-        const inversionTotalCompra = precioTotalUnitario * cantidad;
+        // Cálculos de stock según el tipo
+        let incrementoStock = 0;
+        if (tipo === 'ml') {
+            incrementoStock = (largo / 100) * cantidad; // Convertimos cm a metros lineales totales
+        } else {
+            const areaM2Unitario = (ancho * largo) / 10000;
+            incrementoStock = areaM2Unitario * cantidad; // m2 totales
+        }
 
         const nombreLimpio = nombre ? nombre.trim() : "Material Sin Nombre";
         const nombreBusqueda = nombreLimpio.toLowerCase();
 
-        // Categorización automática
+        // Categorización automática mejorada
         let categoria = 'Otros';
         const reglas = [
             { regex: /vidrio|espejo/i, cat: 'Vidrio' },
@@ -50,7 +60,7 @@ exports.registerPurchase = async (req, res) => {
             { regex: /paspartu|passepartout|carton/i, cat: 'Paspartu' },
             { regex: /foam|icopor/i, cat: 'Foam' },
             { regex: /tela|lona|lienzo/i, cat: 'Tela' },
-            { regex: /marco|moldura|madera/i, cat: 'Marco' }
+            { regex: /marco|moldura/i, cat: 'Moldura' }
         ];
         
         const reglaEncontrada = reglas.find(r => r.regex.test(nombreBusqueda));
@@ -61,24 +71,25 @@ exports.registerPurchase = async (req, res) => {
         });
 
         if (material) {
-            material.stock_actual_m2 += areaM2Total;
+            material.stock_actual += incrementoStock;
             material.precio_total_lamina = precioTotalUnitario;
-            material.precio_m2_costo = costoM2; 
             material.ancho_lamina_cm = ancho;
             material.largo_lamina_cm = largo;
+            material.tipo = tipo || material.tipo;
             material.categoria = categoria; 
-            // Sincronizamos con el campo 'proveedor' del modelo
+            material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
             material.proveedor = (proveedor && proveedor !== "") ? proveedor : material.proveedor;
             await material.save();
         } else {
             material = new Material({
                 nombre: nombreLimpio,
+                tipo: tipo || 'm2',
                 categoria,
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioTotalUnitario,
-                precio_m2_costo: costoM2,
-                stock_actual_m2: areaM2Total,
+                stock_actual: incrementoStock,
+                precio_venta_sugerido: precio_venta_sugerido || 0,
                 proveedor: (proveedor && proveedor !== "") ? proveedor : null
             });
             await material.save();
@@ -86,17 +97,16 @@ exports.registerPurchase = async (req, res) => {
 
         // Registrar transacción para el historial
         if (Transaction) {
-            const trans = new Transaction({
+            await Transaction.create({
                 materialId: material._id,
                 tipo: 'COMPRA',
-                cantidad_m2: areaM2Total,
-                precio_m2_costo: costoM2, 
-                costo_total: inversionTotalCompra,
+                cantidad_m2: incrementoStock, // Se guarda el valor neto (m2 o ml)
+                precio_m2_costo: material.precio_m2_costo, 
+                costo_total: precioTotalUnitario * cantidad,
                 proveedor: (proveedor && proveedor !== "") ? proveedor : null,
-                motivo: `Compra de ${cantidad} unidades (${ancho}x${largo}cm)`,
+                motivo: `Compra de ${cantidad} unidades (${tipo === 'ml' ? largo + 'cm' : ancho + 'x' + largo + 'cm'})`,
                 fecha: new Date()
             });
-            await trans.save();
         }
 
         res.status(201).json({ success: true, data: material });
@@ -106,7 +116,7 @@ exports.registerPurchase = async (req, res) => {
     }
 };
 
-// 3. Obtener todas las compras
+// 3. Obtener todas las compras (Historial)
 exports.getAllPurchases = async (req, res) => {
     try {
         const purchases = await Transaction.find({ tipo: 'COMPRA' })
@@ -129,37 +139,23 @@ exports.getPurchasesSummary = async (req, res) => {
             { $group: {
                 _id: null,
                 totalInvertido: { $sum: "$costo_total" },
-                totalM2: { $sum: "$cantidad_m2" },
+                totalCantidad: { $sum: "$cantidad_m2" },
                 conteo: { $sum: 1 }
             }}
         ]);
 
-        const data = stats[0] || { totalInvertido: 0, totalM2: 0, conteo: 0 };
+        const data = stats[0] || { totalInvertido: 0, totalCantidad: 0, conteo: 0 };
         res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en KPIs" });
     }
 };
 
-// 5. Historial de un material específico
-exports.getMaterialHistory = async (req, res) => {
-    try {
-        const history = await Transaction.find({ materialId: req.params.id })
-            .populate({ path: 'proveedor', select: 'nombre' })
-            .sort({ fecha: -1 })
-            .limit(30)
-            .lean();
-        res.status(200).json({ success: true, data: history || [] });
-    } catch (error) {
-        res.status(500).json({ success: false, error: "Error al cargar trazabilidad" });
-    }
-};
-
-// 6. Alertas de Stock Bajo
+// 5. Alertas de Stock Bajo (Optimizado)
 exports.getLowStockMaterials = async (req, res) => {
     try {
         const lowStock = await Material.find({ 
-            $expr: { $lt: ["$stock_actual_m2", "$stock_minimo_m2"] } 
+            $expr: { $lt: ["$stock_actual", "$stock_minimo"] } 
         }).limit(10).lean();
         res.status(200).json({ success: true, data: lowStock || [] });
     } catch (error) {
@@ -167,46 +163,34 @@ exports.getLowStockMaterials = async (req, res) => {
     }
 };
 
-// 7. Ajuste manual de stock
+// 6. Ajuste manual de stock
 exports.manualAdjustment = async (req, res) => {
     try {
-        const { materialId, nuevaCantidadM2, stock_minimo_m2, motivo } = req.body;
+        const { materialId, nuevaCantidad, stock_minimo, motivo } = req.body;
         const material = await Material.findById(materialId);
         if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
 
-        const diferencia = parseFloat(nuevaCantidadM2) - material.stock_actual_m2;
-        material.stock_actual_m2 = parseFloat(nuevaCantidadM2);
-        if (stock_minimo_m2) material.stock_minimo_m2 = parseFloat(stock_minimo_m2);
+        const diferencia = parseFloat(nuevaCantidad) - material.stock_actual;
+        material.stock_actual = parseFloat(nuevaCantidad);
+        if (stock_minimo) material.stock_minimo = parseFloat(stock_minimo);
         
         await material.save();
 
-        const trans = new Transaction({
+        await Transaction.create({
             materialId: material._id,
             tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
             cantidad_m2: Math.abs(diferencia),
             motivo: motivo || 'Ajuste manual',
             fecha: new Date()
         });
-        await trans.save();
-        res.status(200).json({ success: true, stock: material.stock_actual_m2 });
+
+        res.status(200).json({ success: true, stock: material.stock_actual });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en ajuste" });
     }
 };
 
-// 8. Actualización masiva de precios
-exports.bulkPriceUpdate = async (req, res) => {
-    try {
-        const { categoria, porcentaje } = req.body;
-        const factor = 1 + (parseFloat(porcentaje) / 100);
-        await Material.updateMany({ categoria }, { $mul: { precio_m2_costo: factor, precio_total_lamina: factor } });
-        res.status(200).json({ success: true, message: "Precios actualizados" });
-    } catch (error) {
-        res.status(500).json({ success: false, error: "Error en actualización masiva" });
-    }
-};
-
-// 9. Eliminar material
+// 7. Eliminar material
 exports.deleteMaterial = async (req, res) => {
     try {
         await Material.findByIdAndDelete(req.params.id);

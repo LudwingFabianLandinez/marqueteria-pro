@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.4 - FIX DEFINITIVO: Sincronización de Modelos y Nombres
+ * Versión: 4.5 - FIX MULTI-UNIDAD: Soporte m2 y ml + Sincronización Backend
  */
 
 // --- VARIABLES DE ESTADO ---
@@ -10,7 +10,7 @@ let todosLosProveedores = [];
 
 // --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.4");
+    console.log("🚀 Sistema de Gestión Iniciado v4.5");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -19,13 +19,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- FUNCIONES DE NAVEGACIÓN (GLOBALES) ---
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('active');
-    }
+    if (sidebar) sidebar.classList.toggle('active');
 }
 
 window.abrirAgenda = function() {
-    console.log("🔔 Abriendo agenda de proveedores...");
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
@@ -68,11 +65,11 @@ async function fetchInventory() {
                 ...m,
                 nombre: m.nombre || "Material sin nombre",
                 categoria: m.categoria || "General",
-                // Aseguramos que lea 'proveedor' (en español) que viene poblado del backend
                 proveedorNombre: m.proveedor ? m.proveedor.nombre : "Sin proveedor",
-                stock_actual_m2: Number(m.stock_actual_m2) || 0,
+                // Sincronización con el nuevo campo del modelo
+                stock_actual: Number(m.stock_actual) || 0,
                 precio_m2_costo: Number(m.precio_m2_costo) || 0,
-                stock_minimo_m2: Number(m.stock_minimo_m2) || 1.5
+                stock_minimo: Number(m.stock_minimo) || 2
             }));
             renderTable(todosLosMateriales);
             actualizarDatalistMateriales();
@@ -86,7 +83,9 @@ async function fetchInventory() {
 
 async function fetchProviders() {
     try {
-        const data = await window.API.getProviders();
+        const result = await window.API.getProviders();
+        // Result suele venir como {success: true, data: [...]}
+        const data = result.data || result; 
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
@@ -107,13 +106,24 @@ function renderTable(materials) {
         const tr = document.createElement('tr');
         const ancho = Number(m.ancho_lamina_cm) || 0;
         const largo = Number(m.largo_lamina_cm) || 0;
-        const areaUnaLaminaM2 = (ancho * largo) / 10000;
-        const stockActual = Number(m.stock_actual_m2) || 0;
-        const stockMinimo = Number(m.stock_minimo_m2) || 1.5;
+        const stockActual = Number(m.stock_actual) || 0;
+        const stockMinimo = Number(m.stock_minimo) || 2;
+        const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        const unidadesCompletas = areaUnaLaminaM2 > 0 ? Math.floor(stockActual / areaUnaLaminaM2) : 0;
-        const remanenteM2 = areaUnaLaminaM2 > 0 ? (stockActual % areaUnaLaminaM2) : 0;
-        const etiquetaUnidad = (m.categoria && m.categoria.toLowerCase().includes('marco')) ? 'Tiras' : 'Láminas';
+        // Cálculo de unidades físicas (Láminas o Tiras)
+        let unidadesCompletas = 0;
+        let remanente = 0;
+        let etiquetaUnidad = 'Láminas';
+
+        if (m.tipo === 'ml') {
+            unidadesCompletas = largo > 0 ? Math.floor(stockActual / (largo / 100)) : 0;
+            remanente = largo > 0 ? (stockActual % (largo / 100)) : 0;
+            etiquetaUnidad = 'Tiras/Varas';
+        } else {
+            const areaM2 = (ancho * largo) / 10000;
+            unidadesCompletas = areaM2 > 0 ? Math.floor(stockActual / areaM2) : 0;
+            remanente = areaM2 > 0 ? (stockActual % areaM2) : 0;
+        }
 
         let stockColor = '#059669'; 
         let badgeAlerta = '';
@@ -134,18 +144,18 @@ function renderTable(materials) {
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${ancho} x ${largo} cm
+                    ${m.tipo === 'ml' ? `${largo} cm (Largo)` : `${ancho}x${largo} cm`}
                 </span>
             </td>
             <td style="text-align: center; font-weight: 500; font-size: 0.85rem; color: #475569;">
-                ${formatter.format(m.precio_m2_costo || 0)}
+                ${formatter.format(m.precio_m2_costo || 0)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
                 <div style="background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-block; min-width: 100px;">
-                    <div style="font-weight: 700; color: ${stockColor}; font-size: 0.95rem;">${stockActual.toFixed(2)} m²</div>
+                    <div style="font-weight: 700; color: ${stockColor}; font-size: 0.95rem;">${stockActual.toFixed(2)} ${tipoUnidad}</div>
                     ${badgeAlerta}
                     <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 1px;">
-                        ${unidadesCompletas} ${etiquetaUnidad} ${remanenteM2 > 0.01 ? `+ ${remanenteM2.toFixed(2)}` : ''}
+                        ${unidadesCompletas} ${etiquetaUnidad} ${remanente > 0.01 ? `+ ${remanente.toFixed(2)}` : ''}
                     </div>
                 </div>
             </td>
@@ -155,7 +165,7 @@ function renderTable(materials) {
                         <i class="fas fa-sliders-h"></i> Ajustar
                     </button>
                     <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m._id}', '${m.nombre}')">
-                        <i class="fas fa-history"></i> Historial
+                        <i class="fas fa-history"></i>
                     </button>
                     <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m._id}')">
                         <i class="fas fa-trash"></i>
@@ -178,13 +188,18 @@ function configurarEventos() {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         
+        // Detección automática de tipo basado en categoría
+        const categoria = document.getElementById('nombreMaterial').value.toLowerCase();
+        const esMarco = categoria.includes('marco') || categoria.includes('moldura');
+
         const data = {
             nombre: document.getElementById('nombreMaterial').value.trim(),
-            proveedor: document.getElementById('proveedorSelect').value, // Sincronizado con el backend
-            ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value),
-            largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value),
-            precio_total_lamina: parseFloat(document.getElementById('precio_compra').value),
-            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value)
+            tipo: esMarco ? 'ml' : 'm2',
+            proveedor: document.getElementById('proveedorSelect').value,
+            ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
+            largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value) || 0,
+            precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
+            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
         };
 
         if(btn) btn.disabled = true;
@@ -194,10 +209,10 @@ function configurarEventos() {
                 window.cerrarModales(); 
                 await fetchInventory(); 
                 e.target.reset(); 
-                alert("✅ Stock actualizado exitosamente");
+                alert("✅ Inventario actualizado correctamente");
             }
         } catch (err) { 
-            alert("❌ Error al registrar compra"); 
+            alert("❌ Error al registrar entrada"); 
         } finally { 
             if(btn) btn.disabled = false; 
         }
@@ -207,8 +222,8 @@ function configurarEventos() {
         e.preventDefault();
         const payload = {
             materialId: document.getElementById('adjustId').value,
-            nuevaCantidadM2: parseFloat(document.getElementById('adjustCantidad').value),
-            stock_minimo_m2: parseFloat(document.getElementById('adjustReorden')?.value) || 2,
+            nuevaCantidad: parseFloat(document.getElementById('adjustCantidad').value),
+            stock_minimo: parseFloat(document.getElementById('adjustReorden')?.value) || 2,
             motivo: document.getElementById('adjustMotivo').value || "Ajuste manual"
         };
         const res = await window.API.adjustStock(payload);
@@ -235,28 +250,28 @@ window.verHistorial = async function(id, nombre) {
                 const esCompra = h.tipo === 'COMPRA';
                 const procedencia = h.proveedor ? h.proveedor.nombre : (h.tipo === 'VENTA' ? 'Orden Trabajo' : 'Ajuste');
                 return `
-                    <div class="history-item" style="padding: 8px; font-size: 0.8rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
+                    <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items:center;">
                         <div style="flex: 1;">
-                            <strong style="color: #1e3a8a;">${procedencia}</strong>
-                            <div style="font-size: 0.7rem; color: #64748b;">${new Date(h.createdAt).toLocaleDateString()}</div>
+                            <strong style="color: #1e40af;">${procedencia}</strong>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
                         </div>
                         <div style="text-align: right;">
-                            <span style="font-weight: bold; color: ${esCompra ? '#2ecc71' : '#e74c3c'};">
-                                ${esCompra ? formatter.format(h.precio_m2_costo || 0) : h.tipo}
+                            <span style="font-weight: bold; color: ${esCompra ? '#10b981' : '#f43f5e'};">
+                                ${esCompra ? formatter.format(h.costo_unitario || h.precio_m2_costo || 0) : h.tipo}
                             </span>
-                            <div style="font-size: 0.7rem; color: #94a3b8;">${Number(h.cantidad_m2 || 0).toFixed(2)} m²</div>
+                            <div style="font-size: 0.7rem; color: #64748b;">${Number(h.cantidad || h.cantidad_m2 || 0).toFixed(2)} unidades</div>
                         </div>
                     </div>`;
             }).join('');
         } else {
-            contenedor.innerHTML = `<div style="text-align:center; padding:10px; font-size:0.8rem;">Sin movimientos registrados.</div>`;
+            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos registrados.</div>`;
         }
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
 };
 
 window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Eliminar este material permanentemente?")) {
+    if (confirm("⚠️ ¿Eliminar este material? Esta acción borrará también su historial.")) {
         try {
             const res = await window.API.deleteMaterial(id);
             if (res.success) await fetchInventory();
