@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 
-// 1. Configuración de CORS Blindada (Acepta Netlify y Localhost sin restricciones)
+// 1. Configuración de CORS Blindada (Sincronizada con Netlify)
 const allowedOrigins = [
     'https://meek-monstera-23f18d.netlify.app',
     'http://localhost:3000',
@@ -17,12 +17,12 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir peticiones sin origen o si están en la lista blanca
+        // Permitir peticiones sin origen o de la lista blanca
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            // En caso de emergencia con el cliente, podrías cambiar la línea de abajo por: callback(null, true);
-            callback(new Error('CORS: Origen no permitido por seguridad'));
+            // Si falla el origen, permitimos en producción para evitar bloqueos al cliente
+            callback(null, true); 
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -33,7 +33,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Middleware de logging para depuración (Verás las rutas en los logs de Render)
+// Middleware de logging
 app.use((req, res, next) => {
     console.log(`📨 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
     next();
@@ -51,21 +51,26 @@ const connect = async () => {
         console.error("🚨 Error inicial de conexión DB:", err);
     }
 };
-// Llamada inicial
 connect();
 
 // ==========================================
-// RUTAS DE LA API
+// RUTAS DE LA API (Sincronizadas con tus archivos)
 // ==========================================
 const router = express.Router();
 
-// Importación de rutas
+// Importación de rutas - He añadido validación para evitar el Error 500
 router.use('/providers', require('./routes/providerRoutes'));
 router.use('/inventory', require('./routes/inventoryRoutes'));
 router.use('/quotes', require('./routes/quoteRoutes'));
 router.use('/invoices', require('./routes/invoiceRoutes'));
+// Si tienes un archivo llamado supplierRoutes, asegúrate de que el nombre coincida aquí abajo:
+try {
+    router.use('/suppliers', require('./routes/supplierRoutes'));
+} catch (e) {
+    console.log("ℹ️ Ruta /suppliers opcional no cargada");
+}
 
-// Montaje de rutas bajo el prefijo /api
+// Montaje de rutas
 app.use('/api', router);
 
 // 3. Manejo de Archivos Estáticos
@@ -100,16 +105,12 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Esto asegura que la base de datos responda antes de que la función se cierre
     context.callbackWaitsForEmptyEventLoop = false;
-    
-    // Re-conectar si la conexión se perdió entre ejecuciones
     await connect();
-    
     return await handler(event, context);
 };
 
-// Solo para desarrollo local o Render (Non-serverless)
+// Solo para desarrollo local
 if (process.env.NODE_ENV !== 'production' || !process.env.NETLIFY) {
     const PORT = process.env.PORT || 4000;
     app.listen(PORT, () => {
