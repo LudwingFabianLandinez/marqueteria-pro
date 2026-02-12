@@ -7,8 +7,28 @@ require('dotenv').config();
 
 const app = express();
 
-// 1. Middlewares de Seguridad y Capacidad
-app.use(cors());
+// 1. Configuración de CORS Reforzada (Mata el error de "Access-Control-Allow-Origin")
+const allowedOrigins = [
+    'https://meek-monstera-23f18d.netlify.app', // Tu frontend en Netlify
+    'http://localhost:3000',
+    'http://127.0.0.1:5500',
+    'http://localhost:4000'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Permitir peticiones sin origen (como Postman o llamadas del servidor)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            return callback(new Error('CORS: Origen no permitido por seguridad'), false);
+        }
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -30,6 +50,7 @@ const connect = async () => {
         console.error("🚨 Error inicial de conexión DB:", err);
     }
 };
+// Llamada inicial
 connect();
 
 // ==========================================
@@ -46,9 +67,7 @@ router.use('/invoices', require('./routes/invoiceRoutes'));
 // Montaje de rutas bajo el prefijo /api
 app.use('/api', router);
 
-// 3. Manejo de Archivos Estáticos (CORRECCIÓN CRÍTICA PARA NETLIFY)
-// En Netlify, los archivos estáticos los sirve Netlify directamente desde la carpeta pública,
-// no es necesario que Express lo haga. Esto evita el Error 404 del CSS.
+// 3. Manejo de Archivos Estáticos
 if (process.env.NODE_ENV !== 'production') {
     const publicPath = path.join(__dirname, '../public');
     app.use(express.static(publicPath));
@@ -63,7 +82,7 @@ app.use('/api/*', (req, res) => {
 });
 
 /**
- * Manejador de errores global (Para eliminar el Error 500 genérico)
+ * Manejador de errores global
  */
 app.use((err, req, res, next) => {
     console.error("🚨 ERROR EN EL SERVIDOR:", err);
@@ -75,13 +94,17 @@ app.use((err, req, res, next) => {
 });
 
 // ==========================================
-// 🚀 EXPORTACIÓN PARA NETLIFY
+// 🚀 EXPORTACIÓN PARA NETLIFY / SERVERLESS
 // ==========================================
+const handler = serverless(app);
+
 module.exports.handler = async (event, context) => {
     // Esto asegura que la base de datos responda antes de que la función se cierre
     context.callbackWaitsForEmptyEventLoop = false;
+    
+    // Re-conectar si la conexión se perdió entre ejecuciones
     await connect();
-    const handler = serverless(app);
+    
     return await handler(event, context);
 };
 
