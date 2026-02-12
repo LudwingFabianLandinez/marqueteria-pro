@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.0 - FIX TOTAL: Prioridad Global y Binding Forzado
+ * Versión: 4.1 - FIX FINAL: Globalización de Botones de Tabla
  */
 
 // --- VARIABLES DE ESTADO ---
@@ -10,7 +10,7 @@ let todosLosProveedores = [];
 
 // --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.0");
+    console.log("🚀 Sistema de Gestión Iniciado v4.1");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -95,7 +95,6 @@ async function fetchProviders() {
         if (Array.isArray(data)) {
             todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
-            // Refrescar si el modal está abierto
             if (document.getElementById('modalAgenda')?.style.display === 'block') {
                 window.renderAgendaProveedores();
             }
@@ -158,13 +157,13 @@ function renderTable(materials) {
             </td>
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
-                    <button class="btn-table-action btn-edit-action" onclick="prepararAjuste('${m._id}', '${m.nombre}', ${stockActual}, ${puntoReorden})">
+                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m._id}', '${m.nombre}', ${stockActual}, ${puntoReorden})">
                         <i class="fas fa-sliders-h"></i> Ajustar
                     </button>
-                    <button class="btn-table-action btn-history-action" onclick="verHistorial('${m._id}', '${m.nombre}')">
+                    <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m._id}', '${m.nombre}')">
                         <i class="fas fa-history"></i> Historial
                     </button>
-                    <button class="btn-table-action btn-delete-action" onclick="eliminarMaterial('${m._id}')">
+                    <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m._id}')">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -229,7 +228,8 @@ function configurarEventos() {
     });
 }
 
-// --- FUNCIONES DE MODAL Y UTILIDADES (GLOBALES) ---
+// --- FUNCIONES DE MODAL Y UTILIDADES (GLOBALES CON BINDING FORZADO) ---
+
 window.verHistorial = async function(id, nombre) {
     try {
         const response = await fetch(`/api/inventory/history/${id}`);

@@ -1,14 +1,28 @@
 /**
  * Configuración central de la API - Versión Final de Supervivencia
- * Cambiamos const por var para evitar bloqueos por re-declaración.
+ * Optimizada para trabajar en conjunto con inventory.js 4.1
  */
 
 var API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:4000/api'
-    : 'https://marqueteria-pro.onrender.com/api'; // <--- He puesto la URL que parece ser tu backend de Render
+    : 'https://marqueteria-pro.onrender.com/api';
 
-// Usamos window.API directamente para asegurar disponibilidad global
+// Objeto Global de API
 window.API = {
+    /**
+     * Obtener lista de materiales (Inventario)
+     */
+    getInventory: async function() {
+        try {
+            const response = await fetch(API_URL + "/inventory");
+            if (!response.ok) throw new Error("Error cargando inventario");
+            return await response.json();
+        } catch (error) {
+            console.error("🚨 Error en API.getInventory:", error);
+            return { success: false, data: [] };
+        }
+    },
+
     /**
      * Obtener lista de proveedores
      */
@@ -16,17 +30,18 @@ window.API = {
         try {
             console.log("📡 Solicitando proveedores a:", API_URL + "/providers");
             const response = await fetch(API_URL + "/providers");
-            if (!response.ok) throw new Error("Error en respuesta");
-            const data = await response.json();
-            return data.data || data; 
+            if (!response.ok) throw new Error("Error en respuesta de proveedores");
+            const result = await response.json();
+            // Normalizamos la respuesta para que siempre devuelva un array
+            return result.success ? result.data : (Array.isArray(result) ? result : []);
         } catch (error) {
             console.error("🚨 Error en API.getProviders:", error);
-            return []; // Retorna lista vacía para no romper el HTML
+            return [];
         }
     },
 
     /**
-     * Guardar un nuevo proveedor
+     * Guardar un nuevo proveedor (desde suppliers.html)
      */
     saveSupplier: async function(supplierData) {
         try {
@@ -43,37 +58,43 @@ window.API = {
     },
 
     /**
-     * FUNCIÓN DE EMERGENCIA PARA EL BOTÓN AZUL
-     * Esto asegura que abrirAgenda() siempre encuentre qué hacer.
+     * Registrar una compra (Entrada de stock)
      */
-    abrirAgendaGlobal: function() {
-        console.log("🚀 Ejecutando apertura de agenda desde API global...");
-        const modal = document.getElementById('modalAgenda');
-        if (modal) {
-            modal.style.display = 'block';
-            // Intentamos renderizar si la función existe en inventory.js
-            if (typeof window.renderAgendaProveedores === 'function') {
-                window.renderAgendaProveedores();
-            } else {
-                console.warn("⚠️ renderAgendaProveedores no encontrada, el modal estará vacío.");
-                // Opcional: podrías poner un mensaje de "Cargando..." dentro del modal aquí
-            }
-        } else {
-            console.error("❌ No se encontró el elemento modalAgenda en el HTML.");
-            window.location.href = 'suppliers.html';
+    registerPurchase: async function(purchaseData) {
+        try {
+            const response = await fetch(API_URL + "/inventory/purchase", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(purchaseData)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("🚨 Error en API.registerPurchase:", error);
+            return { success: false };
         }
     },
 
     /**
-     * ALIAS DE SEGURIDAD
+     * Ajustar stock manualmente
      */
+    adjustStock: async function(adjustData) {
+        try {
+            const response = await fetch(API_URL + "/inventory/adjust", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(adjustData)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("🚨 Error en API.adjustStock:", error);
+            return { success: false };
+        }
+    },
+
+    // Alias de compatibilidad
     saveProvider: async function(data) { return this.saveSupplier(data); },
     getSuppliers: async function() { return this.getProviders(); }
 };
 
-// Inyectamos la función en el scope global por si el dashboard la busca allí
-window.abrirAgenda = function() {
-    window.API.abrirAgendaGlobal();
-};
-
-console.log("🔌 API cargada correctamente en: " + API_URL);
+// Eliminamos el window.abrirAgenda de aquí para que NO choque con el de inventory.js
+console.log("🔌 API centralizada y lista en: " + API_URL);
