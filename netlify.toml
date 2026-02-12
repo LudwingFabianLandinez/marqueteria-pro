@@ -1,4 +1,4 @@
-[build]
+﻿[build]
   command = "npm install"
   publish = "."
 
