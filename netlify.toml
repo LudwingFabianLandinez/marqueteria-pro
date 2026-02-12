@@ -1,4 +1,4 @@
-﻿[build]
+[build]
   command = "npm install"
   publish = "."
 
@@ -14,10 +14,3 @@
   from = "/*"
   to = "/dashboard.html"
   status = 200
-
-  [[redirects]]
-  from = "/*"
-  to = "/dashboard.html"
-  status = 200
-
-# Cambio forzado 12-02-2026
