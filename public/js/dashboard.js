@@ -1,13 +1,20 @@
 /**
  * Lógica del Dashboard Principal - MARQUETERÍA LA CHICA MORALES
- * Incluye: Estadísticas, Alertas de Stock y Saneamiento Automático de Negativos
+ * Incluye: Estadísticas, Alertas de Stock, Saneamiento Automático de Negativos
+ * Versión: 4.1 - Integración con Agenda Global
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchStats();
     // Ejecutar limpieza de negativos inmediatamente al cargar
     sanearInventarioNegativo();
+    
+    // Cargar proveedores en segundo plano para tener la agenda lista
+    fetchProvidersForAgenda();
 });
+
+// Variable global para la agenda (solo si no está cargada desde inventory.js)
+let proveedoresAgenda = [];
 
 // --- 1. CARGA DE ESTADÍSTICAS Y ALERTAS ---
 async function fetchStats() {
@@ -73,27 +80,19 @@ function renderRecentSales(ventas) {
 }
 
 // --- 3. CORRECCIÓN DE INVENTARIOS NEGATIVOS ---
-/**
- * Detecta materiales con stock < 0 y los resetea a 0 en la base de datos.
- */
 async function sanearInventarioNegativo() {
     try {
         const response = await fetch('/api/inventory');
         const result = await response.json();
         
         if (result.success) {
-            // Buscamos materiales con stock menor a cero
-            // Nota: usamos stock_actual_m2 que es el nombre en tu modelo
             const materialesNegativos = result.data.filter(m => (m.stock_actual_m2 || m.stockActual) < 0);
             
             if (materialesNegativos.length > 0) {
                 console.warn(`🚨 Saneando ${materialesNegativos.length} negativos...`);
-                
                 for (const mat of materialesNegativos) {
                     await corregirStockCero(mat._id, mat.nombre);
                 }
-                
-                // Una vez corregidos, refrescamos las estadísticas para que las alertas desaparezcan
                 fetchStats();
             }
         }
@@ -104,7 +103,6 @@ async function sanearInventarioNegativo() {
 
 async function corregirStockCero(id, nombre) {
     try {
-        // Enviamos la corrección al servidor
         const res = await fetch(`/api/inventory/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -113,11 +111,69 @@ async function corregirStockCero(id, nombre) {
                 notas: "Corrección automática: El stock era negativo." 
             })
         });
-
-        if (res.ok) {
-            console.log(`✅ ${nombre}: Stock reseteado a 0.`);
-        }
+        if (res.ok) console.log(`✅ ${nombre}: Stock reseteado a 0.`);
     } catch (error) {
         console.error(`❌ Falló la corrección de ${nombre}:`, error);
     }
 }
+
+// --- 4. INTEGRACIÓN GLOBAL DE AGENDA ---
+
+/**
+ * Carga los proveedores para que la agenda esté lista
+ */
+async function fetchProvidersForAgenda() {
+    try {
+        const response = await fetch('/api/providers');
+        const result = await response.json();
+        const data = result.success ? result.data : result;
+        if (Array.isArray(data)) {
+            proveedoresAgenda = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        }
+    } catch (error) {
+        console.error("❌ Error agenda dashboard:", error);
+    }
+}
+
+/**
+ * Función que dispara el botón azul (Agenda)
+ */
+window.abrirAgenda = function() {
+    console.log("🟢 Abriendo agenda desde dashboard...");
+    const modal = document.getElementById('modalAgenda');
+    if (modal) {
+        modal.style.display = 'block';
+        window.renderAgendaProveedores();
+    } else {
+        console.error("❌ No se encontró el modal 'modalAgenda'");
+    }
+};
+
+/**
+ * Renderiza la lista dentro del modal
+ */
+window.renderAgendaProveedores = function() {
+    const contenedor = document.getElementById('agendaContent');
+    if (!contenedor) return;
+
+    if (proveedoresAgenda.length === 0) {
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Cargando proveedores...</p>';
+        return;
+    }
+
+    contenedor.innerHTML = proveedoresAgenda.map(p => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee;">
+            <div>
+                <div style="font-weight:bold;">${p.nombre}</div>
+                <div style="font-size:0.8rem; color:#666;">${p.telefono || 'Sin número'}</div>
+            </div>
+            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
+                <i class="fas fa-phone-alt"></i>
+            </a>
+        </div>
+    `).join('');
+};
+
+window.cerrarModales = function() {
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+};
