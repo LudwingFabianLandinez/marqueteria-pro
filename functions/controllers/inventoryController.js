@@ -8,7 +8,7 @@ const Transaction = require('../models/Transaction');
  */
 
 // 1. Obtener materiales (Con nombre de proveedor)
-exports.getMaterials = async (req, res) => {
+const getMaterials = async (req, res) => {
     try {
         const materials = await Material.find()
             .populate('proveedor', 'nombre') 
@@ -22,7 +22,7 @@ exports.getMaterials = async (req, res) => {
 };
 
 // 2. Registrar compra (Sincronizado con cálculos automáticos)
-exports.registerPurchase = async (req, res) => {
+const registerPurchase = async (req, res) => {
     try {
         const { 
             nombre, 
@@ -100,7 +100,7 @@ exports.registerPurchase = async (req, res) => {
             await Transaction.create({
                 materialId: material._id,
                 tipo: 'COMPRA',
-                cantidad_m2: incrementoStock, // Se guarda el valor neto (m2 o ml)
+                cantidad_m2: incrementoStock,
                 precio_m2_costo: material.precio_m2_costo, 
                 costo_total: precioTotalUnitario * cantidad,
                 proveedor: (proveedor && proveedor !== "") ? proveedor : null,
@@ -117,7 +117,7 @@ exports.registerPurchase = async (req, res) => {
 };
 
 // 3. Obtener todas las compras (Historial)
-exports.getAllPurchases = async (req, res) => {
+const getAllPurchases = async (req, res) => {
     try {
         const purchases = await Transaction.find({ tipo: 'COMPRA' })
             .populate({ path: 'materialId', select: 'nombre categoria' })
@@ -132,7 +132,7 @@ exports.getAllPurchases = async (req, res) => {
 };
 
 // 4. Resumen de KPIs
-exports.getPurchasesSummary = async (req, res) => {
+const getPurchasesSummary = async (req, res) => {
     try {
         const stats = await Transaction.aggregate([
             { $match: { tipo: 'COMPRA' } },
@@ -151,8 +151,8 @@ exports.getPurchasesSummary = async (req, res) => {
     }
 };
 
-// 5. Alertas de Stock Bajo (Optimizado)
-exports.getLowStockMaterials = async (req, res) => {
+// 5. Alertas de Stock Bajo
+const getLowStockMaterials = async (req, res) => {
     try {
         const lowStock = await Material.find({ 
             $expr: { $lt: ["$stock_actual", "$stock_minimo"] } 
@@ -164,7 +164,7 @@ exports.getLowStockMaterials = async (req, res) => {
 };
 
 // 6. Ajuste manual de stock
-exports.manualAdjustment = async (req, res) => {
+const manualAdjustment = async (req, res) => {
     try {
         const { materialId, nuevaCantidad, stock_minimo, motivo } = req.body;
         const material = await Material.findById(materialId);
@@ -191,7 +191,7 @@ exports.manualAdjustment = async (req, res) => {
 };
 
 // 7. Eliminar material
-exports.deleteMaterial = async (req, res) => {
+const deleteMaterial = async (req, res) => {
     try {
         await Material.findByIdAndDelete(req.params.id);
         if (Transaction) await Transaction.deleteMany({ materialId: req.params.id });
@@ -199,4 +199,17 @@ exports.deleteMaterial = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: "Error al eliminar" });
     }
+};
+
+// EXPORTACIÓN FINAL (Mantenemos nombres originales y agregamos alias para evitar errores de ruta)
+module.exports = {
+    getMaterials,
+    getInventory: getMaterials, // Alias de seguridad
+    registerPurchase,
+    getAllPurchases,
+    getPurchasesSummary,
+    getLowStockMaterials,
+    manualAdjustment,
+    adjustStock: manualAdjustment, // Alias de seguridad
+    deleteMaterial
 };

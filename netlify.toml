@@ -4,8 +4,8 @@
 
 [functions]
   directory = "functions"
-  # Agregamos controllers a la lista de carpetas obligatorias
-  included_files = ["functions/models/**", "functions/routes/**", "functions/config/**", "functions/controllers/**"]
+  # Incluimos TODO: models, routes, config, controllers y utils
+  included_files = ["functions/models/**", "functions/routes/**", "functions/config/**", "functions/controllers/**", "functions/utils/**"]
 
 [[redirects]]
   from = "/api/*"
