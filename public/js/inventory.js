@@ -22,7 +22,7 @@ window.toggleMenu = function() {
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
-        modal.style.display = 'block';
+        modal.style.setProperty('display', 'flex', 'important'); // Usamos flex para centrarlo
         window.renderAgendaProveedores();
     }
 };
