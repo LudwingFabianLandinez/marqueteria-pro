@@ -1,14 +1,12 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión Quirúrgica Final
+ * Módulo de conexión API - Versión Quirúrgica Final Sincronizada
  */
 
-// Detectamos si estamos en local o en la nube para asignar la ruta base
-// IMPORTANTE: Asegúrate de que en Netlify tu función se llame 'server' o 'api'. 
 // FORZAMOS LA RUTA QUE YA SABEMOS QUE FUNCIONA EN TU NETLIFY
-    const API_BASE = '/.netlify/functions/server';
+const API_BASE = '/.netlify/functions/server';
 
-    window.API = {
+window.API = {
     url: API_BASE,
 
     // Función auxiliar para validar que la respuesta sea JSON y no HTML de error
@@ -29,7 +27,7 @@
     },
 
     // ==========================================
-    // ESTADÍSTICAS (DASHBOARD) - ¡NUEVO!
+    // ESTADÍSTICAS (DASHBOARD)
     // ==========================================
     getDashboardStats: async function() {
         try {
@@ -88,7 +86,10 @@
         try {
             const response = await fetch(`${this.url}/providers`);
             return await this._safeParse(response);
-        } catch (err) { return { success: false, error: err.message }; }
+        } catch (err) { 
+            console.error("Error en getProviders:", err);
+            return { success: false, error: err.message }; 
+        }
     },
 
     saveProvider: async function(providerData) {
@@ -103,7 +104,7 @@
     },
 
     // ==========================================
-    // FACTURACIÓN / ÓRDENES DE TRABAJO - ¡NUEVO!
+    // FACTURACIÓN / ÓRDENES DE TRABAJO
     // ==========================================
     getInvoices: async function() {
         try {

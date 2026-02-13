@@ -1,8 +1,11 @@
 /**
  * Lógica del Dashboard Principal - MARQUETERÍA LA CHICA MORALES
  * Incluye: Estadísticas, Alertas de Stock, Saneamiento Automático de Negativos
- * Versión: 4.2 - Activación de Botones y Control de Vistas
+ * Versión: 4.3 - Estabilización de Rutas y Funciones Globales
  */
+
+// Definición de URL base para evitar errores de ruta en Netlify
+const API_BASE_DASH = (window.API && window.API.url) ? window.API.url : '/api';
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchStats();
@@ -15,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Vincular cierre de modales al hacer clic fuera de ellos
     window.onclick = function(event) {
         if (event.target.classList.contains('modal')) {
-            cerrarModales();
+            window.cerrarModales();
         }
     };
 });
@@ -26,7 +29,7 @@ let proveedoresAgenda = [];
 // --- 1. CARGA DE ESTADÍSTICAS Y ALERTAS ---
 async function fetchStats() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch(`${API_BASE_DASH}/stats`);
         const result = await response.json();
 
         if (result.success) {
@@ -44,7 +47,7 @@ async function fetchStats() {
             const alertMsg = document.getElementById('low-stock-msg');
 
             if (statusLabel && alertMsg) {
-                if (alertas.length > 0) {
+                if (alertas && alertas.length > 0) {
                     statusLabel.innerHTML = `⚠️ Alerta de Stock`;
                     statusLabel.style.color = '#e11d48'; // Rojo
                     alertMsg.innerHTML = `Tienes <b>${alertas.length}</b> materiales bajo el mínimo o en negativo.`;
@@ -89,11 +92,11 @@ function renderRecentSales(ventas) {
 // --- 3. CORRECCIÓN DE INVENTARIOS NEGATIVOS ---
 async function sanearInventarioNegativo() {
     try {
-        const response = await fetch('/api/inventory');
+        const response = await fetch(`${API_BASE_DASH}/inventory`);
         const result = await response.json();
         
-        if (result.success) {
-            const materialesNegativos = result.data.filter(m => (m.stock_actual_m2 || m.stockActual) < 0);
+        if (result.success && result.data) {
+            const materialesNegativos = result.data.filter(m => (m.stock_actual_m2 || m.stockActual || m.cantidad) < 0);
             
             if (materialesNegativos.length > 0) {
                 console.warn(`🚨 Saneando ${materialesNegativos.length} negativos...`);
@@ -110,11 +113,12 @@ async function sanearInventarioNegativo() {
 
 async function corregirStockCero(id, nombre) {
     try {
-        const res = await fetch(`/api/inventory/${id}`, {
+        const res = await fetch(`${API_BASE_DASH}/inventory/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 stock_actual_m2: 0, 
+                cantidad: 0,
                 notas: "Corrección automática: El stock era negativo." 
             })
         });
@@ -124,32 +128,33 @@ async function corregirStockCero(id, nombre) {
     }
 }
 
-// --- 4. CONTROL DE BOTONES Y MODALES ---
+// --- 4. CONTROL DE BOTONES Y MODALES (GLOBALIZADOS) ---
 
-// Botón: Nueva Cotización
 window.nuevaCotizacion = function() {
     console.log("📝 Abriendo Nueva Cotización...");
-    // Redirige a la página de facturación/cotización o abre modal
     window.location.href = 'facturacion.html?tipo=cotizacion';
 };
 
-// Botón: Nueva Compra (Ingreso de Mercancía)
 window.nuevaCompra = function() {
     console.log("📦 Abriendo Nueva Compra...");
-    const modal = document.getElementById('modalCompra'); // Asegúrate que este ID existe en tu HTML
-    if (modal) modal.style.display = 'block';
-    else alert("Módulo de compras en desarrollo o ID 'modalCompra' no encontrado.");
+    const modal = document.getElementById('modalCompra');
+    if (modal) {
+        modal.style.display = 'block';
+    } else {
+        alert("ID 'modalCompra' no encontrado en el HTML.");
+    }
 };
 
-// Botón: Consultar Proveedores (Agenda)
 window.abrirAgenda = function() {
     console.log("🟢 Abriendo agenda desde dashboard...");
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
-        // ASOCIACIÓN CLAVE: Al abrir el modal, disparamos la carga de datos
-        if (typeof cargarTablaProveedores === 'function') {
-            cargarTablaProveedores();
+        // Disparamos la carga de la tabla de proveedores si la función existe
+        if (typeof window.cargarTablaProveedores === 'function') {
+            window.cargarTablaProveedores();
+        } else if (typeof renderAgendaProveedores === 'function') {
+            window.renderAgendaProveedores();
         }
     } else {
         console.error("❌ No se encontró el modal 'modalAgenda'");
@@ -160,7 +165,7 @@ window.abrirAgenda = function() {
 
 async function fetchProvidersForAgenda() {
     try {
-        const response = await fetch('/api/providers');
+        const response = await fetch(`${API_BASE_DASH}/providers`);
         const result = await response.json();
         const data = result.success ? result.data : result;
         if (Array.isArray(data)) {
@@ -172,29 +177,34 @@ async function fetchProvidersForAgenda() {
 }
 
 window.renderAgendaProveedores = function() {
-    const contenedor = document.getElementById('agendaContent');
+    const contenedor = document.getElementById('agendaContent') || document.getElementById('lista-proveedores-body');
     if (!contenedor) return;
 
     if (proveedoresAgenda.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px;">No hay proveedores registrados.</p>';
+        contenedor.innerHTML = '<tr><td colspan="6" class="text-center">No hay proveedores registrados.</td></tr>';
         return;
     }
 
-    contenedor.innerHTML = proveedoresAgenda.map(p => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee;">
-            <div>
-                <div style="font-weight:bold; color: #1e3a8a;">${p.nombre}</div>
-                <div style="font-size:0.8rem; color:#64748b;">${p.telefono || 'Sin número'}</div>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <a href="tel:${p.telefono}" style="background:#10b981; color:white; width:35px; height:35px; border-radius:8px; display:flex; align-items:center; justify-content:center; text-decoration:none;">
-                    <i class="fas fa-phone-alt"></i>
-                </a>
-            </div>
-        </div>
-    `).join('');
+    // Adaptamos el renderizado según el contenedor detectado
+    if (contenedor.tagName === 'TBODY') {
+        contenedor.innerHTML = proveedoresAgenda.map(p => `
+            <tr>
+                <td>${p.nombre}</td>
+                <td>${p.nit || 'N/A'}</td>
+                <td>${p.contacto || 'N/A'}</td>
+                <td>${p.telefono || 'Sin número'}</td>
+                <td>${p.categoria || 'General'}</td>
+                <td><button class="btn-edit" onclick="alert('ID: ${p._id}')"><i class="fas fa-edit"></i></button></td>
+            </tr>
+        `).join('');
+    }
 };
 
 window.cerrarModales = function() {
     document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+};
+
+window.cerrarModal = function(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.style.display = 'none';
 };
