@@ -5,12 +5,10 @@
 
 // Detectamos si estamos en local o en la nube para asignar la ruta base
 // IMPORTANTE: Asegúrate de que en Netlify tu función se llame 'server' o 'api'. 
-// Si cambiaste el nombre a 'api', cambia '/server' por '/api' abajo.
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? '/api'
-    : '/.netlify/functions/server';
+// FORZAMOS LA RUTA QUE YA SABEMOS QUE FUNCIONA EN TU NETLIFY
+    const API_BASE = '/.netlify/functions/server';
 
-window.API = {
+    window.API = {
     url: API_BASE,
 
     // Función auxiliar para validar que la respuesta sea JSON y no HTML de error
