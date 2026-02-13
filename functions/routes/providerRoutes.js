@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-// Importamos el controlador definitivo
-const provCtrl = require('../controllers/providerController');
+const Provider = require('../models/Provider'); // <--- ASEGÚRATE DE QUE ESTÉ AQUÍ
 
 /**
  * GESTIÓN DE PROVEEDORES - MARQUETERÍA LA CHICA MORALES

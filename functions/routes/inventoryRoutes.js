@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const path = require('path');
+const Material = require('../models/Material'); // Verifica que la ruta y nombre sean correctos
+const Provider = require('../models/Provider'); // <--- ESTA ES LA QUE FALTA
 
 /**
  * RUTAS DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
