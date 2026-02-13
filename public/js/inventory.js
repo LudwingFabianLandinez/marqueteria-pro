@@ -21,10 +21,39 @@ window.toggleMenu = function() {
 
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
+    const contenido = document.getElementById('agendaContent');
+    
     if (modal) {
-        // Forzamos el display a flex para que se centre y sobreescribimos el !important del CSS
-        modal.style.setProperty('display', 'flex', 'important'); 
-        modal.style.background = 'rgba(15, 23, 42, 0.8)'; // Fondo oscuro semitransparente
+        // 1. Forzamos el contenedor principal a ser visible
+        modal.style.cssText = `
+            display: flex !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: rgba(0, 0, 0, 0.8) !important;
+            z-index: 999999 !important;
+            align-items: center !important;
+            justify-content: center !important;
+        `;
+
+        // 2. Buscamos el cuadro blanco interno y le damos estilo manual
+        const innerContent = modal.querySelector('.modal-content');
+        if (innerContent) {
+            innerContent.style.cssText = `
+                background: white !important;
+                padding: 30px !important;
+                border-radius: 15px !important;
+                max-width: 500px !important;
+                width: 90% !important;
+                color: black !important;
+                position: relative !important;
+                display: block !important;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+            `;
+        }
+        
         window.renderAgendaProveedores();
     }
 };
