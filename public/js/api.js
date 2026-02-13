@@ -4,6 +4,8 @@
  */
 
 // Detectamos si estamos en local o en la nube para asignar la ruta base
+// IMPORTANTE: Asegúrate de que en Netlify tu función se llame 'server' o 'api'. 
+// Si cambiaste el nombre a 'api', cambia '/server' por '/api' abajo.
 const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? '/api'
     : '/.netlify/functions/server';
@@ -25,6 +27,19 @@ window.API = {
         } else {
             // Esto atrapa el error del símbolo '<' (cuando el servidor devuelve un HTML de error)
             throw new Error("El servidor devolvió un formato incorrecto (HTML en lugar de JSON).");
+        }
+    },
+
+    // ==========================================
+    // ESTADÍSTICAS (DASHBOARD) - ¡NUEVO!
+    // ==========================================
+    getDashboardStats: async function() {
+        try {
+            const response = await fetch(`${this.url}/stats`);
+            return await this._safeParse(response);
+        } catch (err) { 
+            console.error("Error en getDashboardStats:", err);
+            return { success: false, error: err.message }; 
         }
     },
 
@@ -90,11 +105,54 @@ window.API = {
     },
 
     // ==========================================
+    // FACTURACIÓN / ÓRDENES DE TRABAJO - ¡NUEVO!
+    // ==========================================
+    getInvoices: async function() {
+        try {
+            const response = await fetch(`${this.url}/invoices`);
+            return await this._safeParse(response);
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    saveInvoice: async function(invoiceData) {
+        try {
+            const response = await fetch(`${this.url}/invoices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(invoiceData)
+            });
+            return await this._safeParse(response);
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    addPayment: async function(id, data) {
+        try {
+            const response = await fetch(`${this.url}/invoices/${id}/payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return await this._safeParse(response);
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    // ==========================================
     // COTIZACIONES
     // ==========================================
-    getQuotes: async function() {
+    getQuotationMaterials: async function() {
         try {
-            const response = await fetch(`${this.url}/quotes`);
+            const response = await fetch(`${this.url}/quotes/materials`);
+            return await this._safeParse(response);
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    generateQuote: async function(quoteData) {
+        try {
+            const response = await fetch(`${this.url}/quotes/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(quoteData)
+            });
             return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
