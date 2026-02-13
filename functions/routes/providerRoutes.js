@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const Provider = require('../models/Provider'); // <--- ASEGÚRATE DE QUE ESTÉ AQUÍ
+const Provider = require('../models/Provider'); 
+
+// --- IMPORTACIÓN DEL CONTROLADOR (Esto es lo que faltaba y causaba el error 502) ---
+const provCtrl = require('../controllers/providerController');
 
 /**
  * GESTIÓN DE PROVEEDORES - MARQUETERÍA LA CHICA MORALES
@@ -14,7 +17,7 @@ const normalizeData = (req, res, next) => {
         
         if (nombre) req.body.nombre = nombre.trim();
         if (telefono) req.body.telefono = telefono.trim();
-        if (correo) req.body.correo = correo.toLowerCase().trim();
+        if (correo && typeof correo === 'string') req.body.correo = correo.toLowerCase().trim();
         
         console.log(`📦 Procesando datos para proveedor: ${req.body.nombre || 'Sin nombre'}`);
     }
@@ -24,19 +27,19 @@ const normalizeData = (req, res, next) => {
 // --- RUTAS CON PROTECCIÓN DE CALLBACKS ---
 
 // 1. Obtener todos los proveedores
-// AJUSTE: Forzamos la ejecución de la función de consulta
 router.get('/', async (req, res, next) => {
+    // Buscamos el método en el controlador (ahora que provCtrl ya existe)
     const method = provCtrl.getProviders || provCtrl.getAll;
     if (typeof method === 'function') {
         return method(req, res, next);
     }
     console.error("🚨 Error: Método de consulta de proveedores no encontrado en controlador");
-    res.status(500).json({ success: false, error: "Método de consulta no definido" });
+    res.status(500).json({ success: false, error: "Método de consulta no definido en el controlador" });
 });
 
 // 2. Crear un nuevo proveedor (con normalización)
 router.post('/', normalizeData, async (req, res, next) => {
-    const method = provCtrl.createProvider || provCtrl.saveProvider;
+    const method = provCtrl.createProvider || provCtrl.saveProvider || provCtrl.addProvider;
     if (typeof method === 'function') {
         return method(req, res, next);
     }
