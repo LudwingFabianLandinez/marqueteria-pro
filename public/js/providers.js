@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LÓGICA DE CONSULTA (Cirugía para activar botones) ---
-    const btnConsultar = document.getElementById('btnConsultarProveedores') || document.querySelector('.btn-consultar');
+    const btnConsultar = document.getElementById('btnConsultarProv') || document.querySelector('.btn-consultar');
     
     if (btnConsultar) {
         btnConsultar.addEventListener('click', async () => {

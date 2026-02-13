@@ -147,7 +147,10 @@ window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
-        window.renderAgendaProveedores();
+        // ASOCIACIÓN CLAVE: Al abrir el modal, disparamos la carga de datos
+        if (typeof cargarTablaProveedores === 'function') {
+            cargarTablaProveedores();
+        }
     } else {
         console.error("❌ No se encontró el modal 'modalAgenda'");
     }
