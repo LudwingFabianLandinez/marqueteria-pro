@@ -22,7 +22,9 @@ window.toggleMenu = function() {
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
-        modal.style.setProperty('display', 'flex', 'important'); // Usamos flex para centrarlo
+        // Forzamos el display a flex para que se centre y sobreescribimos el !important del CSS
+        modal.style.setProperty('display', 'flex', 'important'); 
+        modal.style.background = 'rgba(15, 23, 42, 0.8)'; // Fondo oscuro semitransparente
         window.renderAgendaProveedores();
     }
 };
