@@ -16,6 +16,8 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Purchase');
+    // Sumamos el de Cliente para que el botón funcione
+    require('./models/Client'); 
     console.log("📦 Modelos cargados correctamente");
 } catch (err) {
     console.error("🚨 Error cargando modelos:", err.message);
@@ -63,6 +65,7 @@ const safeLoad = (routePath, moduleRelativePath) => {
 };
 
 // --- MAPEO DE RUTAS DE LA API ---
+// Aquí es donde activamos los botones que te hacían falta
 safeLoad('/inventory', './routes/inventoryRoutes');
 safeLoad('/quotes', './routes/quoteRoutes');
 safeLoad('/invoices', './routes/invoiceRoutes');
@@ -70,6 +73,7 @@ safeLoad('/stats', './routes/statsRoutes');
 safeLoad('/purchases', './routes/purchaseRoutes'); 
 safeLoad('/providers', './routes/providerRoutes'); 
 safeLoad('/suppliers', './routes/providerRoutes'); 
+safeLoad('/clients', './routes/clientRoutes'); // <--- NUEVA RUTA PARA BOTÓN CLIENTES
 
 /**
  * AJUSTE QUIRÚRGICO DE RUTAS
@@ -107,7 +111,7 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Vital para entornos serverless
+    // Vital para entornos serverless: Evita que la función se quede "colgada"
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);
@@ -117,6 +121,11 @@ module.exports.handler = async (event, context) => {
 if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
     const PORT = process.env.PORT || 4000;
     app.listen(PORT, () => {
+        connect = async () => { // Redefinición simple para local
+             if (isConnected) return;
+             await connectDB();
+             isConnected = true;
+        };
         connect();
         console.log(`🚀 Servidor de Pruebas: http://localhost:${PORT}`);
     });
