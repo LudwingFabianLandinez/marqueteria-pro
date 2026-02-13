@@ -4,7 +4,6 @@
 
 [functions]
   directory = "functions"
-  # Eliminamos la línea problemática de node_bundle para usar el estándar de Netlify
 
 [[redirects]]
   from = "/api/*"

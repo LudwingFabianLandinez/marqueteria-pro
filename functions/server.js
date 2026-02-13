@@ -63,27 +63,32 @@ safeLoad('/providers', './routes/providerRoutes');
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
 /**
- * AJUSTE QUIRÚRGICO DE RUTAS
- * Este middleware limpia la URL antes de que llegue al router.
+ * AJUSTE QUIRÚRGICO DE RUTAS (Modificado para robustez)
+ * Este middleware limpia la URL antes de que llegue al router para evitar el 404.
  */
 app.use((req, res, next) => {
-    // Si la URL tiene estos prefijos, los quitamos para que el router vea solo /inventory, /quotes, etc.
+    // Definimos los prefijos que Netlify o el frontend podrían añadir
     const prefixes = ['/.netlify/functions/server', '/api'];
+    
+    let currentUrl = req.url;
+    
     prefixes.forEach(prefix => {
-        if (req.url.startsWith(prefix)) {
-            req.url = req.url.replace(prefix, '');
+        if (currentUrl.startsWith(prefix)) {
+            currentUrl = currentUrl.replace(prefix, '');
         }
     });
+
+    // Aseguramos que si la ruta queda vacía, apunte a la raíz
+    req.url = currentUrl === '' ? '/' : currentUrl;
     
-    // Si después de limpiar queda vacío, lo volvemos raíz
-    if (req.url === '') req.url = '/';
+    console.log(`🔍 Ruta procesada: ${req.url}`); // Útil para ver logs en Netlify
     next();
 });
 
 // Aplicamos el router a la raíz ya limpia
 app.use('/', router);
 
-// Manejador Global de Errores
+// Manejador Global de Errores (Devuelve JSON, no HTML)
 app.use((err, req, res, next) => {
     console.error("🚨 ERROR NO CONTROLADO:", err.stack);
     res.status(500).json({ 
@@ -97,6 +102,7 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
+    // Vital para entornos serverless
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);
