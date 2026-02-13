@@ -7,12 +7,13 @@ require('dotenv').config();
 
 /**
  * CONFIGURACIÓN DE MODELOS
+ * Usamos path.resolve para asegurar que Netlify encuentre los archivos
  */
-require('./models/Provider');
-require('./models/Material');
-require('./models/Invoice'); 
-require('./models/Transaction'); 
-require('./models/Purchase'); 
+require(path.resolve(__dirname, './models/Provider'));
+require(path.resolve(__dirname, './models/Material'));
+require(path.resolve(__dirname, './models/Invoice')); 
+require(path.resolve(__dirname, './models/Transaction')); 
+require(path.resolve(__dirname, './models/Purchase')); 
 
 const app = express();
 
@@ -39,16 +40,18 @@ const connect = async () => {
     }
 };
 
-// 3. Sistema de Carga de Rutas con Router
+// 3. Sistema de Carga de Rutas con Router (CORREGIDO PARA NETLIFY)
 const router = express.Router();
 
-const safeLoad = (routePath, modulePath) => {
+const safeLoad = (routePath, moduleRelativePath) => {
     try {
-        const routeModule = require(modulePath);
+        // Ajuste Quirúrgico: Resolvemos la ruta absoluta basada en la ubicación de server.js
+        const absolutePath = path.resolve(__dirname, moduleRelativePath);
+        const routeModule = require(absolutePath);
         router.use(routePath, routeModule);
         console.log(`✅ Ruta activa: ${routePath}`);
     } catch (error) {
-        console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]: Verifica que ${modulePath} exista.`);
+        console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]:`);
         console.error(`Detalle: ${error.message}`);
     }
 };
@@ -63,13 +66,11 @@ safeLoad('/providers', './routes/providerRoutes');
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
 /**
- * AJUSTE QUIRÚRGICO DE RUTAS (Modificado para robustez)
+ * AJUSTE QUIRÚRGICO DE RUTAS
  * Este middleware limpia la URL antes de que llegue al router para evitar el 404.
  */
 app.use((req, res, next) => {
-    // Definimos los prefijos que Netlify o el frontend podrían añadir
     const prefixes = ['/.netlify/functions/server', '/api'];
-    
     let currentUrl = req.url;
     
     prefixes.forEach(prefix => {
@@ -78,10 +79,8 @@ app.use((req, res, next) => {
         }
     });
 
-    // Aseguramos que si la ruta queda vacía, apunte a la raíz
     req.url = currentUrl === '' ? '/' : currentUrl;
-    
-    console.log(`🔍 Ruta procesada: ${req.url}`); // Útil para ver logs en Netlify
+    console.log(`🔍 Ruta procesada: ${req.url}`); 
     next();
 });
 
@@ -102,7 +101,6 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Vital para entornos serverless
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);
