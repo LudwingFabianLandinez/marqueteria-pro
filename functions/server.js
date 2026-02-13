@@ -7,13 +7,19 @@ require('dotenv').config();
 
 /**
  * CONFIGURACIÓN DE MODELOS
- * Usamos path.resolve para asegurar que Netlify encuentre los archivos
+ * Usamos una carga protegida para asegurar que el empaquetador de Netlify
+ * incluya los archivos correctamente.
  */
-require(path.resolve(__dirname, './models/Provider'));
-require(path.resolve(__dirname, './models/Material'));
-require(path.resolve(__dirname, './models/Invoice')); 
-require(path.resolve(__dirname, './models/Transaction')); 
-require(path.resolve(__dirname, './models/Purchase')); 
+try {
+    require('./models/Provider');
+    require('./models/Material');
+    require('./models/Invoice'); 
+    require('./models/Transaction'); 
+    require('./models/Purchase');
+    console.log("📦 Modelos cargados correctamente");
+} catch (err) {
+    console.error("🚨 Error cargando modelos:", err.message);
+}
 
 const app = express();
 
@@ -101,6 +107,7 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
+    // Vital para entornos serverless
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);
