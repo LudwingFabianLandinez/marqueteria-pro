@@ -137,4 +137,4 @@ async function obtenerProveedores() {
         console.error("🚨 Error obteniendo proveedores:", error);
         return { success: false, data: [] };
     }
-}
+}   
