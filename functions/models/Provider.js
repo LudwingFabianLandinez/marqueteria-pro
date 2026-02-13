@@ -44,12 +44,20 @@ const ProviderSchema = new mongoose.Schema({
         default: true
     }
 }, { 
-    timestamps: true // Manejo automático de fechas (createdAt, updatedAt)
+    // --- CONFIGURACIÓN AGRESIVA PARA NETLIFY ---
+    timestamps: true,
+    bufferCommands: false,       // 1. NO esperar si la conexión no es instantánea
+    bufferTimeoutMS: 0,          // 2. Desactivar el tiempo de espera de buffer
+    autoIndex: false             // 3. No crear índices en caliente (evita bloqueos en producción)
 });
 
 /**
  * EXPORTACIÓN ROBUSTA PARA NETLIFY:
- * 1. Mantenemos el Singleton (mongoose.models.Provider) para evitar errores de compilación.
- * 2. Añadimos 'proveedores' como tercer parámetro para forzar la conexión con la colección de Atlas.
+ * Forzamos la conexión con la colección 'providers'.
  */
-module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'providers');
+const Provider = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'providers');
+
+// 4. Inyección de seguridad: Forzamos la desactivación del buffering a nivel de modelo global
+Provider.schema.set('bufferCommands', false);
+
+module.exports = Provider;
