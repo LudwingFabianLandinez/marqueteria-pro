@@ -1,13 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { 
-    createInvoice, 
-    getInvoices, 
-    getInvoiceById,
-    deleteInvoice,
-    addPayment,
-    getDailyReport 
-} = require('../controllers/invoiceController');
+// Cargamos el controlador como objeto completo para evitar errores de desestructuración
+const invoiceCtrl = require('../controllers/invoiceController');
 
 /**
  * RUTAS PARA /api/invoices
@@ -22,42 +16,44 @@ router.use((req, res, next) => {
     next();
 });
 
-// 1. OBTENER REPORTE DIARIO 
-// SUMADO: Protección contra fallos de agregación si no hay datos hoy
+/**
+ * 1. OBTENER REPORTE DIARIO
+ */
 router.get('/report/daily', (req, res, next) => {
     try {
         console.log(`📊 Generando Reporte Consolidado...`);
+        // Verificamos que la función exista en el controlador
+        const method = invoiceCtrl.getDailyReport || invoiceCtrl.getReport;
+        if (!method) throw new Error("Método getDailyReport no encontrado");
         next();
     } catch (error) {
-        console.error("❌ Error en el middleware de reporte:", error);
+        console.error("❌ Error en el middleware de reporte:", error.message);
         res.status(200).json({ 
             success: false, 
             data: { totalVentas: 0, totalAbonos: 0, totalPendiente: 0, ordenes: [] }, 
             message: "No se pudo preparar el reporte diario." 
         });
     }
-}, getDailyReport);
+}, (req, res) => (invoiceCtrl.getDailyReport || invoiceCtrl.getReport)(req, res));
 
-// 2. CREAR NUEVA ORDEN DE TRABAJO
-// CORRECCIÓN: Blindaje para permitir costos en 0 si es necesario (evita bloqueos de órdenes de prueba)
+/**
+ * 2. CREAR NUEVA ORDEN DE TRABAJO
+ */
 router.post('/', async (req, res, next) => {
     console.log("📝 Validando integridad de la nueva OT...");
     
-    // Capturamos las variantes del frontend con valores por defecto seguros
     const totalFactura = Number(req.body.totalFactura) || 0;
     const itemsAProcesar = req.body.items || req.body.materiales || [];
     const manoObra = Number(req.body.manoObraTotal || req.body.manoObra) || 0;
     const cliente = req.body.cliente;
 
-    // VALIDACIÓN DE CLIENTE: Mínimo el nombre es requerido
     if (!cliente || !cliente.nombre) {
         return res.status(400).json({ 
             success: false, 
-            error: "⚠️ El nombre del cliente es obligatorio para registrar la venta." 
+            error: "⚠️ El nombre del cliente es obligatorio." 
         });
     }
 
-    // VALIDACIÓN FINANCIERA: Si el total es 0, enviamos error claro
     if (totalFactura <= 0) {
         return res.status(400).json({ 
             success: false, 
@@ -65,54 +61,41 @@ router.post('/', async (req, res, next) => {
         });
     }
 
-    console.log(`💰 Verificación: Venta: ${totalFactura} | Items: ${itemsAProcesar.length} | MO: ${manoObra}`);
-    
-    // VALIDACIÓN DE MATERIALES O SERVICIO
-    if (!Array.isArray(itemsAProcesar) || itemsAProcesar.length === 0) {
-        if (manoObra <= 0) {
-            return res.status(400).json({ 
-                success: false, 
-                error: "⚠️ La orden debe incluir al menos un material o mano de obra." 
-            });
-        }
-        console.warn("⚠️ Orden de servicio puro detectada (Solo Mano de Obra).");
-    }
-
     next();
-}, createInvoice);
+}, (req, res) => (invoiceCtrl.createInvoice || invoiceCtrl.saveInvoice)(req, res));
 
-// 3. OBTENER HISTORIAL COMPLETO
-router.get('/', getInvoices);
+/**
+ * 3. OBTENER HISTORIAL Y DETALLE
+ */
+router.get('/', (req, res) => (invoiceCtrl.getInvoices || invoiceCtrl.getAll)(req, res));
 
-// 4. OBTENER DETALLE DE UNA OT ESPECÍFICA
-router.get('/:id', getInvoiceById);
+router.get('/:id', (req, res) => (invoiceCtrl.getInvoiceById || invoiceCtrl.getOne)(req, res));
 
-// 5. REGISTRAR ABONO A UNA CUENTA PENDIENTE
+/**
+ * 4. REGISTRAR ABONO
+ */
 router.put('/:id/payment', (req, res, next) => {
     const montoAbono = Number(req.body.montoAbono) || 0;
-    
     if (montoAbono <= 0) {
         return res.status(400).json({ 
             success: false, 
-            error: "⚠️ El monto del abono debe ser un número positivo." 
+            error: "⚠️ El monto del abono debe ser positivo." 
         });
     }
-    
-    console.log(`💰 Registrando abono: ${montoAbono} a Factura ID: ${req.params.id}`);
     next();
-}, addPayment);
+}, (req, res) => (invoiceCtrl.addPayment || invoiceCtrl.registerPayment)(req, res));
 
-// 6. ELIMINAR / ANULAR FACTURA
+/**
+ * 5. ELIMINAR / ANULAR FACTURA
+ */
 router.delete('/:id', (req, res, next) => {
-    console.warn(`🚨 SOLICITUD DE ANULACIÓN: Factura ID ${req.params.id}. Se procederá a reintegrar stock.`);
+    console.warn(`🚨 SOLICITUD DE ANULACIÓN: Factura ID ${req.params.id}`);
     next();
-}, deleteInvoice);
+}, (req, res) => (invoiceCtrl.deleteInvoice || invoiceCtrl.cancelInvoice)(req, res));
 
-// SUMADO: MANEJADOR DE ERRORES GLOBAL PARA ESTE ROUTER
-// Esto captura fallos de MongoDB o errores de lógica en el controlador
+// Manejador de Errores Global para Facturación
 router.use((err, req, res, next) => {
     console.error("🚨 ERROR INTERCEPTADO EN FACTURACIÓN:", err.message);
-    
     res.status(500).json({ 
         success: false, 
         message: "Ocurrió un error al procesar la transacción financiera.",

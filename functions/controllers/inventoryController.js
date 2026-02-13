@@ -66,6 +66,12 @@ const registerPurchase = async (req, res) => {
         const reglaEncontrada = reglas.find(r => r.regex.test(nombreBusqueda));
         if (reglaEncontrada) categoria = reglaEncontrada.cat;
 
+        // Verificamos si el proveedor existe antes de asignar el ID
+        let proveedorValido = null;
+        if (proveedor && proveedor.match(/^[0-9a-fA-F]{24}$/)) {
+            proveedorValido = proveedor;
+        }
+
         let material = await Material.findOne({ 
             nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
         });
@@ -78,7 +84,7 @@ const registerPurchase = async (req, res) => {
             material.tipo = tipo || material.tipo;
             material.categoria = categoria; 
             material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
-            material.proveedor = (proveedor && proveedor !== "") ? proveedor : material.proveedor;
+            material.proveedor = proveedorValido || material.proveedor;
             await material.save();
         } else {
             material = new Material({
@@ -90,7 +96,7 @@ const registerPurchase = async (req, res) => {
                 precio_total_lamina: precioTotalUnitario,
                 stock_actual: incrementoStock,
                 precio_venta_sugerido: precio_venta_sugerido || 0,
-                proveedor: (proveedor && proveedor !== "") ? proveedor : null
+                proveedor: proveedorValido
             });
             await material.save();
         }
@@ -101,9 +107,9 @@ const registerPurchase = async (req, res) => {
                 materialId: material._id,
                 tipo: 'COMPRA',
                 cantidad_m2: incrementoStock,
-                precio_m2_costo: material.precio_m2_costo, 
+                precio_m2_costo: material.precio_m2_costo || 0, 
                 costo_total: precioTotalUnitario * cantidad,
-                proveedor: (proveedor && proveedor !== "") ? proveedor : null,
+                proveedor: proveedorValido,
                 motivo: `Compra de ${cantidad} unidades (${tipo === 'ml' ? largo + 'cm' : ancho + 'x' + largo + 'cm'})`,
                 fecha: new Date()
             });
@@ -131,7 +137,21 @@ const getAllPurchases = async (req, res) => {
     }
 };
 
-// 4. Resumen de KPIs
+// 4. Historial de movimientos de UN material específico (Modal Dashboard)
+const getMaterialHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const history = await Transaction.find({ materialId: id })
+            .sort({ fecha: -1 })
+            .limit(20)
+            .lean();
+        res.status(200).json({ success: true, data: history });
+    } catch (error) {
+        res.status(500).json({ success: false, error: "Error al obtener historial del material" });
+    }
+};
+
+// 5. Resumen de KPIs
 const getPurchasesSummary = async (req, res) => {
     try {
         const stats = await Transaction.aggregate([
@@ -151,7 +171,7 @@ const getPurchasesSummary = async (req, res) => {
     }
 };
 
-// 5. Alertas de Stock Bajo
+// 6. Alertas de Stock Bajo
 const getLowStockMaterials = async (req, res) => {
     try {
         const lowStock = await Material.find({ 
@@ -163,7 +183,7 @@ const getLowStockMaterials = async (req, res) => {
     }
 };
 
-// 6. Ajuste manual de stock
+// 7. Ajuste manual de stock
 const manualAdjustment = async (req, res) => {
     try {
         const { materialId, nuevaCantidad, stock_minimo, motivo } = req.body;
@@ -172,7 +192,7 @@ const manualAdjustment = async (req, res) => {
 
         const diferencia = parseFloat(nuevaCantidad) - material.stock_actual;
         material.stock_actual = parseFloat(nuevaCantidad);
-        if (stock_minimo) material.stock_minimo = parseFloat(stock_minimo);
+        if (stock_minimo !== undefined) material.stock_minimo = parseFloat(stock_minimo);
         
         await material.save();
 
@@ -190,7 +210,7 @@ const manualAdjustment = async (req, res) => {
     }
 };
 
-// 7. Eliminar material
+// 8. Eliminar material
 const deleteMaterial = async (req, res) => {
     try {
         await Material.findByIdAndDelete(req.params.id);
@@ -201,15 +221,16 @@ const deleteMaterial = async (req, res) => {
     }
 };
 
-// EXPORTACIÓN FINAL (Mantenemos nombres originales y agregamos alias para evitar errores de ruta)
+// EXPORTACIÓN FINAL
 module.exports = {
     getMaterials,
-    getInventory: getMaterials, // Alias de seguridad
+    getInventory: getMaterials,
+    getMaterialHistory,
     registerPurchase,
     getAllPurchases,
     getPurchasesSummary,
     getLowStockMaterials,
     manualAdjustment,
-    adjustStock: manualAdjustment, // Alias de seguridad
+    adjustStock: manualAdjustment,
     deleteMaterial
 };

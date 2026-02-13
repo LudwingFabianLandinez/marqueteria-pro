@@ -3,8 +3,8 @@ const router = express.Router();
 const quoteController = require('../controllers/quoteController');
 
 /**
- * MIDDLEWARE DE LOGGING (Opcional pero recomendado)
- * Registra cada petición que llega a las rutas de cotización para depurar fallos.
+ * MIDDLEWARE DE LOGGING
+ * Registra cada petición que llega a las rutas de cotización para depurar fallos en Netlify.
  */
 router.use((req, res, next) => {
     console.log(`[QuoteRoute] ${req.method} ${req.url}`);
@@ -13,18 +13,23 @@ router.use((req, res, next) => {
 
 /**
  * RUTA: GET /api/quotes/materials
- * Obtiene los materiales del inventario categorizados para llenar los selectores.
- * Esta es la ruta que tu frontend espera para quitar el mensaje de "Cargando..."
+ * Obtiene los materiales del inventario categorizados.
  */
-router.get('/materials', async (req, res, next) => {
+router.get('/materials', async (req, res) => {
     try {
-        // Llamamos al controlador
-        await quoteController.getQuotationMaterials(req, res);
+        // Intentamos llamar al método principal o al alias getMaterials
+        const method = quoteController.getQuotationMaterials || quoteController.getMaterials;
+        
+        if (!method) {
+            throw new Error("El método de obtención de materiales no está definido en el controlador.");
+        }
+        
+        await method(req, res);
     } catch (error) {
-        console.error("🚨 Error crítico en GET /materials:", error);
+        console.error("🚨 Error crítico en GET /materials:", error.message);
         res.status(500).json({ 
             success: false, 
-            error: "Error interno al obtener la lista de materiales." 
+            error: "Error interno al obtener la lista de materiales para cotizar." 
         });
     }
 });
@@ -32,46 +37,43 @@ router.get('/materials', async (req, res, next) => {
 /**
  * RUTA: POST /api/quotes
  * Procesa la cotización integrando múltiples materiales y mano de obra.
- * Incluye una validación previa (Middleware) antes de entrar al controlador.
  */
 router.post('/', (req, res, next) => {
     const { ancho, largo, materialesIds, manoObra } = req.body;
 
-    // 1. Validación de medidas: Evita que el controlador falle por cálculos matemáticos nulos
-    if (!ancho || !largo || ancho <= 0 || largo <= 0) {
+    // 1. Validación de medidas
+    if (!ancho || !largo || parseFloat(ancho) <= 0 || parseFloat(largo) <= 0) {
         return res.status(400).json({ 
             success: false, 
             error: "⚠️ Medidas inválidas. El ancho y largo deben ser mayores a 0." 
         });
     }
 
-    // 2. Validación de materiales: Verifica que llegue un array con al menos un ID
+    // 2. Validación de materiales
     if (!materialesIds || (Array.isArray(materialesIds) && materialesIds.length === 0)) {
         return res.status(400).json({ 
             success: false, 
-            error: "⚠️ Debes seleccionar al menos un material (vidrio, marco, etc.) para cotizar." 
+            error: "⚠️ Debes seleccionar al menos un material para cotizar." 
         });
     }
 
-    // 3. Limpieza de datos: Aseguramos que manoObra sea numérico
+    // 3. Limpieza de datos
     req.body.manoObra = parseFloat(manoObra) || 0;
     
-    // Si todo está bien, pasamos al controlador
     next();
-}, quoteController.generateQuote);
+}, (req, res) => {
+    const method = quoteController.generateQuote || quoteController.calculateQuote;
+    if (!method) return res.status(500).json({ success: false, error: "Método de cálculo no definido." });
+    return method(req, res);
+});
 
 /**
- * RUTA DE COMPATIBILIDAD: POST /api/quotes/calculate
- * Mantiene soporte si alguna versión antigua del frontend usa esta URL.
+ * RUTA DE COMPATIBILIDAD Y DIAGNÓSTICO
  */
-router.post('/calculate', quoteController.generateQuote);
+router.post('/calculate', quoteController.generateQuote || quoteController.calculateQuote);
 
-/**
- * RUTA DE DIAGNÓSTICO: GET /api/quotes/status
- * Útil para verificar si el módulo de cotizaciones está activo sin cargar materiales.
- */
 router.get('/status', (req, res) => {
-    res.json({ success: true, message: "Módulo de cotizaciones activo y conectado." });
+    res.json({ success: true, message: "Módulo de cotizaciones activo." });
 });
 
 module.exports = router;

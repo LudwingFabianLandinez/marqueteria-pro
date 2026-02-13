@@ -22,26 +22,22 @@ const normalizeData = (req, res, next) => {
     next();
 };
 
-// --- RUTAS ---
+// --- RUTAS CON PROTECCIÓN DE CALLBACKS ---
 
 // 1. Obtener todos los proveedores
-// GET /api/providers
-router.get('/', provCtrl.getProviders);
+// Intentamos usar getProviders o getAll según se haya definido en el controlador
+router.get('/', provCtrl.getProviders || provCtrl.getAll || ((req, res) => res.status(500).json({error: "Método getProviders no definido"})));
 
 // 2. Crear un nuevo proveedor (con normalización)
-// POST /api/providers
-router.post('/', normalizeData, provCtrl.createProvider);
+router.post('/', normalizeData, provCtrl.createProvider || provCtrl.saveProvider || ((req, res) => res.status(500).json({error: "Método createProvider no definido"})));
 
-// 3. Obtener un solo proveedor por ID (Útil para ediciones futuras)
-// GET /api/providers/:id
-router.get('/:id', provCtrl.getOneProvider);
+// 3. Obtener un solo proveedor por ID
+router.get('/:id', provCtrl.getOneProvider || provCtrl.getProviderById || ((req, res) => res.status(500).json({error: "Método getOneProvider no definido"})));
 
 // 4. Actualizar un proveedor
-// PUT /api/providers/:id
-router.put('/:id', normalizeData, provCtrl.updateProvider);
+router.put('/:id', normalizeData, provCtrl.updateProvider || ((req, res) => res.status(500).json({error: "Método updateProvider no definido"})));
 
 // 5. Eliminar un proveedor
-// DELETE /api/providers/:id
-router.delete('/:id', provCtrl.deleteProvider);
+router.delete('/:id', provCtrl.deleteProvider || ((req, res) => res.status(500).json({error: "Método deleteProvider no definido"})));
 
 module.exports = router;

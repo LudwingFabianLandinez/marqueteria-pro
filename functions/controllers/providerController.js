@@ -6,7 +6,7 @@ const Provider = require('../models/Provider');
  */
 
 // 1. Obtener todos los proveedores (Ordenados A-Z)
-exports.getProviders = async (req, res) => {
+const getProviders = async (req, res) => {
     try {
         const providers = await Provider.find().sort({ nombre: 1 }).lean();
         res.status(200).json({ success: true, data: providers || [] });
@@ -16,8 +16,19 @@ exports.getProviders = async (req, res) => {
     }
 };
 
-// 2. Crear un nuevo proveedor (Con validación de duplicados y todos los campos)
-exports.createProvider = async (req, res) => {
+// 2. Obtener un solo proveedor por ID (Necesario para el modal de edición)
+const getOneProvider = async (req, res) => {
+    try {
+        const provider = await Provider.findById(req.params.id).lean();
+        if (!provider) return res.status(404).json({ success: false, error: "Proveedor no encontrado" });
+        res.status(200).json({ success: true, data: provider });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// 3. Crear un nuevo proveedor (Con validación de duplicados)
+const createProvider = async (req, res) => {
     try {
         const { nombre, nit, telefono, contacto, correo, direccion, categoria } = req.body;
         
@@ -28,7 +39,7 @@ exports.createProvider = async (req, res) => {
             });
         }
 
-        // Validación de NIT duplicado
+        // Validación de NIT duplicado (solo si se proporciona NIT)
         if (nit && nit.trim() !== '') {
             const existente = await Provider.findOne({ nit: nit.trim() });
             if (existente) {
@@ -61,8 +72,23 @@ exports.createProvider = async (req, res) => {
     }
 };
 
-// 3. Eliminar proveedor
-exports.deleteProvider = async (req, res) => {
+// 4. Actualizar proveedor (Crucial para corregir datos sin borrar)
+const updateProvider = async (req, res) => {
+    try {
+        const updatedProvider = await Provider.findByIdAndUpdate(
+            req.params.id,
+            { $set: req.body },
+            { new: true, runValidators: true }
+        );
+        if (!updatedProvider) return res.status(404).json({ success: false, error: "No encontrado" });
+        res.status(200).json({ success: true, data: updatedProvider });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
+// 5. Eliminar proveedor
+const deleteProvider = async (req, res) => {
     try {
         const result = await Provider.findByIdAndDelete(req.params.id);
         if (!result) return res.status(404).json({ success: false, error: "No encontrado" });
@@ -71,4 +97,15 @@ exports.deleteProvider = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+};
+
+// EXPORTACIÓN UNIFICADA (Compatible con los alias de las rutas)
+module.exports = {
+    getProviders,
+    getAll: getProviders,
+    getOneProvider,
+    createProvider,
+    saveProvider: createProvider,
+    updateProvider,
+    deleteProvider
 };

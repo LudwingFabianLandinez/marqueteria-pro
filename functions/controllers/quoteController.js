@@ -1,40 +1,41 @@
 const Material = require('../models/Material');
 const { calcularCostoMaterial } = require('../utils/calculator');
 
-// 1. OBTENER MATERIALES ORGANIZADOS
-exports.getQuotationMaterials = async (req, res) => {
+/**
+ * CONTROLADOR DE COTIZACIONES - MARQUETERÍA LA CHICA MORALES
+ * Calcula precios basados en la Regla de Oro: (Costo Materiales * 3) + Mano de Obra
+ */
+
+// 1. OBTENER MATERIALES ORGANIZADOS POR CATEGORÍA PARA EL SELECTOR
+const getQuotationMaterials = async (req, res) => {
     try {
-        // Traemos solo los materiales que tienen stock o precio definido
-        const materials = await Material.find().sort({ nombre: 1 });
+        // Traemos materiales con stock o precio, usando lean para velocidad
+        const materials = await Material.find().sort({ nombre: 1 }).lean();
         
         if (!materials || materials.length === 0) {
             console.log("⚠️ No se encontraron materiales en la base de datos.");
         }
 
+        // Categorización inteligente (Busca por campo 'categoria' o por palabras clave en 'nombre')
+        const filtrar = (terminos, catNome) => materials.filter(m => 
+            (m.categoria && m.categoria.toLowerCase() === catNome.toLowerCase()) ||
+            terminos.some(t => m.nombre.toLowerCase().includes(t))
+        );
+
         const categorizados = {
-            vidrios: materials.filter(m => 
-                m.nombre.toLowerCase().includes('vidrio') || 
-                m.nombre.toLowerCase().includes('espejo')
-            ),
-            respaldos: materials.filter(m => 
-                m.nombre.toLowerCase().includes('mdf') || 
-                m.nombre.toLowerCase().includes('respaldo') || 
-                m.nombre.toLowerCase().includes('triplex')
-            ),
-            paspartu: materials.filter(m => 
-                m.nombre.toLowerCase().includes('paspartu') || 
-                m.nombre.toLowerCase().includes('passepartout')
-            ),
+            vidrios: filtrar(['vidrio', 'espejo'], 'Vidrio'),
+            respaldos: filtrar(['mdf', 'respaldo', 'triplex'], 'Respaldo'),
+            paspartu: filtrar(['paspartu', 'passepartout', 'carton'], 'Paspartu'),
             marcos: materials.filter(m => 
-                (m.nombre.toLowerCase().includes('marco') || m.nombre.toLowerCase().includes('moldura')) && 
+                ((m.nombre.toLowerCase().includes('marco') || m.nombre.toLowerCase().includes('moldura')) || 
+                 (m.categoria && m.categoria.toLowerCase() === 'moldura')) && 
                 !m.nombre.toLowerCase().includes('chapilla')
             ),
-            foam: materials.filter(m => m.nombre.toLowerCase().includes('foam')),
-            tela: materials.filter(m => m.nombre.toLowerCase().includes('tela') || m.nombre.toLowerCase().includes('lona')),
-            chapilla: materials.filter(m => m.nombre.toLowerCase().includes('chapilla'))
+            foam: filtrar(['foam', 'icopor'], 'Foam'),
+            tela: filtrar(['tela', 'lona', 'lienzo'], 'Tela'),
+            chapilla: filtrar(['chapilla'], 'Otros')
         };
 
-        // Enviamos la respuesta. Este es el trigger que quita el "Cargando..."
         res.status(200).json({ 
             success: true, 
             count: materials.length,
@@ -42,12 +43,12 @@ exports.getQuotationMaterials = async (req, res) => {
         });
     } catch (error) {
         console.error("🚨 Error en getQuotationMaterials:", error);
-        res.status(500).json({ success: false, error: "Error al organizar materiales" });
+        res.status(500).json({ success: false, error: "Error al organizar materiales para cotización" });
     }
 };
 
-// 2. GENERAR COTIZACIÓN
-exports.generateQuote = async (req, res) => {
+// 2. GENERAR COTIZACIÓN (CÁLCULO MATEMÁTICO)
+const generateQuote = async (req, res) => {
     try {
         const { ancho, largo, materialesIds, manoObra = 0 } = req.body;
 
@@ -59,22 +60,30 @@ exports.generateQuote = async (req, res) => {
             });
         }
 
-        // Normalizamos IDs a un Array
-        const ids = Array.isArray(materialesIds) ? materialesIds : [materialesIds].filter(id => id && id !== "");
+        // Normalizamos IDs a un Array y limpiamos valores nulos
+        const ids = Array.isArray(materialesIds) ? materialesIds : [materialesIds];
+        const idsValidos = ids.filter(id => id && id.toString().length === 24);
         
         // Buscamos materiales en la DB
-        const materialesDB = await Material.find({ _id: { $in: ids } });
+        const materialesDB = await Material.find({ _id: { $in: idsValidos } }).lean();
         
         let costoMaterialesTotal = 0;
         let listaDetallada = [];
         
-        // Cálculo de área con seguridad contra ceros
+        // Cálculo de área con seguridad contra ceros (cm a m2)
         const area_m2 = (Math.max(0, Number(ancho)) * Math.max(0, Number(largo)) / 10000);
 
         materialesDB.forEach(mat => {
-            // Usamos el calculador de utilidad para obtener el costo base
-            const precioCostoM2 = mat.precio_m2_costo || 0;
-            const costoItem = calcularCostoMaterial(Number(ancho), Number(largo), precioCostoM2);
+            // El precio de costo es vital para la utilidad. Buscamos en varios campos por si acaso.
+            const precioCostoM2 = mat.precio_m2_costo || mat.precio_total_lamina || 0;
+            
+            // Usamos el utilitario de cálculo o lo hacemos manual si falla
+            let costoItem = 0;
+            if (typeof calcularCostoMaterial === 'function') {
+                costoItem = calcularCostoMaterial(Number(ancho), Number(largo), precioCostoM2);
+            } else {
+                costoItem = area_m2 * precioCostoM2;
+            }
             
             costoMaterialesTotal += costoItem;
             
@@ -82,7 +91,7 @@ exports.generateQuote = async (req, res) => {
                 id: mat._id,
                 nombre: mat.nombre, 
                 costo_m2_base: precioCostoM2,
-                area_m2: area_m2,
+                area_m2: area_m2.toFixed(4),
                 precio_proporcional: Math.round(costoItem)
             });
         });
@@ -90,7 +99,11 @@ exports.generateQuote = async (req, res) => {
         const mo = parseFloat(manoObra) || 0;
         const totalBaseCosto = Math.round(costoMaterialesTotal + mo);
         
-        // REGLA DE ORO: Costo x 3 + Mano de Obra
+        /**
+         * REGLA DE ORO DE LA MARQUETERÍA:
+         * El precio de venta debe cubrir desperdicio, local y ganancia.
+         * Formula: (Costo Materiales * 3) + Mano de Obra
+         */
         const precioSugerido = Math.round((costoMaterialesTotal * 3) + mo);
 
         res.status(200).json({
@@ -102,16 +115,23 @@ exports.generateQuote = async (req, res) => {
                     materiales: listaDetallada
                 },
                 costos: {
-                    valor_materiales: Math.round(costoMaterialesTotal),
+                    valor_materiales_costo: Math.round(costoMaterialesTotal),
                     valor_mano_obra: mo,
-                    total_base: totalBaseCosto,
-                    precio_sugerido: precioSugerido 
+                    total_solo_costo: totalBaseCosto,
+                    precio_sugerido_venta: precioSugerido 
                 }
             }
         });
 
     } catch (error) {
         console.error("🚨 Error en generateQuote:", error);
-        res.status(500).json({ success: false, error: "Error interno en el cálculo." });
+        res.status(500).json({ success: false, error: "Error interno en el cálculo de la cotización." });
     }
+};
+
+module.exports = {
+    getQuotationMaterials,
+    getMaterials: getQuotationMaterials,
+    generateQuote,
+    calculate: generateQuote
 };

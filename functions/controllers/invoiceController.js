@@ -2,8 +2,13 @@ const Invoice = require('../models/Invoice');
 const Material = require('../models/Material');
 const Transaction = require('../models/Transaction');
 
-// 1. CREAR ORDEN DE TRABAJO
-exports.createInvoice = async (req, res) => {
+/**
+ * CONTROLADOR DE FACTURACIÓN Y OT - MARQUETERÍA LA CHICA MORALES
+ * Maneja la creación de órdenes, abonos y restauración de stock por anulación.
+ */
+
+// 1. CREAR ORDEN DE TRABAJO (OT)
+const createInvoice = async (req, res) => {
     try {
         const { 
             cliente, 
@@ -16,7 +21,6 @@ exports.createInvoice = async (req, res) => {
         } = req.body;
         
         const itemsAProcesar = req.body.items || req.body.materiales || []; 
-
         const tieneMateriales = Array.isArray(itemsAProcesar) && itemsAProcesar.length > 0;
         const moFinal = parseFloat(manoObraTotal || mano_obra_total || 0);
 
@@ -27,9 +31,10 @@ exports.createInvoice = async (req, res) => {
             });
         }
 
+        // Generación de número de factura correlativo OT-000001
         const facturasOT = await Invoice.find({ 
             numeroFactura: { $regex: /^OT-\d+$/ } 
-        });
+        }).select('numeroFactura').lean();
 
         let siguienteNumero = 1;
         if (facturasOT.length > 0) {
@@ -44,10 +49,10 @@ exports.createInvoice = async (req, res) => {
         
         const itemsProcesados = [];
         let costoAcumuladoMateriales = 0; 
-        
         const pagoRecibido = parseFloat(abonoInicial || totalPagado || 0);
         const totalVenta = Math.round(totalFactura || 0);
 
+        // Procesamiento de materiales y descuento de stock
         for (const item of itemsAProcesar) {
             let materialInfo = null;
             
@@ -74,17 +79,19 @@ exports.createInvoice = async (req, res) => {
 
             const ancho = parseFloat(item.ancho || 0);
             const largo = parseFloat(item.largo || 0);
+            // Si el frontend no envía el área, la calculamos (ancho * largo / 10000)
             const areaCalculada = item.area_m2 || parseFloat(((ancho * largo) / 10000).toFixed(4));
             
-            const costoUnitarioCompra = materialInfo.precio_compra_m2 || 0;
+            const costoUnitarioCompra = materialInfo.precio_compra_m2 || materialInfo.precio_total_lamina || 0;
             const costoItemReal = Math.round(costoUnitarioCompra * areaCalculada);
-            
             costoAcumuladoMateriales += costoItemReal;
 
+            // ACTUALIZACIÓN DE STOCK: Sincronizado con el campo 'stock_actual'
             await Material.findByIdAndUpdate(materialInfo._id, { 
-                $inc: { stock_actual_m2: -areaCalculada } 
+                $inc: { stock_actual: -areaCalculada } 
             });
 
+            // Registro en historial de movimientos
             await Transaction.create({
                 materialId: materialInfo._id,
                 tipo: 'VENTA',
@@ -116,6 +123,7 @@ exports.createInvoice = async (req, res) => {
             costo_materiales_total: costoAcumuladoMateriales, 
             totalFactura: totalVenta,
             totalPagado: pagoRecibido,
+            estado: pagoRecibido >= totalVenta ? "PAGADA" : "PENDIENTE",
             fecha: new Date()
         });
 
@@ -133,8 +141,8 @@ exports.createInvoice = async (req, res) => {
     }
 };
 
-// 2. REPORTE DIARIO (Optimizado para evitar errores visuales)
-exports.getDailyReport = async (req, res) => {
+// 2. REPORTE DIARIO CON CÁLCULO DE UTILIDAD
+const getDailyReport = async (req, res) => {
     try {
         const hoy = new Date();
         const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
@@ -142,40 +150,23 @@ exports.getDailyReport = async (req, res) => {
 
         const invoices = await Invoice.find({
             fecha: { $gte: inicio, $lte: fin }
-        });
-
-        if (!invoices || invoices.length === 0) {
-            return res.status(200).json({ 
-                success: true, 
-                data: [], 
-                resumen: { totalVentas: 0, utilidadTotal: 0 },
-                message: "No hay ventas registradas para hoy."
-            });
-        }
+        }).lean();
 
         let totalVentasDia = 0;
         let utilidadDia = 0;
 
         const reporte = invoices.map(inv => {
-            // Aseguramos que los valores sean numéricos para evitar NaN
             const vVenta = Number(inv.totalFactura) || 0;
             const costoMat = Number(inv.costo_materiales_total) || 0;
             const manoObra = Number(inv.mano_obra_total) || 0;
             
             const utilidad = vVenta - (costoMat + manoObra);
-
             totalVentasDia += vVenta;
             utilidadDia += utilidad;
 
             return {
                 ot: inv.numeroFactura || "S/N",
                 cliente: inv.cliente?.nombre || "Cliente Genérico",
-                materiales_detalle: (inv.items && inv.items.length > 0) 
-                    ? inv.items.map(i => i.materialNombre || "Sin nombre").join(', ') 
-                    : "Servicio/Mano de Obra",
-                costoMateriales: Math.round(costoMat),
-                manoObra: Math.round(manoObra),
-                costoTotal: Math.round(costoMat + manoObra),
                 totalVenta: vVenta,
                 utilidad: Math.round(utilidad)
             };
@@ -190,30 +181,23 @@ exports.getDailyReport = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("🚨 Error crítico en reporte:", error);
-        res.status(200).json({ 
-            success: false, 
-            message: "Error al procesar datos.",
-            data: [],
-            resumen: { totalVentas: 0, utilidadTotal: 0 }
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
-// 3. OBTENER TODAS LAS ÓRDENES
-exports.getInvoices = async (req, res) => {
+// 3. OTROS MÉTODOS (Obtener, Abonar, Eliminar)
+const getInvoices = async (req, res) => {
     try {
-        const invoices = await Invoice.find().sort({ fecha: -1 });
-        res.status(200).json({ success: true, count: invoices.length, data: invoices });
+        const invoices = await Invoice.find().sort({ fecha: -1 }).lean();
+        res.status(200).json({ success: true, data: invoices });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 };
 
-// 4. OBTENER POR ID
-exports.getInvoiceById = async (req, res) => {
+const getInvoiceById = async (req, res) => {
     try {
-        const invoice = await Invoice.findById(req.params.id);
+        const invoice = await Invoice.findById(req.params.id).lean();
         if (!invoice) return res.status(404).json({ success: false, error: "Factura no encontrada" });
         res.status(200).json({ success: true, data: invoice });
     } catch (error) {
@@ -221,8 +205,7 @@ exports.getInvoiceById = async (req, res) => {
     }
 };
 
-// 5. REGISTRAR ABONO
-exports.addPayment = async (req, res) => {
+const addPayment = async (req, res) => {
     try {
         const { montoAbono } = req.body;
         const invoice = await Invoice.findById(req.params.id);
@@ -242,34 +225,35 @@ exports.addPayment = async (req, res) => {
     }
 };
 
-// 6. ELIMINAR Y DEVOLVER STOCK
-exports.deleteInvoice = async (req, res) => {
+const deleteInvoice = async (req, res) => {
     try {
-        const { id } = req.params;
-        const invoice = await Invoice.findById(id);
+        const invoice = await Invoice.findById(req.params.id);
         if (!invoice) return res.status(404).json({ success: false, error: "No encontrada" });
 
-        if (invoice.items && Array.isArray(invoice.items)) {
+        // Devolución de stock al inventario antes de borrar
+        if (invoice.items) {
             for (const item of invoice.items) {
                 if (item.productoId && item.area_m2 > 0) {
-                    const materialExiste = await Material.exists({ _id: item.productoId });
-                    if (materialExiste) {
-                        await Material.findByIdAndUpdate(item.productoId, { $inc: { stock_actual_m2: item.area_m2 } });
-                        await Transaction.create({
-                            materialId: item.productoId,
-                            tipo: 'ENTRADA',
-                            cantidad_m2: item.area_m2,
-                            motivo: `ANULACIÓN OT: ${invoice.numeroFactura}`
-                        });
-                    }
+                    await Material.findByIdAndUpdate(item.productoId, { 
+                        $inc: { stock_actual: item.area_m2 } 
+                    });
                 }
             }
         }
 
-        await Invoice.findByIdAndDelete(id);
-        res.status(200).json({ success: true, message: "Orden eliminada y stock restaurado" });
+        await Invoice.findByIdAndDelete(req.params.id);
+        res.status(200).json({ success: true, message: "Orden anulada y stock devuelto" });
     } catch (error) {
-        console.error("🚨 Error al eliminar orden:", error);
-        res.status(500).json({ success: false, error: "Error al eliminar la orden" });
+        res.status(500).json({ success: false, error: error.message });
     }
+};
+
+module.exports = {
+    createInvoice,
+    getDailyReport,
+    getInvoices,
+    getInvoiceById,
+    addPayment,
+    deleteInvoice,
+    saveInvoice: createInvoice
 };
