@@ -3,7 +3,7 @@
  * Módulo de conexión API - Versión Quirúrgica Final
  */
 
-// Si estamos en la nube, apuntamos directo a la función de Netlify para evitar el 404
+// Detectamos si estamos en local o en la nube para asignar la ruta base
 const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? '/api'
     : '/.netlify/functions/server';
@@ -14,14 +14,17 @@ window.API = {
     // Función auxiliar para validar que la respuesta sea JSON y no HTML de error
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
+        
         if (!response.ok) {
+            // Si el servidor responde 404 o 500, lanzamos error con el estatus
             throw new Error(`Servidor respondió con estado ${response.status}`);
         }
+
         if (contentType && contentType.includes("application/json")) {
             return await response.json();
         } else {
-            // Esto atrapa el error del símbolo '<' antes de que rompa la web
-            throw new Error("El servidor devolvió HTML en lugar de JSON. Revisa la ruta de la función.");
+            // Esto atrapa el error del símbolo '<' (cuando el servidor devuelve un HTML de error)
+            throw new Error("El servidor devolvió un formato incorrecto (HTML en lugar de JSON).");
         }
     },
 
