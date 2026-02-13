@@ -3,11 +3,12 @@ const cors = require('cors');
 const path = require('path');
 const serverless = require('serverless-http'); 
 const connectDB = require('./config/db');
-const mongoose = require('mongoose'); // <--- SUMAR ESTO
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 /**
  * CONFIGURACIÓN DE MODELOS
+ * Los cargamos al inicio para que las rutas los encuentren siempre
  */
 try {
     require('./models/Provider');
@@ -27,13 +28,12 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Gestión de Conexión Singleton - MANTENEMOS TU LÓGICA
+// Gestión de Conexión Singleton
 let isConnected = false;
 const connect = async () => {
-    if (isConnected) return;
+    if (isConnected && mongoose.connection.readyState === 1) return;
     try {
-        // --- ESTO ES LO ÚNICO QUE SUMAMOS PARA ACTIVAR LOS BOTONES ---
-        // Evita que proveedores.find() se bloquee 10 segundos
+        // Desactivamos el buffering para que si la conexión tarda, el servidor no se quede colgado
         mongoose.set('bufferCommands', false); 
         
         await connectDB();
@@ -41,31 +41,28 @@ const connect = async () => {
         console.log("🟢 MongoDB Conectado a Atlas");
     } catch (err) {
         console.error("🚨 Error Crítico de Conexión DB:", err);
+        isConnected = false;
     }
 };
 
 const router = express.Router();
 
-const safeLoad = (routePath, moduleRelativePath) => {
-    try {
-        const absolutePath = path.resolve(__dirname, moduleRelativePath);
-        const routeModule = require(absolutePath);
-        router.use(routePath, routeModule);
-        console.log(`✅ Ruta activa: ${routePath}`);
-    } catch (error) {
-        console.error(`🚨 ERROR CARGANDO RUTA [${routePath}]: ${error.message}`);
-    }
-};
+// --- MAPEO DE RUTAS MEJORADO ---
+// Usamos require directo para evitar fallos de resolución de path en Netlify
+try {
+    router.use('/inventory', require('./routes/inventoryRoutes'));
+    router.use('/quotes', require('./routes/quoteRoutes'));
+    router.use('/invoices', require('./routes/invoiceRoutes'));
+    router.use('/stats', require('./routes/statsRoutes'));
+    router.use('/purchases', require('./routes/purchaseRoutes')); 
+    router.use('/providers', require('./routes/providerRoutes')); 
+    router.use('/clients', require('./routes/clientRoutes'));
+    console.log("✅ Todas las rutas mapeadas correctamente");
+} catch (error) {
+    console.error(`🚨 ERROR CRÍTICO CARGANDO RUTAS: ${error.message}`);
+}
 
-// --- MAPEO DE RUTAS (Se mantienen todas) ---
-safeLoad('/inventory', './routes/inventoryRoutes');
-safeLoad('/quotes', './routes/quoteRoutes');
-safeLoad('/invoices', './routes/invoiceRoutes');
-safeLoad('/stats', './routes/statsRoutes');
-safeLoad('/purchases', './routes/purchaseRoutes'); 
-safeLoad('/providers', './routes/providerRoutes'); 
-safeLoad('/clients', './routes/clientRoutes');
-
+// Middleware para normalizar las URLs de Netlify
 app.use((req, res, next) => {
     const prefixes = ['/.netlify/functions/server', '/api'];
     let currentUrl = req.url;
@@ -85,8 +82,11 @@ app.use('/', router);
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Esto asegura que la respuesta sea inmediata al presionar botones
+    // Evita que Netlify espere a que la conexión de Mongo se cierre para responder
     context.callbackWaitsForEmptyEventLoop = false;
+    
+    // Conectamos a la DB antes de procesar la petición
     await connect();
+    
     return await handler(event, context);
 };
