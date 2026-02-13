@@ -52,4 +52,4 @@ const ProviderSchema = new mongoose.Schema({
  * 1. Mantenemos el Singleton (mongoose.models.Provider) para evitar errores de compilación.
  * 2. Añadimos 'proveedores' como tercer parámetro para forzar la conexión con la colección de Atlas.
  */
-module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'proveedores');
+module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'providers');
