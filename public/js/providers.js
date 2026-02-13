@@ -1,13 +1,14 @@
 /**
  * LÓGICA DE PROVEEDORES - MARQUETERÍA PRO
- * Conecta el formulario HTML con la base de datos.
+ * Conecta el formulario HTML y los botones de consulta con la base de datos.
  */
 
 // Definición segura de la URL de la API
-// Si API_URL ya existe (de api.js), la usa. Si no, usa '/api' por defecto.
-const BASE_URL_API = (typeof API_URL !== 'undefined') ? API_URL : '/api';
+// Priorizamos window.API.url que configuramos en api.js para Netlify
+const BASE_URL_API = (window.API && window.API.url) ? window.API.url : '/api';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- LÓGICA DE REGISTRO (Tu código original) ---
     const supplierForm = document.getElementById('supplierForm');
 
     if (supplierForm) {
@@ -16,11 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
         supplierForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // 1. Capturar el botón para feedback visual
             const btnGuardar = supplierForm.querySelector('.btn-save');
             const originalHTML = btnGuardar ? btnGuardar.innerHTML : "Guardar";
 
-            // 2. Recolectar datos del formulario
             const formData = new FormData(supplierForm);
             const providerData = {
                 nombre: formData.get('nombre'),
@@ -32,37 +31,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 categoria: formData.get('categoria') || "General"
             };
 
-            // 3. Estado de "Guardando..."
             if (btnGuardar) {
                 btnGuardar.disabled = true;
                 btnGuardar.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Procesando...`;
             }
 
             try {
-                // 4. Enviar a la base de datos usando la BASE_URL_API segura
                 const response = await fetch(`${BASE_URL_API}/providers`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(providerData)
                 });
 
                 const result = await response.json();
 
                 if (result.success || response.ok) {
-                    alert("✅ Proveedor guardado correctamente en la base de datos.");
+                    alert("✅ Proveedor guardado correctamente.");
                     supplierForm.reset();
-                    // Redirigir al dashboard después de guardar
                     window.location.href = 'dashboard.html';
                 } else {
                     alert("❌ Error: " + (result.error || "No se pudo guardar"));
                 }
             } catch (error) {
                 console.error("🚨 Error en la solicitud:", error);
-                alert("❌ No se pudo conectar con el servidor. Verifica tu conexión.");
+                alert("❌ No se pudo conectar con el servidor.");
             } finally {
-                // 5. Restaurar botón
                 if (btnGuardar) {
                     btnGuardar.disabled = false;
                     btnGuardar.innerHTML = originalHTML;
@@ -70,14 +63,63 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --- LÓGICA DE CONSULTA (Cirugía para activar botones) ---
+    const btnConsultar = document.getElementById('btnConsultarProveedores') || document.querySelector('.btn-consultar');
+    
+    if (btnConsultar) {
+        btnConsultar.addEventListener('click', async () => {
+            console.log("🖱️ Clic detectado: Consultando proveedores...");
+            await cargarTablaProveedores();
+        });
+    }
 });
 
 /**
- * Función global para cargar proveedores (útil para selects o tablas)
+ * Función para cargar y renderizar la tabla de proveedores
+ */
+async function cargarTablaProveedores() {
+    const tablaBody = document.getElementById('lista-proveedores-body');
+    if (!tablaBody) return;
+
+    tablaBody.innerHTML = '<tr><td colspan="6" class="text-center">Cargando datos...</td></tr>';
+
+    try {
+        const result = await obtenerProveedores();
+        
+        if (result.success && result.data.length > 0) {
+            tablaBody.innerHTML = ''; // Limpiar mensaje de carga
+            result.data.forEach(prov => {
+                const fila = `
+                    <tr>
+                        <td>${prov.nombre}</td>
+                        <td>${prov.nit || 'N/A'}</td>
+                        <td>${prov.contacto || 'N/A'}</td>
+                        <td>${prov.telefono}</td>
+                        <td>${prov.categoria}</td>
+                        <td>
+                            <button class="btn-edit" onclick="editarProveedor('${prov._id}')"><i class="fas fa-edit"></i></button>
+                        </td>
+                    </tr>
+                `;
+                tablaBody.innerHTML += fila;
+            });
+            console.log("✅ Tabla de proveedores actualizada.");
+        } else {
+            tablaBody.innerHTML = '<tr><td colspan="6" class="text-center">No hay proveedores registrados.</td></tr>';
+        }
+    } catch (error) {
+        tablaBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar proveedores.</td></tr>';
+    }
+}
+
+/**
+ * Función global para obtener datos de la API
  */
 async function obtenerProveedores() {
     try {
-        const response = await fetch(`${BASE_URL_API}/providers`);
+        // Añadimos un timestamp para evitar caché y forzar respuesta fresca de Netlify
+        const response = await fetch(`${BASE_URL_API}/providers?t=${Date.now()}`);
         return await response.json();
     } catch (error) {
         console.error("🚨 Error obteniendo proveedores:", error);
