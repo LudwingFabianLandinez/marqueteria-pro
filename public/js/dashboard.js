@@ -142,14 +142,13 @@ window.nuevaCompra = function() {
 };
 
 // Botón: Consultar Proveedores (Agenda)
-window.abrirAgenda = function() {
-    console.log("🟢 Abriendo agenda desde dashboard...");
+    window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.display = 'block';
-        // ASOCIACIÓN CLAVE: Al abrir el modal, disparamos la carga de datos
-        if (typeof cargarTablaProveedores === 'function') {
-            cargarTablaProveedores();
+        console.log("🟢 Llamando a carga de proveedores...");
+        if (typeof window.cargarTablaProveedores === 'function') {
+            window.cargarTablaProveedores();
         }
     } else {
         console.error("❌ No se encontró el modal 'modalAgenda'");
