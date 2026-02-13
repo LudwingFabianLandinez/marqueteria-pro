@@ -1,7 +1,30 @@
-const API_BASE = '/api';
+/**
+ * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+ * Módulo de conexión API - Versión Netlify Final
+ */
+
+// Detectamos automáticamente si estamos en producción (Netlify) o local
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? '/api' 
+    : '/.netlify/functions/server';
 
 window.API = {
     url: API_BASE,
+
+    // Función auxiliar para validar que la respuesta sea JSON y no HTML de error
+    async _safeParse(response) {
+        const contentType = response.headers.get("content-type");
+        if (!response.ok) {
+            // Si hay error 404 o 500, lanzamos error detallado
+            throw new Error(`Servidor respondió con estado ${response.status}`);
+        }
+        if (contentType && contentType.includes("application/json")) {
+            return await response.json();
+        } else {
+            // Si devuelve HTML (como el error del <), avisamos que la ruta está mal
+            throw new Error("El servidor devolvió un formato incorrecto (HTML en lugar de JSON).");
+        }
+    },
 
     // ==========================================
     // INVENTARIO
@@ -9,8 +32,11 @@ window.API = {
     getInventory: async function() {
         try {
             const response = await fetch(`${this.url}/inventory`);
-            return await response.json();
-        } catch (err) { return { success: false, error: err.message }; }
+            return await this._safeParse(response);
+        } catch (err) { 
+            console.error("Error en getInventory:", err);
+            return { success: false, error: err.message }; 
+        }
     },
 
     adjustStock: async function(data) {
@@ -20,7 +46,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -29,14 +55,14 @@ window.API = {
             const response = await fetch(`${this.url}/inventory/${id}`, {
                 method: 'DELETE'
             });
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     getHistory: async function(id) {
         try {
             const response = await fetch(`${this.url}/inventory/history/${id}`);
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -46,7 +72,7 @@ window.API = {
     getProviders: async function() {
         try {
             const response = await fetch(`${this.url}/providers`);
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -57,7 +83,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
             });
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -67,7 +93,7 @@ window.API = {
     getQuotes: async function() {
         try {
             const response = await fetch(`${this.url}/quotes`);
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -81,7 +107,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(purchaseData)
             });
-            return await response.json();
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 

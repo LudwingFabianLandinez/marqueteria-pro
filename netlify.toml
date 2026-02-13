@@ -4,12 +4,13 @@
 
 [functions]
   directory = "functions"
-  # Se cambió de booleano a objeto para evitar el error de sintaxis
-  node_bundle = {} 
+  node_bundle = {}
 
 [[redirects]]
+  # Este es el puente vital. Nota que quitamos el ":splat" para probar
+  # una conexión directa si el splat está fallando.
   from = "/api/*"
-  to = "/.netlify/functions/server/:splat"
+  to = "/.netlify/functions/server"
   status = 200
   force = true
 
