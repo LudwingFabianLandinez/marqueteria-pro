@@ -7,7 +7,6 @@ require('dotenv').config();
 
 /**
  * CONFIGURACIÓN DE MODELOS
- * Cargamos los modelos para asegurar que Mongoose los reconozca en todas las rutas
  */
 require('./models/Provider');
 require('./models/Material');
@@ -64,12 +63,23 @@ safeLoad('/providers', './routes/providerRoutes');
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
 /**
- * AJUSTE DE RUTAS PARA NETLIFY
- * Esto resuelve el error 404. El router ahora responde tanto en 
- * /.netlify/functions/server como en /api
+ * AJUSTE DE RUTAS PARA NETLIFY (SOLUCIÓN AL 404)
+ * En lugar de forzar la ruta larga, usamos un middleware que limpie el path.
  */
-app.use('/.netlify/functions/server', router);
-app.use('/api', router);
+app.use((req, res, next) => {
+    // Si la ruta viene con el prefijo de netlify, lo removemos para que el router lo entienda
+    if (req.url.startsWith('/.netlify/functions/server')) {
+        req.url = req.url.replace('/.netlify/functions/server', '');
+    }
+    // Si viene de /api, también lo limpiamos
+    if (req.url.startsWith('/api')) {
+        req.url = req.url.replace('/api', '');
+    }
+    next();
+});
+
+// Ahora aplicamos el router a la raíz limpia
+app.use('/', router);
 
 // Manejador Global de Errores (Devuelve JSON, no HTML)
 app.use((err, req, res, next) => {
@@ -85,7 +95,7 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Evita que Netlify espere a que el bucle de eventos esté vacío (optimiza conexión DB)
+    // Evita que Netlify espere a que el bucle de eventos esté vacío
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);
