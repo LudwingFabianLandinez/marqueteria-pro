@@ -1,31 +1,26 @@
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
-    // Si ya hay una conexión activa, no creamos una nueva (Optimización para Serverless)
-    if (mongoose.connection.readyState >= 1) {
-        return;
-    }
-
     try {
-        // Busca la URL de Atlas en Netlify; si no existe, usa la local
-        const dbUri = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/marqueteria-pro";
-        
-        const isLocal = !process.env.MONGODB_URI && !process.env.MONGO_URI;
-        console.log(isLocal ? '🏠 MODO LOCAL: Conectando a PC' : '☁️ MODO NUBE: Conectando a MongoDB Atlas');
+        // Configuraciones críticas para que los botones no se bloqueen
+        mongoose.set('strictQuery', false);
+        mongoose.set('bufferCommands', false); // Detiene la espera de 10 segundos
 
-        // Configuraciones de conexión para mayor estabilidad en la nube
-        const options = {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 5000 // Falla rápido si no hay internet para evitar el lag
-        };
+        if (mongoose.connection.readyState >= 1) {
+            return;
+        }
 
-        await mongoose.connect(dbUri, options);
-        console.log('✅ Base de datos conectada correctamente');
+        console.log("☁️ Intentando conectar a MongoDB Atlas...");
         
-    } catch (error) {
-        console.error('❌ Error crítico de conexión:', error.message);
-        // No cerramos el proceso aquí para que Netlify no mate la función de golpe
+        await mongoose.connect(process.env.MONGODB_URI, {
+            serverSelectionTimeoutMS: 5000, // Si no conecta en 5s, avisa (no espera 10s)
+            socketTimeoutMS: 45000,
+        });
+
+        console.log("✅ Conexión establecida y lista para consultas");
+    } catch (err) {
+        console.error("❌ Error en config/db.js:", err.message);
+        throw err;
     }
 };
 
