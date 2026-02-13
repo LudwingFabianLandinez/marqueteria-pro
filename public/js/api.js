@@ -6,13 +6,11 @@
 // Detectamos si estamos en local o en la nube para asignar la ruta base
 // IMPORTANTE: Asegúrate de que en Netlify tu función se llame 'server' o 'api'. 
 // FORZAMOS LA RUTA QUE YA SABEMOS QUE FUNCIONA EN TU NETLIFY
-    const API_BASE = window.location.hostname === 'localhost' 
-    ? 'http://localhost:9000/.netlify/functions/server' 
-    : '/.netlify/functions/server';
+    const API_BASE = '/.netlify/functions/server';
 
     window.API = {
     url: API_BASE,
-   
+
     // Función auxiliar para validar que la respuesta sea JSON y no HTML de error
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");

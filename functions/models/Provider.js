@@ -55,8 +55,7 @@ const ProviderSchema = new mongoose.Schema({
  * EXPORTACIÓN ROBUSTA PARA NETLIFY:
  * Forzamos la conexión con la colección 'providers'.
  */
-// Esta es la línea que debes dejar exactamente así:
-    module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'Proveedores');
+const Provider = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'Proveedores');
 
 // 4. Inyección de seguridad: Forzamos la desactivación del buffering a nivel de modelo global
 Provider.schema.set('bufferCommands', false);
