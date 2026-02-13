@@ -4,8 +4,8 @@
 
 [functions]
   directory = "functions"
-  # Esto obliga a Netlify a meter las carpetas dentro del paquete del servidor
-  included_files = ["functions/models/**", "functions/routes/**", "functions/config/**"]
+  # Agregamos controllers a la lista de carpetas obligatorias
+  included_files = ["functions/models/**", "functions/routes/**", "functions/config/**", "functions/controllers/**"]
 
 [[redirects]]
   from = "/api/*"
