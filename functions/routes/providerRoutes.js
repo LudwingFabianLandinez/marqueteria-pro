@@ -25,19 +25,48 @@ const normalizeData = (req, res, next) => {
 // --- RUTAS CON PROTECCIÓN DE CALLBACKS ---
 
 // 1. Obtener todos los proveedores
-// Intentamos usar getProviders o getAll según se haya definido en el controlador
-router.get('/', provCtrl.getProviders || provCtrl.getAll || ((req, res) => res.status(500).json({error: "Método getProviders no definido"})));
+// AJUSTE: Forzamos la ejecución de la función de consulta
+router.get('/', async (req, res, next) => {
+    const method = provCtrl.getProviders || provCtrl.getAll;
+    if (typeof method === 'function') {
+        return method(req, res, next);
+    }
+    console.error("🚨 Error: Método de consulta de proveedores no encontrado en controlador");
+    res.status(500).json({ success: false, error: "Método de consulta no definido" });
+});
 
 // 2. Crear un nuevo proveedor (con normalización)
-router.post('/', normalizeData, provCtrl.createProvider || provCtrl.saveProvider || ((req, res) => res.status(500).json({error: "Método createProvider no definido"})));
+router.post('/', normalizeData, async (req, res, next) => {
+    const method = provCtrl.createProvider || provCtrl.saveProvider;
+    if (typeof method === 'function') {
+        return method(req, res, next);
+    }
+    res.status(500).json({ success: false, error: "Método de creación no definido" });
+});
 
 // 3. Obtener un solo proveedor por ID
-router.get('/:id', provCtrl.getOneProvider || provCtrl.getProviderById || ((req, res) => res.status(500).json({error: "Método getOneProvider no definido"})));
+router.get('/:id', async (req, res, next) => {
+    const method = provCtrl.getOneProvider || provCtrl.getProviderById;
+    if (typeof method === 'function') {
+        return method(req, res, next);
+    }
+    res.status(500).json({ success: false, error: "Método de búsqueda por ID no definido" });
+});
 
 // 4. Actualizar un proveedor
-router.put('/:id', normalizeData, provCtrl.updateProvider || ((req, res) => res.status(500).json({error: "Método updateProvider no definido"})));
+router.put('/:id', normalizeData, async (req, res, next) => {
+    if (typeof provCtrl.updateProvider === 'function') {
+        return provCtrl.updateProvider(req, res, next);
+    }
+    res.status(500).json({ success: false, error: "Método de actualización no definido" });
+});
 
 // 5. Eliminar un proveedor
-router.delete('/:id', provCtrl.deleteProvider || ((req, res) => res.status(500).json({error: "Método deleteProvider no definido"})));
+router.delete('/:id', async (req, res, next) => {
+    if (typeof provCtrl.deleteProvider === 'function') {
+        return provCtrl.deleteProvider(req, res, next);
+    }
+    res.status(500).json({ success: false, error: "Método de eliminación no definido" });
+});
 
 module.exports = router;

@@ -8,7 +8,12 @@ const Provider = require('../models/Provider');
 // 1. Obtener todos los proveedores (Ordenados A-Z)
 const getProviders = async (req, res) => {
     try {
-        const providers = await Provider.find().sort({ nombre: 1 }).lean();
+        // AJUSTE QUIRÚRGICO: maxTimeMS(5000) evita que el botón se quede trabado si Atlas tarda
+        const providers = await Provider.find()
+            .sort({ nombre: 1 })
+            .lean()
+            .maxTimeMS(5000); 
+
         res.status(200).json({ success: true, data: providers || [] });
     } catch (error) {
         console.error('❌ Error al obtener proveedores:', error);
@@ -19,7 +24,7 @@ const getProviders = async (req, res) => {
 // 2. Obtener un solo proveedor por ID (Necesario para el modal de edición)
 const getOneProvider = async (req, res) => {
     try {
-        const provider = await Provider.findById(req.params.id).lean();
+        const provider = await Provider.findById(req.params.id).lean().maxTimeMS(3000);
         if (!provider) return res.status(404).json({ success: false, error: "Proveedor no encontrado" });
         res.status(200).json({ success: true, data: provider });
     } catch (error) {
@@ -39,9 +44,9 @@ const createProvider = async (req, res) => {
             });
         }
 
-        // Validación de NIT duplicado (solo si se proporciona NIT)
+        // Validación de NIT duplicado con tiempo límite
         if (nit && nit.trim() !== '') {
-            const existente = await Provider.findOne({ nit: nit.trim() });
+            const existente = await Provider.findOne({ nit: nit.trim() }).lean().maxTimeMS(3000);
             if (existente) {
                 return res.status(400).json({ 
                     success: false, 
@@ -79,7 +84,8 @@ const updateProvider = async (req, res) => {
             req.params.id,
             { $set: req.body },
             { new: true, runValidators: true }
-        );
+        ).maxTimeMS(4000);
+
         if (!updatedProvider) return res.status(404).json({ success: false, error: "No encontrado" });
         res.status(200).json({ success: true, data: updatedProvider });
     } catch (error) {
