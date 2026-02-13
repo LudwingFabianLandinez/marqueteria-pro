@@ -63,25 +63,27 @@ safeLoad('/providers', './routes/providerRoutes');
 safeLoad('/suppliers', './routes/providerRoutes'); 
 
 /**
- * AJUSTE DE RUTAS PARA NETLIFY (SOLUCIÓN AL 404)
- * En lugar de forzar la ruta larga, usamos un middleware que limpie el path.
+ * AJUSTE QUIRÚRGICO DE RUTAS
+ * Este middleware limpia la URL antes de que llegue al router.
  */
 app.use((req, res, next) => {
-    // Si la ruta viene con el prefijo de netlify, lo removemos para que el router lo entienda
-    if (req.url.startsWith('/.netlify/functions/server')) {
-        req.url = req.url.replace('/.netlify/functions/server', '');
-    }
-    // Si viene de /api, también lo limpiamos
-    if (req.url.startsWith('/api')) {
-        req.url = req.url.replace('/api', '');
-    }
+    // Si la URL tiene estos prefijos, los quitamos para que el router vea solo /inventory, /quotes, etc.
+    const prefixes = ['/.netlify/functions/server', '/api'];
+    prefixes.forEach(prefix => {
+        if (req.url.startsWith(prefix)) {
+            req.url = req.url.replace(prefix, '');
+        }
+    });
+    
+    // Si después de limpiar queda vacío, lo volvemos raíz
+    if (req.url === '') req.url = '/';
     next();
 });
 
-// Ahora aplicamos el router a la raíz limpia
+// Aplicamos el router a la raíz ya limpia
 app.use('/', router);
 
-// Manejador Global de Errores (Devuelve JSON, no HTML)
+// Manejador Global de Errores
 app.use((err, req, res, next) => {
     console.error("🚨 ERROR NO CONTROLADO:", err.stack);
     res.status(500).json({ 
@@ -95,7 +97,6 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Evita que Netlify espere a que el bucle de eventos esté vacío
     context.callbackWaitsForEmptyEventLoop = false;
     await connect();
     return await handler(event, context);

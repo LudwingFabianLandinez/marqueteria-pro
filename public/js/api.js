@@ -1,11 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión Netlify Final
+ * Módulo de conexión API - Versión Quirúrgica Final
  */
 
-// Detectamos automáticamente si estamos en producción (Netlify) o local
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-    ? '/api' 
+// Si estamos en la nube, apuntamos directo a la función de Netlify para evitar el 404
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? '/api'
     : '/.netlify/functions/server';
 
 window.API = {
@@ -15,14 +15,13 @@ window.API = {
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
-            // Si hay error 404 o 500, lanzamos error detallado
             throw new Error(`Servidor respondió con estado ${response.status}`);
         }
         if (contentType && contentType.includes("application/json")) {
             return await response.json();
         } else {
-            // Si devuelve HTML (como el error del <), avisamos que la ruta está mal
-            throw new Error("El servidor devolvió un formato incorrecto (HTML en lugar de JSON).");
+            // Esto atrapa el error del símbolo '<' antes de que rompa la web
+            throw new Error("El servidor devolvió HTML en lugar de JSON. Revisa la ruta de la función.");
         }
     },
 
