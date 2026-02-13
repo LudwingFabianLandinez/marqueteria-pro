@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const serverless = require('serverless-http'); 
 const connectDB = require('./config/db');
+const mongoose = require('mongoose'); // Inyectado para control de buffering
 require('dotenv').config();
 
 /**
@@ -38,11 +39,16 @@ let isConnected = false;
 const connect = async () => {
     if (isConnected) return;
     try {
+        // MEJORA: Desactivamos el buffer para evitar que las consultas se queden "colgadas" 10s
+        mongoose.set('bufferCommands', false); 
+        
         await connectDB();
         isConnected = true;
         console.log("🟢 MongoDB Conectado a Atlas");
     } catch (err) {
         console.error("🚨 Error Crítico de Conexión DB:", err);
+        // Reset de flag para reintento en la siguiente petición
+        isConnected = false; 
     }
 };
 
@@ -51,7 +57,6 @@ const router = express.Router();
 
 const safeLoad = (routePath, moduleRelativePath) => {
     try {
-        // Ajuste Quirúrgico: Resolvemos la ruta absoluta basada en la ubicación de server.js
         const absolutePath = path.resolve(__dirname, moduleRelativePath);
         const routeModule = require(absolutePath);
         router.use(routePath, routeModule);
@@ -107,8 +112,10 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Vital para entornos serverless
+    // VITAL: Le dice a Netlify que no espere a que el loop de Node esté vacío 
+    // (Esto soluciona los Timeouts de MongoDB en funciones Lambda)
     context.callbackWaitsForEmptyEventLoop = false;
+    
     await connect();
     return await handler(event, context);
 };
