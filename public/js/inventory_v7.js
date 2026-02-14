@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 7.9.0 - RESTAURACIÓN TOTAL DE STOCK Y AGENDA
+ * Versión: 8.1.0 - SOLUCIÓN INTEGRAL AGENDA Y CAMPOS M2
  */
 
 // Usamos window para asegurar que las variables sobrevivan a cualquier recarga de script
@@ -26,12 +26,11 @@ window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.setProperty('display', 'flex', 'important');
-        console.log("🔔 Apertura de agenda: Iniciando renderizado...");
+        console.log("🔔 Apertura de agenda: Sincronizando datos...");
         
-        // Intentamos renderizar 3 veces en diferentes tiempos para asegurar que el HTML esté listo
+        // Ejecución inmediata y retardada para asegurar que el contenedor HTML ya cargó
         window.renderAgendaProveedores();
-        setTimeout(() => window.renderAgendaProveedores(), 100);
-        setTimeout(() => window.renderAgendaProveedores(), 500);
+        setTimeout(() => window.renderAgendaProveedores(), 250);
     }
 };
 
@@ -39,11 +38,13 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
+    // Si aún no han cargado los proveedores de la API
     if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#94a3b8;">Cargando proveedores de Atlas...</p>';
         return;
     }
 
+    // Dibujado de la lista
     contenedor.innerHTML = window.todosLosProveedores.map(p => `
         <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
             <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
@@ -98,7 +99,7 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            // USAMOS LOS CAMPOS EXACTOS DETECTADOS EN LA ALERTA
+            // USAMOS LOS CAMPOS EXACTOS DETECTADOS EN LA ALERTA ANTERIOR
             const stockReal = m.stock_actual_m2 ?? m.stock_actual ?? 0;
             const stockMin = m.stock_minimo_m2 ?? m.stock_minimo ?? 2;
             const precioCosto = m.precio_m2_costo ?? m.precio_total_lamina ?? 0;
