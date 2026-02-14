@@ -223,29 +223,25 @@
     </div>
 
     <div id="modalAgenda" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 600px;">
-        <div class="modal-header" style="background: #3498db; color: white; padding: 15px;">
-            <h3 style="margin:0;"><i class="fas fa-address-book"></i> Agenda de Proveedores</h3>
-            <span onclick="window.cerrarModales()" style="cursor:pointer; float:right; font-size:24px;">&times;</span>
+    <div class="modal-content" style="max-width: 600px; border-radius: 12px; overflow: hidden; border: none; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+        <div style="background: #3498db; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.1rem;"><i class="fas fa-address-book"></i> Agenda de Proveedores</h3>
+            <span class="close" onclick="window.cerrarModales()" style="color: white; cursor: pointer; font-size: 1.5rem;">&times;</span>
         </div>
         
-        <div class="modal-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
-            <table class="inventory-table" style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: #f1f5f9;">
-                        <th style="padding: 10px; text-align: left;">Nombre</th>
-                        <th style="padding: 10px; text-align: left;">Contacto</th>
-                        <th style="padding: 10px; text-align: left;">Categoría</th>
-                    </tr>
-                </thead>
-                <tbody id="listaProveedoresBody">
-                    <tr>
-                        <td colspan="3" style="text-align:center; padding: 20px;">
-                            <i class="fas fa-spinner fa-spin"></i> Sincronizando datos...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 45px; padding: 10px 20px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-weight: bold; font-size: 0.75rem; color: #64748b; text-transform: uppercase;">
+            <div>Nombre</div>
+            <div>Contacto</div>
+            <div>Categoría</div>
+            <div style="text-align: right;">Tel</div>
+        </div>
+
+        <div id="agendaContent" style="max-height: 400px; overflow-y: auto; background: white;">
+            <p style="text-align:center; padding:20px; color: #94a3b8;">Cargando lista...</p>
+        </div>
+
+        <div style="padding: 15px; background: #f1f5f9; text-align: right;">
+            <button onclick="window.cerrarModales()" style="padding: 8px 16px; background: #64748b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Cerrar</button>
         </div>
     </div>
 </div>
