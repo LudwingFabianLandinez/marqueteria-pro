@@ -27,18 +27,25 @@ window.abrirAgenda = function() {
         modal.style.setProperty('display', 'flex', 'important');
         
         const contenedor = document.getElementById('agendaContent');
-        if (contenedor) contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos...</p>';
+        if (contenedor) {
+            contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos...</p>';
 
-        // SOLUCIÓN CONTUNDENTE: Si en 3 segundos no carga, forzamos el render
-        setTimeout(() => {
-            if (contenedor && contenedor.innerText.includes('Sincronizando')) {
-                console.log("⚠️ Tiempo de espera agotado, forzando limpieza...");
-                window.renderAgendaProveedores();
-            }
-        }, 3000);
+            // SEGURO CONTUNDENTE: 
+            // Si en 2 segundos no ha renderizado, forzamos el dibujo de la lista
+            setTimeout(() => {
+                if (contenedor.innerHTML.includes('Sincronizando')) {
+                    console.log("⚠️ Forzando desbloqueo visual...");
+                    window.renderAgendaProveedores();
+                }
+            }, 2000);
+        }
 
+        // Llamamos a la carga de datos normal
         fetchProviders().then(() => {
             window.renderAgendaProveedores();
+        }).catch(err => {
+            console.error("Error al sincronizar:", err);
+            window.renderAgendaProveedores(); // Incluso con error, intentamos mostrar lo que haya
         });
     }
 };
