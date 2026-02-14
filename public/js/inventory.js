@@ -30,22 +30,22 @@ window.abrirAgenda = function() {
         if (contenedor) {
             contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos...</p>';
 
-            // SEGURO CONTUNDENTE: 
-            // Si en 2 segundos no ha renderizado, forzamos el dibujo de la lista
+            // --- ESTO ES LO CONTUNDENTE ---
+            // Si en 2 segundos no ha cargado, forzamos el renderizado para quitar el mensaje
             setTimeout(() => {
                 if (contenedor.innerHTML.includes('Sincronizando')) {
-                    console.log("⚠️ Forzando desbloqueo visual...");
+                    console.log("⚠️ Forzando desbloqueo visual del botón...");
                     window.renderAgendaProveedores();
                 }
             }, 2000);
         }
 
-        // Llamamos a la carga de datos normal
+        // Carga normal de proveedores
         fetchProviders().then(() => {
             window.renderAgendaProveedores();
         }).catch(err => {
             console.error("Error al sincronizar:", err);
-            window.renderAgendaProveedores(); // Incluso con error, intentamos mostrar lo que haya
+            window.renderAgendaProveedores(); // Limpia incluso si falla
         });
     }
 };
