@@ -1,44 +1,60 @@
 const express = require('express');
 const router = express.Router();
-const Material = require('../models/Material'); // Verifica que la ruta y nombre sean correctos
-const Provider = require('../models/Provider'); // <--- ESTA ES LA QUE FALTA
 
 /**
- * RUTAS DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
+ * IMPORTACIÓN DE MODELOS
+ * Aseguramos que los modelos estén cargados para evitar errores de referencia
  */
+const Material = require('../models/Material');
+const Provider = require('../models/Provider');
 
-// Importación segura del controlador
+/**
+ * IMPORTACIÓN DEL CONTROLADOR
+ */
 const inventoryController = require('../controllers/inventoryController');
 
-// 1. Obtener lista completa de materiales (Tabla principal)
-// Usamos el alias de seguridad 'getInventory' que definimos en el controlador
-router.get('/', inventoryController.getInventory || inventoryController.getMaterials);
+/**
+ * 📋 RUTAS DE INVENTARIO PRINCIPAL
+ */
 
-// 2. Historial Global de Compras
+// 1. Obtener lista completa (Si falla uno, intenta el otro)
+router.get('/', (req, res, next) => {
+    const fn = inventoryController.getInventory || inventoryController.getMaterials || inventoryController.getAll;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.status(500).json({ error: "Función de inventario no definida en controlador" });
+});
+
+// 2. Historial de compras para purchases.html
 router.get('/all-purchases', inventoryController.getAllPurchases);
 
-// 3. Registrar una nueva compra
+// 3. Registrar nueva compra (Asegura que el frontend envíe datos a esta ruta)
 router.post('/purchase', inventoryController.registerPurchase);
 
 /**
- * 📊 RUTAS DE ANALÍTICA Y CONTROL
+ * 📊 RUTAS DE ANALÍTICA (Dashboard Superior)
  */
 
-// Resumen estadístico (KPIs superiores del dashboard)
+// Resumen de compras (KPIs)
 router.get('/purchases-summary', inventoryController.getPurchasesSummary);
 
 // Alertas de stock bajo
 router.get('/low-stock', inventoryController.getLowStockMaterials);
 
-// 4. Ajuste manual de stock (Ruta crítica para inventory.js)
-// Usamos el alias 'adjustStock' para coincidir con lo que busca el frontend
-router.post('/adjust', inventoryController.adjustStock || inventoryController.manualAdjustment);
-
 /**
- * 🛠️ GESTIÓN AVANZADA
+ * 🛠️ GESTIÓN Y AJUSTES
  */
 
-// 5. Eliminar material por completo
+// 4. Ajuste manual de stock (Ruta que usa el botón de la tabla)
+router.post('/adjust', (req, res, next) => {
+    const fn = inventoryController.adjustStock || inventoryController.manualAdjustment || inventoryController.updateStock;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.status(500).json({ error: "Función de ajuste no definida en controlador" });
+});
+
+// 5. Movimientos/Historial de un material específico
+router.get('/history/:id', inventoryController.getMaterialHistory || ((req, res) => res.json([])));
+
+// 6. Eliminar material
 router.delete('/:id', inventoryController.deleteMaterial);
 
 module.exports = router;
