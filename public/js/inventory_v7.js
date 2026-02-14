@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 8.2.0 - FIX QUIRÚRGICO AGENDA (SIN DAÑAR EL RESTO)
+ * Versión: 9.0.0 - SOLUCIÓN INTEGRAL: AGENDA SIN BLOQUEOS
  */
 
 // Usamos window para asegurar que las variables sobrevivan a cualquier recarga de script
@@ -10,45 +10,48 @@ window.todosLosProveedores = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log("🚀 Sistema Iniciado - Netlify Ready");
-    fetchInventory();
-    fetchProviders(); 
-    configurarEventos();
+    inicializarSistema();
 });
+
+// Nueva función de inicio para asegurar que los datos lleguen antes de interactuar
+async function inicializarSistema() {
+    await Promise.all([fetchInventory(), fetchProviders()]);
+    configurarEventos();
+}
 
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- MODALES DE PROVEEDORES (CORRECCIÓN QUIRÚRGICA) ---
+// --- MODALES DE PROVEEDORES (CORRECCIÓN DE PESO PARA BOTÓN TRABADO) ---
 
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
-        // Forzamos el display flex
+        // 1. Respuesta visual instantánea para que el botón no se sienta trabado
         modal.style.setProperty('display', 'flex', 'important');
-        console.log("🔔 Apertura de agenda: Sincronizando datos...");
+        console.log("🔔 Agenda abierta: Dibujando lista...");
         
-        // Ejecutamos el renderizado
+        // 2. Renderizamos lo que haya en memoria inmediatamente
         window.renderAgendaProveedores();
-        
-        // Un pequeño refuerzo por si el HTML tarda en reaccionar
-        setTimeout(() => window.renderAgendaProveedores(), 100);
     }
 };
 
 window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
-    // Si el contenedor no existe todavía en el DOM, no hacemos nada para no dar error
     if (!contenedor) return;
 
-    // Si la lista está vacía en memoria, mostramos el aviso
+    // Si la lista está vacía, mostramos carga y reintentamos traer de Atlas
     if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#94a3b8;">No hay proveedores en la lista...</p>';
+        contenedor.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;"><i class="fas fa-sync fa-spin"></i> Sincronizando con Atlas...</div>';
+        fetchProviders().then(() => {
+            if (window.todosLosProveedores.length > 0) window.renderAgendaProveedores();
+        });
         return;
     }
 
-    // Dibujado de la lista con los datos de window.todosLosProveedores
+    // Dibujado de la lista (Mantenemos tu diseño de columnas)
     contenedor.innerHTML = window.todosLosProveedores.map(p => `
         <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
             <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
@@ -172,28 +175,33 @@ function renderTable(materiales) {
 }
 
 function configurarEventos() {
+    // 1. Buscador
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const termino = e.target.value.toLowerCase();
         renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
+    // 2. Formulario Proveedores
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
+    // 3. Formulario Compras (CON FINALLY PARA NO TRABAR BOTÓN)
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const boton = e.target.querySelector('button[type="submit"]');
-        const nombreMat = document.getElementById('nombreMaterial').value;
-        const objetoCompra = {
-            nombre: nombreMat.trim(),
-            tipo: (nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura')) ? 'ml' : 'm2',
-            proveedor: document.getElementById('proveedorSelect').value,
-            ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
-            largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value) || 0,
-            precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
-            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
-        };
         if(boton) boton.disabled = true;
+
         try {
+            const nombreMat = document.getElementById('nombreMaterial').value;
+            const objetoCompra = {
+                nombre: nombreMat.trim(),
+                tipo: (nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura')) ? 'ml' : 'm2',
+                proveedor: document.getElementById('proveedorSelect').value,
+                ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
+                largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value) || 0,
+                precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
+                cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
+            };
+            
             const res = await window.API.registerPurchase(objetoCompra);
             if (res.success) { 
                 window.cerrarModales(); 
@@ -201,10 +209,14 @@ function configurarEventos() {
                 e.target.reset(); 
                 alert("✅ Inventario actualizado");
             }
-        } catch (err) { alert("❌ Error al registrar"); } 
-        finally { if(boton) boton.disabled = false; }
+        } catch (err) { 
+            alert("❌ Error al registrar"); 
+        } finally { 
+            if(boton) boton.disabled = false; 
+        }
     });
 
+    // 4. Formulario Ajustes
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
