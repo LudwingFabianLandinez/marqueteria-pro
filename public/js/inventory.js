@@ -53,27 +53,34 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
-    // Si no hay datos, limpiamos el "Sincronizando" con un mensaje claro
+    // Si hay proveedores, los mostramos. Si no, avisamos.
     if (!todosLosProveedores || todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
 
-    // MAPEADO MINUCIOSO: Ajustado a los nombres de campo de Atlas
-    contenedor.innerHTML = todosLosProveedores.map(p => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
-            <div>
-                <div style="font-weight:bold; color:#1e293b;">${p.nombre || 'Sin nombre'}</div>
-                <div style="font-size:0.8rem; color:#64748b;">
-                    <i class="fas fa-phone"></i> ${p.telefono || 'Sin teléfono'} | 
-                    <i class="fas fa-user"></i> ${p.contacto || 'Sin contacto'}
+    // MAPEADO ULTRA-SEGURO: 
+    // Usamos || para que si Atlas manda 'name' o 'nombre', el código no se rompa
+    contenedor.innerHTML = todosLosProveedores.map(p => {
+        const nombre = p.nombre || p.name || 'Sin nombre';
+        const fono = p.telefono || p.phone || p.contacto || 'Sin número';
+        
+        return `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
+                <div>
+                    <div style="font-weight:bold; color:#1e293b;">${nombre}</div>
+                    <div style="font-size:0.8rem; color:#64748b;">
+                        <i class="fas fa-phone"></i> ${fono}
+                    </div>
                 </div>
+                <a href="tel:${fono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
+                    <i class="fas fa-phone-alt"></i>
+                </a>
             </div>
-            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
-                <i class="fas fa-phone-alt"></i>
-            </a>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+    
+    console.log("✅ Renderizado forzado completado");
 };
 
 window.guardarProveedor = async function(event) {
