@@ -1,6 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Módulo de conexión API - Versión Quirúrgica Final Sincronizada
+ * Sincronizado con: server.js (Express Router)
  */
 
 // FORZAMOS LA RUTA QUE YA SABEMOS QUE FUNCIONA EN TU NETLIFY
@@ -80,10 +81,11 @@ window.API = {
     },
 
     // ==========================================
-    // PROVEEDORES
+    // PROVEEDORES (Sincronizado con router.use('/providers'))
     // ==========================================
     getProviders: async function() {
         try {
+            // Sincronizado con Express: router.use('/providers', ...)
             const response = await fetch(`${this.url}/providers`);
             return await this._safeParse(response);
         } catch (err) { 
@@ -157,7 +159,7 @@ window.API = {
     },
 
     // ==========================================
-    // COMPRAS
+    // COMPRAS (Sincronizado con router.use('/purchases'))
     // ==========================================
     registerPurchase: async function(purchaseData) {
         try {

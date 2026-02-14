@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const Provider = require('../models/Provider'); 
 
-// --- IMPORTACIÓN DEL CONTROLADOR (Esto es lo que faltaba y causaba el error 502) ---
+// --- IMPORTACIÓN DEL CONTROLADOR ---
 const provCtrl = require('../controllers/providerController');
 
 /**
  * GESTIÓN DE PROVEEDORES - MARQUETERÍA LA CHICA MORALES
- * Este archivo maneja tanto /api/providers como /api/suppliers
+ * Sincronizado con server.js y api.js (v4.8+)
  */
 
 // Middleware de normalización: Limpia los datos antes de enviarlos al controlador
@@ -24,49 +24,62 @@ const normalizeData = (req, res, next) => {
     next();
 };
 
-// --- RUTAS CON PROTECCIÓN DE CALLBACKS ---
+// --- RUTAS CON PROTECCIÓN DE CALLBACKS Y MULTI-NOMBRE ---
 
-// 1. Obtener todos los proveedores
+// 1. Obtener todos los proveedores (GET /)
 router.get('/', async (req, res, next) => {
-    // Buscamos el método en el controlador (ahora que provCtrl ya existe)
-    const method = provCtrl.getProviders || provCtrl.getAll;
+    // Buscamos cualquier variante del nombre de la función en el controlador
+    const method = provCtrl.getProviders || provCtrl.getAll || provCtrl.list || provCtrl.getProvidersAll;
+    
     if (typeof method === 'function') {
         return method(req, res, next);
     }
-    console.error("🚨 Error: Método de consulta de proveedores no encontrado en controlador");
-    res.status(500).json({ success: false, error: "Método de consulta no definido en el controlador" });
+    
+    console.error("🚨 Error: Método de consulta no encontrado en providerController");
+    res.status(500).json({ 
+        success: false, 
+        error: "El servidor no encontró la función de lectura de proveedores" 
+    });
 });
 
-// 2. Crear un nuevo proveedor (con normalización)
+// 2. Crear un nuevo proveedor (POST /)
 router.post('/', normalizeData, async (req, res, next) => {
-    const method = provCtrl.createProvider || provCtrl.saveProvider || provCtrl.addProvider;
+    const method = provCtrl.createProvider || provCtrl.saveProvider || provCtrl.addProvider || provCtrl.create;
+    
     if (typeof method === 'function') {
         return method(req, res, next);
     }
-    res.status(500).json({ success: false, error: "Método de creación no definido" });
+    
+    console.error("🚨 Error: Método de creación no encontrado en providerController");
+    res.status(500).json({ success: false, error: "El servidor no encontró la función para guardar proveedores" });
 });
 
-// 3. Obtener un solo proveedor por ID
+// 3. Obtener un solo proveedor por ID (GET /:id)
 router.get('/:id', async (req, res, next) => {
-    const method = provCtrl.getOneProvider || provCtrl.getProviderById;
+    const method = provCtrl.getOneProvider || provCtrl.getProviderById || provCtrl.getById;
+    
     if (typeof method === 'function') {
         return method(req, res, next);
     }
     res.status(500).json({ success: false, error: "Método de búsqueda por ID no definido" });
 });
 
-// 4. Actualizar un proveedor
+// 4. Actualizar un proveedor (PUT /:id)
 router.put('/:id', normalizeData, async (req, res, next) => {
-    if (typeof provCtrl.updateProvider === 'function') {
-        return provCtrl.updateProvider(req, res, next);
+    const method = provCtrl.updateProvider || provCtrl.editProvider || provCtrl.update;
+    
+    if (typeof method === 'function') {
+        return method(req, res, next);
     }
     res.status(500).json({ success: false, error: "Método de actualización no definido" });
 });
 
-// 5. Eliminar un proveedor
+// 5. Eliminar un proveedor (DELETE /:id)
 router.delete('/:id', async (req, res, next) => {
-    if (typeof provCtrl.deleteProvider === 'function') {
-        return provCtrl.deleteProvider(req, res, next);
+    const method = provCtrl.deleteProvider || provCtrl.removeProvider || provCtrl.destroy;
+    
+    if (typeof method === 'function') {
+        return method(req, res, next);
     }
     res.status(500).json({ success: false, error: "Método de eliminación no definido" });
 });
