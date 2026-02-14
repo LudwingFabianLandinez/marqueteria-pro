@@ -1,9 +1,8 @@
 const mongoose = require('mongoose');
 
-// Carga segura de modelos para evitar el error "Schema hasn't been registered"
+// Carga segura de modelos
 const Material = require('../models/Material');
 const Provider = require('../models/Provider');
-// Importación con fallback para evitar cuelgues si Transaction no existe
 let Transaction;
 try {
     Transaction = require('../models/Transaction');
@@ -15,7 +14,7 @@ try {
  * CONTROLADOR DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
  */
 
-// 1. Obtener materiales (Con nombre de proveedor)
+// 1. Obtener materiales (Formato estandarizado)
 const getMaterials = async (req, res) => {
     try {
         const materials = await Material.find()
@@ -23,15 +22,17 @@ const getMaterials = async (req, res) => {
             .sort({ categoria: 1, nombre: 1 })
             .lean();
         
-        // El dashboard espera un array directo o dentro de data
-        res.status(200).json(materials || []);
+        res.status(200).json({
+            success: true,
+            data: materials || []
+        });
     } catch (error) {
         console.error("❌ Error en getMaterials:", error);
-        res.status(500).json({ success: false, error: "Error al cargar materiales" });
+        res.status(500).json({ success: false, data: [], error: "Error al cargar materiales" });
     }
 };
 
-// 2. Registrar compra (Sincronizado con cálculos automáticos)
+// 2. Registrar compra
 const registerPurchase = async (req, res) => {
     try {
         const { 
@@ -55,7 +56,6 @@ const registerPurchase = async (req, res) => {
 
         const nombreLimpio = nombre ? nombre.trim() : "Material Sin Nombre";
         
-        // Categorización automática
         let categoria = 'Otros';
         const reglas = [
             { regex: /vidrio|espejo/i, cat: 'Vidrio' },
@@ -99,7 +99,6 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
-        // Registrar transacción (Solo si el modelo existe)
         if (Transaction) {
             await Transaction.create({
                 materialId: material._id,
@@ -122,15 +121,15 @@ const registerPurchase = async (req, res) => {
 // 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
     try {
-        if (!Transaction) return res.status(200).json([]);
+        if (!Transaction) return res.status(200).json({ success: true, data: [] });
         const purchases = await Transaction.find({ tipo: 'COMPRA' })
             .populate('materialId', 'nombre categoria')
             .populate('proveedor', 'nombre')
             .sort({ fecha: -1 })
             .lean();
-        res.status(200).json(purchases || []);
+        res.status(200).json({ success: true, data: purchases || [] });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error al cargar historial" });
+        res.status(500).json({ success: false, data: [], error: "Error al cargar historial" });
     }
 };
 
@@ -138,14 +137,14 @@ const getAllPurchases = async (req, res) => {
 const getMaterialHistory = async (req, res) => {
     try {
         const { id } = req.params;
-        if (!Transaction) return res.status(200).json([]);
+        if (!Transaction) return res.status(200).json({ success: true, data: [] });
         const history = await Transaction.find({ materialId: id })
             .sort({ fecha: -1 })
             .limit(20)
             .lean();
-        res.status(200).json(history);
+        res.status(200).json({ success: true, data: history || [] });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error al obtener historial" });
+        res.status(500).json({ success: false, data: [], error: "Error al obtener historial" });
     }
 };
 
@@ -174,9 +173,9 @@ const getLowStockMaterials = async (req, res) => {
         const lowStock = await Material.find({ 
             $expr: { $lt: ["$stock_actual", "$stock_minimo"] } 
         }).limit(10).lean();
-        res.status(200).json(lowStock || []);
+        res.status(200).json({ success: true, data: lowStock || [] });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error en alertas" });
+        res.status(500).json({ success: false, data: [], error: "Error en alertas" });
     }
 };
 
@@ -202,7 +201,7 @@ const manualAdjustment = async (req, res) => {
                 fecha: new Date()
             });
         }
-        res.status(200).json({ success: true, stock: material.stock_actual });
+        res.status(200).json({ success: true, data: { stock: material.stock_actual } });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en ajuste" });
     }
@@ -219,7 +218,6 @@ const deleteMaterial = async (req, res) => {
     }
 };
 
-// EXPORTACIÓN MEJORADA
 module.exports = {
     getMaterials,
     getInventory: getMaterials,

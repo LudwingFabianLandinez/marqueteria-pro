@@ -1,14 +1,14 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.8.3 - CIRUGÍA FINAL DE RENDERIZADO
+ * Versión: 4.8.4 - CORRECCIÓN DE SINCRONIZACIÓN
  */
 
 let todosLosMateriales = [];
 let todosLosProveedores = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.8.3 - Netlify Ready");
+    console.log("🚀 Sistema Iniciado - Netlify Ready");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -26,7 +26,9 @@ window.abrirAgenda = function() {
     if (modal) {
         modal.style.setProperty('display', 'flex', 'important');
         
-        // REFUERZO: Siempre refrescamos al abrir para ver cambios recientes
+        const contenedor = document.getElementById('agendaContent');
+        if (contenedor) contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Cargando agenda...</p>';
+
         fetchProviders().then(() => {
             window.renderAgendaProveedores();
         });
@@ -37,13 +39,11 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
-    // Validación estricta de la lista
     if (!todosLosProveedores || todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
 
-    // Dibujado reforzado de la agenda
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
             <div>
@@ -71,21 +71,16 @@ window.guardarProveedor = async function(event) {
 
     try {
         const res = await window.API.saveProvider({ nombre, telefono, contacto });
-
         if (res.success) {
             alert("✅ Proveedor guardado");
             document.getElementById('provForm')?.reset();
             await fetchProviders();
             window.renderAgendaProveedores();
-        } else {
-            alert("❌ Error: " + res.error);
         }
     } catch (error) {
-        console.error("Error al guardar proveedor:", error);
+        console.error("Error:", error);
     }
 };
-
-// --- MODALES DE COMPRA ---
 
 window.abrirModalCompra = function() {
     const modal = document.getElementById('modalCompra');
@@ -100,15 +95,16 @@ window.abrirModalCompra = function() {
 async function fetchInventory() {
     try {
         const result = await window.API.getInventory();
+        // Normalización: Acepta {success, data} o el array directo
         const data = result.success ? result.data : (Array.isArray(result) ? result : []);
         
         todosLosMateriales = data.map(m => ({
             ...m,
             nombre: m.nombre || "Material sin nombre",
             categoria: m.categoria || "General",
-            proveedorNombre: m.proveedor ? (m.proveedor.nombre || m.proveedor) : "Sin proveedor",
-            stock_actual: Number(m.stock_actual_m2 || m.stock_actual || m.cantidad || 0),
-            precio_m2_costo: Number(m.precio_m2_costo || m.costo_unitario || 0),
+            proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
+            stock_actual: Number(m.stock_actual || 0),
+            precio_m2_costo: Number(m.precio_total_lamina || 0),
             stock_minimo: Number(m.stock_minimo || 2)
         }));
         
@@ -122,13 +118,12 @@ async function fetchInventory() {
 async function fetchProviders() {
     try {
         const result = await window.API.getProviders();
-        // CIRUGÍA: Extraemos 'data' del objeto de respuesta que vimos en consola
         const listaBruta = result.success ? result.data : (Array.isArray(result) ? result : []); 
         
         if (Array.isArray(listaBruta)) {
-            todosLosProveedores = listaBruta.sort((a, b) => a.nombre.localeCompare(b.nombre));
+            todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             actualizarSelectProveedores();
-            console.log("✅ Proveedores sincronizados:", todosLosProveedores.length);
+            console.log("✅ Sincronizado:", todosLosProveedores.length);
         }
     } catch (error) { 
         console.error("❌ Error proveedores:", error); 
