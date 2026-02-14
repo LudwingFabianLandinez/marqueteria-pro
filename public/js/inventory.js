@@ -1,14 +1,14 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.8 - CONEXIÓN TOTAL PROVEEDORES Y COMPRAS
+ * Versión: 4.8.3 - CIRUGÍA FINAL DE RENDERIZADO
  */
 
 let todosLosMateriales = [];
 let todosLosProveedores = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.8 - Netlify Ready");
+    console.log("🚀 Sistema de Gestión Iniciado v4.8.3 - Netlify Ready");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -19,39 +19,38 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- MODALES DE PROVEEDORES (NUEVO/AJUSTADO) ---
+// --- MODALES DE PROVEEDORES ---
 
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
         modal.style.setProperty('display', 'flex', 'important');
         
-        // REFUERZO: Si la lista está vacía, la pedimos al servidor primero
-        if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
-            console.log("Buscando proveedores en el servidor...");
-            fetchProviders().then(() => {
-                window.renderAgendaProveedores();
-            });
-        } else {
+        // REFUERZO: Siempre refrescamos al abrir para ver cambios recientes
+        fetchProviders().then(() => {
             window.renderAgendaProveedores();
-        }
+        });
     }
 };
 
 window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
-    if (todosLosProveedores.length === 0) {
+
+    // Validación estricta de la lista
+    if (!todosLosProveedores || todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
+
+    // Dibujado reforzado de la agenda
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
             <div>
                 <div style="font-weight:bold; color:#1e293b;">${p.nombre}</div>
                 <div style="font-size:0.8rem; color:#64748b;">
                     <i class="fas fa-phone"></i> ${p.telefono || 'Sin teléfono'} | 
-                    <i class="fas fa-tag"></i> ${p.contacto || 'Sin contacto'}
+                    <i class="fas fa-user"></i> ${p.contacto || 'Sin contacto'}
                 </div>
             </div>
             <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
@@ -61,7 +60,6 @@ window.renderAgendaProveedores = function() {
     `).join('');
 };
 
-// Función Quirúrgica para guardar proveedores nuevos
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
@@ -72,17 +70,15 @@ window.guardarProveedor = async function(event) {
     if (!nombre) return alert("El nombre es obligatorio");
 
     try {
-        const res = await fetch('/.netlify/functions/server/providers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, telefono, contacto })
-        });
+        const res = await window.API.saveProvider({ nombre, telefono, contacto });
 
-        if (res.ok) {
+        if (res.success) {
             alert("✅ Proveedor guardado");
             document.getElementById('provForm')?.reset();
             await fetchProviders();
             window.renderAgendaProveedores();
+        } else {
+            alert("❌ Error: " + res.error);
         }
     } catch (error) {
         console.error("Error al guardar proveedor:", error);
@@ -95,7 +91,7 @@ window.abrirModalCompra = function() {
     const modal = document.getElementById('modalCompra');
     if (modal) {
         modal.style.setProperty('display', 'flex', 'important');
-        actualizarSelectProveedores(); // Asegura que los proveedores estén en el select
+        actualizarSelectProveedores(); 
     }
 };
 
@@ -126,12 +122,17 @@ async function fetchInventory() {
 async function fetchProviders() {
     try {
         const result = await window.API.getProviders();
-        const data = result.success ? result.data : (Array.isArray(result) ? result : []); 
-        if (Array.isArray(data)) {
-            todosLosProveedores = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        // CIRUGÍA: Extraemos 'data' del objeto de respuesta que vimos en consola
+        const listaBruta = result.success ? result.data : (Array.isArray(result) ? result : []); 
+        
+        if (Array.isArray(listaBruta)) {
+            todosLosProveedores = listaBruta.sort((a, b) => a.nombre.localeCompare(b.nombre));
             actualizarSelectProveedores();
+            console.log("✅ Proveedores sincronizados:", todosLosProveedores.length);
         }
-    } catch (error) { console.error("❌ Error proveedores:", error); }
+    } catch (error) { 
+        console.error("❌ Error proveedores:", error); 
+    }
 }
 
 function renderTable(materials) {
@@ -142,26 +143,10 @@ function renderTable(materials) {
 
     materials.forEach(m => {
         const tr = document.createElement('tr');
-        const ancho = Number(m.ancho_lamina_cm) || 0;
-        const largo = Number(m.largo_lamina_cm) || 0;
         const stockActual = Number(m.stock_actual) || 0;
         const stockMinimo = Number(m.stock_minimo) || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        let unidadesCompletas = 0;
-        let remanente = 0;
-        let etiquetaUnidad = 'Láminas';
-
-        if (m.tipo === 'ml') {
-            unidadesCompletas = largo > 0 ? Math.floor(stockActual / (largo / 100)) : 0;
-            remanente = largo > 0 ? (stockActual % (largo / 100)) : 0;
-            etiquetaUnidad = 'Tiras/Varas';
-        } else {
-            const areaM2 = (ancho * largo) / 10000;
-            unidadesCompletas = areaM2 > 0 ? Math.floor(stockActual / areaM2) : 0;
-            remanente = areaM2 > 0 ? (stockActual % areaM2) : 0;
-        }
-
         let stockColor = '#059669'; 
         let badgeAlerta = '';
         if (stockActual <= 0) {
@@ -181,7 +166,7 @@ function renderTable(materials) {
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${m.tipo === 'ml' ? `${largo} cm (Largo)` : `${ancho}x${largo} cm`}
+                    ${m.tipo === 'ml' ? `${m.largo_lamina_cm || 0} cm` : `${m.ancho_lamina_cm || 0}x${m.largo_lamina_cm || 0} cm`}
                 </span>
             </td>
             <td style="text-align: center; font-weight: 500; font-size: 0.85rem; color: #475569;">
@@ -191,15 +176,12 @@ function renderTable(materials) {
                 <div style="background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-block; min-width: 100px;">
                     <div style="font-weight: 700; color: ${stockColor}; font-size: 0.95rem;">${stockActual.toFixed(2)} ${tipoUnidad}</div>
                     ${badgeAlerta}
-                    <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 1px;">
-                        ${unidadesCompletas} ${etiquetaUnidad} ${remanente > 0.01 ? `+ ${remanente.toFixed(2)}` : ''}
-                    </div>
                 </div>
             </td>
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
                     <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m._id}', '${m.nombre}', ${stockActual}, ${stockMinimo})">
-                        <i class="fas fa-sliders-h"></i> Ajustar
+                        <i class="fas fa-sliders-h"></i>
                     </button>
                     <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m._id}', '${m.nombre}')">
                         <i class="fas fa-history"></i>
@@ -220,7 +202,6 @@ function configurarEventos() {
         renderTable(todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(term)));
     });
 
-    // Evento para el Formulario de Proveedores
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
@@ -276,7 +257,7 @@ window.verHistorial = async function(id, nombre) {
         const labelNombre = document.getElementById('historialMaterialNombre');
 
         if (labelNombre) labelNombre.innerText = nombre;
-        const data = result.success ? result.data : result;
+        const data = result.success ? result.data : (Array.isArray(result) ? result : []);
 
         if (Array.isArray(data) && data.length > 0) {
             const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
