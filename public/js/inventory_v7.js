@@ -1,10 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 9.0.0 - SOLUCIÓN INTEGRAL: AGENDA SIN BLOQUEOS
+ * Versión: 9.0.0 - SOLUCIÓN INTEGRAL: CONEXIÓN DASHBOARD-INVENTARIO
  */
 
-// Usamos window para asegurar que las variables sobrevivan a cualquier recarga de script
 window.todosLosMateriales = [];
 window.todosLosProveedores = [];
 
@@ -13,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarSistema();
 });
 
-// Nueva función de inicio para asegurar que los datos lleguen antes de interactuar
+// Aseguramos que todo se pida a Atlas al cargar la página
 async function inicializarSistema() {
     await Promise.all([fetchInventory(), fetchProviders()]);
     configurarEventos();
@@ -24,16 +22,16 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- MODALES DE PROVEEDORES (CORRECCIÓN DE PESO PARA BOTÓN TRABADO) ---
+// --- MODALES DE PROVEEDORES (CORRECCIÓN QUIRÚRGICA) ---
 
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
-        // 1. Respuesta visual instantánea para que el botón no se sienta trabado
+        // 1. Abrir visualmente al instante
         modal.style.setProperty('display', 'flex', 'important');
-        console.log("🔔 Agenda abierta: Dibujando lista...");
+        console.log("🔔 Agenda activada. Sincronizando datos de memoria...");
         
-        // 2. Renderizamos lo que haya en memoria inmediatamente
+        // 2. FORZAR el dibujo de la lista inmediatamente
         window.renderAgendaProveedores();
     }
 };
@@ -42,16 +40,16 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
-    // Si la lista está vacía, mostramos carga y reintentamos traer de Atlas
+    // Si la lista está vacía, mostramos carga y reintentamos (por si Atlas está lento)
     if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;"><i class="fas fa-sync fa-spin"></i> Sincronizando con Atlas...</div>';
+        contenedor.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;"><i class="fas fa-sync fa-spin"></i> Buscando en Atlas...</div>';
         fetchProviders().then(() => {
             if (window.todosLosProveedores.length > 0) window.renderAgendaProveedores();
         });
         return;
     }
 
-    // Dibujado de la lista (Mantenemos tu diseño de columnas)
+    // Dibujado de la lista con tus estilos originales
     contenedor.innerHTML = window.todosLosProveedores.map(p => `
         <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
             <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
@@ -98,7 +96,7 @@ async function fetchProviders() {
     } catch (error) { console.error("❌ Error proveedores:", error); }
 }
 
-// --- OPERACIONES DE INVENTARIO (MANTENIENDO TUS CAMPOS DE M2) ---
+// --- OPERACIONES DE INVENTARIO ---
 
 async function fetchInventory() {
     try {
@@ -123,9 +121,7 @@ async function fetchInventory() {
         
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
-    } catch (error) { 
-        console.error("❌ Error inventario:", error); 
-    }
+    } catch (error) { console.error("❌ Error inventario:", error); }
 }
 
 function renderTable(materiales) {
@@ -175,21 +171,17 @@ function renderTable(materiales) {
 }
 
 function configurarEventos() {
-    // 1. Buscador
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const termino = e.target.value.toLowerCase();
         renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
-    // 2. Formulario Proveedores
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    // 3. Formulario Compras (CON FINALLY PARA NO TRABAR BOTÓN)
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const boton = e.target.querySelector('button[type="submit"]');
         if(boton) boton.disabled = true;
-
         try {
             const nombreMat = document.getElementById('nombreMaterial').value;
             const objetoCompra = {
@@ -201,7 +193,6 @@ function configurarEventos() {
                 precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
                 cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
             };
-            
             const res = await window.API.registerPurchase(objetoCompra);
             if (res.success) { 
                 window.cerrarModales(); 
@@ -209,14 +200,10 @@ function configurarEventos() {
                 e.target.reset(); 
                 alert("✅ Inventario actualizado");
             }
-        } catch (err) { 
-            alert("❌ Error al registrar"); 
-        } finally { 
-            if(boton) boton.disabled = false; 
-        }
+        } catch (err) { alert("❌ Error al registrar"); } 
+        finally { if(boton) boton.disabled = false; }
     });
 
-    // 4. Formulario Ajustes
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
