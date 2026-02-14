@@ -38,33 +38,36 @@ window.abrirAgenda = function() {
 };
 
 window.renderAgendaProveedores = function() {
-    // 1. Buscamos el contenedor
+    console.log("🔍 Iniciando renderizado de emergencia...");
     const contenedor = document.getElementById('agendaContent');
     
-    // Si no existe, lo buscamos por clase como plan B
     if (!contenedor) {
-        console.error("❌ Error: No se encontró el ID 'agendaContent' en el HTML");
+        console.error("❌ ERROR: El contenedor 'agendaContent' no existe en el HTML.");
         return;
     }
 
-    if (!todosLosProveedores || todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px;">No hay datos en Atlas.</p>';
+    // Si la variable global falló, intentamos recuperarla de la base de datos de nuevo
+    if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
+        contenedor.innerHTML = '<div style="padding:20px; text-align:center; color:#64748b;">No hay proveedores cargados. Reintentando...</div>';
+        fetchProviders().then(() => window.renderAgendaProveedores());
         return;
     }
 
-    // 2. Dibujamos la lista (Asegurando los campos de tu Atlas)
-    contenedor.innerHTML = todosLosProveedores.map(p => `
-        <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 45px; padding: 12px; border-bottom: 1px solid #eee; font-size: 0.85rem;">
-            <div style="font-weight: bold;">${p.nombre || '---'}</div>
-            <div>${p.contacto || 'Sin contacto'}</div>
-            <div style="color: #666;">General</div>
+    // DIBUJAR LA TABLA CON LOS DATOS REALES DE ATLAS
+    contenedor.innerHTML = window.todosLosProveedores.map(p => `
+        <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left; background: white;">
+            <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
+            <div style="color: #64748b;">${p.contacto || 'Sin contacto'}</div>
+            <div style="color: #94a3b8; font-size: 0.75rem;">General</div>
             <div style="text-align: right;">
-                <a href="tel:${p.telefono || ''}" style="color: #3498db;"><i class="fas fa-phone"></i></a>
+                <a href="tel:${p.telefono || ''}" style="background:#3498db; color:white; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;">
+                    <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
+                </a>
             </div>
         </div>
     `).join('');
     
-    console.log("✅ Lista de proveedores dibujada con éxito.");
+    console.log("✅ Renderizado exitoso.");
 };
 
 // --- RESTO DEL CÓDIGO (SIN CAMBIOS PARA NO DAÑAR NADA) ---
