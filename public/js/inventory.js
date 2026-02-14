@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.8.5 - CORRECCIÓN DEFINITIVA DE RENDER Y MAPEADO
+ * Versión: 4.8.6 - INTEGRACIÓN TOTAL DE RENDER FORZADO
  */
 
 let todosLosMateriales = [];
@@ -53,14 +53,12 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
-    // 1. Verificación de datos: Si no hay nada, limpiamos el mensaje de carga
     if (!todosLosProveedores || todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
 
-    // 2. Limpieza y Renderizado: Usamos valores seguros (|| '---') para evitar bloqueos
-    // Alineamos con tus títulos: NOMBRE | CONTACTO | CATEGORÍA
+    // Renderizado blindado: NOMBRE | CONTACTO | CATEGORÍA
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1fr 40px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
             <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
@@ -74,12 +72,11 @@ window.renderAgendaProveedores = function() {
         </div>
     `).join('');
     
-    console.log("✅ Renderizado blindado completado. Datos mostrados.");
+    console.log("✅ Renderizado completado.");
 };
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
-    
     
     const nombre = document.getElementById('provNombre')?.value;
     const telefono = document.getElementById('provTelefono')?.value;
@@ -135,7 +132,6 @@ async function fetchInventory() {
 async function fetchProviders() {
     try {
         const result = await window.API.getProviders();
-        // CIRUGÍA: Normalización total para evitar bloqueos
         const listaBruta = result.success ? result.data : (Array.isArray(result) ? result : []); 
         
         if (Array.isArray(listaBruta)) {
@@ -332,3 +328,15 @@ function actualizarDatalistMateriales() {
     const list = document.getElementById('listaMateriales');
     if (list) list.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
+
+// --- SOLUCIÓN DE IMPACTO: EVENTO DE CLIC DIRECTO ---
+// Esto asegura que al tocar el botón, los datos se dibujen inmediatamente
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[onclick*="abrirAgenda"]');
+    if (btn) {
+        console.log("⚡ Forzando renderizado manual desde el clic...");
+        setTimeout(() => {
+            window.renderAgendaProveedores();
+        }, 150);
+    }
+});
