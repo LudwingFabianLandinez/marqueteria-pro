@@ -80,6 +80,7 @@ window.renderAgendaProveedores = function() {
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
+    
     const nombre = document.getElementById('provNombre')?.value;
     const telefono = document.getElementById('provTelefono')?.value;
     const contacto = document.getElementById('provContacto')?.value;
