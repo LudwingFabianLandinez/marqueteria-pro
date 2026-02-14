@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.8.4 - CORRECCIÓN DE SINCRONIZACIÓN
+ * Versión: 4.8.4 - CORRECCIÓN DE BLOQUEO DE RENDER
  */
 
 let todosLosMateriales = [];
@@ -27,7 +27,8 @@ window.abrirAgenda = function() {
         modal.style.setProperty('display', 'flex', 'important');
         
         const contenedor = document.getElementById('agendaContent');
-        if (contenedor) contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Cargando agenda...</p>';
+        // REFUERZO: Si el contenedor existe, aseguramos que muestre carga antes de refrescar
+        if (contenedor) contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Actualizando lista...</p>';
 
         fetchProviders().then(() => {
             window.renderAgendaProveedores();
@@ -39,11 +40,13 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
+    // Si llegamos aquí, el mensaje de "Sincronizando" debe desaparecer sí o sí
     if (!todosLosProveedores || todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados en la nube.</p>';
         return;
     }
 
+    // Dibujado de la lista real
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
             <div>
@@ -78,7 +81,7 @@ window.guardarProveedor = async function(event) {
             window.renderAgendaProveedores();
         }
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error al guardar:", error);
     }
 };
 
@@ -95,7 +98,7 @@ window.abrirModalCompra = function() {
 async function fetchInventory() {
     try {
         const result = await window.API.getInventory();
-        // Normalización: Acepta {success, data} o el array directo
+        // Normalización: Asegura que siempre trabajemos con un Array
         const data = result.success ? result.data : (Array.isArray(result) ? result : []);
         
         todosLosMateriales = data.map(m => ({
@@ -118,12 +121,13 @@ async function fetchInventory() {
 async function fetchProviders() {
     try {
         const result = await window.API.getProviders();
+        // CIRUGÍA: Extraemos 'data' sin importar el formato de la API
         const listaBruta = result.success ? result.data : (Array.isArray(result) ? result : []); 
         
         if (Array.isArray(listaBruta)) {
             todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             actualizarSelectProveedores();
-            console.log("✅ Sincronizado:", todosLosProveedores.length);
+            console.log("✅ Sincronizado con Atlas:", todosLosProveedores.length);
         }
     } catch (error) { 
         console.error("❌ Error proveedores:", error); 
@@ -274,7 +278,7 @@ window.verHistorial = async function(id, nombre) {
                     </div>`;
             }).join('');
         } else {
-            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`;
+            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos registrados.</div>`;
         }
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }

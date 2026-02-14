@@ -14,7 +14,7 @@ try {
  * CONTROLADOR DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
  */
 
-// 1. Obtener materiales (Formato estandarizado)
+// 1. Obtener materiales (Formato estandarizado para evitar errores de renderizado)
 const getMaterials = async (req, res) => {
     try {
         const materials = await Material.find()
