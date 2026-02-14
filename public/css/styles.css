@@ -174,71 +174,6 @@ body {
 }
 
 /* ============================================ */
-/* CARDS DE ESTADÍSTICAS */
-/* ============================================ */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 25px;
-    margin-bottom: 35px;
-    width: 100%;
-}
-
-.stat-card {
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: var(--shadow-md);
-    border-left: 4px solid var(--primary-light);
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
-}
-
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--shadow-xl);
-}
-
-.stat-card.success { border-left-color: var(--success); }
-.stat-card.warning { border-left-color: var(--warning); }
-.stat-card.info { border-left-color: var(--info); }
-.stat-card.danger { border-left-color: var(--danger); }
-
-/* ============================================ */
-/* CONTROLES */
-/* ============================================ */
-.controls {
-    background: white;
-    padding: 20px 25px;
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
-    flex-wrap: wrap;
-    gap: 15px;
-    width: 100%;
-}
-
-.search-box {
-    position: relative;
-    flex: 1;
-    max-width: 350px;
-}
-
-.search-box input {
-    width: 100%;
-    padding: 12px 40px 12px 45px;
-    border: 2px solid var(--gray-200);
-    border-radius: 10px;
-    font-size: 15px;
-    transition: all 0.3s;
-    background: var(--gray-50);
-}
-
-/* ============================================ */
 /* TABLAS */
 /* ============================================ */
 .table-container {
@@ -265,66 +200,83 @@ body {
 }
 
 /* ============================================ */
-/* SOLUCIÓN QUIRÚRGICA PARA MODALES (ANTI-BORROSO) */
+/* ⚡ SOLUCIÓN DEFINITIVA PARA MODALES ⚡ */
 /* ============================================ */
-.modal, .modal-overlay {
-    display: none; /* Quitamos el !important */
+.modal {
+    display: none; /* JS controla esto */
     position: fixed;
-    z-index: 9999; 
+    z-index: 99999; 
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(15, 23, 42, 0.7); /* Un fondo oscuro para que resalte */
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.85) !important; /* Fondo oscuro opaco */
     align-items: center;
     justify-content: center;
+    backdrop-filter: blur(5px);
 }
 
-/* Esta clase se añade por JS para mostrar el modal sin errores visuales */
-.modal.active, .modal-overlay.active {
+/* Forzamos visibilidad cuando el JS ponga display: block o flex */
+.modal[style*="display: block"], 
+.modal[style*="display: flex"],
+.modal.active {
     display: flex !important;
-    background: rgba(15, 23, 42, 0.75) !important;
-    backdrop-filter: blur(8px) !important;      /* El blur SOLO aparece cuando está activo */
 }
 
 .modal-content {
-    background: white;
+    background: #ffffff !important; /* Cuadro blanco puro */
     margin: auto;
     padding: 0;
     border-radius: 16px;
     width: 90%;
-    max-width: 650px;
+    max-width: 600px;
     box-shadow: var(--shadow-xl);
-    transform: translateY(20px);
-    opacity: 0;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
-    filter: none !important; /* Protege el contenido del desenfoque */
+    position: relative;
+    color: var(--gray-900) !important;
+    display: block !important; /* Evita que el contenido se colapse */
+    border: 1px solid var(--gray-200);
 }
 
-.modal.active .modal-content, .modal-overlay.active .modal-view {
-    transform: translateY(0);
-    opacity: 1;
-}
-
+/* Título del Modal */
 .modal-content h2 {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-    color: white;
-    padding: 25px 30px;
+    color: white !important;
+    padding: 20px 25px;
     margin: 0;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.modal-content form {
-    padding: 30px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+/* Cuerpo del Modal (Donde van los datos) */
+#agendaContent, #compraContent, .modal-body {
+    padding: 25px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: white !important;
+    color: var(--gray-800) !important;
+}
+
+/* Botón de cerrar (X) */
+.close-modal {
+    cursor: pointer;
+    font-size: 28px;
+    line-height: 1;
+    color: white;
+    opacity: 0.8;
+    transition: 0.2s;
+}
+
+.close-modal:hover {
+    opacity: 1;
+    transform: scale(1.1);
 }
 
 /* ============================================ */
-/* BOTONES Y OTROS ESTILOS MANTENIDOS */
+/* BOTONES Y OTROS */
 /* ============================================ */
 .btn {
     padding: 12px 24px;
@@ -342,17 +294,8 @@ body {
 .btn-primary { background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%); color: white; }
 .btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; }
 
-.btn-save, .btn-close {
-    border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn-save { background: #27ae60; color: white; }
-.btn-close { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+.btn-save { background: var(--success); color: white; padding: 10px 20px; border-radius: 8px; }
+.btn-close { background: var(--gray-200); color: var(--gray-700); padding: 10px 20px; border-radius: 8px; }
 
 /* SCROLLBAR */
 ::-webkit-scrollbar { width: 8px; }
