@@ -51,10 +51,24 @@ router.post('/adjust', (req, res, next) => {
     res.status(500).json({ error: "Función de ajuste no definida en controlador" });
 });
 
-// 5. Movimientos/Historial de un material específico
-router.get('/history/:id', inventoryController.getMaterialHistory || ((req, res) => res.json([])));
+/**
+ * 🕒 RUTAS DE HISTORIAL
+ */
 
-// 6. Eliminar material
+// 5. NUEVO: Historial General (Para evitar el error 404 que traba el modal)
+router.get('/history', (req, res, next) => {
+    // Intentamos usar la función del controlador si existe, si no, devolvemos array vacío para no trabar el front
+    const fn = inventoryController.getAllHistory || inventoryController.getMaterialHistory;
+    if (typeof fn === 'function' && fn.length === 2) { // Si es una función que no requiere ID
+        return fn(req, res, next);
+    }
+    res.json({ success: true, data: [] });
+});
+
+// 6. Movimientos/Historial de un material específico (con ID)
+router.get('/history/:id', inventoryController.getMaterialHistory || ((req, res) => res.json({ success: true, data: [] })));
+
+// 7. Eliminar material
 router.delete('/:id', inventoryController.deleteMaterial);
 
 module.exports = router;
