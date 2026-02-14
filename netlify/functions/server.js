@@ -1,14 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const serverless = require('serverless-http'); 
-const connectDB = require('./config/db');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+// Requerimos el archivo de conexión (Asegúrate que la ruta sea correcta desde functions/)
+const connectDB = require('./config/db');
+
 /**
  * CONFIGURACIÓN DE MODELOS
- * Los cargamos al inicio para que las rutas los encuentren siempre
+ * Los cargamos al inicio para evitar el error "Schema hasn't been registered"
  */
 try {
     require('./models/Provider');
@@ -24,17 +25,18 @@ try {
 
 const app = express();
 
+// Configuración de Middlewares
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Gestión de Conexión Singleton
+// Gestión de Conexión Singleton (Optimizada para Serverless)
 let isConnected = false;
 const connect = async () => {
     if (isConnected && mongoose.connection.readyState === 1) return;
     try {
-        // Desactivamos el buffering para que si la conexión tarda, el servidor no se quede colgado
         mongoose.set('bufferCommands', false); 
+        mongoose.set('strictQuery', false); // Para evitar warnings en versiones nuevas
         
         await connectDB();
         isConnected = true;
@@ -42,13 +44,16 @@ const connect = async () => {
     } catch (err) {
         console.error("🚨 Error Crítico de Conexión DB:", err);
         isConnected = false;
+        throw err; // Re-lanzamos para que el handler sepa que falló
     }
 };
 
 const router = express.Router();
 
-// --- MAPEO DE RUTAS MEJORADO ---
-// Usamos require directo para evitar fallos de resolución de path en Netlify
+/**
+ * MAPEO DE RUTAS
+ * IMPORTANTE: Verifica que los archivos existan en estas rutas relativas
+ */
 try {
     router.use('/inventory', require('./routes/inventoryRoutes'));
     router.use('/quotes', require('./routes/quoteRoutes'));
@@ -62,7 +67,7 @@ try {
     console.error(`🚨 ERROR CRÍTICO CARGANDO RUTAS: ${error.message}`);
 }
 
-// Middleware para normalizar las URLs de Netlify
+// Middleware para normalizar las URLs de Netlify (Bypass de prefijos)
 app.use((req, res, next) => {
     const prefixes = ['/.netlify/functions/server', '/api'];
     let currentUrl = req.url;
@@ -73,20 +78,36 @@ app.use((req, res, next) => {
         }
     });
 
-    req.url = currentUrl === '' ? '/' : currentUrl;
+    // Si después de limpiar queda vacío o solo prefijo, mandamos a raíz
+    req.url = currentUrl === '' || currentUrl === '/' ? '/' : currentUrl;
     next();
+});
+
+// Ruta de salud para probar que el servidor responde
+router.get('/health', (req, res) => {
+    res.json({ status: 'OK', message: 'Servidor funcionando en Netlify' });
 });
 
 app.use('/', router);
 
+// Envolver Express con Serverless
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Evita que Netlify espere a que la conexión de Mongo se cierre para responder
+    // 1. Evita que Netlify espere a que el loop de eventos esté vacío (vital para DBs)
     context.callbackWaitsForEmptyEventLoop = false;
     
-    // Conectamos a la DB antes de procesar la petición
-    await connect();
-    
-    return await handler(event, context);
+    try {
+        // 2. Conectar a la DB antes de procesar
+        await connect();
+        
+        // 3. Procesar la petición
+        return await handler(event, context);
+    } catch (error) {
+        console.error("🚨 Error en el Handler:", error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Error interno del servidor', details: error.message })
+        };
+    }
 };
