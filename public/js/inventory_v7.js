@@ -1,11 +1,12 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 6.1.0 - REVISIÓN QUIRÚRGICA: IDIOMA Y GLOBALIZACIÓN
+ * Versión: 7.9.0 - RESTAURACIÓN TOTAL DE STOCK Y AGENDA
  */
 
-let todosLosMateriales = [];
-let todosLosProveedores = [];
+// Usamos window para asegurar que las variables sobrevivan a cualquier recarga de script
+window.todosLosMateriales = [];
+window.todosLosProveedores = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log("🚀 Sistema Iniciado - Netlify Ready");
@@ -19,45 +20,31 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- MODALES DE PROVEEDORES ---
+// --- MODALES DE PROVEEDORES (LOGICA REFORZADA) ---
 
-// SUSTITUYE ESTA FUNCIÓN EN TU inventory_v7.js
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
-    const contenedor = document.getElementById('agendaContent');
-
     if (modal) {
         modal.style.setProperty('display', 'flex', 'important');
+        console.log("🔔 Apertura de agenda: Iniciando renderizado...");
         
-        // Si ya tenemos los datos en memoria, los dibujamos de inmediato
-        if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
-            window.renderAgendaProveedores();
-        } else {
-            // Si no hay datos, intentamos traerlos y luego dibujar
-            if (contenedor) contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Cargando proveedores...</p>';
-            fetchProviders().then(() => {
-                window.renderAgendaProveedores();
-            });
-        }
+        // Intentamos renderizar 3 veces en diferentes tiempos para asegurar que el HTML esté listo
+        window.renderAgendaProveedores();
+        setTimeout(() => window.renderAgendaProveedores(), 100);
+        setTimeout(() => window.renderAgendaProveedores(), 500);
     }
 };
 
 window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
-    
-    if (!contenedor) {
-        console.error("❌ Error: No se encontró el ID 'agendaContent' en el HTML");
+    if (!contenedor) return;
+
+    if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#94a3b8;">Cargando proveedores de Atlas...</p>';
         return;
     }
 
-    // Si no hay datos, intentamos mostrar un mensaje claro
-    if (!todosLosProveedores || todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px;">No hay datos en la colección "provider".</p>';
-        return;
-    }
-
-    // RENDERIZADO AJUSTADO (Sin campo categoría como pediste)
-    contenedor.innerHTML = todosLosProveedores.map(p => `
+    contenedor.innerHTML = window.todosLosProveedores.map(p => `
         <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
             <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
             <div style="color: #64748b;">${p.contacto || 'Sin contacto'}</div>
@@ -68,8 +55,6 @@ window.renderAgendaProveedores = function() {
             </div>
         </div>
     `).join('');
-    
-    console.log("✅ Lista de proveedores dibujada con éxito (Colección provider).");
 };
 
 // --- OPERACIONES DE PROVEEDORES ---
@@ -96,41 +81,36 @@ window.guardarProveedor = async function(event) {
 async function fetchProviders() {
     try {
         const resultado = await window.API.getProviders();
-        // Si la API devuelve el array directamente o dentro de .data
         const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
-        
         if (Array.isArray(listaBruta)) {
-            todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+            window.todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             actualizarSelectProveedores();
-            console.log("✅ Sincronizado con Atlas (colección provider):", todosLosProveedores.length);
+            console.log("✅ Proveedores sincronizados:", window.todosLosProveedores.length);
         }
     } catch (error) { console.error("❌ Error proveedores:", error); }
 }
 
-// --- OPERACIONES DE INVENTARIO ---
-
-window.abrirModalCompra = function() {
-    const modal = document.getElementById('modalCompra');
-    if (modal) {
-        modal.style.setProperty('display', 'flex', 'important');
-        actualizarSelectProveedores(); 
-    }
-};
+// --- OPERACIONES DE INVENTARIO (RESTAURACIÓN DE STOCK) ---
 
 async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
-        todosLosMateriales = datos.map(m => ({
-            ...m,
-            nombre: m.nombre || "Material sin nombre",
-            categoria: m.categoria || "General",
-            proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
-            stock_actual: Number(m.stock_actual || 0),
-            precio_m2_costo: Number(m.precio_total_lamina || 0),
-            stock_minimo: Number(m.stock_minimo || 2)
-        }));
-        renderTable(todosLosMateriales);
+        
+        window.todosLosMateriales = datos.map(m => {
+            // Buscamos el stock en cualquier propiedad posible para evitar el 0.00
+            const valorStock = m.stock_actual ?? m.cantidad ?? m.stock ?? 0;
+            return {
+                ...m,
+                nombre: m.nombre || "Material sin nombre",
+                categoria: m.categoria || "General",
+                proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
+                stock_actual: Number(valorStock),
+                precio_m2_costo: Number(m.precio_total_lamina || 0),
+                stock_minimo: Number(m.stock_minimo || 2)
+            };
+        });
+        renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
@@ -144,8 +124,8 @@ function renderTable(materiales) {
     
     materiales.forEach(m => {
         const fila = document.createElement('tr');
-        const stockActual = Number(m.stock_actual) || 0;
-        const stockMinimo = Number(m.stock_minimo) || 2;
+        const stockActual = m.stock_actual || 0;
+        const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         let colorStock = stockActual <= 0 ? '#ef4444' : (stockActual <= stockMinimo ? '#f59e0b' : '#059669');
         
@@ -184,7 +164,7 @@ function renderTable(materiales) {
 function configurarEventos() {
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const termino = e.target.value.toLowerCase();
-        renderTable(todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
+        renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
@@ -278,18 +258,11 @@ function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
     if (select) {
         select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre}</option>`).join('');
+            window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre}</option>`).join('');
     }
 }
 
 function actualizarDatalistMateriales() {
     const lista = document.getElementById('listaMateriales');
-    if (lista) lista.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
+    if (lista) lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
-
-// SENSOR DE CLIC REFORZADO PARA RE-RENDERIZAR
-document.addEventListener('click', (e) => {
-    if (e.target.closest('[onclick*="abrirAgenda"]')) {
-        setTimeout(() => { window.renderAgendaProveedores(); }, 300);
-    }
-});
