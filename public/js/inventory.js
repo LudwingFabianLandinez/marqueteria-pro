@@ -21,40 +21,18 @@ window.toggleMenu = function() {
 
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
-    const contenido = document.getElementById('agendaContent');
-    
     if (modal) {
-        // 1. Forzamos el contenedor principal a ser visible
-        modal.style.cssText = `
-            display: flex !important;
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            background: rgba(0, 0, 0, 0.8) !important;
-            z-index: 999999 !important;
-            align-items: center !important;
-            justify-content: center !important;
-        `;
-
-        // 2. Buscamos el cuadro blanco interno y le damos estilo manual
-        const innerContent = modal.querySelector('.modal-content');
-        if (innerContent) {
-            innerContent.style.cssText = `
-                background: white !important;
-                padding: 30px !important;
-                border-radius: 15px !important;
-                max-width: 500px !important;
-                width: 90% !important;
-                color: black !important;
-                position: relative !important;
-                display: block !important;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
-            `;
-        }
+        modal.style.setProperty('display', 'flex', 'important');
         
-        window.renderAgendaProveedores();
+        // REFUERZO: Si la lista está vacía, la pedimos al servidor primero
+        if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
+            console.log("Buscando proveedores en el servidor...");
+            fetchProviders().then(() => {
+                window.renderAgendaProveedores();
+            });
+        } else {
+            window.renderAgendaProveedores();
+        }
     }
 };
 
