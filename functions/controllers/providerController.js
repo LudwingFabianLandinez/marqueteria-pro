@@ -2,26 +2,32 @@ const Provider = require('../models/Provider');
 
 /**
  * CONTROLADOR ÚNICO DE PROVEEDORES - MARQUETERÍA LA CHICA MORALES
- * Sincronizado con MongoDB Atlas (Colección: proveedores)
+ * Sincronizado con MongoDB Atlas (Colección: providers)
+ * Versión: Quirúrgica 4.8.2
  */
 
 // 1. Obtener todos los proveedores (Ordenados A-Z)
 const getProviders = async (req, res) => {
     try {
-        // AJUSTE QUIRÚRGICO: maxTimeMS(5000) evita que el botón se quede trabado si Atlas tarda
+        // AJUSTE: Quitamos restricciones pesadas para asegurar que traiga datos
         const providers = await Provider.find()
             .sort({ nombre: 1 })
             .lean()
             .maxTimeMS(5000); 
 
-        res.status(200).json({ success: true, data: providers || [] });
+        // IMPORTANTE: El frontend espera data: [ ]
+        // Si providers es null o undefined, enviamos [] para que no rompa el .map()
+        res.status(200).json({ 
+            success: true, 
+            data: providers || [] 
+        });
     } catch (error) {
         console.error('❌ Error al obtener proveedores:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message, data: [] });
     }
 };
 
-// 2. Obtener un solo proveedor por ID (Necesario para el modal de edición)
+// 2. Obtener un solo proveedor por ID
 const getOneProvider = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id).lean().maxTimeMS(3000);
@@ -44,7 +50,7 @@ const createProvider = async (req, res) => {
             });
         }
 
-        // Validación de NIT duplicado con tiempo límite
+        // Validación de NIT duplicado
         if (nit && nit.trim() !== '') {
             const existente = await Provider.findOne({ nit: nit.trim() }).lean().maxTimeMS(3000);
             if (existente) {
@@ -77,7 +83,7 @@ const createProvider = async (req, res) => {
     }
 };
 
-// 4. Actualizar proveedor (Crucial para corregir datos sin borrar)
+// 4. Actualizar proveedor
 const updateProvider = async (req, res) => {
     try {
         const updatedProvider = await Provider.findByIdAndUpdate(
@@ -105,13 +111,15 @@ const deleteProvider = async (req, res) => {
     }
 };
 
-// EXPORTACIÓN UNIFICADA (Compatible con los alias de las rutas)
+// EXPORTACIÓN UNIFICADA (Sincronizada con providerRoutes.js)
 module.exports = {
     getProviders,
     getAll: getProviders,
     getOneProvider,
+    getProviderById: getOneProvider,
     createProvider,
     saveProvider: createProvider,
+    addProvider: createProvider,
     updateProvider,
     deleteProvider
 };

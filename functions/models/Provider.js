@@ -9,12 +9,12 @@ const ProviderSchema = new mongoose.Schema({
         type: String,
         required: [true, 'El nombre es obligatorio'],
         trim: true,
-        unique: true // Evita duplicar nombres de empresas
+        unique: true
     },
     nit: {
         type: String,
         unique: true,
-        sparse: true, // Permite que varios proveedores no tengan NIT sin chocar
+        sparse: true,
         trim: true
     },
     telefono: {
@@ -23,7 +23,7 @@ const ProviderSchema = new mongoose.Schema({
         trim: true
     },
     contacto: {
-        type: String, // Nombre de la persona que atiende
+        type: String,
         trim: true
     },
     correo: {
@@ -44,20 +44,18 @@ const ProviderSchema = new mongoose.Schema({
         default: true
     }
 }, { 
-    // --- CONFIGURACIÓN AGRESIVA PARA NETLIFY ---
     timestamps: true,
-    bufferCommands: false,       // 1. NO esperar si la conexión no es instantánea
-    bufferTimeoutMS: 0,          // 2. Desactivar el tiempo de espera de buffer
-    autoIndex: false             // 3. No crear índices en caliente (evita bloqueos en producción)
+    bufferCommands: false,
+    autoIndex: false 
 });
 
 /**
- * EXPORTACIÓN ROBUSTA PARA NETLIFY:
- * Forzamos la conexión con la colección 'providers'.
+ * EXPORTACIÓN QUIRÚRGICA:
+ * Forzamos la conexión con la colección 'providers' (donde están tus datos en Atlas)
  */
-const Provider = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'Proveedores');
+const Provider = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'providers');
 
-// 4. Inyección de seguridad: Forzamos la desactivación del buffering a nivel de modelo global
+// Inyección de seguridad para evitar bloqueos en Netlify
 Provider.schema.set('bufferCommands', false);
 
 module.exports = Provider;
