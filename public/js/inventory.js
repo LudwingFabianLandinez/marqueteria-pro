@@ -53,24 +53,28 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
+    // 1. Verificación de datos: Si no hay nada, limpiamos el mensaje de carga
     if (!todosLosProveedores || todosLosProveedores.length === 0) {
         contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
 
-    // Dibujado alineado exactamente con tus columnas: NOMBRE | CONTACTO | CATEGORÍA
+    // 2. Limpieza y Renderizado: Usamos valores seguros (|| '---') para evitar bloqueos
+    // Alineamos con tus títulos: NOMBRE | CONTACTO | CATEGORÍA
     contenedor.innerHTML = todosLosProveedores.map(p => `
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 40px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem;">
-            <div style="font-weight: bold; color: #1e293b;">${p.nombre || '---'}</div>
-            <div style="color: #64748b;">${p.contacto || '---'}</div>
-            <div style="color: #64748b;">${p.categoria || 'General'}</div>
-            <a href="tel:${p.telefono}" style="background:#3498db; color:white; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none;">
-                <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
-            </a>
+        <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1fr 40px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
+            <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
+            <div style="color: #64748b;">${p.contacto || 'Sin contacto'}</div>
+            <div style="color: #64748b; font-style: italic;">${p.categoria || 'General'}</div>
+            <div style="text-align: right;">
+                <a href="tel:${p.telefono || ''}" style="background:#3498db; color:white; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;">
+                    <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
+                </a>
+            </div>
         </div>
     `).join('');
     
-    console.log("✅ Renderizado final exitoso");
+    console.log("✅ Renderizado blindado completado. Datos mostrados.");
 };
 
 window.guardarProveedor = async function(event) {
