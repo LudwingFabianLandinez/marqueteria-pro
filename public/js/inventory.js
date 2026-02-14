@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.8.4 - CORRECCIÓN DE BLOQUEO DE RENDER
+ * Versión: 4.8.5 - CORRECCIÓN DEFINITIVA DE RENDER Y MAPEADO
  */
 
 let todosLosMateriales = [];
@@ -30,22 +30,21 @@ window.abrirAgenda = function() {
         if (contenedor) {
             contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos...</p>';
 
-            // --- ESTO ES LO CONTUNDENTE ---
-            // Si en 2 segundos no ha cargado, forzamos el renderizado para quitar el mensaje
+            // SEGURO CONTUNDENTE: Forzamos la limpieza del mensaje a los 2.5 segundos
             setTimeout(() => {
                 if (contenedor.innerHTML.includes('Sincronizando')) {
-                    console.log("⚠️ Forzando desbloqueo visual del botón...");
+                    console.log("⚠️ Tiempo de espera agotado, forzando visualización...");
                     window.renderAgendaProveedores();
                 }
-            }, 2000);
+            }, 2500);
         }
 
-        // Carga normal de proveedores
+        // Carga y renderizado
         fetchProviders().then(() => {
             window.renderAgendaProveedores();
         }).catch(err => {
             console.error("Error al sincronizar:", err);
-            window.renderAgendaProveedores(); // Limpia incluso si falla
+            window.renderAgendaProveedores(); 
         });
     }
 };
@@ -54,17 +53,17 @@ window.renderAgendaProveedores = function() {
     const contenedor = document.getElementById('agendaContent');
     if (!contenedor) return;
 
-    // Si llegamos aquí, el mensaje de "Sincronizando" debe desaparecer sí o sí
+    // Si no hay datos, limpiamos el "Sincronizando" con un mensaje claro
     if (!todosLosProveedores || todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados en la nube.</p>';
+        contenedor.innerHTML = '<p style="text-align:center; padding:20px; color:#64748b;">No hay proveedores registrados.</p>';
         return;
     }
 
-    // Dibujado de la lista real
+    // MAPEADO MINUCIOSO: Ajustado a los nombres de campo de Atlas
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9;">
             <div>
-                <div style="font-weight:bold; color:#1e293b;">${p.nombre}</div>
+                <div style="font-weight:bold; color:#1e293b;">${p.nombre || 'Sin nombre'}</div>
                 <div style="font-size:0.8rem; color:#64748b;">
                     <i class="fas fa-phone"></i> ${p.telefono || 'Sin teléfono'} | 
                     <i class="fas fa-user"></i> ${p.contacto || 'Sin contacto'}
@@ -112,7 +111,6 @@ window.abrirModalCompra = function() {
 async function fetchInventory() {
     try {
         const result = await window.API.getInventory();
-        // Normalización: Asegura que siempre trabajemos con un Array
         const data = result.success ? result.data : (Array.isArray(result) ? result : []);
         
         todosLosMateriales = data.map(m => ({
@@ -135,7 +133,7 @@ async function fetchInventory() {
 async function fetchProviders() {
     try {
         const result = await window.API.getProviders();
-        // CIRUGÍA: Extraemos 'data' sin importar el formato de la API
+        // CIRUGÍA: Normalización total para evitar bloqueos
         const listaBruta = result.success ? result.data : (Array.isArray(result) ? result : []); 
         
         if (Array.isArray(listaBruta)) {
