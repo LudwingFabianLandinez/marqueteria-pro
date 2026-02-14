@@ -73,6 +73,7 @@ const MaterialSchema = new mongoose.Schema({
     },
     /**
      * Referencia al modelo único Provider.
+     * IMPORTANTE: Aseguramos que el nombre coincida con mongoose.model('Provider'...)
      */
     proveedor: { 
         type: mongoose.Schema.Types.ObjectId, 
@@ -117,8 +118,7 @@ MaterialSchema.pre('save', function(next) {
 });
 
 /**
- * EXPORTACIÓN CORREGIDA:
- * 1. Mantenemos el Singleton para Netlify.
- * 2. Colección forzada a 'materiales'.
+ * EXPORTACIÓN CORREGIDA PARA SERVERLESS:
+ * Mantenemos la lógica de Singleton para evitar errores de re-definición en Netlify.
  */
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');

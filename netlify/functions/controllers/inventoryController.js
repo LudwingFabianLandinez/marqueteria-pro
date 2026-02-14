@@ -1,10 +1,18 @@
+const mongoose = require('mongoose');
+
+// Carga segura de modelos para evitar el error "Schema hasn't been registered"
 const Material = require('../models/Material');
 const Provider = require('../models/Provider');
-const Transaction = require('../models/Transaction');
+// Importación con fallback para evitar cuelgues si Transaction no existe
+let Transaction;
+try {
+    Transaction = require('../models/Transaction');
+} catch (e) {
+    console.error("⚠️ Modelo Transaction no encontrado");
+}
 
 /**
  * CONTROLADOR DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
- * Gestión de existencias y trazabilidad
  */
 
 // 1. Obtener materiales (Con nombre de proveedor)
@@ -14,7 +22,9 @@ const getMaterials = async (req, res) => {
             .populate('proveedor', 'nombre') 
             .sort({ categoria: 1, nombre: 1 })
             .lean();
-        res.status(200).json({ success: true, data: materials || [] });
+        
+        // El dashboard espera un array directo o dentro de data
+        res.status(200).json(materials || []);
     } catch (error) {
         console.error("❌ Error en getMaterials:", error);
         res.status(500).json({ success: false, error: "Error al cargar materiales" });
@@ -25,13 +35,8 @@ const getMaterials = async (req, res) => {
 const registerPurchase = async (req, res) => {
     try {
         const { 
-            nombre, 
-            tipo, // 'm2' o 'ml'
-            ancho_lamina_cm, 
-            largo_lamina_cm, 
-            precio_total_lamina, 
-            cantidad_laminas, 
-            proveedor,
+            nombre, tipo, ancho_lamina_cm, largo_lamina_cm, 
+            precio_total_lamina, cantidad_laminas, proveedor,
             precio_venta_sugerido 
         } = req.body;
 
@@ -40,19 +45,17 @@ const registerPurchase = async (req, res) => {
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 0;
 
-        // Cálculos de stock según el tipo
         let incrementoStock = 0;
         if (tipo === 'ml') {
-            incrementoStock = (largo / 100) * cantidad; // Convertimos cm a metros lineales totales
+            incrementoStock = (largo / 100) * cantidad;
         } else {
             const areaM2Unitario = (ancho * largo) / 10000;
-            incrementoStock = areaM2Unitario * cantidad; // m2 totales
+            incrementoStock = areaM2Unitario * cantidad;
         }
 
         const nombreLimpio = nombre ? nombre.trim() : "Material Sin Nombre";
-        const nombreBusqueda = nombreLimpio.toLowerCase();
-
-        // Categorización automática mejorada
+        
+        // Categorización automática
         let categoria = 'Otros';
         const reglas = [
             { regex: /vidrio|espejo/i, cat: 'Vidrio' },
@@ -62,15 +65,10 @@ const registerPurchase = async (req, res) => {
             { regex: /tela|lona|lienzo/i, cat: 'Tela' },
             { regex: /marco|moldura/i, cat: 'Moldura' }
         ];
-        
-        const reglaEncontrada = reglas.find(r => r.regex.test(nombreBusqueda));
+        const reglaEncontrada = reglas.find(r => r.regex.test(nombreLimpio));
         if (reglaEncontrada) categoria = reglaEncontrada.cat;
 
-        // Verificamos si el proveedor existe antes de asignar el ID
-        let proveedorValido = null;
-        if (proveedor && proveedor.match(/^[0-9a-fA-F]{24}$/)) {
-            proveedorValido = proveedor;
-        }
+        let proveedorValido = (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : null;
 
         let material = await Material.findOne({ 
             nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
@@ -101,16 +99,15 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
-        // Registrar transacción para el historial
+        // Registrar transacción (Solo si el modelo existe)
         if (Transaction) {
             await Transaction.create({
                 materialId: material._id,
                 tipo: 'COMPRA',
                 cantidad_m2: incrementoStock,
-                precio_m2_costo: material.precio_m2_costo || 0, 
                 costo_total: precioTotalUnitario * cantidad,
                 proveedor: proveedorValido,
-                motivo: `Compra de ${cantidad} unidades (${tipo === 'ml' ? largo + 'cm' : ancho + 'x' + largo + 'cm'})`,
+                motivo: `Compra de ${cantidad} unidades`,
                 fecha: new Date()
             });
         }
@@ -122,38 +119,40 @@ const registerPurchase = async (req, res) => {
     }
 };
 
-// 3. Obtener todas las compras (Historial)
+// 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
     try {
+        if (!Transaction) return res.status(200).json([]);
         const purchases = await Transaction.find({ tipo: 'COMPRA' })
-            .populate({ path: 'materialId', select: 'nombre categoria' })
-            .populate({ path: 'proveedor', select: 'nombre' })
+            .populate('materialId', 'nombre categoria')
+            .populate('proveedor', 'nombre')
             .sort({ fecha: -1 })
             .lean();
-
-        res.status(200).json({ success: true, data: purchases || [] });
+        res.status(200).json(purchases || []);
     } catch (error) {
         res.status(500).json({ success: false, error: "Error al cargar historial" });
     }
 };
 
-// 4. Historial de movimientos de UN material específico (Modal Dashboard)
+// 4. Historial de un material específico
 const getMaterialHistory = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!Transaction) return res.status(200).json([]);
         const history = await Transaction.find({ materialId: id })
             .sort({ fecha: -1 })
             .limit(20)
             .lean();
-        res.status(200).json({ success: true, data: history });
+        res.status(200).json(history);
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error al obtener historial del material" });
+        res.status(500).json({ success: false, error: "Error al obtener historial" });
     }
 };
 
 // 5. Resumen de KPIs
 const getPurchasesSummary = async (req, res) => {
     try {
+        if (!Transaction) return res.json({ totalInvertido: 0, totalCantidad: 0, conteo: 0 });
         const stats = await Transaction.aggregate([
             { $match: { tipo: 'COMPRA' } },
             { $group: {
@@ -163,9 +162,7 @@ const getPurchasesSummary = async (req, res) => {
                 conteo: { $sum: 1 }
             }}
         ]);
-
-        const data = stats[0] || { totalInvertido: 0, totalCantidad: 0, conteo: 0 };
-        res.status(200).json({ success: true, data });
+        res.status(200).json(stats[0] || { totalInvertido: 0, totalCantidad: 0, conteo: 0 });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en KPIs" });
     }
@@ -177,7 +174,7 @@ const getLowStockMaterials = async (req, res) => {
         const lowStock = await Material.find({ 
             $expr: { $lt: ["$stock_actual", "$stock_minimo"] } 
         }).limit(10).lean();
-        res.status(200).json({ success: true, data: lowStock || [] });
+        res.status(200).json(lowStock || []);
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en alertas" });
     }
@@ -188,7 +185,7 @@ const manualAdjustment = async (req, res) => {
     try {
         const { materialId, nuevaCantidad, stock_minimo, motivo } = req.body;
         const material = await Material.findById(materialId);
-        if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
+        if (!material) return res.status(404).json({ success: false, message: "No encontrado" });
 
         const diferencia = parseFloat(nuevaCantidad) - material.stock_actual;
         material.stock_actual = parseFloat(nuevaCantidad);
@@ -196,14 +193,15 @@ const manualAdjustment = async (req, res) => {
         
         await material.save();
 
-        await Transaction.create({
-            materialId: material._id,
-            tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
-            cantidad_m2: Math.abs(diferencia),
-            motivo: motivo || 'Ajuste manual',
-            fecha: new Date()
-        });
-
+        if (Transaction) {
+            await Transaction.create({
+                materialId: material._id,
+                tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
+                cantidad_m2: Math.abs(diferencia),
+                motivo: motivo || 'Ajuste manual',
+                fecha: new Date()
+            });
+        }
         res.status(200).json({ success: true, stock: material.stock_actual });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en ajuste" });
@@ -221,7 +219,7 @@ const deleteMaterial = async (req, res) => {
     }
 };
 
-// EXPORTACIÓN FINAL
+// EXPORTACIÓN MEJORADA
 module.exports = {
     getMaterials,
     getInventory: getMaterials,
