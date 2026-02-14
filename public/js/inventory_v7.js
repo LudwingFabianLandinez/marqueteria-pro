@@ -24,18 +24,13 @@ window.toggleMenu = function() {
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
-        // Forzamos el display flex para centrar el modal
         modal.style.setProperty('display', 'flex', 'important');
         
-        const contenedor = document.getElementById('agendaContent');
-        if (contenedor) {
-            contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos con Atlas...</p>';
-        }
-        
-        // Carga forzada inmediata apuntando a la colección correcta 'provider'
-        fetchProviders().then(() => {
+        // Pequeño retraso para asegurar que el DOM esté listo
+        setTimeout(() => {
+            console.log("Forzando renderizado de proveedores...");
             window.renderAgendaProveedores();
-        });
+        }, 100);
     }
 };
 
