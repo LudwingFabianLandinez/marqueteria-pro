@@ -44,9 +44,7 @@
         }
 
         .card-header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 0.5px; }
-
         .card-body { padding: 30px; }
-
         .form-group { margin-bottom: 18px; }
 
         input, select {
@@ -231,41 +229,42 @@
 
 <script>
     /**
-     * ESCUDO DE EMERGENCIA ACTUALIZADO
+     * CIRUGÍA QUIRÚRGICA: CONEXIÓN CON EL ESCUDO DE DATOS
      */
 
     window.abrirModalConsulta = async function() {
-        console.log("Acción: Abrir consulta");
+        console.log("Acción: Abriendo agenda de proveedores...");
         const modal = document.getElementById('modalConsultar');
         const tabla = document.getElementById('listaProveedoresBody');
         
         modal.style.display = 'flex';
-        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos de la nube...</td></tr>';
+        tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Sincronizando con la nube...</td></tr>';
 
         try {
-            // Intentamos buscar la función tanto con el nombre nuevo como con el viejo
-            if (window.API && (window.API.getProviders || window.API.getSuppliers)) {
-                const fetchFunc = window.API.getProviders || window.API.getSuppliers;
-                const proveedores = await fetchFunc();
-                const lista = proveedores.data || proveedores;
+            // El Escudo: Busca en window.API las funciones sincronizadas en la consola
+            const apiFunc = window.API?.getProviders || window.API?.getSuppliers;
+            
+            if (apiFunc) {
+                const response = await apiFunc();
+                const lista = response.data || response;
 
                 if (Array.isArray(lista) && lista.length > 0) {
                     tabla.innerHTML = lista.map(p => `
                         <tr>
-                            <td><strong>${p.nombre || 'N/A'}</strong></td>
+                            <td><strong>${p.nombre || 'Sin nombre'}</strong></td>
                             <td><span style="background:#e0f2fe; color:#0369a1; padding:4px 8px; border-radius:6px; font-size:0.85rem;">${p.categoria || 'Gral'}</span></td>
-                            <td>${p.telefono || 'N/A'}</td>
+                            <td>${p.telefono || 'Sin teléfono'}</td>
                         </tr>
                     `).join('');
                 } else {
-                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No se encontraron proveedores.</td></tr>';
+                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores en la base de datos.</td></tr>';
                 }
             } else {
-                tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:orange; padding:20px;">Aviso: Esperando conexión con el servidor (api.js)...</td></tr>';
+                throw new Error("El servicio de consulta no está listo.");
             }
         } catch (error) {
-            console.error(error);
-            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">Error al conectar con la base de datos.</td></tr>';
+            console.error("Error en consulta:", error);
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">⚠️ Error al conectar con el servidor. Revisa la consola (F12).</td></tr>';
         }
     };
 
@@ -278,7 +277,7 @@
         const originalText = btn.innerHTML;
         
         const datos = {
-            nombre: document.getElementById('nombre').value,
+            nombre: document.getElementById('nombre').value.trim(),
             nit: document.getElementById('nit').value,
             contacto: document.getElementById('contacto').value,
             telefono: document.getElementById('telefono').value,
@@ -287,23 +286,23 @@
             categoria: document.getElementById('categoria').value
         };
 
-        if (!datos.nombre) return alert("Por favor, escribe el nombre del proveedor.");
+        if (!datos.nombre) return alert("El nombre comercial es obligatorio.");
 
         try {
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
 
-            // El escudo ahora busca saveProvider primero, luego saveSupplier
-            if (window.API && (window.API.saveProvider || window.API.saveSupplier)) {
-                const saveFunc = window.API.saveProvider || window.API.saveSupplier;
+            const saveFunc = window.API?.saveProvider || window.API?.saveSupplier;
+            
+            if (saveFunc) {
                 await saveFunc(datos);
-                alert("✅ Proveedor guardado con éxito.");
+                alert("✅ Proveedor registrado correctamente.");
                 window.location.href = "dashboard.html";
             } else {
-                throw new Error("El sistema de guardado no está listo (api.js no cargó).");
+                throw new Error("API no inicializada.");
             }
         } catch (error) {
-            alert("❌ Fallo el guardado: " + error.message);
+            alert("❌ Error: " + error.message);
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
