@@ -223,30 +223,32 @@
     </div>
 
     <div id="modalAgenda" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header" style="background: #3498db; color: white; padding: 15px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin:0;"><i class="fas fa-address-book"></i> Agenda de Proveedores</h3>
-                <span class="close" onclick="window.cerrarModales()" style="cursor:pointer; font-size: 24px;">&times;</span>
-            </div>
-            
-            <div id="agendaContent" class="modal-body" style="padding: 0; max-height: 450px; overflow-y: auto;">
-                <table class="inventory-table" style="width: 100%; margin: 0;">
-                    <thead>
-                        <tr style="background: #f8fafc;">
-                            <th style="padding: 12px; text-align: left;">Nombre</th>
-                            <th style="padding: 12px; text-align: left;">Teléfono</th>
-                            <th style="padding: 12px; text-align: left;">Categoría</th>
-                        </tr>
-                    </thead>
-                    <tbody id="listaProveedoresBody">
-                        <tr>
-                            <td colspan="3" style="text-align:center; padding: 20px; color: #64748b;">
-                                <i class="fas fa-spinner fa-spin"></i> Buscando en el directorio...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header" style="background: #3498db; color: white; padding: 15px;">
+            <h3 style="margin:0;"><i class="fas fa-address-book"></i> Agenda de Proveedores</h3>
+            <span onclick="window.cerrarModales()" style="cursor:pointer; float:right; font-size:24px;">&times;</span>
+        </div>
+        
+        <div class="modal-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
+            <table class="inventory-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 10px; text-align: left;">Nombre</th>
+                        <th style="padding: 10px; text-align: left;">Contacto</th>
+                        <th style="padding: 10px; text-align: left;">Categoría</th>
+                    </tr>
+                </thead>
+                <tbody id="listaProveedoresBody">
+                    <tr>
+                        <td colspan="3" style="text-align:center; padding: 20px;">
+                            <i class="fas fa-spinner fa-spin"></i> Sincronizando datos...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
             <div class="modal-footer" style="padding:15px; text-align:right; border-top:1px solid #eee;">
                 <button class="btn-modern" onclick="window.cerrarModales()" style="background: #64748b; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer;">Cerrar</button>
