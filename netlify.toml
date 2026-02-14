@@ -1,19 +1,15 @@
 [build]
-  command = "npm install"
   publish = "public"
+  functions = "netlify/functions"
 
-[functions]
-  directory = "functions"
-  # Incluimos TODO: models, routes, config, controllers y utils
-  included_files = ["functions/models/**", "functions/routes/**", "functions/config/**", "functions/controllers/**", "functions/utils/**"]
+# Esta es la regla mágica que quita el error de la consola
+[[redirects]]
+  from = "/.netlify/functions/server/*"
+  to = "/.netlify/functions/server"
+  status = 200
 
+# Por si tu código usa "/api/..."
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/*"
-  to = "/dashboard.html"
   status = 200
