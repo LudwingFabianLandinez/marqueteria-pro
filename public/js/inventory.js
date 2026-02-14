@@ -1,14 +1,14 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 4.7 - FINAL DESBLOQUEO VISTA
+ * Versión: 4.8 - CONEXIÓN TOTAL PROVEEDORES Y COMPRAS
  */
 
 let todosLosMateriales = [];
 let todosLosProveedores = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema de Gestión Iniciado v4.7 - Netlify Ready");
+    console.log("🚀 Sistema de Gestión Iniciado v4.8 - Netlify Ready");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -18,6 +18,8 @@ window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('active');
 }
+
+// --- MODALES DE PROVEEDORES (NUEVO/AJUSTADO) ---
 
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
@@ -59,6 +61,46 @@ window.renderAgendaProveedores = function() {
     `).join('');
 };
 
+// Función Quirúrgica para guardar proveedores nuevos
+window.guardarProveedor = async function(event) {
+    if(event) event.preventDefault();
+    
+    const nombre = document.getElementById('provNombre')?.value;
+    const telefono = document.getElementById('provTelefono')?.value;
+    const contacto = document.getElementById('provContacto')?.value;
+
+    if (!nombre) return alert("El nombre es obligatorio");
+
+    try {
+        const res = await fetch('/.netlify/functions/server/providers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, telefono, contacto })
+        });
+
+        if (res.ok) {
+            alert("✅ Proveedor guardado");
+            document.getElementById('provForm')?.reset();
+            await fetchProviders();
+            window.renderAgendaProveedores();
+        }
+    } catch (error) {
+        console.error("Error al guardar proveedor:", error);
+    }
+};
+
+// --- MODALES DE COMPRA ---
+
+window.abrirModalCompra = function() {
+    const modal = document.getElementById('modalCompra');
+    if (modal) {
+        modal.style.setProperty('display', 'flex', 'important');
+        actualizarSelectProveedores(); // Asegura que los proveedores estén en el select
+    }
+};
+
+// --- LOGICA DE DATOS (FETCH) ---
+
 async function fetchInventory() {
     try {
         const result = await window.API.getInventory();
@@ -69,7 +111,6 @@ async function fetchInventory() {
             nombre: m.nombre || "Material sin nombre",
             categoria: m.categoria || "General",
             proveedorNombre: m.proveedor ? (m.proveedor.nombre || m.proveedor) : "Sin proveedor",
-            // --- CORRECCIÓN DE CAMPOS PARA DESBLOQUEAR VISTA ---
             stock_actual: Number(m.stock_actual_m2 || m.stock_actual || m.cantidad || 0),
             precio_m2_costo: Number(m.precio_m2_costo || m.costo_unitario || 0),
             stock_minimo: Number(m.stock_minimo || 2)
@@ -79,8 +120,6 @@ async function fetchInventory() {
         actualizarDatalistMateriales();
     } catch (error) {
         console.error("❌ Error inventario:", error);
-        const tableBody = document.getElementById('inventoryTable');
-        if(tableBody) tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Error al conectar con el servidor.</td></tr>';
     }
 }
 
@@ -181,6 +220,9 @@ function configurarEventos() {
         renderTable(todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(term)));
     });
 
+    // Evento para el Formulario de Proveedores
+    document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
+
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
@@ -234,7 +276,6 @@ window.verHistorial = async function(id, nombre) {
         const labelNombre = document.getElementById('historialMaterialNombre');
 
         if (labelNombre) labelNombre.innerText = nombre;
-
         const data = result.success ? result.data : result;
 
         if (Array.isArray(data) && data.length > 0) {
@@ -281,7 +322,8 @@ window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
     if(document.getElementById('adjustMaterialNombre')) document.getElementById('adjustMaterialNombre').innerText = nombre;
     if(document.getElementById('adjustCantidad')) document.getElementById('adjustCantidad').value = stockActual;
     if(document.getElementById('adjustReorden')) document.getElementById('adjustReorden').value = stockMinimo;
-    if(document.getElementById('modalAjuste')) document.getElementById('modalAjuste').style.display = 'block';
+    const modal = document.getElementById('modalAjuste');
+    if(modal) modal.style.setProperty('display', 'flex', 'important');
 };
 
 function actualizarSelectProveedores() {
