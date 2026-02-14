@@ -97,17 +97,17 @@ async function fetchInventory() {
         const resultado = await window.API.getInventory();
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // Esta línea es la que salvará el inventario:
         window.todosLosMateriales = datos.map(m => {
-            // RASTREO INTEGRAL: Probamos todas las etiquetas posibles que usa tu base de datos
-            const stockReal = m.cantidad ?? m.stock ?? m.stock_actual ?? m.existencias ?? 0;
+            // Buscamos el stock en todas las variantes posibles de tu base de datos
+            // Probamos: stock_actual, cantidad, stock, o existencias
+            const stockReal = m.stock_actual ?? m.cantidad ?? m.stock ?? m.existencias ?? 0;
             
             return {
                 ...m,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
-                stock_actual: Number(stockReal), // <--- Aquí se asigna el número real a la tabla
+                stock_actual: Number(stockReal), // Aquí forzamos que sea el número real
                 precio_m2_costo: Number(m.precio_total_lamina || m.precio || 0),
                 stock_minimo: Number(m.stock_minimo || 2)
             };
