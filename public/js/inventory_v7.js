@@ -21,16 +21,24 @@ window.toggleMenu = function() {
 
 // --- MODALES DE PROVEEDORES ---
 
+// SUSTITUYE ESTA FUNCIÓN EN TU inventory_v7.js
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
+    const contenedor = document.getElementById('agendaContent');
+
     if (modal) {
         modal.style.setProperty('display', 'flex', 'important');
         
-        // Pequeño retraso para asegurar que el DOM esté listo
-        setTimeout(() => {
-            console.log("Forzando renderizado de proveedores...");
+        // Si ya tenemos los datos en memoria, los dibujamos de inmediato
+        if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
             window.renderAgendaProveedores();
-        }, 100);
+        } else {
+            // Si no hay datos, intentamos traerlos y luego dibujar
+            if (contenedor) contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Cargando proveedores...</p>';
+            fetchProviders().then(() => {
+                window.renderAgendaProveedores();
+            });
+        }
     }
 };
 
