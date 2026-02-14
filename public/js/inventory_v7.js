@@ -97,28 +97,28 @@ async function fetchInventory() {
         const resultado = await window.API.getInventory();
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        if (datos.length > 0) {
-            // ESTO MOSTRARÁ UNA VENTANA CON LOS NOMBRES REALES DE TU BASE DE DATOS
-            const llaves = Object.keys(datos[0]).join(", ");
-            alert("CAMPOS DETECTADOS: " + llaves);
-            console.log("DATOS CRUDOS:", datos[0]);
-        }
-
         window.todosLosMateriales = datos.map(m => {
-            // Intentamos todas las etiquetas posibles que suelen venir de Atlas
-            const stockReal = m.stock_actual ?? m.cantidad ?? m.stock ?? m.existencias ?? 0;
+            // USAMOS LOS CAMPOS EXACTOS DETECTADOS EN LA ALERTA
+            const stockReal = m.stock_actual_m2 ?? m.stock_actual ?? 0;
+            const stockMin = m.stock_minimo_m2 ?? m.stock_minimo ?? 2;
+            const precioCosto = m.precio_m2_costo ?? m.precio_total_lamina ?? 0;
+
             return {
                 ...m,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
-                stock_actual: Number(stockReal),
-                precio_m2_costo: Number(m.precio_total_lamina || 0),
-                stock_minimo: Number(m.stock_minimo || 2)
+                stock_actual: Number(stockReal), 
+                precio_m2_costo: Number(precioCosto),
+                stock_minimo: Number(stockMin)
             };
         });
+        
         renderTable(window.todosLosMateriales);
-    } catch (error) { alert("ERROR AL CARGAR: " + error.message); }
+        actualizarDatalistMateriales();
+    } catch (error) { 
+        console.error("❌ Error inventario:", error); 
+    }
 }
 
 function renderTable(materiales) {
