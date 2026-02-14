@@ -58,4 +58,4 @@ const Provider = mongoose.models.Provider || mongoose.model('Provider', Provider
 // Inyección de seguridad para evitar bloqueos en Netlify
 Provider.schema.set('bufferCommands', false);
 
-module.exports = Provider;
+module.exports = mongoose.models.Provider || mongoose.model('Provider', ProviderSchema, 'providers');

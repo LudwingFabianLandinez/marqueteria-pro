@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión Final con Blindaje de Errores
+ * Módulo de conexión API - Versión Final con Blindaje de Errores e Historial
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -58,7 +58,7 @@ window.API = {
     },
 
     // ==========================================
-    // INVENTARIO (Recuperación de Datos)
+    // INVENTARIO Y HISTORIAL
     // ==========================================
     getInventory: async function() {
         try {
@@ -66,13 +66,23 @@ window.API = {
             return await this._safeParse(response);
         } catch (err) { 
             console.error("🚨 Error cargando inventario:", err);
-            // Si el servidor falla, intentamos leer memoria local para no dejar la tabla vacía
             const localInv = localStorage.getItem('db_materiales');
             return { 
                 success: true, 
                 data: localInv ? JSON.parse(localInv) : [], 
                 local: true 
             }; 
+        }
+    },
+
+    // ESTA ES LA FUNCIÓN QUE FALTA EN TU CONSOLA
+    getHistory: async function() {
+        try {
+            const response = await fetch(`${this.url}/inventory/history`);
+            return await this._safeParse(response);
+        } catch (err) { 
+            console.warn("⚠️ Error en historial, devolviendo vacío.");
+            return { success: true, data: [] }; 
         }
     },
 
@@ -129,8 +139,13 @@ window.API = {
     }
 };
 
-// Alias para mantener compatibilidad con dashboard.js e inventory.js
+// ==========================================
+// BLOQUE DE COMPATIBILIDAD (Sincronización Total)
+// ==========================================
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
+// Por si acaso el código busca "getMateriales" o "getStats"
+window.API.getMaterials = window.API.getInventory;
+window.API.getStats = window.API.getDashboardStats;
 
-console.log("🚀 API Híbrida Protegida cargada correctamente.");
+console.log("🚀 API Híbrida Protegida (con Historial) cargada correctamente.");
