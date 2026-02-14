@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 5.4.0 - ADAPTACIÓN A COLECCIÓN "PROVIDER" Y SIN CATEGORÍA
+ * Versión: 6.1.0 - REVISIÓN QUIRÚRGICA: IDIOMA Y GLOBALIZACIÓN
  */
 
 let todosLosMateriales = [];
@@ -24,13 +24,15 @@ window.toggleMenu = function() {
 window.abrirAgenda = function() {
     const modal = document.getElementById('modalAgenda');
     if (modal) {
+        // Forzamos el display flex para centrar el modal
         modal.style.setProperty('display', 'flex', 'important');
+        
         const contenedor = document.getElementById('agendaContent');
         if (contenedor) {
-            contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos...</p>';
+            contenedor.innerHTML = '<p style="text-align:center; padding:20px;">Sincronizando datos con Atlas...</p>';
         }
         
-        // Carga forzada inmediata apuntando a la colección correcta
+        // Carga forzada inmediata apuntando a la colección correcta 'provider'
         fetchProviders().then(() => {
             window.renderAgendaProveedores();
         });
@@ -51,7 +53,7 @@ window.renderAgendaProveedores = function() {
         return;
     }
 
-    // RENDERIZADO AJUSTADO A TU ATLAS (Sin campo categoría)
+    // RENDERIZADO AJUSTADO (Sin campo categoría como pediste)
     contenedor.innerHTML = todosLosProveedores.map(p => `
         <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
             <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
@@ -74,9 +76,10 @@ window.guardarProveedor = async function(event) {
     const nombre = document.getElementById('provNombre')?.value;
     const telefono = document.getElementById('provTelefono')?.value;
     const contacto = document.getElementById('provContacto')?.value;
+    
     if (!nombre) return alert("El nombre es obligatorio");
+    
     try {
-        // La API debe manejar el guardado en 'provider'
         const res = await window.API.saveProvider({ nombre, telefono, contacto });
         if (res.success) {
             alert("✅ Proveedor guardado");
@@ -89,20 +92,19 @@ window.guardarProveedor = async function(event) {
 
 async function fetchProviders() {
     try {
-        // Forzamos la consulta a la colección 'provider' que creaste manual
-        const result = await window.API.getProviders();
+        const resultado = await window.API.getProviders();
         // Si la API devuelve el array directamente o dentro de .data
-        const listaBruta = result.success ? result.data : (Array.isArray(result) ? result : []); 
+        const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
         if (Array.isArray(listaBruta)) {
             todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             actualizarSelectProveedores();
-            console.log("✅ Sincronizado con Atlas (provider):", todosLosProveedores.length);
+            console.log("✅ Sincronizado con Atlas (colección provider):", todosLosProveedores.length);
         }
     } catch (error) { console.error("❌ Error proveedores:", error); }
 }
 
-// --- RESTO DEL CÓDIGO (MANTENIDO INTACTO) ---
+// --- OPERACIONES DE INVENTARIO ---
 
 window.abrirModalCompra = function() {
     const modal = document.getElementById('modalCompra');
@@ -114,9 +116,9 @@ window.abrirModalCompra = function() {
 
 async function fetchInventory() {
     try {
-        const result = await window.API.getInventory();
-        const data = result.success ? result.data : (Array.isArray(result) ? result : []);
-        todosLosMateriales = data.map(m => ({
+        const resultado = await window.API.getInventory();
+        const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        todosLosMateriales = datos.map(m => ({
             ...m,
             nombre: m.nombre || "Material sin nombre",
             categoria: m.categoria || "General",
@@ -130,18 +132,21 @@ async function fetchInventory() {
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
 
-function renderTable(materials) {
-    const tableBody = document.getElementById('inventoryTable');
-    if (!tableBody) return;
-    tableBody.innerHTML = '';
-    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-    materials.forEach(m => {
-        const tr = document.createElement('tr');
+function renderTable(materiales) {
+    const cuerpoTabla = document.getElementById('inventoryTable');
+    if (!cuerpoTabla) return;
+    cuerpoTabla.innerHTML = '';
+    
+    const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+    
+    materiales.forEach(m => {
+        const fila = document.createElement('tr');
         const stockActual = Number(m.stock_actual) || 0;
         const stockMinimo = Number(m.stock_minimo) || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
-        let stockColor = stockActual <= 0 ? '#ef4444' : (stockActual <= stockMinimo ? '#f59e0b' : '#059669');
-        tr.innerHTML = `
+        let colorStock = stockActual <= 0 ? '#ef4444' : (stockActual <= stockMinimo ? '#f59e0b' : '#059669');
+        
+        fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
                 <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
@@ -154,11 +159,11 @@ function renderTable(materials) {
                 </span>
             </td>
             <td style="text-align: center; font-weight: 500; font-size: 0.85rem; color: #475569;">
-                ${formatter.format(m.precio_m2_costo || 0)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
+                ${formateador.format(m.precio_m2_costo || 0)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
                 <div style="background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-block; min-width: 100px;">
-                    <div style="font-weight: 700; color: ${stockColor}; font-size: 0.95rem;">${stockActual.toFixed(2)} ${tipoUnidad}</div>
+                    <div style="font-weight: 700; color: ${colorStock}; font-size: 0.95rem;">${stockActual.toFixed(2)} ${tipoUnidad}</div>
                 </div>
             </td>
             <td style="text-align: center;">
@@ -169,21 +174,23 @@ function renderTable(materials) {
                 </div>
             </td>
         `;
-        tableBody.appendChild(tr);
+        cuerpoTabla.appendChild(fila);
     });
 }
 
 function configurarEventos() {
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        renderTable(todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(term)));
+        const termino = e.target.value.toLowerCase();
+        renderTable(todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
+
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
+
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
+        const boton = e.target.querySelector('button[type="submit"]');
         const nombreMat = document.getElementById('nombreMaterial').value;
-        const data = {
+        const objetoCompra = {
             nombre: nombreMat.trim(),
             tipo: (nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura')) ? 'ml' : 'm2',
             proveedor: document.getElementById('proveedorSelect').value,
@@ -192,9 +199,9 @@ function configurarEventos() {
             precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
             cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
         };
-        if(btn) btn.disabled = true;
+        if(boton) boton.disabled = true;
         try {
-            const res = await window.API.registerPurchase(data);
+            const res = await window.API.registerPurchase(objetoCompra);
             if (res.success) { 
                 window.cerrarModales(); 
                 await fetchInventory(); 
@@ -202,8 +209,9 @@ function configurarEventos() {
                 alert("✅ Inventario actualizado");
             }
         } catch (err) { alert("❌ Error al registrar"); } 
-        finally { if(btn) btn.disabled = false; }
+        finally { if(boton) boton.disabled = false; }
     });
+
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -219,20 +227,24 @@ function configurarEventos() {
 
 window.verHistorial = async function(id, nombre) {
     try {
-        const result = await window.API.getHistory(id);
+        const resultado = await window.API.getHistory(id);
         const modal = document.getElementById('modalHistorialPrecios');
-        const contenedor = document.getElementById('listaHistorialPrecios');
-        const labelNombre = document.getElementById('historialMaterialNombre');
-        if (labelNombre) labelNombre.innerText = nombre;
-        const data = result.success ? result.data : (Array.isArray(result) ? result : []);
-        if (Array.isArray(data) && data.length > 0) {
-            const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-            contenedor.innerHTML = data.map(h => `
+        const contenedorHistorial = document.getElementById('listaHistorialPrecios');
+        const etiquetaNombre = document.getElementById('historialMaterialNombre');
+        
+        if (etiquetaNombre) etiquetaNombre.innerText = nombre;
+        
+        const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        
+        if (Array.isArray(datos) && datos.length > 0) {
+            const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+            contenedorHistorial.innerHTML = datos.map(h => `
                 <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items:center;">
                     <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
-                    <div style="text-align: right;"><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formatter.format(h.costo_unitario || 0)}</span></div>
+                    <div style="text-align: right;"><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formateador.format(h.costo_unitario || 0)}</span></div>
                 </div>`).join('');
-        } else { contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
+        } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
+        
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
 };
@@ -246,7 +258,9 @@ window.eliminarMaterial = async function(id) {
     }
 };
 
-window.cerrarModales = function() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); };
+window.cerrarModales = function() { 
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
+};
 
 window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
     if(document.getElementById('adjustId')) document.getElementById('adjustId').value = id;
@@ -266,8 +280,8 @@ function actualizarSelectProveedores() {
 }
 
 function actualizarDatalistMateriales() {
-    const list = document.getElementById('listaMateriales');
-    if (list) list.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
+    const lista = document.getElementById('listaMateriales');
+    if (lista) lista.innerHTML = todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
 }
 
 // SENSOR DE CLIC REFORZADO PARA RE-RENDERIZAR
