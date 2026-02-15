@@ -38,7 +38,6 @@
 
         /* Colores específicos */
         .btn-reg-prov { background: #9b59b6; color: white; }
-        .btn-consulta-azul { background: #3498db; color: white; }
         .btn-nueva-compra { background: #27ae60; color: white; }
 
         /* ------------------------------------------
@@ -153,9 +152,6 @@
                     <button type="button" class="btn-modern btn-reg-prov" onclick="window.location.href='providers.html'">
                         <i class="fas fa-user-plus"></i> Registrar Proveedor
                     </button>
-                    <button type="button" id="btnConsultarProv" class="btn-modern btn-consulta-azul" onclick="window.abrirAgenda()">
-                        <i class="fas fa-address-book"></i> Consultar Proveedores
-                    </button>
                     <button class="btn-modern btn-nueva-compra" onclick="window.abrirModalCompra()">
                         <i class="fas fa-shopping-cart"></i> + Nueva Compra
                     </button>
@@ -175,6 +171,15 @@
                     </thead>
                     <tbody id="inventoryTable"></tbody>
                 </table>
+            </div>
+
+            <div id="seccionProveedoresFija" style="margin-top: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0;">
+                <div style="background: #1e293b; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: 0.5px;"><i class="fas fa-address-book" style="margin-right: 8px;"></i> DIRECTORIO DE PROVEEDORES</h3>
+                </div>
+                <div id="directorioProveedores" style="max-height: 400px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px; background: #f8fafc;">
+                    <p style="color: #94a3b8; grid-column: 1/-1; text-align: center; padding: 20px;">Sincronizando proveedores de Atlas...</p>
+                </div>
             </div>
         </div> 
     </main>
@@ -222,29 +227,6 @@
         </div>
     </div>
 
-    <div id="modalAgenda" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; padding: 0; border-radius: 12px; overflow: hidden;">
-            <div style="background: #3498db; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; font-size: 1.1rem;"><i class="fas fa-address-book"></i> Agenda de Proveedores</h3>
-                <span class="close" onclick="window.cerrarModales()" style="color: white; cursor: pointer; font-size: 1.5rem;">&times;</span>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; padding: 10px 20px; background: #f8fafc; font-weight: bold; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #e2e8f0;">
-                <div>Nombre</div>
-                <div>Contacto</div>
-                <div style="text-align: right;">Tel</div>
-            </div>
-
-            <div id="agendaContent" style="max-height: 400px; overflow-y: auto; background: white; min-height: 100px;">
-    <p style="text-align:center; padding:20px; color: #94a3b8;">Cargando lista...</p>
-</div>
-
-            <div style="padding: 15px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: right;">
-                <button onclick="window.cerrarModales()" style="background: #64748b; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer;">Cerrar</button>
-            </div>
-        </div>
-    </div>
-
     <div id="modalAjuste" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <h2 style="background: #f39c12; color: white; padding: 15px; border-radius: 8px 8px 0 0; margin-top:0;">Ajustar Inventario</h2>
@@ -285,12 +267,11 @@
         </div>
     </div>
 
-        <script src="./js/api.js?v=4.1"></script>
-        <script src="./js/inventory_v7.js"></script>
-        <script src="./js/dashboard.js?v=4.1"></script> 
+    <script src="./js/api.js?v=4.1"></script>
+    <script src="./js/inventory_v7.js"></script>
+    <script src="./js/dashboard.js?v=4.1"></script> 
     
     <script>
-        // Funciones de utilidad local integradas con el scope global
         window.abrirModalCompra = function() {
             const modal = document.getElementById('modalCompra');
             if(modal) modal.style.display = 'block';
@@ -307,17 +288,5 @@
             if(sidebar) sidebar.classList.toggle('active');
         };
     </script>
-    </table>
-</div> <div id="seccionProveedoresFija" style="margin-top: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0;">
-    <div style="background: #1e293b; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: 0.5px;"><i class="fas fa-address-book" style="margin-right: 8px;"></i> DIRECTORIO DE PROVEEDORES</h3>
-    </div>
-    <div id="directorioProveedores" style="max-height: 400px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px; background: #f8fafc;">
-        <p style="color: #94a3b8; grid-column: 1/-1; text-align: center; padding: 20px;">Sincronizando proveedores de Atlas...</p>
-    </div>
-</div>
-
-<script src="inventory_v7.js"></script>
-</body>
 </body>
 </html>
