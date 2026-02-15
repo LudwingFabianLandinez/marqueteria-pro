@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.4.0 - FIX: CARGA DE SELECTORES Y COMPATIBILIDAD MODAL
+ * Versión: 9.5.0 - FIX CRÍTICO: ENVÍO DE DATOS Y CARGA DE SELECTORES
  */
 
 // 1. VARIABLES GLOBALES
@@ -35,12 +35,13 @@ async function fetchProviders() {
             localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
             
             actualizarSelectProveedores();
+            
+            // Llenar selectores del modal si existen
+            window.cargarListasModal();
 
             const directorio = document.getElementById('directorioProveedores');
-            
             if (directorio) {
                 directorio.innerHTML = ''; 
-
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
                 } else {
@@ -65,7 +66,6 @@ async function fetchProviders() {
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
-    
     const nombre = document.getElementById('provNombre')?.value;
     const nit = document.getElementById('provNit')?.value;
     const contacto = document.getElementById('provContacto')?.value;
@@ -107,7 +107,7 @@ async function fetchInventory() {
 
             return {
                 ...m,
-                id: m._id, // Normalizamos el ID
+                id: m._id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
@@ -117,11 +117,10 @@ async function fetchInventory() {
             };
         });
         
-        // Guardar para respaldo del modal
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-        
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
+        window.cargarListasModal();
         console.log("📦 Inventario cargado");
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
@@ -172,22 +171,20 @@ function renderTable(materiales) {
     });
 }
 
-// --- NUEVA LÓGICA DE CARGA PARA EL MODAL DE COMPRA ---
+// --- LÓGICA DE CARGA PARA EL MODAL DE COMPRA ---
 
 window.cargarListasModal = function() {
-    const provSelect = document.getElementById('compraProveedor');
+    const provSelect = document.getElementById('compraProveedor') || document.getElementById('proveedorSelect');
     const matSelect = document.getElementById('compraMaterial');
 
     if (provSelect) {
-        provSelect.innerHTML = window.todosLosProveedores.length > 0 
-            ? window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre.toUpperCase()}</option>`).join('')
-            : '<option value="">Cargue proveedores primero</option>';
+        provSelect.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
+            window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre.toUpperCase()}</option>`).join('');
     }
 
     if (matSelect) {
-        matSelect.innerHTML = window.todosLosMateriales.length > 0 
-            ? window.todosLosMateriales.map(m => `<option value="${m._id}">${m.nombre}</option>`).join('')
-            : '<option value="">Cargue inventario primero</option>';
+        matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
+            window.todosLosMateriales.map(m => `<option value="${m._id}">${m.nombre}</option>`).join('');
     }
 };
 
@@ -201,38 +198,48 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    // Manejo del formulario de compra (Compatible con el nuevo modal)
-    document.getElementById('formNuevaCompra')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const largo = parseFloat(document.getElementById('compraLargo').value);
-        const ancho = parseFloat(document.getElementById('compraAncho').value);
-        const cant = parseFloat(document.getElementById('compraCantidad').value);
-        
-        // El servidor suele preferir el cálculo final de m2
-        const m2Calculados = ((largo * ancho) / 10000) * cant;
+    // Manejo del formulario de compra corregido para evitar Error 400
+    const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
+    if (formCompra) {
+        formCompra.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            if(btn) btn.disabled = true;
 
-        const objetoCompra = {
-            materialId: document.getElementById('compraMaterial').value,
-            providerId: document.getElementById('compraProveedor').value,
-            cantidad_m2: m2Calculados,
-            costo_unitario: parseFloat(document.getElementById('compraCosto').value),
-            largo_cm: largo,
-            ancho_cm: ancho,
-            unidades: cant
-        };
+            const materialId = document.getElementById('compraMaterial')?.value;
+            const providerId = document.getElementById('compraProveedor')?.value || document.getElementById('proveedorSelect')?.value;
+            const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
+            const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
+            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
+            const costo = parseFloat(document.getElementById('compraCosto')?.value) || 0;
+            
+            // Cálculo de m2 para el servidor
+            const m2Calculados = ((largo * ancho) / 10000) * cant;
 
-        try {
-            const res = await window.API.registerPurchase(objetoCompra);
-            if (res.success) { 
-                window.cerrarModales(); 
-                await fetchInventory(); 
-                e.target.reset(); 
-                alert("✅ Compra registrada e inventario actualizado");
-            } else {
-                alert("❌ Error: " + (res.message || "No se pudo registrar"));
-            }
-        } catch (err) { alert("❌ Error de conexión"); } 
-    });
+            const objetoCompra = {
+                materialId: materialId,
+                proveedorId: providerId,
+                cantidad_m2: m2Calculados,
+                precio_total: costo * cant,
+                largo_cm: largo,
+                ancho_cm: ancho,
+                cantidad_laminas: cant
+            };
+
+            try {
+                const res = await window.API.registerPurchase(objetoCompra);
+                if (res.success) { 
+                    window.cerrarModales(); 
+                    await fetchInventory(); 
+                    e.target.reset(); 
+                    alert("✅ Compra registrada e inventario actualizado");
+                } else {
+                    alert("❌ Error: " + (res.message || "No se pudo registrar"));
+                }
+            } catch (err) { alert("❌ Error de conexión"); } 
+            finally { if(btn) btn.disabled = false; }
+        });
+    }
 
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
