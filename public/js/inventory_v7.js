@@ -1,6 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.9.0 - CONSOLIDADO: EDICIÓN + COMPRAS + BLINDAJE
+ * Versión: 9.9.0 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
+ * Mantiene el diseño original y corrige errores de referencia en compras.
  */
 
 // 1. VARIABLES GLOBALES
@@ -42,10 +43,12 @@ async function fetchProviders() {
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
                 } else {
-                    directorio.innerHTML = window.todosLosProveedores.map(p => `
+                    directorio.innerHTML = window.todosLosProveedores.map(p => {
+                        const nombreSeguro = String(p.nombre || 'S/N').toUpperCase();
+                        return `
                         <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                             <div style="overflow: hidden;">
-                                <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre || 'S/N'}</div>
+                                <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${nombreSeguro}</div>
                                 <div style="font-size: 0.7rem; color: #64748b;">${p.telefono || 'Sin Tel.'}</div>
                                 <div style="font-size: 0.6rem; color: #94a3b8;">${p.categoria || 'General'}</div>
                             </div>
@@ -53,7 +56,7 @@ async function fetchProviders() {
                                 <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
                             </a>
                         </div>
-                    `).join('');
+                    `}).join('');
                 }
             }
         }
@@ -116,7 +119,6 @@ async function fetchInventory() {
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
 
-/** RENDER TABLE RESPETANDO TU DISEÑO EXACTO **/
 function renderTable(materiales) {
     const cuerpoTabla = document.getElementById('inventoryTable');
     if (!cuerpoTabla) return;
@@ -164,7 +166,7 @@ function renderTable(materiales) {
     });
 }
 
-// --- LÓGICA NUEVA: EDICIÓN Y CREACIÓN ---
+// --- LÓGICA DE EDICIÓN Y CREACIÓN DE MATERIALES ---
 
 window.prepararNuevoMaterial = function() {
     const form = document.getElementById('matForm');
@@ -221,7 +223,7 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    /** TU LÓGICA ORIGINAL DE COMPRA INTACTA **/
+    /** LÓGICA DE COMPRA CORREGIDA: Evita ReferenceError **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -229,8 +231,10 @@ function configurarEventos() {
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) btn.disabled = true;
 
+            // Captura segura de IDs con fallback para evitar undefined
             const materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value || document.getElementById('proveedorSelect')?.value;
+            
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
@@ -243,12 +247,16 @@ function configurarEventos() {
             }
 
             const m2Calculados = ((largo * ancho) / 10000) * cant;
+            
+            // Estructura de objeto sincronizada con Backend
             const objetoCompra = {
-                materialId, proveedorId,
+                materialId: materialId,
+                proveedorId: providerId, // Se asegura el uso de providerId correctamente
                 cantidad_m2: Number(m2Calculados.toFixed(4)),
                 precio_total: Number(costoTotal),
                 detalles: { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant },
-                fecha: new Date().toISOString()
+                fecha: new Date().toISOString(),
+                tipo: "PURCHASE" 
             };
 
             try {
@@ -257,9 +265,11 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert("✅ Compra registrada");
+                    alert("✅ Compra registrada con éxito");
+                } else {
+                    alert("❌ Error: " + (res.message || "No se pudo registrar"));
                 }
-            } catch (err) { alert("❌ Fallo crítico"); }
+            } catch (err) { alert("❌ Fallo crítico en el servidor"); }
             finally { if(btn) btn.disabled = false; }
         });
     }
@@ -278,17 +288,18 @@ function configurarEventos() {
 }
 
 window.cargarListasModal = function() {
-    const provSelect = document.getElementById('compraProveedor') || document.getElementById('proveedorSelect');
+    const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
+    const provRegisterSelect = document.getElementById('proveedorSelect');
 
-    if (provSelect) {
-        provSelect.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => {
-                const nombreSeguro = (p && p.nombre) ? String(p.nombre).toUpperCase() : "PROVEEDOR SIN NOMBRE";
-                const idSeguro = p ? (p._id || p.id || "") : "";
-                return `<option value="${idSeguro}">${nombreSeguro}</option>`;
-            }).join('');
-    }
+    const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
+        window.todosLosProveedores.map(p => {
+            const nombre = String(p.nombre || 'Sin nombre').toUpperCase();
+            return `<option value="${p._id || p.id}">${nombre}</option>`;
+        }).join('');
+
+    if (provSelect) provSelect.innerHTML = opcionesProv;
+    if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
 
     if (matSelect) {
         matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
