@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 9.8.6 (Estabilización de Contexto)
+ * Módulo de conexión API - Versión 9.8.7 (Mapeo de Datos Atlas)
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -39,7 +39,6 @@ window.API = {
     // ==========================================
     getProviders: async function() {
         try {
-            // Intervención: Cambio 'this' por 'window.API'
             const response = await fetch(`${window.API.url}/providers`);
             const res = await window.API._safeParse(response);
             
@@ -95,13 +94,20 @@ window.API = {
     // Registro de compras (Entrada de mercancía)
     registerPurchase: async function(purchaseData) {
         try {
-            // DIAGNÓSTICO: Vemos en consola exactamente qué enviamos antes de que falle
-            console.log("📦 Intentando registrar compra en:", `${window.API.url}/inventory/purchase`);
+            // INTERVENCIÓN QUIRÚRGICA: Mapeo de campos para Atlas
+            // Aseguramos que 'cantidad' sea el nombre del campo y sea un número real.
+            const dataCorregida = {
+                ...purchaseData,
+                cantidad: Number(purchaseData.cantidad || purchaseData.unidades || 0),
+                precio: Number(purchaseData.precio || purchaseData.valorUnitario || 0)
+            };
+
+            console.log("📦 Enviando datos finales a Atlas:", dataCorregida);
             
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(purchaseData)
+                body: JSON.stringify(dataCorregida)
             });
             return await window.API._safeParse(response);
         } catch (err) {
@@ -197,4 +203,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v9.8.6 - Blindaje Quirúrgico Finalizado.");
+console.log("🛡️ API v9.8.7 - Mapeo de Atlas Corregido.");
