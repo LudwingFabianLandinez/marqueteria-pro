@@ -3,104 +3,284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - La Chica Morales</title>
+    <title>Panel de Control - Marquetería</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* MANTENEMOS TU DISEÑO EXACTO */
-        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #f8fafc; display: flex; }
-        
-        .sidebar { width: 260px; background: #1a2c5b; min-height: 100vh; color: white; position: fixed; }
-        .sidebar-brand { padding: 40px 25px; font-weight: 800; font-size: 1.3rem; }
-        .nav-link { padding: 16px 25px; display: flex; align-items: center; gap: 12px; color: #a0aec0; text-decoration: none; }
-        .nav-link.active { background: #2d3748; color: white; border-left: 4px solid #3182ce; }
+        /* ESTRUCTURA DASHBOARD (Mantenida de tu código) */
+        .dashboard-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
 
-        /* AJUSTE PARA COLUMNA DERECHA SIN TOCAR EL RESTO */
-        .main-wrapper { margin-left: 260px; flex: 1; padding: 40px; display: flex; gap: 20px; align-items: flex-start; }
-        .content-area { flex: 1; } /* La tabla y botones mantienen su tamaño original */
+        /* BARRA LATERAL (Sidebar Azul) - Fija para no moverse */
+        .sidebar {
+            width: 260px;
+            background: #1a2c5b;
+            color: white;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+        }
 
-        .page-title { font-size: 2.2rem; color: #1a202c; font-weight: 700; margin-bottom: 30px; }
+        .logo-area {
+            padding: 0 20px 30px;
+            font-size: 1.4rem;
+            font-weight: bold;
+            line-height: 1.2;
+            letter-spacing: 1px;
+        }
 
-        .action-bar { display: flex; gap: 15px; margin-bottom: 25px; align-items: center; }
-        .search-wrapper { position: relative; }
-        .search-wrapper input { padding: 10px 15px 10px 38px; border: 1px solid #e2e8f0; border-radius: 8px; width: 250px; }
+        .menu-nav {
+            display: flex;
+            flex-direction: column;
+        }
 
-        .btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; color: white; }
-        .btn-purple { background: #a855f7; }
-        .btn-green { background: #22c55e; }
+        .menu-link {
+            padding: 15px 25px;
+            color: #a0aec0;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            font-size: 0.95rem;
+        }
 
-        /* TABLA CON CABECERA AZUL (IGUAL A LA FOTO) */
-        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }
-        .inventory-table { width: 100%; border-collapse: collapse; }
-        .inventory-table thead { background: #3182ce; color: white; }
-        .inventory-table th { padding: 15px; text-align: left; font-size: 0.85rem; }
-        .inventory-table td { padding: 15px; border-bottom: 1px solid #edf2f7; }
+        .menu-link.active {
+            background: #2b4485;
+            color: white;
+            border-left: 4px solid #3182ce;
+        }
 
-        /* DIRECTORIO LATERAL DERECHO (ESTILO FOTO) */
-        .directory-aside { width: 320px; background: #1e293b; border-radius: 12px; overflow: hidden; }
-        .directory-header { background: #1a202c; padding: 15px; display: flex; justify-content: space-between; align-items: center; color: white; }
-        .directory-header h3 { margin: 0; font-size: 0.8rem; letter-spacing: 1px; }
-        .badge { background: #3182ce; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; }
-        
-        #directorioProveedores { padding: 15px; display: flex; flex-direction: column; gap: 12px; }
-        .provider-item { background: white; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center; color: #334155; }
-        .provider-item h4 { margin: 0; font-size: 0.9rem; }
-        .provider-item p { margin: 0; font-size: 0.75rem; color: #64748b; }
-        .call-icon { color: #3182ce; }
+        /* CONTENIDO PRINCIPAL - Con margen para no chocar con el sidebar */
+        .main-container {
+            flex: 1;
+            margin-left: 260px; /* Ancho del sidebar */
+            background: #f7fafc;
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 340px; /* Tabla a la izquierda, Directorio a la derecha */
+            gap: 25px;
+            align-items: flex-start;
+        }
+
+        .content-left {
+            min-width: 0;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            color: #1a202c;
+            margin-bottom: 30px;
+            font-weight: 800;
+        }
+
+        /* BOTONES DE ACCIÓN SUPERIORES */
+        .top-actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .btn-action {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .btn-purple { background: #9f7aea; }
+        .btn-green { background: #48bb78; }
+
+        /* TABLA DE INVENTARIO (Tu estilo original) */
+        .inventory-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .inventory-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .inventory-table thead {
+            background: #3182ce; /* Azul del encabezado de tu foto */
+            color: white;
+        }
+
+        .inventory-table th {
+            padding: 15px;
+            font-size: 0.85rem;
+        }
+
+        /* DIRECTORIO DE PROVEEDORES (Barra Lateral Derecha) */
+        .providers-sidebar {
+            background: #2d3748; /* Fondo oscuro de tu foto */
+            border-radius: 12px;
+            overflow: hidden;
+            height: fit-content;
+            position: sticky;
+            top: 30px;
+        }
+
+        .providers-header {
+            background: #1a202c;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .providers-header h3 {
+            margin: 0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-count {
+            background: #3182ce;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+
+        #directorioProveedores {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* TARJETAS DE PROVEEDOR BLANCAS (Como en la foto) */
+        .provider-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #2d3748;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .provider-info h4 { margin: 0; font-size: 0.9rem; color: #1a202c; }
+        .provider-info p { margin: 2px 0 0; font-size: 0.8rem; color: #718096; }
+
+        .btn-call {
+            color: #3182ce;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
+<div class="dashboard-wrapper">
     <aside class="sidebar">
-        <div class="sidebar-brand">MARQUETERÍA<br>LA CHICA MORALES</div>
-        <nav class="nav-menu">
-            <a href="dashboard.html" class="nav-link active"><i class="fas fa-home"></i> Inicio / Inventario</a>
-            <a href="quotes.html" class="nav-link"><i class="fas fa-calculator"></i> Nueva Cotización</a>
-            <a href="history.html" class="nav-link"><i class="fas fa-history"></i> Historial de Ventas</a>
-            <a href="purchases.html" class="nav-link"><i class="fas fa-box"></i> Historial de Compras</a>
+        <div class="logo-area">
+            MARQUETERÍA<br>LA CHICA<br>MORALES
+        </div>
+        <nav class="menu-nav">
+            <a href="dashboard.html" class="menu-link active"><i class="fas fa-home"></i> Inicio / Inventario</a>
+            <a href="quotes.html" class="menu-link"><i class="fas fa-calculator"></i> Nueva Cotización</a>
+            <a href="history.html" class="menu-link"><i class="fas fa-history"></i> Historial de Ventas</a>
+            <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
         </nav>
     </aside>
 
-    <div class="main-wrapper">
-        <div class="content-area">
+    <main class="main-container">
+        
+        <div class="content-left">
             <h1 class="page-title">Control de Existencias y Compras</h1>
-            
-            <div class="action-bar">
-                <div class="search-wrapper">
-                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #94a3b8;"></i>
-                    <input type="text" id="searchInput" placeholder="Buscar material...">
-                </div>
-                <button class="btn btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
-                <button class="btn btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
+
+            <div class="top-actions">
+                <button class="btn-action btn-purple" onclick="location.href='providers.html'">
+                    <i class="fas fa-user-plus"></i> Registrar Proveedor
+                </button>
+                <button class="btn-action btn-green" onclick="window.abrirModalCompra()">
+                    <i class="fas fa-shopping-cart"></i> + Nueva Compra
+                </button>
             </div>
 
-            <div class="table-container">
+            <div class="inventory-card">
                 <table class="inventory-table">
                     <thead>
                         <tr>
-                            <th>Material / Categoría</th>
-                            <th>Medidas</th>
-                            <th>Costo M²</th>
-                            <th>Stock</th>
-                            <th>Acciones</th>
+                            <th style="text-align: left;">MATERIAL / CATEGORÍA</th>
+                            <th>MEDIDAS MATERIAL</th>
+                            <th>COSTO M²</th>
+                            <th>STOCK DISPONIBLE</th>
+                            <th>ACCIONES</th>
                         </tr>
                     </thead>
-                    <tbody id="inventoryTable"></tbody>
+                    <tbody id="inventoryTable">
+                        </tbody>
                 </table>
             </div>
         </div>
 
-        <aside class="directory-aside">
-            <div class="directory-header">
-                <h3><i class="fas fa-address-book"></i> PROVEEDORES</h3>
-                <span class="badge" id="prov-count">0 registrados</span>
+        <aside class="providers-sidebar">
+            <div class="providers-header">
+                <h3><i class="fas fa-address-book"></i> DIRECTORIO DE PROVEEDORES</h3>
+                <span class="badge-count" id="prov-count">0 registrados</span>
             </div>
             <div id="directorioProveedores">
-                </div>
+                <p style="color: #a0aec0; text-align: center;">Cargando...</p>
+            </div>
         </aside>
-    </div>
 
-    <script src="./js/api.js"></script>
-    <script src="./js/inventory_v7.js"></script>
+    </main>
+</div>
+
+<script src="./js/api.js"></script>
+<script src="./js/inventory_v7.js"></script>
+<script>
+    // Lógica para abrir modal
+    window.abrirModalCompra = () => {
+        const modal = document.getElementById('modalCompra');
+        if(modal) modal.style.display = 'block';
+    };
+    
+    // Función de renderizado para las tarjetas del directorio
+    function renderDirectorio(lista) {
+        const container = document.getElementById('directorioProveedores');
+        const badge = document.getElementById('prov-count');
+        
+        if(badge) badge.textContent = `${lista.length} registrados`;
+        if(!container) return;
+
+        if (lista.length === 0) {
+            container.innerHTML = '<p style="color:#a0aec0; text-align:center;">No hay proveedores.</p>';
+            return;
+        }
+
+        container.innerHTML = lista.map(p => `
+            <div class="provider-card">
+                <div class="provider-info">
+                    <h4>${p.name.toUpperCase()}</h4>
+                    <p>${p.phone || 'Sin número'}</p>
+                    <p style="font-size: 0.7rem; color: #a0aec0;">${p.category || 'General'}</p>
+                </div>
+                <div class="btn-call">
+                    <i class="fas fa-phone-alt"></i>
+                </div>
+            </div>
+        `).join('');
+    }
+</script>
 </body>
 </html>
