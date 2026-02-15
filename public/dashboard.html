@@ -293,7 +293,11 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    // Lógica para abrir modal y asegurar que los listados se llenen
+    /**
+     * CIRUGÍA DE BLINDAJE: 
+     * Se agregaron verificaciones String() y validaciones de existencia 
+     * para evitar errores de .toUpperCase() en datos nulos.
+     */
     window.abrirModalCompra = () => {
         const modal = document.getElementById('modalCompra');
         if(!modal) return;
@@ -308,13 +312,19 @@
 
         if(provSelect) {
             provSelect.innerHTML = proveedores.length > 0 
-                ? proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || p.name || 'Sin nombre').toUpperCase()}</option>`).join('')
+                ? proveedores.map(p => {
+                    const nombre = p.nombre || p.name || 'Sin nombre';
+                    return `<option value="${p._id || p.id}">${String(nombre).toUpperCase()}</option>`;
+                }).join('')
                 : '<option value="">No hay proveedores registrados</option>';
         }
 
         if(matSelect) {
             matSelect.innerHTML = inventario.length > 0 
-                ? inventario.map(m => `<option value="${m._id || m.id}">${m.nombre || m.name || 'Sin nombre'}</option>`).join('')
+                ? inventario.map(m => {
+                    const nombreMat = m.nombre || m.name || 'Sin nombre';
+                    return `<option value="${m._id || m.id}">${nombreMat}</option>`;
+                }).join('')
                 : '<option value="">No hay materiales registrados</option>';
         }
     };
@@ -342,16 +352,23 @@
             return;
         }
 
-        container.innerHTML = datos.map(p => `
+        container.innerHTML = datos.map(p => {
+            // Blindaje quirúrgico para datos nulos
+            const nombreSeguro = String(p.nombre || p.name || 'S/N').toUpperCase();
+            const telSeguro = p.telefono || p.phone || 'Sin número';
+            const catSeguro = p.categoria || p.category || 'General';
+
+            return `
             <div class="provider-card">
                 <div class="provider-info">
-                    <h4>${String(p.nombre || p.name || 'S/N').toUpperCase()}</h4>
-                    <p>${p.telefono || p.phone || 'Sin número'}</p>
-                    <p style="font-size: 0.7rem; color: #a0aec0;">${p.categoria || p.category || 'General'}</p>
+                    <h4>${nombreSeguro}</h4>
+                    <p>${telSeguro}</p>
+                    <p style="font-size: 0.7rem; color: #a0aec0;">${catSeguro}</p>
                 </div>
                 <div class="btn-call"><i class="fas fa-phone-alt"></i></div>
             </div>
-        `).join('');
+            `;
+        }).join('');
     }
 </script>
 </body>

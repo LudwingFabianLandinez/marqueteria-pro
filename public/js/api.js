@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 11.6.0 (Consolidación Quirúrgica)
+ * Módulo de conexión API - Versión 12.0.0 (Consolidación con Bucle de Compatibilidad)
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -67,46 +67,53 @@ window.API = {
     },
 
     registerPurchase: async function(purchaseData) {
-        // CIRUGÍA: Limpieza de datos antes del envío
+        console.log("🚀 Iniciando registro de compra v12.0.0");
+        
         const valorCantidad = Number(purchaseData.cantidad || 0);
         const valorPrecio = Number(purchaseData.precio || purchaseData.costo || 0);
+        
+        // BUCLE DE COMPATIBILIDAD PARA ENUM DE BASE DE DATOS
+        const tiposDePrueba = ['compra', 'PURCHASE', 'INGRESO', 'entrada'];
+        let ultimoError = null;
 
-        const payload = {
-            materialId: purchaseData.materialId,
-            proveedorId: purchaseData.proveedorId || purchaseData.providerId,
-            cantidad: valorCantidad,
-            precio: valorPrecio,
-            tipo: 'compra',
-            detalles: {
-                largo: Number(purchaseData.largo || 0),
-                ancho: Number(purchaseData.ancho || 0)
-            }
-        };
+        for (const tipo of tiposDePrueba) {
+            try {
+                const payload = {
+                    materialId: purchaseData.materialId,
+                    proveedorId: purchaseData.proveedorId || purchaseData.providerId,
+                    cantidad: valorCantidad,
+                    precio: valorPrecio,
+                    tipo: tipo, // Probando variante actual
+                    detalles: {
+                        largo: Number(purchaseData.largo || 0),
+                        ancho: Number(purchaseData.ancho || 0)
+                    },
+                    fecha: new Date().toISOString()
+                };
 
-        console.log("📡 Enviando Compra v11.6.0 (Blindada):", payload);
+                console.log(`📡 Intentando registro con tipo: "${tipo}"...`);
 
-        try {
-            const response = await fetch(`${window.API.url}/inventory/purchase`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            return await window.API._safeParse(response);
-
-        } catch (err) {
-            console.warn("⚠️ Reintentando con ajuste de compatibilidad...");
-            if (err.message.includes("tipo") || err.message.includes("enum")) {
-                payload.tipo = 'PURCHASE'; 
-                const retry = await fetch(`${window.API.url}/inventory/purchase`, {
+                const response = await fetch(`${window.API.url}/inventory/purchase`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                return await window.API._safeParse(retry);
+
+                if (response.ok) {
+                    console.log(`✅ ¡Éxito! El servidor aceptó el tipo: "${tipo}"`);
+                    return await window.API._safeParse(response);
+                }
+
+                const errorData = await response.json();
+                ultimoError = errorData.message || "Error de validación";
+                console.warn(`⚠️ Rechazado con "${tipo}":`, ultimoError);
+
+            } catch (err) {
+                ultimoError = err.message;
             }
-            throw err;
         }
+
+        throw new Error("Error crítico: La base de datos no aceptó ninguno de los tipos de operación permitidos. Detalle: " + ultimoError);
     },
 
     adjustStock: async function(data) {
@@ -175,4 +182,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v11.6.0 - Blindaje Total Consolidado.");
+console.log("🛡️ API v12.0.0 - Blindaje y Bucle de Compatibilidad Activo.");
