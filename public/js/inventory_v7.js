@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.5.0 - FIX CRÍTICO: ENVÍO DE DATOS Y CARGA DE SELECTORES
+ * Versión: 9.6.0 - FIX: PROTECCIÓN DE SELECTORES Y COMPATIBILIDAD TOTAL
  */
 
 // 1. VARIABLES GLOBALES
@@ -28,7 +28,7 @@ async function fetchProviders() {
         const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
         if (Array.isArray(listaBruta)) {
-            // Ordenamos alfabéticamente
+            // Ordenamos alfabéticamente protegiendo contra valores nulos
             window.todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
             // Guardar en localStorage para respaldo del modal
@@ -48,7 +48,7 @@ async function fetchProviders() {
                     directorio.innerHTML = window.todosLosProveedores.map(p => `
                         <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                             <div style="overflow: hidden;">
-                                <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre}</div>
+                                <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre || 'S/N'}</div>
                                 <div style="font-size: 0.7rem; color: #64748b;">${p.telefono || 'Sin Tel.'}</div>
                                 <div style="font-size: 0.6rem; color: #94a3b8;">${p.categoria || 'General'}</div>
                             </div>
@@ -66,30 +66,34 @@ async function fetchProviders() {
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
-    const nombre = document.getElementById('provNombre')?.value;
-    const nit = document.getElementById('provNit')?.value;
-    const contacto = document.getElementById('provContacto')?.value;
-    const telefono = document.getElementById('provTelefono')?.value;
-    const email = document.getElementById('provEmail')?.value;
-    const direccion = document.getElementById('provDireccion')?.value;
-    const categoria = document.getElementById('provCategoria')?.value;
     
-    if (!nombre) return alert("El nombre es obligatorio");
+    // Objeto limpio para evitar Error 400
+    const payload = {
+        nombre: document.getElementById('provNombre')?.value || "",
+        nit: document.getElementById('provNit')?.value || "",
+        contacto: document.getElementById('provContacto')?.value || "",
+        telefono: document.getElementById('provTelefono')?.value || "",
+        email: document.getElementById('provEmail')?.value || "",
+        direccion: document.getElementById('provDireccion')?.value || "",
+        categoria: document.getElementById('provCategoria')?.value || "General"
+    };
+    
+    if (!payload.nombre) return alert("El nombre es obligatorio");
     
     try {
-        const res = await window.API.saveProvider({ 
-            nombre, nit, contacto, telefono, email, direccion, categoria 
-        });
+        const res = await window.API.saveProvider(payload);
 
         if (res.success) {
             alert("✅ Proveedor guardado");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
             await fetchProviders(); 
+        } else {
+            alert("❌ Error: " + (res.message || "No se pudo guardar"));
         }
     } catch (error) { 
         console.error("Error al guardar:", error); 
-        alert("❌ Error al guardar el proveedor");
+        alert("❌ Error de conexión al guardar");
     }
 };
 
@@ -179,7 +183,11 @@ window.cargarListasModal = function() {
 
     if (provSelect) {
         provSelect.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre.toUpperCase()}</option>`).join('');
+            window.todosLosProveedores.map(p => {
+                // Protección contra nombres nulos para evitar error toUpperCase
+                const nombreSeguro = (p.nombre || "Proveedor Sin Nombre").toUpperCase();
+                return `<option value="${p._id}">${nombreSeguro}</option>`;
+            }).join('');
     }
 
     if (matSelect) {
@@ -198,7 +206,6 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    // Manejo del formulario de compra corregido para evitar Error 400
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -213,7 +220,6 @@ function configurarEventos() {
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
             const costo = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
-            // Cálculo de m2 para el servidor
             const m2Calculados = ((largo * ancho) / 10000) * cant;
 
             const objetoCompra = {
