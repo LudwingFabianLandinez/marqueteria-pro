@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.1.0 (OPTIMIZADO PARA COMPRAS)
+ * Módulo de conexión API - Versión 12.1.2 (CONSOLIDACIÓN DEFINITIVA)
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -22,7 +22,6 @@ window.API = {
         }
         if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
-            // Normalizar arrays para que siempre vengan dentro de un objeto con success
             return Array.isArray(data) ? { success: true, data: data } : data;
         }
         return { success: true };
@@ -84,15 +83,16 @@ window.API = {
 
     /** REGISTRO DE COMPRA REFORMADO PARA MATAR EL ERROR 500 **/
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Enviando compra normalizada v12.1.0...");
+        console.log("🚀 Enviando compra normalizada v12.1.2...");
         
         // Mapeamos los datos exactamente como los pide la BD relacional
+        // NOTA: 'tipo' debe ser 'compra' en minúsculas para validación de Enum
         const payload = {
             materialId: purchaseData.materialId,
             proveedorId: purchaseData.proveedorId || purchaseData.providerId,
             cantidad_m2: Number(purchaseData.cantidad_m2 || purchaseData.cantidad || 0),
             precio_total: Number(purchaseData.precio_total || purchaseData.precio || 0),
-            tipo: "COMPRA", // Tipo unificado para evitar el bucle de rechazo
+            tipo: "compra", 
             detalles: purchaseData.detalles || {},
             fecha: purchaseData.fecha || new Date().toISOString()
         };
@@ -158,6 +158,17 @@ window.API = {
             }); 
             return await window.API._safeParse(r); 
         } catch(e) { return { success: false, message: e.message }; } 
+    },
+
+    generateQuote: async function(quoteData) {
+        try {
+            const response = await fetch(`${window.API.url}/quotes/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(quoteData)
+            });
+            return await window.API._safeParse(response);
+        } catch (err) { return { success: false, error: err.message }; }
     }
 };
 
@@ -168,4 +179,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.1.0 - Blindaje Activo.");
+console.log("🛡️ API v12.1.2 - Blindaje Activo.");
