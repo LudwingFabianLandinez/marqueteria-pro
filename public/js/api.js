@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 11.0.0 (Protocolo de Fuerza Bruta y Anidación)
+ * Módulo de conexión API - Versión 11.5.0 (Limpieza de Estructura y Estabilidad)
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -66,60 +66,52 @@ window.API = {
         }
     },
 
-    // REPARACIÓN DEFINITIVA v11.0.0
+    // INTERVENCIÓN QUIRÚRGICA v11.5.0: Estructura de Objeto Único
     registerPurchase: async function(purchaseData) {
-        const valorCantidad = Number(purchaseData.cantidad || purchaseData.unidades || 0);
-        const valorPrecio = Number(purchaseData.precio || purchaseData.valorUnitario || 0);
+        // Aseguramos valores numéricos puros
+        const valorCantidad = Number(purchaseData.cantidad || 0);
+        const valorPrecio = Number(purchaseData.precio || 0);
 
-        // Mapeo exhaustivo para evitar el error "cantidad is required"
-        const baseData = {
+        // Intentaremos primero con el formato estándar que espera Atlas
+        const payload = {
             materialId: purchaseData.materialId,
             proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
             cantidad: valorCantidad,
-            unidades: valorCantidad,
-            quantity: valorCantidad,
             precio: valorPrecio,
-            valorUnitario: valorPrecio,
-            costo: valorPrecio,
-            largo: Number(purchaseData.largo || 0),
-            ancho: Number(purchaseData.ancho || 0)
+            tipo: 'compra', // Valor por defecto
+            detalles: {
+                largo: Number(purchaseData.largo || 0),
+                ancho: Number(purchaseData.ancho || 0)
+            }
         };
 
-        // Palabras clave en orden de probabilidad (Español, Inglés, Técnico)
-        const intentosTipo = ['compra', 'entrada', 'PURCHASE', 'STOCK_IN', 'INVENTORY_IN'];
-        let errorFinal = "";
+        console.log("📡 Enviando v11.5.0 (Estructura Limpia):", payload);
 
-        for (const tipoTest of intentosTipo) {
-            try {
-                const dataFinal = { ...baseData, tipo: tipoTest };
-                console.log(`🧪 Probando v11 con: "${tipoTest}"`, dataFinal);
-
-                const response = await fetch(`${window.API.url}/inventory/purchase`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(dataFinal)
-                });
-
-                return await window.API._safeParse(response);
-            } catch (err) {
-                errorFinal = err.message;
-                console.warn(`❌ Falló con "${tipoTest}": ${err.message}`);
-                // Si no es un error de "tipo/enum", el problema es otro campo, nos detenemos.
-                if (!err.message.includes("tipo") && !err.message.includes("enum")) break;
-            }
-        }
-
-        // ÚLTIMO RECURSO: Enviar sin el campo 'tipo'
         try {
-            console.log("🛡️ Intento final: Omitiendo campo 'tipo'...");
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(baseData)
+                body: JSON.stringify(payload)
             });
-            return await window.API._safeParse(response);
+
+            const result = await window.API._safeParse(response);
+            return result;
+
         } catch (err) {
-            return { success: false, message: `Error persistente: ${err.message}` };
+            console.warn("⚠️ Falló el envío estándar, probando alternativa técnica...");
+            
+            // Si el error es de "tipo", probamos la última alternativa técnica (en inglés)
+            if (err.message.includes("tipo") || err.message.includes("enum")) {
+                payload.tipo = 'PURCHASE'; 
+                const retry = await fetch(`${window.API.url}/inventory/purchase`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return await window.API._safeParse(retry);
+            }
+            
+            throw err;
         }
     },
 
@@ -189,4 +181,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🚀 API v11.0.0 - Protocolo de Fuerza Bruta Desplegado.");
+console.log("🛡️ API v11.5.0 - Limpieza y Estabilidad Consolidada.");
