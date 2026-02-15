@@ -26,19 +26,21 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (DEBE IR ANTES DEL ROUTER)
+// 3. NORMALIZACIÓN DE URL (CIRUGÍA QUIRÚRGICA AQUÍ)
 app.use((req, res, next) => {
-    const prefixes = ['/.netlify/functions/server', '/api'];
-    let currentUrl = req.url;
+    // Solo eliminamos el prefijo base de Netlify, no las rutas de datos
+    const basePrefix = '/.netlify/functions/server';
     
-    prefixes.forEach(prefix => {
-        if (currentUrl.startsWith(prefix)) {
-            currentUrl = currentUrl.replace(prefix, '');
-        }
-    });
+    if (req.url.startsWith(basePrefix)) {
+        req.url = req.url.replace(basePrefix, '');
+    }
 
-    // Aseguramos que la URL sea válida para Express
-    req.url = (currentUrl === '' || currentUrl === '/') ? '/' : currentUrl;
+    // Si después de limpiar queda vacío, aseguramos que sea '/'
+    if (!req.url || req.url === '') {
+        req.url = '/';
+    }
+    
+    console.log(`🛣️ Ruta procesada: ${req.method} ${req.url}`);
     next();
 });
 
@@ -75,7 +77,7 @@ try {
         res.json({ status: 'OK', db: isConnected });
     });
 
-    console.log("✅ Rutas mapeadas");
+    console.log("✅ Rutas mapeadas correctamente");
 } catch (error) {
     console.error(`🚨 Error rutas: ${error.message}`);
 }
@@ -90,7 +92,6 @@ module.exports.handler = async (event, context) => {
     
     try {
         await connect();
-        // Importante: Netlify a veces envía paths que serverless-http necesita procesar
         return await handler(event, context);
     } catch (error) {
         console.error("🚨 Handler Error:", error);
