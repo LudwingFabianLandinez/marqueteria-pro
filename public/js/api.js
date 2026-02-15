@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 9.9.0 (Diagnóstico de Validación Atlas)
+ * Módulo de conexión API - Versión 10.0.0 (Estructura Universal de Campos)
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -88,27 +88,40 @@ window.API = {
         }
     },
 
-    // Registro de compras - INTERVENCIÓN QUIRÚRGICA 9.9.0
+    // Registro de compras - VERSIÓN UNIVERSAL 10.0.0
     registerPurchase: async function(purchaseData) {
         try {
-            // RECONSTRUCCIÓN DE DIAGNÓSTICO: 
-            // Eliminamos el campo 'tipo' para ver si el servidor lo asigna automáticamente.
-            const cleanData = {
+            // Mapeo exhaustivo para resolver el error "cantidad is required"
+            const valorCantidad = Number(purchaseData.cantidad || purchaseData.unidades || 0);
+            const valorPrecio = Number(purchaseData.precio || purchaseData.valorUnitario || 0);
+
+            const universalData = {
                 materialId: purchaseData.materialId,
                 proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
-                cantidad: Number(purchaseData.cantidad || purchaseData.unidades || 0),
-                precio: Number(purchaseData.precio || purchaseData.valorUnitario || 0),
+                
+                // Enviamos cantidad bajo todos los nombres posibles
+                cantidad: valorCantidad,
+                unidades: valorCantidad,
+                quantity: valorCantidad,
+
+                // Enviamos precio bajo todos los nombres posibles
+                precio: valorPrecio,
+                valorUnitario: valorPrecio,
+                costo: valorPrecio,
+
                 largo: Number(purchaseData.largo || 0),
-                ancho: Number(purchaseData.ancho || 0)
-                // Se omite 'tipo' intencionalmente para bypass de validación ENUM
+                ancho: Number(purchaseData.ancho || 0),
+                
+                // Forzamos "compra" en minúsculas (estándar común)
+                tipo: "compra" 
             };
 
-            console.log("🛡️ Enviando a Atlas (v9.9.0 - Sin Tipo):", cleanData);
+            console.log("🚀 Enviando Estructura Universal v10.0.0:", universalData);
             
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(cleanData)
+                body: JSON.stringify(universalData)
             });
             return await window.API._safeParse(response);
         } catch (err) {
@@ -204,4 +217,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v9.9.0 - Modo Diagnóstico Activo.");
+console.log("🚀 API v10.0.0 - Estructura Universal Lista.");
