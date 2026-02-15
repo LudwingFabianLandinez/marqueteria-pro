@@ -7,22 +7,20 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* ESTRUCTURA DASHBOARD (Mantenida de tu código) */
+        /* ESTRUCTURA DASHBOARD (Mantenida de tus imágenes) */
         .dashboard-wrapper {
             display: flex;
             min-height: 100vh;
         }
 
-        /* BARRA LATERAL (Sidebar Azul) - Fija para no moverse */
+        /* BARRA LATERAL (Sidebar Azul) */
         .sidebar {
             width: 260px;
-            background: #1a2c5b;
+            background: #1a2c5b; /* Azul oscuro de la foto */
             color: white;
             padding: 20px 0;
             display: flex;
             flex-direction: column;
-            position: fixed;
-            height: 100vh;
         }
 
         .logo-area {
@@ -55,16 +53,14 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* CONTENIDO PRINCIPAL - Con margen para no chocar con el sidebar */
+        /* CONTENIDO PRINCIPAL */
         .main-container {
             flex: 1;
-            margin-left: 260px; /* Ancho del sidebar */
             background: #f7fafc;
             padding: 30px;
             display: grid;
-            grid-template-columns: 1fr 340px; /* Tabla a la izquierda, Directorio a la derecha */
+            grid-template-columns: 1fr 320px; /* Espacio para el directorio a la derecha */
             gap: 25px;
-            align-items: flex-start;
         }
 
         .content-left {
@@ -101,7 +97,7 @@
         .btn-purple { background: #9f7aea; }
         .btn-green { background: #48bb78; }
 
-        /* TABLA DE INVENTARIO (Tu estilo original) */
+        /* TABLA DE INVENTARIO (Estilo Blanco Limpio) */
         .inventory-card {
             background: white;
             border-radius: 12px;
@@ -110,29 +106,12 @@
             overflow-x: auto;
         }
 
-        .inventory-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .inventory-table thead {
-            background: #3182ce; /* Azul del encabezado de tu foto */
-            color: white;
-        }
-
-        .inventory-table th {
-            padding: 15px;
-            font-size: 0.85rem;
-        }
-
-        /* DIRECTORIO DE PROVEEDORES (Barra Lateral Derecha) */
+        /* DIRECTORIO DE PROVEEDORES (Barra Derecha) */
         .providers-sidebar {
-            background: #2d3748; /* Fondo oscuro de tu foto */
+            background: #2d3748; /* Fondo oscuro del directorio */
             border-radius: 12px;
             overflow: hidden;
             height: fit-content;
-            position: sticky;
-            top: 30px;
         }
 
         .providers-header {
@@ -165,7 +144,7 @@
             gap: 12px;
         }
 
-        /* TARJETAS DE PROVEEDOR BLANCAS (Como en la foto) */
+        /* TARJETAS DE PROVEEDOR (Dentro del directorio) */
         .provider-card {
             background: white;
             border-radius: 8px;
@@ -174,7 +153,6 @@
             justify-content: space-between;
             align-items: center;
             color: #2d3748;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .provider-info h4 { margin: 0; font-size: 0.9rem; color: #1a202c; }
@@ -217,18 +195,17 @@
             </div>
 
             <div class="inventory-card">
-                <table class="inventory-table">
+                <table class="inventory-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr>
-                            <th style="text-align: left;">MATERIAL / CATEGORÍA</th>
-                            <th>MEDIDAS MATERIAL</th>
-                            <th>COSTO M²</th>
-                            <th>STOCK DISPONIBLE</th>
-                            <th>ACCIONES</th>
+                            <th style="text-align: left; padding: 15px; background: #3182ce; color: white;">MATERIAL / CATEGORÍA</th>
+                            <th style="padding: 15px; background: #3182ce; color: white;">MEDIDAS MATERIAL</th>
+                            <th style="padding: 15px; background: #3182ce; color: white;">COSTO M²</th>
+                            <th style="padding: 15px; background: #3182ce; color: white;">STOCK DISPONIBLE</th>
+                            <th style="padding: 15px; background: #3182ce; color: white;">ACCIONES</th>
                         </tr>
                     </thead>
-                    <tbody id="inventoryTable">
-                        </tbody>
+                    <tbody id="inventoryTable"></tbody>
                 </table>
             </div>
         </div>
@@ -249,20 +226,19 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    // Lógica para abrir modal
+    // Lógica para abrir el modal
     window.abrirModalCompra = () => {
         const modal = document.getElementById('modalCompra');
-        if(modal) modal.style.display = 'block';
+        if (modal) modal.style.display = 'block';
     };
     
-    // Función de renderizado para las tarjetas del directorio
+    // Función para renderizar el directorio
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
-        const badge = document.getElementById('prov-count');
+        const count = document.getElementById('prov-count');
+        if (count) count.textContent = `${lista.length} registrados`;
         
-        if(badge) badge.textContent = `${lista.length} registrados`;
-        if(!container) return;
-
+        if (!container) return;
         if (lista.length === 0) {
             container.innerHTML = '<p style="color:#a0aec0; text-align:center;">No hay proveedores.</p>';
             return;
