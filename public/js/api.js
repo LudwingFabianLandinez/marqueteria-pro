@@ -66,13 +66,27 @@ window.API = {
         }
     },
 
+    /** NUEVA FUNCIÓN CONSOLIDADA: GUARDAR O EDITAR MATERIAL **/
+    saveMaterial: async function(materialData) {
+        try {
+            const isEdit = materialData.id && materialData.id !== "";
+            const url = isEdit ? `${window.API.url}/inventory/${materialData.id}` : `${window.API.url}/inventory`;
+            const method = isEdit ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(materialData)
+            });
+            return await window.API._safeParse(response);
+        } catch (err) { throw err; }
+    },
+
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Iniciando registro de compra v12.0.0");
+        const valorCantidad = Number(purchaseData.cantidad || purchaseData.cantidad_m2 || 0);
+        const valorPrecio = Number(purchaseData.precio || purchaseData.precio_total || 0);
         
-        const valorCantidad = Number(purchaseData.cantidad || 0);
-        const valorPrecio = Number(purchaseData.precio || purchaseData.costo || 0);
-        
-        // BUCLE DE COMPATIBILIDAD PARA ENUM DE BASE DE DATOS
         const tiposDePrueba = ['compra', 'PURCHASE', 'INGRESO', 'entrada'];
         let ultimoError = null;
 
@@ -83,15 +97,10 @@ window.API = {
                     proveedorId: purchaseData.proveedorId || purchaseData.providerId,
                     cantidad: valorCantidad,
                     precio: valorPrecio,
-                    tipo: tipo, // Probando variante actual
-                    detalles: {
-                        largo: Number(purchaseData.largo || 0),
-                        ancho: Number(purchaseData.ancho || 0)
-                    },
+                    tipo: tipo,
+                    detalles: purchaseData.detalles || {},
                     fecha: new Date().toISOString()
                 };
-
-                console.log(`📡 Intentando registro con tipo: "${tipo}"...`);
 
                 const response = await fetch(`${window.API.url}/inventory/purchase`, {
                     method: 'POST',
@@ -99,21 +108,12 @@ window.API = {
                     body: JSON.stringify(payload)
                 });
 
-                if (response.ok) {
-                    console.log(`✅ ¡Éxito! El servidor aceptó el tipo: "${tipo}"`);
-                    return await window.API._safeParse(response);
-                }
-
+                if (response.ok) return await window.API._safeParse(response);
                 const errorData = await response.json();
                 ultimoError = errorData.message || "Error de validación";
-                console.warn(`⚠️ Rechazado con "${tipo}":`, ultimoError);
-
-            } catch (err) {
-                ultimoError = err.message;
-            }
+            } catch (err) { ultimoError = err.message; }
         }
-
-        throw new Error("Error crítico: La base de datos no aceptó ninguno de los tipos de operación permitidos. Detalle: " + ultimoError);
+        throw new Error("Error crítico en compra: " + ultimoError);
     },
 
     adjustStock: async function(data) {
@@ -182,4 +182,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.0.0 - Blindaje y Bucle de Compatibilidad Activo.");
+console.log("🛡️ API v12.0.0 - Blindaje Activo.");
