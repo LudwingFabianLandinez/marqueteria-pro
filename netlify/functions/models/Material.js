@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 /**
  * MODELO DE MATERIALES - MARQUETERÍA LA CHICA MORALES
+ * Versión: 12.1.6 - CONSOLIDADO FINAL
  * Define la estructura de las láminas y perfiles del inventario.
  */
 const MaterialSchema = new mongoose.Schema({
@@ -53,7 +54,7 @@ const MaterialSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    // Sugerencia: Precio de venta para que el cotizador funcione solo
+    // Precio de venta sugerido (Tu sugerencia original)
     precio_venta_sugerido: {
         type: Number,
         default: 0
@@ -90,6 +91,7 @@ const MaterialSchema = new mongoose.Schema({
 /**
  * MIDDLEWARE PRE-SAVE:
  * Realiza cálculos técnicos automáticos antes de guardar.
+ * Mantiene intacta tu lógica de conversión de unidades.
  */
 MaterialSchema.pre('save', function(next) {
     // Caso de materiales por área (Vidrios, Foams, etc)
@@ -119,6 +121,6 @@ MaterialSchema.pre('save', function(next) {
 
 /**
  * EXPORTACIÓN CORREGIDA PARA SERVERLESS:
- * Mantenemos la lógica de Singleton para evitar errores de re-definición en Netlify.
+ * Mantenemos tu lógica de Singleton para evitar errores de re-definición en Netlify.
  */
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');

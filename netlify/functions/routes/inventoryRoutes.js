@@ -3,7 +3,6 @@ const router = express.Router();
 
 /**
  * IMPORTACIÓN DE MODELOS
- * Aseguramos que los modelos estén cargados para evitar errores de referencia
  */
 const Material = require('../models/Material');
 const Provider = require('../models/Provider');
@@ -14,10 +13,29 @@ const Provider = require('../models/Provider');
 const inventoryController = require('../controllers/inventoryController');
 
 /**
+ * 🛡️ MIDDLEWARE QUIRÚRGICO DE NORMALIZACIÓN (Blindaje de ENUM)
+ * Este bloque intercepta la petición y arregla el valor 'tipo' antes 
+ * de que llegue al controlador para evitar el Error 500 de Mongoose.
+ */
+const normalizarTipoCompra = (req, res, next) => {
+    if (req.body && req.body.tipo) {
+        // Limpiamos el valor de espacios y lo pasamos a minúsculas para comparar
+        const tipoOriginal = String(req.body.tipo).trim().toLowerCase();
+        
+        // Blindaje: Si el servidor espera 'PURCHASE' (mayúsculas), aquí lo forzamos.
+        // Esto soluciona el error: "tipo: 'compra' is not a valid enum value"
+        if (tipoOriginal === 'compra' || tipoOriginal === 'purchase') {
+            req.body.tipo = 'PURCHASE'; 
+        }
+    }
+    next();
+};
+
+/**
  * 📋 RUTAS DE INVENTARIO PRINCIPAL
  */
 
-// 1. Obtener lista completa (Si falla uno, intenta el otro)
+// 1. Obtener lista completa (Si falla uno, intenta el otro método del controlador)
 router.get('/', (req, res, next) => {
     const fn = inventoryController.getInventory || inventoryController.getMaterials || inventoryController.getAll;
     if (typeof fn === 'function') return fn(req, res, next);
@@ -27,24 +45,18 @@ router.get('/', (req, res, next) => {
 // 2. Historial de compras para purchases.html
 router.get('/all-purchases', inventoryController.getAllPurchases);
 
-// 3. Registrar nueva compra (Asegura que el frontend envíe datos a esta ruta)
-router.post('/purchase', inventoryController.registerPurchase);
+// 3. Registrar nueva compra (Aplicamos el normalizador aquí antes del controlador)
+router.post('/purchase', normalizarTipoCompra, inventoryController.registerPurchase);
 
 /**
  * 📊 RUTAS DE ANALÍTICA (Dashboard Superior)
  */
-
-// Resumen de compras (KPIs)
 router.get('/purchases-summary', inventoryController.getPurchasesSummary);
-
-// Alertas de stock bajo
 router.get('/low-stock', inventoryController.getLowStockMaterials);
 
 /**
  * 🛠️ GESTIÓN Y AJUSTES
  */
-
-// 4. Ajuste manual de stock (Ruta que usa el botón de la tabla)
 router.post('/adjust', (req, res, next) => {
     const fn = inventoryController.adjustStock || inventoryController.manualAdjustment || inventoryController.updateStock;
     if (typeof fn === 'function') return fn(req, res, next);
@@ -55,11 +67,10 @@ router.post('/adjust', (req, res, next) => {
  * 🕒 RUTAS DE HISTORIAL
  */
 
-// 5. NUEVO: Historial General (Para evitar el error 404 que traba el modal)
+// 5. Historial General
 router.get('/history', (req, res, next) => {
-    // Intentamos usar la función del controlador si existe, si no, devolvemos array vacío para no trabar el front
     const fn = inventoryController.getAllHistory || inventoryController.getMaterialHistory;
-    if (typeof fn === 'function' && fn.length === 2) { // Si es una función que no requiere ID
+    if (typeof fn === 'function' && fn.length === 2) { 
         return fn(req, res, next);
     }
     res.json({ success: true, data: [] });
