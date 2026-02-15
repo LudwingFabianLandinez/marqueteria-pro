@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.1.4 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE EXTREMO
- * Corrección de Error 500 (Enum Validation) y Sincronización con API v12.1.4
+ * Versión: 12.1.5 - CONSOLIDADO FINAL: FIX ENUM "PURCHASE"
+ * Corrección de Error 500 mediante estandarización de tipo a nivel API.
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.1.4");
+    console.log("🚀 Sistema Iniciado - v12.1.5");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -21,7 +21,7 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- SECCIÓN PROVEEDORES (Directorio Lateral y Registro) ---
+// --- SECCIÓN PROVEEDORES ---
 
 async function fetchProviders() {
     try {
@@ -166,7 +166,7 @@ function renderTable(materiales) {
     });
 }
 
-// --- LÓGICA DE EDICIÓN Y CREACIÓN DE MATERIALES ---
+// --- EDICIÓN Y CREACIÓN ---
 
 window.prepararNuevoMaterial = function() {
     const form = document.getElementById('matForm');
@@ -179,14 +179,12 @@ window.prepararNuevoMaterial = function() {
 window.prepararEdicionMaterial = function(id) {
     const m = window.todosLosMateriales.find(mat => mat.id === id);
     if (!m) return;
-
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_m2_costo;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
-
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };
@@ -204,7 +202,6 @@ function configurarEventos() {
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
             proveedorId: document.getElementById('proveedorSelect').value
         };
-
         try {
             const res = await window.API.saveMaterial(payload);
             if(res.success) {
@@ -222,7 +219,7 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    /** LÓGICA DE COMPRA BLINDADA V12.1.4 **/
+    /** LÓGICA DE COMPRA CORREGIDA V12.1.5 **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -232,7 +229,6 @@ function configurarEventos() {
 
             const materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
-            
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
@@ -246,18 +242,14 @@ function configurarEventos() {
 
             const m2Calculados = Number(((largo * ancho) / 10000 * cant).toFixed(4));
             
-            // CONSTRUCCIÓN DE OBJETO PURO (Evita errores de validación de prototipo)
             const objetoCompra = Object.create(null);
             objetoCompra.materialId = materialId;
             objetoCompra.proveedorId = providerId;
             objetoCompra.cantidad_m2 = m2Calculados;
             objetoCompra.precio_total = costoTotal;
-            objetoCompra.tipo = "compra"; // Asegurando valor minúsculo exacto
-            objetoCompra.detalles = { 
-                largo_cm: largo, 
-                ancho_cm: ancho, 
-                cantidad_laminas: cant 
-            };
+            // CAMBIO CRÍTICO: Usando "PURCHASE" para compatibilidad con el Backend
+            objetoCompra.tipo = "PURCHASE"; 
+            objetoCompra.detalles = { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant };
 
             try {
                 const res = await window.API.registerPurchase(objetoCompra);
@@ -267,11 +259,10 @@ function configurarEventos() {
                     e.target.reset(); 
                     alert("✅ Compra registrada con éxito");
                 } else {
-                    alert("❌ Error de Validación: " + (res.message || "Revisar ENUM en servidor"));
+                    alert("❌ Error: " + (res.message || "Valor de 'tipo' no aceptado"));
                 }
             } catch (err) { 
-                console.error("Fallo:", err);
-                alert("❌ Error: " + err.message); 
+                alert("❌ Error en la comunicación con el servidor"); 
             } finally { if(btn) btn.disabled = false; }
         });
     }
@@ -293,16 +284,11 @@ window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
     const provRegisterSelect = document.getElementById('proveedorSelect');
-
     const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
-        window.todosLosProveedores.map(p => {
-            const nombre = String(p.nombre || 'Sin nombre').toUpperCase();
-            return `<option value="${p._id || p.id}">${nombre}</option>`;
-        }).join('');
+        window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
 
     if (provSelect) provSelect.innerHTML = opcionesProv;
     if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
-
     if (matSelect) {
         matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
             window.todosLosMateriales.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
@@ -315,13 +301,11 @@ window.verHistorial = async function(id, nombre) {
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedorHistorial = document.getElementById('listaHistorialPrecios');
         if (document.getElementById('historialMaterialNombre')) document.getElementById('historialMaterialNombre').innerText = nombre;
-        
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         if (Array.isArray(datos) && datos.length > 0) {
             const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
             contenedorHistorial.innerHTML = datos.map(h => {
-                const tipoMov = (h.tipo || "").toLowerCase();
-                const colorCosto = tipoMov === 'compra' ? '#10b981' : '#f43f5e';
+                const colorCosto = (h.tipo || "").toUpperCase() === 'PURCHASE' ? '#10b981' : '#f43f5e';
                 return `
                 <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between;">
                     <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
@@ -342,9 +326,7 @@ window.eliminarMaterial = async function(id) {
     }
 };
 
-window.cerrarModales = function() { 
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
-};
+window.cerrarModales = function() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); };
 
 window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
     if(document.getElementById('adjustId')) document.getElementById('adjustId').value = id;
