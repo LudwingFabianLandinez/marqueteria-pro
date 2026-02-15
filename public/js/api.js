@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 9.8.8 (Consolidación y Limpieza Total)
+ * Módulo de conexión API - Versión 9.8.9 (Corrección de ENUM y Consolidación)
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -88,10 +88,10 @@ window.API = {
         }
     },
 
-    // Registro de compras (Entrada de mercancía) - VERSIÓN QUIRÚRGICA 9.8.8
+    // Registro de compras (Entrada de mercancía) - VERSIÓN QUIRÚRGICA 9.8.9
     registerPurchase: async function(purchaseData) {
         try {
-            // CONSOLIDACIÓN: Reconstruimos el objeto pieza por pieza para evitar campos inválidos
+            // AJUSTE FINAL: Forzamos "compra" en minúsculas para cumplir con el ENUM del servidor
             const cleanData = {
                 materialId: purchaseData.materialId,
                 proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
@@ -99,10 +99,10 @@ window.API = {
                 precio: Number(purchaseData.precio || purchaseData.valorUnitario || 0),
                 largo: Number(purchaseData.largo || 0),
                 ancho: Number(purchaseData.ancho || 0),
-                tipo: "COMPRA"
+                tipo: "compra" // Corregido: minúsculas obligatorias para el backend
             };
 
-            console.log("🛡️ Objeto Consolidado enviado a Atlas:", cleanData);
+            console.log("🛡️ Enviando a Atlas (v9.8.9):", cleanData);
             
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
@@ -203,4 +203,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v9.8.8 - Consolidación Quirúrgica Finalizada.");
+console.log("🛡️ API v9.8.9 - Validación de ENUM corregida.");
