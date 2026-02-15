@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 9.8.7 (Mapeo de Datos Atlas)
+ * Módulo de conexión API - Versión 9.8.8 (Consolidación y Limpieza Total)
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -14,7 +14,6 @@ window.API = {
         const contentType = response.headers.get("content-type");
         
         if (!response.ok) {
-            // Si el servidor falla, intentamos extraer el mensaje de error real
             let errorMsg = `Error del servidor (Estado ${response.status})`;
             try {
                 if (contentType && contentType.includes("application/json")) {
@@ -27,7 +26,6 @@ window.API = {
         
         if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
-            // Normalizamos la respuesta: si el backend envía el array directo, lo envolvemos
             return Array.isArray(data) ? { success: true, data: data } : data;
         }
         
@@ -42,7 +40,6 @@ window.API = {
             const response = await fetch(`${window.API.url}/providers`);
             const res = await window.API._safeParse(response);
             
-            // BLINDAJE: Si el servidor manda proveedores sin nombre o nulos, los reparamos aquí
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
                     ...p,
@@ -91,23 +88,26 @@ window.API = {
         }
     },
 
-    // Registro de compras (Entrada de mercancía)
+    // Registro de compras (Entrada de mercancía) - VERSIÓN QUIRÚRGICA 9.8.8
     registerPurchase: async function(purchaseData) {
         try {
-            // INTERVENCIÓN QUIRÚRGICA: Mapeo de campos para Atlas
-            // Aseguramos que 'cantidad' sea el nombre del campo y sea un número real.
-            const dataCorregida = {
-                ...purchaseData,
+            // CONSOLIDACIÓN: Reconstruimos el objeto pieza por pieza para evitar campos inválidos
+            const cleanData = {
+                materialId: purchaseData.materialId,
+                proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
                 cantidad: Number(purchaseData.cantidad || purchaseData.unidades || 0),
-                precio: Number(purchaseData.precio || purchaseData.valorUnitario || 0)
+                precio: Number(purchaseData.precio || purchaseData.valorUnitario || 0),
+                largo: Number(purchaseData.largo || 0),
+                ancho: Number(purchaseData.ancho || 0),
+                tipo: "COMPRA"
             };
 
-            console.log("📦 Enviando datos finales a Atlas:", dataCorregida);
+            console.log("🛡️ Objeto Consolidado enviado a Atlas:", cleanData);
             
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(dataCorregida)
+                body: JSON.stringify(cleanData)
             });
             return await window.API._safeParse(response);
         } catch (err) {
@@ -203,4 +203,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v9.8.7 - Mapeo de Atlas Corregido.");
+console.log("🛡️ API v9.8.8 - Consolidación Quirúrgica Finalizada.");
