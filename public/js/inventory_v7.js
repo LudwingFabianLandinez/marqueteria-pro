@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.1.0 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
- * Corrección de Error 500 y Sincronización con API v12.1.0
+ * Versión: 12.1.2 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
+ * Corrección de Error 500 y Sincronización con API v12.1.2
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.1.0");
+    console.log("🚀 Sistema Iniciado - v12.1.2");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -246,14 +246,15 @@ function configurarEventos() {
 
             const m2Calculados = ((largo * ancho) / 10000) * cant;
             
-            // Objeto limpio con campos que la API v12.1.0 espera
+            // Objeto limpio con campos que la API v12.1.2 espera
+            // NOTA: 'tipo' en minúsculas para cumplir validación del servidor
             const objetoCompra = {
                 materialId: materialId,
                 proveedorId: providerId,
-                cantidad_m2: m2Calculados,
+                cantidad_m2: Number(m2Calculados.toFixed(4)),
                 precio_total: costoTotal,
                 detalles: { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant },
-                tipo: "COMPRA" 
+                tipo: "compra" 
             };
 
             try {
@@ -268,7 +269,7 @@ function configurarEventos() {
                 }
             } catch (err) { 
                 console.error("Fallo:", err);
-                alert("❌ Error de comunicación con el servidor"); 
+                alert("❌ Error: " + err.message); 
             } finally { if(btn) btn.disabled = false; }
         });
     }
@@ -316,11 +317,15 @@ window.verHistorial = async function(id, nombre) {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         if (Array.isArray(datos) && datos.length > 0) {
             const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-            contenedorHistorial.innerHTML = datos.map(h => `
+            contenedorHistorial.innerHTML = datos.map(h => {
+                const tipoMov = (h.tipo || "").toLowerCase();
+                const colorCosto = tipoMov === 'compra' ? '#10b981' : '#f43f5e';
+                return `
                 <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between;">
                     <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
-                    <div><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formateador.format(h.costo_unitario || h.precio_total || 0)}</span></div>
-                </div>`).join('');
+                    <div><span style="font-weight: bold; color: ${colorCosto};">${formateador.format(h.costo_unitario || h.precio_total || 0)}</span></div>
+                </div>`;
+            }).join('');
         } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
