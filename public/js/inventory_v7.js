@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.9.0 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
- * Mantiene el diseño original y corrige errores de referencia en compras.
+ * Versión: 12.1.0 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
+ * Corrección de Error 500 y Sincronización con API v12.1.0
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v9.9.0");
+    console.log("🚀 Sistema Iniciado - v12.1.0");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -194,7 +194,6 @@ window.prepararEdicionMaterial = function(id) {
 // --- EVENTOS Y UTILIDADES ---
 
 function configurarEventos() {
-    // EVENTO: Guardar Material (Nuevo o Editado)
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -223,7 +222,7 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    /** LÓGICA DE COMPRA CORREGIDA: Evita ReferenceError **/
+    /** LÓGICA DE COMPRA OPTIMIZADA (SUPERANDO ERROR 500) **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -231,9 +230,8 @@ function configurarEventos() {
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) btn.disabled = true;
 
-            // Captura segura de IDs con fallback para evitar undefined
             const materialId = document.getElementById('compraMaterial')?.value;
-            const providerId = document.getElementById('compraProveedor')?.value || document.getElementById('proveedorSelect')?.value;
+            const providerId = document.getElementById('compraProveedor')?.value; 
             
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
@@ -248,15 +246,14 @@ function configurarEventos() {
 
             const m2Calculados = ((largo * ancho) / 10000) * cant;
             
-            // Estructura de objeto sincronizada con Backend
+            // Objeto limpio con campos que la API v12.1.0 espera
             const objetoCompra = {
                 materialId: materialId,
-                proveedorId: providerId, // Se asegura el uso de providerId correctamente
-                cantidad_m2: Number(m2Calculados.toFixed(4)),
-                precio_total: Number(costoTotal),
+                proveedorId: providerId,
+                cantidad_m2: m2Calculados,
+                precio_total: costoTotal,
                 detalles: { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant },
-                fecha: new Date().toISOString(),
-                tipo: "PURCHASE" 
+                tipo: "COMPRA" 
             };
 
             try {
@@ -269,8 +266,10 @@ function configurarEventos() {
                 } else {
                     alert("❌ Error: " + (res.message || "No se pudo registrar"));
                 }
-            } catch (err) { alert("❌ Fallo crítico en el servidor"); }
-            finally { if(btn) btn.disabled = false; }
+            } catch (err) { 
+                console.error("Fallo:", err);
+                alert("❌ Error de comunicación con el servidor"); 
+            } finally { if(btn) btn.disabled = false; }
         });
     }
 
