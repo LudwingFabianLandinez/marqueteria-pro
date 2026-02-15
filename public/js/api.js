@@ -31,7 +31,8 @@ window.API = {
     getProviders: async function() {
         try {
             const response = await fetch(`${this.url}/providers`);
-            return await this._safeParse(response);
+            // CAMBIO QUIRÚRGICO: Usamos window.API para asegurar la función
+            return await window.API._safeParse(response);
         } catch (err) { 
             console.warn("⚠️ Usando Respaldo Local para Proveedores.");
             const localData = localStorage.getItem('db_proveedores');
@@ -40,19 +41,20 @@ window.API = {
         }
     },
 
-  saveProvider: async function(providerData) {
-    try {
-        const response = await fetch(`${this.url}/providers`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(providerData)
-        });
-        return await this._safeParse(response);
-    } catch (err) {
-        console.error("🚨 ERROR REAL DE CONEXIÓN:", err);
-        throw err; // Esto hará que el 'catch' de inventory_v7 muestre el error real
-    }
-},
+    saveProvider: async function(providerData) {
+        try {
+            const response = await fetch(`${this.url}/providers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(providerData)
+            });
+            // CAMBIO QUIRÚRGICO: Usamos window.API para evitar error "this._safeParse is not a function"
+            return await window.API._safeParse(response);
+        } catch (err) {
+            console.error("🚨 ERROR REAL DE CONEXIÓN:", err);
+            throw err; 
+        }
+    },
 
     // ==========================================
     // INVENTARIO Y HISTORIAL
@@ -60,7 +62,7 @@ window.API = {
     getInventory: async function() {
         try {
             const response = await fetch(`${this.url}/inventory`);
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { 
             console.error("🚨 Error cargando inventario:", err);
             const localInv = localStorage.getItem('db_materiales');
@@ -72,11 +74,10 @@ window.API = {
         }
     },
 
-    // ESTA ES LA FUNCIÓN QUE FALTA EN TU CONSOLA
     getHistory: async function() {
         try {
             const response = await fetch(`${this.url}/inventory/history`);
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { 
             console.warn("⚠️ Error en historial, devolviendo vacío.");
             return { success: true, data: [] }; 
@@ -90,7 +91,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -100,7 +101,7 @@ window.API = {
     getDashboardStats: async function() {
         try {
             const response = await fetch(`${this.url}/stats`);
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { 
             return { success: true, data: { totalVentas: 0, productosBajos: 0 }, local: true }; 
         }
@@ -109,7 +110,7 @@ window.API = {
     getInvoices: async function() { 
         try { 
             const r = await fetch(`${this.url}/invoices`); 
-            return await this._safeParse(r); 
+            return await window.API._safeParse(r); 
         } catch(e) { return { success: true, data: [] }; } 
     },
 
@@ -120,7 +121,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
             }); 
-            return await this._safeParse(r); 
+            return await window.API._safeParse(r); 
         } catch(e) { return { success: false }; } 
     },
 
@@ -131,7 +132,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(quoteData)
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     }
 };
@@ -141,7 +142,6 @@ window.API = {
 // ==========================================
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
-// Por si acaso el código busca "getMateriales" o "getStats"
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 
