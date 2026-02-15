@@ -30,8 +30,8 @@ window.API = {
     // ==========================================
     getProviders: async function() {
         try {
-            const response = await fetch(`${this.url}/providers`);
-            // CAMBIO QUIRÚRGICO: Usamos window.API para asegurar la función
+            // Cambio: Usamos window.API.url para evitar error 'undefined'
+            const response = await fetch(`${window.API.url}/providers`);
             return await window.API._safeParse(response);
         } catch (err) { 
             console.warn("⚠️ Usando Respaldo Local para Proveedores.");
@@ -43,12 +43,12 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            const response = await fetch(`${this.url}/providers`, {
+            // Cambio: Usamos window.API.url para evitar error 'undefined'
+            const response = await fetch(`${window.API.url}/providers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
             });
-            // CAMBIO QUIRÚRGICO: Usamos window.API para evitar error "this._safeParse is not a function"
             return await window.API._safeParse(response);
         } catch (err) {
             console.error("🚨 ERROR REAL DE CONEXIÓN:", err);
@@ -61,7 +61,7 @@ window.API = {
     // ==========================================
     getInventory: async function() {
         try {
-            const response = await fetch(`${this.url}/inventory`);
+            const response = await fetch(`${window.API.url}/inventory`);
             return await window.API._safeParse(response);
         } catch (err) { 
             console.error("🚨 Error cargando inventario:", err);
@@ -76,7 +76,7 @@ window.API = {
 
     getHistory: async function() {
         try {
-            const response = await fetch(`${this.url}/inventory/history`);
+            const response = await fetch(`${window.API.url}/inventory/history`);
             return await window.API._safeParse(response);
         } catch (err) { 
             console.warn("⚠️ Error en historial, devolviendo vacío.");
@@ -86,7 +86,7 @@ window.API = {
 
     adjustStock: async function(data) {
         try {
-            const response = await fetch(`${this.url}/inventory/adjust`, {
+            const response = await fetch(`${window.API.url}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -100,7 +100,7 @@ window.API = {
     // ==========================================
     getDashboardStats: async function() {
         try {
-            const response = await fetch(`${this.url}/stats`);
+            const response = await fetch(`${window.API.url}/stats`);
             return await window.API._safeParse(response);
         } catch (err) { 
             return { success: true, data: { totalVentas: 0, productosBajos: 0 }, local: true }; 
@@ -109,14 +109,14 @@ window.API = {
 
     getInvoices: async function() { 
         try { 
-            const r = await fetch(`${this.url}/invoices`); 
+            const r = await fetch(`${window.API.url}/invoices`); 
             return await window.API._safeParse(r); 
         } catch(e) { return { success: true, data: [] }; } 
     },
 
     saveInvoice: async function(d) { 
         try { 
-            const r = await fetch(`${this.url}/invoices`, {
+            const r = await fetch(`${window.API.url}/invoices`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
@@ -127,7 +127,7 @@ window.API = {
 
     generateQuote: async function(quoteData) {
         try {
-            const response = await fetch(`${this.url}/quotes/generate`, {
+            const response = await fetch(`${window.API.url}/quotes/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(quoteData)
