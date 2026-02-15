@@ -1,160 +1,114 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Lógica de Inventario, Proveedores y Movimientos de Compra
- * Versión: 9.0.0 - SOLUCIÓN INTEGRAL: AGENDA SIN BLOQUEOS
+ * Versión: 9.2.0 - INTEGRACIÓN TOTAL (INVENTARIO M2 + DIRECTORIO FIJO)
+ * Estado: Quirúrgico / Sin errores de referencia
  */
 
-// Usamos window para asegurar que las variables sobrevivan a cualquier recarga de script
+// 1. VARIABLES GLOBALES
 window.todosLosMateriales = [];
 window.todosLosProveedores = [];
 
+// 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
     console.log("🚀 Sistema Iniciado - Netlify Ready");
-    inicializarSistema();
-});
-
-// Nueva función de inicio para asegurar que los datos lleguen antes de interactuar
-async function inicializarSistema() {
-    await Promise.all([fetchInventory(), fetchProviders()]);
+    fetchInventory();
+    fetchProviders(); 
     configurarEventos();
-}
+});
 
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- MODALES DE PROVEEDORES (CORRECCIÓN DE PESO PARA BOTÓN TRABADO) ---
-
-window.abrirAgenda = function() {
-    const modal = document.getElementById('modalAgenda');
-    if (modal) {
-        // 1. Respuesta visual instantánea para que el botón no se sienta trabado
-        modal.style.setProperty('display', 'flex', 'important');
-        console.log("🔔 Agenda abierta: Dibujando lista...");
-        
-        // 2. Renderizamos lo que haya en memoria inmediatamente
-        window.renderAgendaProveedores();
-    }
-};
-
-window.renderAgendaProveedores = function() {
-    const contenedor = document.getElementById('agendaContent');
-    if (!contenedor) return;
-
-    // Si la lista está vacía, mostramos carga y reintentamos traer de Atlas
-    if (!window.todosLosProveedores || window.todosLosProveedores.length === 0) {
-        contenedor.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;"><i class="fas fa-sync fa-spin"></i> Sincronizando con Atlas...</div>';
-        fetchProviders().then(() => {
-            if (window.todosLosProveedores.length > 0) window.renderAgendaProveedores();
-        });
-        return;
-    }
-
-    // Dibujado de la lista (Mantenemos tu diseño de columnas)
-    contenedor.innerHTML = window.todosLosProveedores.map(p => `
-        <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 45px; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; text-align: left;">
-            <div style="font-weight: bold; color: #1e293b;">${p.nombre || 'Sin nombre'}</div>
-            <div style="color: #64748b;">${p.contacto || 'Sin contacto'}</div>
-            <div style="text-align: right;">
-                <a href="tel:${p.telefono || ''}" style="background:#3498db; color:white; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;">
-                    <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
-                </a>
-            </div>
-        </div>
-    `).join('');
-};
-
-// --- OPERACIONES DE PROVEEDORES ---
-
-window.guardarProveedor = async function(event) {
-    if(event) event.preventDefault();
-    
-    // Identificamos el botón para dar feedback visual
-    const boton = event.target.querySelector('button[type="submit"]');
-    if(boton) boton.disabled = true;
-
-    const nombre = document.getElementById('provNombre')?.value;
-    const telefono = document.getElementById('provTelefono')?.value;
-    const contacto = document.getElementById('provContacto')?.value;
-    
-    if (!nombre) {
-        alert("El nombre es obligatorio");
-        if(boton) boton.disabled = false;
-        return;
-    }
-    
-    try {
-        const res = await window.API.saveProvider({ nombre, telefono, contacto });
-        if (res.success) {
-            alert("✅ Proveedor guardado");
-            
-            // 1. Limpiamos el formulario
-            document.getElementById('provForm')?.reset();
-            
-            // 2. Cerramos el modal de registro automáticamente
-            if (typeof window.cerrarModales === 'function') {
-                window.cerrarModales();
-            } else {
-                document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
-            }
-            
-            // 3. Actualizamos la lista lateral de la derecha
-            await fetchProviders();
-            
-            console.log("🔄 Directorio lateral actualizado exitosamente.");
-        }
-    } catch (error) { 
-        console.error("Error al guardar:", error); 
-        alert("❌ Error al conectar con Atlas");
-    } finally {
-        if(boton) boton.disabled = false;
-    }
-};
+// --- SECCIÓN PROVEEDORES (Directorio Lateral y Registro) ---
 
 async function fetchProviders() {
     try {
         const resultado = await window.API.getProviders();
-        const lista = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
+        const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
-        if (Array.isArray(lista)) {
-            window.todosLosProveedores = lista.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+        if (Array.isArray(listaBruta)) {
+            window.todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
-            // Actualizar el select para las compras
+            // Actualizar select de compras
             actualizarSelectProveedores();
 
-            // --- DIBUJAR EN EL PANEL LATERAL DERECHO ---
+            // DIBUJAR DIRECTORIO FIJO (Panel Derecho/Abajo)
             const directorio = document.getElementById('directorioProveedores');
             const contador = document.getElementById('contadorProv');
             
             if (directorio) {
                 if (window.todosLosProveedores.length === 0) {
-                    directorio.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:20px;">No hay proveedores.</p>';
+                    directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
                 } else {
                     directorio.innerHTML = window.todosLosProveedores.map(p => `
-                        <div style="background: white; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                             <div style="overflow: hidden;">
                                 <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre}</div>
-                                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">
-                                    <i class="fas fa-user" style="width:12px"></i> ${p.contacto || 'N/A'}
-                                </div>
+                                <div style="font-size: 0.7rem; color: #64748b;">${p.telefono || 'Sin Tel.'}</div>
                             </div>
-                            <a href="tel:${p.telefono}" style="background: #3498db; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0; margin-left: 10px;">
-                                <i class="fas fa-phone-alt" style="font-size: 0.8rem;"></i>
+                            <a href="tel:${p.telefono}" style="background: #3498db; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0;">
+                                <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
                             </a>
                         </div>
                     `).join('');
                 }
             }
-            
-            if (contador) {
-                contador.innerText = `${window.todosLosProveedores.length} registrados`;
-            }
+            if (contador) contador.innerText = `${window.todosLosProveedores.length} registrados`;
+            console.log("✅ Proveedores sincronizados:", window.todosLosProveedores.length);
         }
-    } catch (e) { 
-        console.error("❌ Error al obtener proveedores:", e); 
-    }
+    } catch (error) { console.error("❌ Error proveedores:", error); }
 }
+
+window.guardarProveedor = async function(event) {
+    if(event) event.preventDefault();
+    const nombre = document.getElementById('provNombre')?.value;
+    const telefono = document.getElementById('provTelefono')?.value;
+    const contacto = document.getElementById('provContacto')?.value;
+    
+    if (!nombre) return alert("El nombre es obligatorio");
+    
+    try {
+        const res = await window.API.saveProvider({ nombre, telefono, contacto });
+        if (res.success) {
+            alert("✅ Proveedor guardado");
+            document.getElementById('provForm')?.reset();
+            window.cerrarModales();
+            await fetchProviders(); // Recarga la lista lateral automáticamente
+        }
+    } catch (error) { console.error("Error al guardar:", error); }
+};
+
+// --- SECCIÓN INVENTARIO (Lógica de M2 e Historial) ---
+
+async function fetchInventory() {
+    try {
+        const resultado = await window.API.getInventory();
+        const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        
+        window.todosLosMateriales = datos.map(m => {
+            const stockReal = m.stock_actual_m2 ?? m.stock_actual ?? 0;
+            const stockMin = m.stock_minimo_m2 ?? m.stock_minimo ?? 2;
+            const precioCosto = m.precio_m2_costo ?? m.precio_total_lamina ?? 0;
+
+            return {
+                ...m,
+                nombre: m.nombre || "Sin nombre",
+                categoria: m.categoria || "General",
+                proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
+                stock_actual: Number(stockReal), 
+                precio_m2_costo: Number(precioCosto),
+                stock_minimo: Number(stockMin)
+            };
+        });
+        
+        renderTable(window.todosLosMateriales);
+        actualizarDatalistMateriales();
+        console.log("📦 Inventario cargado");
+    } catch (error) { console.error("❌ Error inventario:", error); }
+}
+
 function renderTable(materiales) {
     const cuerpoTabla = document.getElementById('inventoryTable');
     if (!cuerpoTabla) return;
@@ -201,34 +155,31 @@ function renderTable(materiales) {
     });
 }
 
+// --- EVENTOS Y UTILIDADES ---
+
 function configurarEventos() {
-    // 1. Buscador
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const termino = e.target.value.toLowerCase();
         renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
-    // 2. Formulario Proveedores
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    // 3. Formulario Compras (CON FINALLY PARA NO TRABAR BOTÓN)
     document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const boton = e.target.querySelector('button[type="submit"]');
+        const nombreMat = document.getElementById('nombreMaterial').value;
+        const objetoCompra = {
+            nombre: nombreMat.trim(),
+            tipo: (nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura')) ? 'ml' : 'm2',
+            proveedor: document.getElementById('proveedorSelect').value,
+            ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
+            largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value) || 0,
+            precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
+            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
+        };
         if(boton) boton.disabled = true;
-
         try {
-            const nombreMat = document.getElementById('nombreMaterial').value;
-            const objetoCompra = {
-                nombre: nombreMat.trim(),
-                tipo: (nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura')) ? 'ml' : 'm2',
-                proveedor: document.getElementById('proveedorSelect').value,
-                ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
-                largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value) || 0,
-                precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
-                cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
-            };
-            
             const res = await window.API.registerPurchase(objetoCompra);
             if (res.success) { 
                 window.cerrarModales(); 
@@ -236,14 +187,10 @@ function configurarEventos() {
                 e.target.reset(); 
                 alert("✅ Inventario actualizado");
             }
-        } catch (err) { 
-            alert("❌ Error al registrar"); 
-        } finally { 
-            if(boton) boton.disabled = false; 
-        }
+        } catch (err) { alert("❌ Error al registrar"); } 
+        finally { if(boton) boton.disabled = false; }
     });
 
-    // 4. Formulario Ajustes
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -265,7 +212,6 @@ window.verHistorial = async function(id, nombre) {
         const etiquetaNombre = document.getElementById('historialMaterialNombre');
         
         if (etiquetaNombre) etiquetaNombre.innerText = nombre;
-        
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         if (Array.isArray(datos) && datos.length > 0) {
