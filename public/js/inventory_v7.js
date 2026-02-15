@@ -29,16 +29,17 @@ async function fetchProviders() {
         const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
         if (Array.isArray(listaBruta)) {
+            // Ordenamos alfabéticamente
             window.todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
-            // Actualizar select de compras
             actualizarSelectProveedores();
 
-            // DIBUJAR DIRECTORIO FIJO (Panel Derecho/Abajo)
             const directorio = document.getElementById('directorioProveedores');
-            const contador = document.getElementById('contadorProv');
             
             if (directorio) {
+                // --- LINEA CLAVE: Limpiamos lo que había antes para que no se duplique ni se trabe ---
+                directorio.innerHTML = ''; 
+
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
                 } else {
@@ -47,6 +48,7 @@ async function fetchProviders() {
                             <div style="overflow: hidden;">
                                 <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre}</div>
                                 <div style="font-size: 0.7rem; color: #64748b;">${p.telefono || 'Sin Tel.'}</div>
+                                <div style="font-size: 0.6rem; color: #94a3b8;">${p.categoria || 'General'}</div>
                             </div>
                             <a href="tel:${p.telefono}" style="background: #3498db; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0;">
                                 <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
@@ -55,8 +57,7 @@ async function fetchProviders() {
                     `).join('');
                 }
             }
-            if (contador) contador.innerText = `${window.todosLosProveedores.length} registrados`;
-            console.log("✅ Proveedores sincronizados:", window.todosLosProveedores.length);
+            console.log("✅ Lista lateral actualizada");
         }
     } catch (error) { console.error("❌ Error proveedores:", error); }
 }
