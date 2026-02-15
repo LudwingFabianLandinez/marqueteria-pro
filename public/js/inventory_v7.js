@@ -63,21 +63,42 @@ async function fetchProviders() {
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
+    
+    // Captura extendida de todos los campos del formulario
     const nombre = document.getElementById('provNombre')?.value;
-    const telefono = document.getElementById('provTelefono')?.value;
+    const nit = document.getElementById('provNit')?.value;
     const contacto = document.getElementById('provContacto')?.value;
+    const telefono = document.getElementById('provTelefono')?.value;
+    const email = document.getElementById('provEmail')?.value;
+    const direccion = document.getElementById('provDireccion')?.value;
+    const categoria = document.getElementById('provCategoria')?.value;
     
     if (!nombre) return alert("El nombre es obligatorio");
     
     try {
-        const res = await window.API.saveProvider({ nombre, telefono, contacto });
+        // Enviamos el objeto completo a la API
+        const res = await window.API.saveProvider({ 
+            nombre, 
+            nit, 
+            contacto, 
+            telefono, 
+            email, 
+            direccion, 
+            categoria 
+        });
+
         if (res.success) {
             alert("✅ Proveedor guardado");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
-            await fetchProviders(); // Recarga la lista lateral automáticamente
+            
+            // Refresca la lista lateral para que aparezca el nuevo registro
+            await fetchProviders(); 
         }
-    } catch (error) { console.error("Error al guardar:", error); }
+    } catch (error) { 
+        console.error("Error al guardar:", error); 
+        alert("❌ Error al guardar el proveedor");
+    }
 };
 
 // --- SECCIÓN INVENTARIO (Lógica de M2 e Historial) ---
