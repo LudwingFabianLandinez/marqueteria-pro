@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.1.3 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
- * Corrección Definitiva Error 500 y Sincronización con API v12.1.3
+ * Versión: 12.1.4 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE EXTREMO
+ * Corrección de Error 500 (Enum Validation) y Sincronización con API v12.1.4
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.1.3");
+    console.log("🚀 Sistema Iniciado - v12.1.4");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -222,7 +222,7 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    /** LÓGICA DE COMPRA OPTIMIZADA (SUPERANDO ERROR 500) **/
+    /** LÓGICA DE COMPRA BLINDADA V12.1.4 **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -244,20 +244,19 @@ function configurarEventos() {
                 return;
             }
 
-            const m2Calculados = ((largo * ancho) / 10000) * cant;
+            const m2Calculados = Number(((largo * ancho) / 10000 * cant).toFixed(4));
             
-            // Objeto normalizado para enviar a API v12.1.3
-            const objetoCompra = {
-                materialId: materialId,
-                proveedorId: providerId,
-                cantidad_m2: m2Calculados,
-                precio_total: costoTotal,
-                detalles: { 
-                    largo_cm: largo, 
-                    ancho_cm: ancho, 
-                    cantidad_laminas: cant 
-                },
-                tipo: "compra" 
+            // CONSTRUCCIÓN DE OBJETO PURO (Evita errores de validación de prototipo)
+            const objetoCompra = Object.create(null);
+            objetoCompra.materialId = materialId;
+            objetoCompra.proveedorId = providerId;
+            objetoCompra.cantidad_m2 = m2Calculados;
+            objetoCompra.precio_total = costoTotal;
+            objetoCompra.tipo = "compra"; // Asegurando valor minúsculo exacto
+            objetoCompra.detalles = { 
+                largo_cm: largo, 
+                ancho_cm: ancho, 
+                cantidad_laminas: cant 
             };
 
             try {
@@ -268,7 +267,7 @@ function configurarEventos() {
                     e.target.reset(); 
                     alert("✅ Compra registrada con éxito");
                 } else {
-                    alert("❌ Error: " + (res.message || "No se pudo registrar"));
+                    alert("❌ Error de Validación: " + (res.message || "Revisar ENUM en servidor"));
                 }
             } catch (err) { 
                 console.error("Fallo:", err);
