@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.7.0 - FIX QUIRÚRGICO: COMPRAS Y PROTECCIÓN TOTAL
+ * Versión: 9.8.0 - FIX QUIRÚRGICO: COMPRAS Y BLINDAJE DE DATOS
  */
 
 // 1. VARIABLES GLOBALES
@@ -9,7 +9,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - Netlify Ready");
+    console.log("🚀 Sistema Iniciado - v9.8.0");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -28,9 +28,9 @@ async function fetchProviders() {
         const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
         if (Array.isArray(listaBruta)) {
-            // Ordenamos y limpiamos
+            // Limpieza y ordenamiento
             window.todosLosProveedores = listaBruta
-                .filter(p => p !== null)
+                .filter(p => p !== null && typeof p === 'object')
                 .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
             localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
@@ -58,7 +58,6 @@ async function fetchProviders() {
                     `).join('');
                 }
             }
-            console.log("✅ Lista lateral actualizada");
         }
     } catch (error) { console.error("❌ Error proveedores:", error); }
 }
@@ -86,11 +85,11 @@ window.guardarProveedor = async function(event) {
             window.cerrarModales();
             await fetchProviders(); 
         } else {
-            alert("❌ Error: " + (res.message || "No se pudo guardar (Estado 400)"));
+            alert("❌ Error: " + (res.message || "No se pudo guardar"));
         }
     } catch (error) { 
         console.error("Error al guardar:", error); 
-        alert("❌ Error de conexión al guardar");
+        alert("❌ Error de conexión");
     }
 };
 
@@ -108,7 +107,7 @@ async function fetchInventory() {
 
             return {
                 ...m,
-                id: m._id,
+                id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
@@ -122,7 +121,6 @@ async function fetchInventory() {
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
         window.cargarListasModal();
-        console.log("📦 Inventario cargado");
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
 
@@ -162,9 +160,9 @@ function renderTable(materiales) {
             </td>
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
-                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m._id}', '${m.nombre}', ${stockActual}, ${stockMinimo})"><i class="fas fa-sliders-h"></i></button>
-                    <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m._id}', '${m.nombre}')"><i class="fas fa-history"></i></button>
-                    <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m._id}')"><i class="fas fa-trash"></i></button>
+                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}', ${stockActual}, ${stockMinimo})"><i class="fas fa-sliders-h"></i></button>
+                    <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m.id}', '${m.nombre}')"><i class="fas fa-history"></i></button>
+                    <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m.id}')"><i class="fas fa-trash"></i></button>
                 </div>
             </td>
         `;
@@ -181,15 +179,19 @@ window.cargarListasModal = function() {
     if (provSelect) {
         provSelect.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => {
-                // BLINDAJE QUIRÚRGICO contra toUpperCase de null
-                const nombreSeguro = p && p.nombre ? String(p.nombre).toUpperCase() : "PROVEEDOR SIN NOMBRE";
-                return `<option value="${p._id || ''}">${nombreSeguro}</option>`;
+                // BLINDAJE QUIRÚRGICO: Validación de existencia y tipo de dato
+                const nombreSeguro = (p && p.nombre) ? String(p.nombre).toUpperCase() : "PROVEEDOR SIN NOMBRE";
+                const idSeguro = p ? (p._id || p.id || "") : "";
+                return `<option value="${idSeguro}">${nombreSeguro}</option>`;
             }).join('');
     }
 
     if (matSelect) {
         matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
-            window.todosLosMateriales.map(m => `<option value="${m._id}">${m.nombre}</option>`).join('');
+            window.todosLosMateriales.map(m => {
+                const idSeguro = m._id || m.id || "";
+                return `<option value="${idSeguro}">${m.nombre}</option>`;
+            }).join('');
     }
 };
 
@@ -203,7 +205,6 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    // FIX COMPRA: Detección robusta de formulario
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm') || document.querySelector('form[id*="Compra"]');
     
     if (formCompra) {
@@ -212,7 +213,6 @@ function configurarEventos() {
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) btn.disabled = true;
 
-            // Captura de datos con IDs alternativos para máxima compatibilidad
             const materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value || document.getElementById('proveedorSelect')?.value;
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
@@ -221,14 +221,13 @@ function configurarEventos() {
             const costoTotal = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
             if(!materialId || !providerId) {
-                alert("Selecciona material y proveedor");
+                alert("⚠️ Selecciona material y proveedor obligatoriamente");
                 if(btn) btn.disabled = false;
                 return;
             }
 
             const m2Calculados = ((largo * ancho) / 10000) * cant;
 
-            // OBJETO REESTRUCTURADO (Sabiduría Quirúrgica para evitar Error 400)
             const objetoCompra = {
                 materialId: materialId,
                 proveedorId: providerId,
@@ -243,18 +242,22 @@ function configurarEventos() {
             };
 
             try {
-                const res = await window.API.registerPurchase(objetoCompra);
+                // Soporte para diferentes nombres de función en la API
+                const apiFunc = window.API.registerPurchase || window.API.savePurchase;
+                if (typeof apiFunc !== 'function') throw new Error("Función de API no encontrada");
+
+                const res = await apiFunc(objetoCompra);
                 if (res.success) { 
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
                     alert("✅ Compra registrada con éxito");
                 } else {
-                    alert("❌ Error del Servidor: " + (res.message || "Datos incompatibles (400)"));
+                    alert("❌ Error: " + (res.message || "Datos incompatibles"));
                 }
             } catch (err) { 
-                console.error("Error en Fetch Compra:", err);
-                alert("❌ Error de conexión: El servidor no respondió"); 
+                console.error("Error en registro:", err);
+                alert("❌ Fallo crítico en la conexión"); 
             } finally { 
                 if(btn) btn.disabled = false; 
             }
@@ -286,19 +289,22 @@ window.verHistorial = async function(id, nombre) {
         
         if (Array.isArray(datos) && datos.length > 0) {
             const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-            contenedorHistorial.innerHTML = datos.map(h => `
+            contenedorHistorial.innerHTML = datos.map(h => {
+                const precio = h.costo_unitario || h.precio_total || h.precio || 0;
+                return `
                 <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items:center;">
                     <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
-                    <div style="text-align: right;"><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formateador.format(h.costo_unitario || h.precio_total || 0)}</span></div>
-                </div>`).join('');
-        } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
+                    <div style="text-align: right;"><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formateador.format(precio)}</span></div>
+                </div>`;
+            }).join('');
+        } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos registrados.</div>`; }
         
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
 };
 
 window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Eliminar este material?")) {
+    if (confirm("⚠️ ¿Estás seguro de eliminar este material?")) {
         try {
             const res = await window.API.deleteMaterial(id);
             if (res.success) await fetchInventory();
@@ -323,7 +329,7 @@ function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
     if (select) {
         select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre || 'S/N'}</option>`).join('');
+            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${p.nombre || 'S/N'}</option>`).join('');
     }
 }
 
