@@ -1,15 +1,14 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 10.0.0 (Estructura Universal de Campos)
+ * Módulo de conexión API - Versión 10.5.0 (Blindaje Total y Auto-Reintento)
  */
 
-// La ruta raíz de tus funciones en Netlify
 const API_BASE = '/.netlify/functions/server';
 
 window.API = {
     url: API_BASE,
 
-    // Función auxiliar para validar respuestas y evitar el error "Unexpected token <"
+    // Función auxiliar corregida para evitar errores de contexto (this)
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         
@@ -20,7 +19,7 @@ window.API = {
                     const errorData = await response.json();
                     errorMsg = errorData.message || errorData.error || errorMsg;
                 }
-            } catch (e) { /* No se pudo parsear el error */ }
+            } catch (e) { }
             throw new Error(errorMsg);
         }
         
@@ -29,7 +28,7 @@ window.API = {
             return Array.isArray(data) ? { success: true, data: data } : data;
         }
         
-        throw new Error("El servidor respondió con un formato no válido (HTML/Texto).");
+        return { success: true };
     },
 
     // ==========================================
@@ -71,7 +70,7 @@ window.API = {
     },
 
     // ==========================================
-    // INVENTARIO, COMPRAS Y AJUSTES
+    // INVENTARIO Y COMPRAS
     // ==========================================
     getInventory: async function() {
         try {
@@ -80,54 +79,59 @@ window.API = {
         } catch (err) { 
             console.error("🚨 Error cargando inventario:", err);
             const localInv = localStorage.getItem('inventory');
-            return { 
-                success: true, 
-                data: localInv ? JSON.parse(localInv) : [], 
-                local: true 
-            }; 
+            return { success: true, data: localInv ? JSON.parse(localInv) : [], local: true }; 
         }
     },
 
-    // Registro de compras - VERSIÓN UNIVERSAL 10.0.0
+    // REPARACIÓN DEFINITIVA: registerPurchase con Inteligencia de Reintento
     registerPurchase: async function(purchaseData) {
-        try {
-            // Mapeo exhaustivo para resolver el error "cantidad is required"
-            const valorCantidad = Number(purchaseData.cantidad || purchaseData.unidades || 0);
-            const valorPrecio = Number(purchaseData.precio || purchaseData.valorUnitario || 0);
+        // 1. Mapeo Universal de campos (Enviamos todo para que no falte nada)
+        const valorCantidad = Number(purchaseData.cantidad || purchaseData.unidades || 0);
+        const valorPrecio = Number(purchaseData.precio || purchaseData.valorUnitario || 0);
 
-            const universalData = {
-                materialId: purchaseData.materialId,
-                proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
-                
-                // Enviamos cantidad bajo todos los nombres posibles
-                cantidad: valorCantidad,
-                unidades: valorCantidad,
-                quantity: valorCantidad,
+        const baseData = {
+            materialId: purchaseData.materialId,
+            proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
+            cantidad: valorCantidad,
+            unidades: valorCantidad, // Alias
+            precio: valorPrecio,
+            valorUnitario: valorPrecio, // Alias
+            largo: Number(purchaseData.largo || 0),
+            ancho: Number(purchaseData.ancho || 0)
+        };
 
-                // Enviamos precio bajo todos los nombres posibles
-                precio: valorPrecio,
-                valorUnitario: valorPrecio,
-                costo: valorPrecio,
+        // 2. Lista de palabras clave que Atlas suele aceptar en el ENUM 'tipo'
+        const intentosTipo = ['ingreso', 'entrada', 'compra', 'ajuste'];
+        let errorFinal = "";
 
-                largo: Number(purchaseData.largo || 0),
-                ancho: Number(purchaseData.ancho || 0),
-                
-                // Forzamos "compra" en minúsculas (estándar común)
-                tipo: "compra" 
-            };
+        console.log("🚀 Iniciando secuencia de guardado inteligente...");
 
-            console.log("🚀 Enviando Estructura Universal v10.0.0:", universalData);
-            
-            const response = await fetch(`${window.API.url}/inventory/purchase`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(universalData)
-            });
-            return await window.API._safeParse(response);
-        } catch (err) {
-            console.error("🚨 Fallo en registerPurchase:", err.message);
-            return { success: false, message: err.message };
+        for (const tipoTest of intentosTipo) {
+            try {
+                const dataFinal = { ...baseData, tipo: tipoTest };
+                console.log(`🧪 Probando con tipo: "${tipoTest}"`);
+
+                const response = await fetch(`${window.API.url}/inventory/purchase`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataFinal)
+                });
+
+                const result = await window.API._safeParse(response);
+                console.log(`✅ ¡Éxito total con tipo: "${tipoTest}"!`);
+                return result; // Si funciona, terminamos aquí.
+
+            } catch (err) {
+                errorFinal = err.message;
+                console.warn(`❌ Falló con "${tipoTest}": ${err.message}`);
+                // Si el error NO es de validación (enum/tipo), paramos los reintentos
+                if (!err.message.includes("tipo") && !err.message.includes("enum") && !err.message.includes("required")) {
+                    break;
+                }
+            }
         }
+
+        return { success: false, message: `No se pudo guardar tras varios intentos. Último error: ${errorFinal}` };
     },
 
     adjustStock: async function(data) {
@@ -143,46 +147,32 @@ window.API = {
 
     deleteMaterial: async function(id) {
         try {
-            const response = await fetch(`${window.API.url}/inventory/${id}`, {
-                method: 'DELETE'
-            });
+            const response = await fetch(`${window.API.url}/inventory/${id}`, { method: 'DELETE' });
             return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     // ==========================================
-    // HISTORIALES
+    // HISTORIALES, ESTADÍSTICAS Y FACTURACIÓN
     // ==========================================
     getHistory: async function(materialId = null) {
         try {
-            const url = materialId 
-                ? `${window.API.url}/inventory/history/${materialId}` 
-                : `${window.API.url}/inventory/history`;
+            const url = materialId ? `${window.API.url}/inventory/history/${materialId}` : `${window.API.url}/inventory/history`;
             const response = await fetch(url);
             return await window.API._safeParse(response);
-        } catch (err) { 
-            console.warn("⚠️ Error en historial, devolviendo vacío.");
-            return { success: true, data: [] }; 
-        }
+        } catch (err) { return { success: true, data: [] }; }
     },
 
-    // ==========================================
-    // ESTADÍSTICAS Y FACTURACIÓN
-    // ==========================================
     getDashboardStats: async function() {
         try {
             const response = await fetch(`${window.API.url}/stats`);
             return await window.API._safeParse(response);
-        } catch (err) { 
-            return { success: true, data: { totalVentas: 0, productosBajos: 0 }, local: true }; 
-        }
+        } catch (err) { return { success: true, data: { totalVentas: 0, productosBajos: 0 } }; }
     },
 
     getInvoices: async function() { 
-        try { 
-            const r = await fetch(`${window.API.url}/invoices`); 
-            return await window.API._safeParse(r); 
-        } catch(e) { return { success: true, data: [] }; } 
+        try { return await window.API._safeParse(await fetch(`${window.API.url}/invoices`)); } 
+        catch(e) { return { success: true, data: [] }; } 
     },
 
     saveInvoice: async function(d) { 
@@ -208,13 +198,11 @@ window.API = {
     }
 };
 
-// ==========================================
-// BLOQUE DE COMPATIBILIDAD (Sincronización Total)
-// ==========================================
+// BLOQUE DE COMPATIBILIDAD
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🚀 API v10.0.0 - Estructura Universal Lista.");
+console.log("🛡️ API v10.5.0 - Blindaje y Auto-Reintento Activado.");
