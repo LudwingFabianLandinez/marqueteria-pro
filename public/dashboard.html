@@ -300,54 +300,54 @@
         
         modal.style.display = 'block';
 
-        // REPARACIÓN: Buscar datos en localStorage si la función del JS falla
         const provSelect = document.getElementById('compraProveedor');
         const matSelect = document.getElementById('compraMaterial');
 
-        // Obtener datos de la memoria
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
 
         if(provSelect) {
             provSelect.innerHTML = proveedores.length > 0 
-                ? proveedores.map(p => `<option value="${p.id}">${p.name.toUpperCase()}</option>`).join('')
+                ? proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || p.name || 'Sin nombre').toUpperCase()}</option>`).join('')
                 : '<option value="">No hay proveedores registrados</option>';
         }
 
         if(matSelect) {
             matSelect.innerHTML = inventario.length > 0 
-                ? inventario.map(m => `<option value="${m.id}">${m.name}</option>`).join('')
+                ? inventario.map(m => `<option value="${m._id || m.id}">${m.nombre || m.name || 'Sin nombre'}</option>`).join('')
                 : '<option value="">No hay materiales registrados</option>';
         }
     };
 
-    // Función matemática para m2
     function calcularConversionM2() {
         const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
         const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
         
-        // Conversión: (cm * cm / 10000) * cantidad = m2 totales
         const m2Total = ((largo * ancho) / 10000) * cant;
-        document.getElementById('labelConversion').textContent = `Total a ingresar: ${m2Total.toFixed(2)} m²`;
+        const label = document.getElementById('labelConversion');
+        if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m²`;
     }
 
-    // Render del directorio
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
         const badge = document.getElementById('prov-count');
-        if(badge) badge.textContent = `${lista.length} registrados`;
+        const datos = Array.isArray(lista) ? lista : [];
+
+        if(badge) badge.textContent = `${datos.length} registrados`;
         if(!container) return;
-        if (lista.length === 0) {
+        
+        if (datos.length === 0) {
             container.innerHTML = '<p style="color:#a0aec0; text-align:center;">No hay proveedores.</p>';
             return;
         }
-        container.innerHTML = lista.map(p => `
+
+        container.innerHTML = datos.map(p => `
             <div class="provider-card">
                 <div class="provider-info">
-                    <h4>${p.name.toUpperCase()}</h4>
-                    <p>${p.phone || 'Sin número'}</p>
-                    <p style="font-size: 0.7rem; color: #a0aec0;">${p.category || 'General'}</p>
+                    <h4>${String(p.nombre || p.name || 'S/N').toUpperCase()}</h4>
+                    <p>${p.telefono || p.phone || 'Sin número'}</p>
+                    <p style="font-size: 0.7rem; color: #a0aec0;">${p.categoria || p.category || 'General'}</p>
                 </div>
                 <div class="btn-call"><i class="fas fa-phone-alt"></i></div>
             </div>

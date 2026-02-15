@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 11.5.0 (Limpieza de Estructura y Estabilidad)
+ * Módulo de conexión API - Versión 11.6.0 (Consolidación Quirúrgica)
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -34,8 +34,8 @@ window.API = {
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
                     ...p,
-                    nombre: p && p.nombre ? p.nombre : "PROVEEDOR SIN NOMBRE",
-                    _id: p && p._id ? p._id : (p && p.id ? p.id : "ID_TEMP")
+                    nombre: p.nombre || p.name || "PROVEEDOR SIN NOMBRE",
+                    _id: p._id || p.id || "ID_TEMP"
                 }));
             }
             return res;
@@ -66,26 +66,24 @@ window.API = {
         }
     },
 
-    // INTERVENCIÓN QUIRÚRGICA v11.5.0: Estructura de Objeto Único
     registerPurchase: async function(purchaseData) {
-        // Aseguramos valores numéricos puros
+        // CIRUGÍA: Limpieza de datos antes del envío
         const valorCantidad = Number(purchaseData.cantidad || 0);
-        const valorPrecio = Number(purchaseData.precio || 0);
+        const valorPrecio = Number(purchaseData.precio || purchaseData.costo || 0);
 
-        // Intentaremos primero con el formato estándar que espera Atlas
         const payload = {
             materialId: purchaseData.materialId,
-            proveedorId: purchaseData.proveedorId || purchaseData.supplierId,
+            proveedorId: purchaseData.proveedorId || purchaseData.providerId,
             cantidad: valorCantidad,
             precio: valorPrecio,
-            tipo: 'compra', // Valor por defecto
+            tipo: 'compra',
             detalles: {
                 largo: Number(purchaseData.largo || 0),
                 ancho: Number(purchaseData.ancho || 0)
             }
         };
 
-        console.log("📡 Enviando v11.5.0 (Estructura Limpia):", payload);
+        console.log("📡 Enviando Compra v11.6.0 (Blindada):", payload);
 
         try {
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
@@ -94,13 +92,10 @@ window.API = {
                 body: JSON.stringify(payload)
             });
 
-            const result = await window.API._safeParse(response);
-            return result;
+            return await window.API._safeParse(response);
 
         } catch (err) {
-            console.warn("⚠️ Falló el envío estándar, probando alternativa técnica...");
-            
-            // Si el error es de "tipo", probamos la última alternativa técnica (en inglés)
+            console.warn("⚠️ Reintentando con ajuste de compatibilidad...");
             if (err.message.includes("tipo") || err.message.includes("enum")) {
                 payload.tipo = 'PURCHASE'; 
                 const retry = await fetch(`${window.API.url}/inventory/purchase`, {
@@ -110,7 +105,6 @@ window.API = {
                 });
                 return await window.API._safeParse(retry);
             }
-            
             throw err;
         }
     },
@@ -181,4 +175,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v11.5.0 - Limpieza y Estabilidad Consolidada.");
+console.log("🛡️ API v11.6.0 - Blindaje Total Consolidado.");
