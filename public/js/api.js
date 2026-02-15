@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 9.8.5 Ultra-Blindaje y Diagnóstico
+ * Módulo de conexión API - Versión 9.8.6 (Estabilización de Contexto)
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -39,8 +39,9 @@ window.API = {
     // ==========================================
     getProviders: async function() {
         try {
-            const response = await fetch(`${this.url}/providers`);
-            const res = await this._safeParse(response);
+            // Intervención: Cambio 'this' por 'window.API'
+            const response = await fetch(`${window.API.url}/providers`);
+            const res = await window.API._safeParse(response);
             
             // BLINDAJE: Si el servidor manda proveedores sin nombre o nulos, los reparamos aquí
             if (res.success && Array.isArray(res.data)) {
@@ -61,12 +62,12 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            const response = await fetch(`${this.url}/providers`, {
+            const response = await fetch(`${window.API.url}/providers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) {
             console.error("🚨 ERROR REAL DE CONEXIÓN:", err);
             throw err; 
@@ -78,8 +79,8 @@ window.API = {
     // ==========================================
     getInventory: async function() {
         try {
-            const response = await fetch(`${this.url}/inventory`);
-            return await this._safeParse(response);
+            const response = await fetch(`${window.API.url}/inventory`);
+            return await window.API._safeParse(response);
         } catch (err) { 
             console.error("🚨 Error cargando inventario:", err);
             const localInv = localStorage.getItem('inventory');
@@ -95,38 +96,37 @@ window.API = {
     registerPurchase: async function(purchaseData) {
         try {
             // DIAGNÓSTICO: Vemos en consola exactamente qué enviamos antes de que falle
-            console.log("📦 Intentando registrar compra:", purchaseData);
+            console.log("📦 Intentando registrar compra en:", `${window.API.url}/inventory/purchase`);
             
-            const response = await fetch(`${this.url}/inventory/purchase`, {
+            const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(purchaseData)
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) {
             console.error("🚨 Fallo en registerPurchase:", err.message);
-            // Devolvemos el error estructurado para que el frontend lo maneje
             return { success: false, message: err.message };
         }
     },
 
     adjustStock: async function(data) {
         try {
-            const response = await fetch(`${this.url}/inventory/adjust`, {
+            const response = await fetch(`${window.API.url}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     deleteMaterial: async function(id) {
         try {
-            const response = await fetch(`${this.url}/inventory/${id}`, {
+            const response = await fetch(`${window.API.url}/inventory/${id}`, {
                 method: 'DELETE'
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
@@ -136,10 +136,10 @@ window.API = {
     getHistory: async function(materialId = null) {
         try {
             const url = materialId 
-                ? `${this.url}/inventory/history/${materialId}` 
-                : `${this.url}/inventory/history`;
+                ? `${window.API.url}/inventory/history/${materialId}` 
+                : `${window.API.url}/inventory/history`;
             const response = await fetch(url);
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { 
             console.warn("⚠️ Error en historial, devolviendo vacío.");
             return { success: true, data: [] }; 
@@ -151,8 +151,8 @@ window.API = {
     // ==========================================
     getDashboardStats: async function() {
         try {
-            const response = await fetch(`${this.url}/stats`);
-            return await this._safeParse(response);
+            const response = await fetch(`${window.API.url}/stats`);
+            return await window.API._safeParse(response);
         } catch (err) { 
             return { success: true, data: { totalVentas: 0, productosBajos: 0 }, local: true }; 
         }
@@ -160,30 +160,30 @@ window.API = {
 
     getInvoices: async function() { 
         try { 
-            const r = await fetch(`${this.url}/invoices`); 
-            return await this._safeParse(r); 
+            const r = await fetch(`${window.API.url}/invoices`); 
+            return await window.API._safeParse(r); 
         } catch(e) { return { success: true, data: [] }; } 
     },
 
     saveInvoice: async function(d) { 
         try { 
-            const r = await fetch(`${this.url}/invoices`, {
+            const r = await fetch(`${window.API.url}/invoices`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
             }); 
-            return await this._safeParse(r); 
+            return await window.API._safeParse(r); 
         } catch(e) { return { success: false, message: e.message }; } 
     },
 
     generateQuote: async function(quoteData) {
         try {
-            const response = await fetch(`${this.url}/quotes/generate`, {
+            const response = await fetch(`${window.API.url}/quotes/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(quoteData)
             });
-            return await this._safeParse(response);
+            return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     }
 };
@@ -197,4 +197,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v9.8.5 - Ultra-Blindaje Activo.");
+console.log("🛡️ API v9.8.6 - Blindaje Quirúrgico Finalizado.");
