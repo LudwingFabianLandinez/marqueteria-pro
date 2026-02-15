@@ -185,6 +185,16 @@
             font-size: 1.1rem;
             cursor: pointer;
         }
+
+        /* ESTILOS DEL MODAL (Sumados con cuidado) */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); }
+        .modal-content { background: white; margin: 5% auto; padding: 0; border-radius: 12px; width: 450px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .modal-header { background: #3182ce; color: white; padding: 15px 20px; font-weight: bold; }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #4a5568; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
+        .calc-preview { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 10px; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -227,8 +237,7 @@
                             <th>ACCIONES</th>
                         </tr>
                     </thead>
-                    <tbody id="inventoryTable">
-                        </tbody>
+                    <tbody id="inventoryTable"></tbody>
                 </table>
             </div>
         </div>
@@ -246,16 +255,79 @@
     </main>
 </div>
 
+<div id="modalCompra" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">REGISTRAR COMPRA DE MATERIAL</div>
+        <form id="formNuevaCompra" class="modal-body">
+            <div class="form-group">
+                <label>Proveedor</label>
+                <select id="compraProveedor" required></select>
+            </div>
+            <div class="form-group">
+                <label>Material a comprar</label>
+                <select id="compraMaterial" required onchange="calcularConversionM2()"></select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Largo (cm)</label>
+                    <input type="number" id="compraLargo" step="0.1" required oninput="calcularConversionM2()">
+                </div>
+                <div class="form-group">
+                    <label>Ancho (cm)</label>
+                    <input type="number" id="compraAncho" step="0.1" required oninput="calcularConversionM2()">
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Cantidad (Unidades)</label>
+                    <input type="number" id="compraCantidad" required oninput="calcularConversionM2()">
+                </div>
+                <div class="form-group">
+                    <label>Valor Unitario ($)</label>
+                    <input type="number" id="compraCosto" required>
+                </div>
+            </div>
+
+            <div class="calc-preview">
+                <strong>Resumen para Inventario:</strong><br>
+                <span id="labelConversion">Total a sumar: 0.00 m²</span>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn-action btn-green" style="flex: 1;">Guardar en Inventario</button>
+                <button type="button" class="btn-action" style="background: #e2e8f0; color: #4a5568; flex: 1;" onclick="document.getElementById('modalCompra').style.display='none'">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    // Lógica para abrir modal
+    // Lógica para abrir modal y cargar datos
     window.abrirModalCompra = () => {
         const modal = document.getElementById('modalCompra');
-        if(modal) modal.style.display = 'block';
+        if(modal) {
+            modal.style.display = 'block';
+            // Cargamos proveedores y materiales si las funciones existen en inventory_v7
+            if (typeof window.cargarListasModal === 'function') {
+                window.cargarListasModal();
+            }
+        }
     };
+
+    // Sistema de conversión automática
+    function calcularConversionM2() {
+        const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
+        const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
+        const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+        
+        // Conversión: (Largo * Ancho / 10000) * Cantidad
+        const m2Total = ((largo * ancho) / 10000) * cant;
+        document.getElementById('labelConversion').textContent = `Total a sumar: ${m2Total.toFixed(2)} m²`;
+    }
     
-    // Función de renderizado para las tarjetas del directorio
+    // Función de renderizado para las tarjetas del directorio (Mantenida intacta)
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
         const badge = document.getElementById('prov-count');
