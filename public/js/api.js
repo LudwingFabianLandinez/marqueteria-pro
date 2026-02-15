@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión Final con Blindaje de Errores e Historial
+ * Módulo de conexión API - Versión 9.8.0 con Blindaje y Compras
  */
 
 // La ruta raíz de tus funciones en Netlify
@@ -12,7 +12,13 @@ window.API = {
     // Función auxiliar para validar respuestas y evitar el error "Unexpected token <"
     async _safeParse(response) {
         if (!response.ok) {
-            throw new Error(`Servidor no disponible (Estado ${response.status})`);
+            // Si el estado es 400, intentamos leer el mensaje de error del backend
+            try {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Error del servidor (Estado ${response.status})`);
+            } catch (e) {
+                throw new Error(`Servidor no disponible (Estado ${response.status})`);
+            }
         }
         
         const contentType = response.headers.get("content-type");
@@ -26,16 +32,15 @@ window.API = {
     },
 
     // ==========================================
-    // PROVEEDORES (Híbrido)
+    // PROVEEDORES
     // ==========================================
     getProviders: async function() {
         try {
-            // Cambio: Usamos window.API.url para evitar error 'undefined'
             const response = await fetch(`${window.API.url}/providers`);
             return await window.API._safeParse(response);
         } catch (err) { 
             console.warn("⚠️ Usando Respaldo Local para Proveedores.");
-            const localData = localStorage.getItem('db_proveedores');
+            const localData = localStorage.getItem('providers'); // Usamos el mismo key que inventory.js
             const lista = localData ? JSON.parse(localData) : [];
             return { success: true, data: lista, local: true }; 
         }
@@ -43,7 +48,6 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            // Cambio: Usamos window.API.url para evitar error 'undefined'
             const response = await fetch(`${window.API.url}/providers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -57,7 +61,7 @@ window.API = {
     },
 
     // ==========================================
-    // INVENTARIO Y HISTORIAL
+    // INVENTARIO, COMPRAS Y AJUSTES
     // ==========================================
     getInventory: async function() {
         try {
@@ -65,7 +69,7 @@ window.API = {
             return await window.API._safeParse(response);
         } catch (err) { 
             console.error("🚨 Error cargando inventario:", err);
-            const localInv = localStorage.getItem('db_materiales');
+            const localInv = localStorage.getItem('inventory');
             return { 
                 success: true, 
                 data: localInv ? JSON.parse(localInv) : [], 
@@ -74,13 +78,18 @@ window.API = {
         }
     },
 
-    getHistory: async function() {
+    // NUEVA: Registro de compras (Entrada de mercancía)
+    registerPurchase: async function(purchaseData) {
         try {
-            const response = await fetch(`${window.API.url}/inventory/history`);
+            const response = await fetch(`${window.API.url}/inventory/purchase`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(purchaseData)
+            });
             return await window.API._safeParse(response);
-        } catch (err) { 
-            console.warn("⚠️ Error en historial, devolviendo vacío.");
-            return { success: true, data: [] }; 
+        } catch (err) {
+            console.error("🚨 Error en registro de compra:", err);
+            throw err;
         }
     },
 
@@ -93,6 +102,32 @@ window.API = {
             });
             return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    deleteMaterial: async function(id) {
+        try {
+            const response = await fetch(`${window.API.url}/inventory/${id}`, {
+                method: 'DELETE'
+            });
+            return await window.API._safeParse(response);
+        } catch (err) { return { success: false, error: err.message }; }
+    },
+
+    // ==========================================
+    // HISTORIALES
+    // ==========================================
+    // Modificada para aceptar ID y obtener historial específico
+    getHistory: async function(materialId = null) {
+        try {
+            const url = materialId 
+                ? `${window.API.url}/inventory/history/${materialId}` 
+                : `${window.API.url}/inventory/history`;
+            const response = await fetch(url);
+            return await window.API._safeParse(response);
+        } catch (err) { 
+            console.warn("⚠️ Error en historial, devolviendo vacío.");
+            return { success: true, data: [] }; 
+        }
     },
 
     // ==========================================
@@ -144,5 +179,6 @@ window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
+window.API.savePurchase = window.API.registerPurchase; // Alias de seguridad
 
-console.log("🚀 API Híbrida Protegida (con Historial) cargada correctamente.");
+console.log("🚀 API v9.8.0 - Conexión total establecida.");
