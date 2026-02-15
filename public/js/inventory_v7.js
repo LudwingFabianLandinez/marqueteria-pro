@@ -69,21 +69,47 @@ window.renderAgendaProveedores = function() {
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
+    
+    // Identificamos el botón para dar feedback visual
+    const boton = event.target.querySelector('button[type="submit"]');
+    if(boton) boton.disabled = true;
+
     const nombre = document.getElementById('provNombre')?.value;
     const telefono = document.getElementById('provTelefono')?.value;
     const contacto = document.getElementById('provContacto')?.value;
     
-    if (!nombre) return alert("El nombre es obligatorio");
+    if (!nombre) {
+        alert("El nombre es obligatorio");
+        if(boton) boton.disabled = false;
+        return;
+    }
     
     try {
         const res = await window.API.saveProvider({ nombre, telefono, contacto });
         if (res.success) {
             alert("✅ Proveedor guardado");
+            
+            // 1. Limpiamos el formulario
             document.getElementById('provForm')?.reset();
+            
+            // 2. Cerramos el modal de registro automáticamente
+            if (typeof window.cerrarModales === 'function') {
+                window.cerrarModales();
+            } else {
+                document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+            }
+            
+            // 3. Actualizamos la lista lateral de la derecha
             await fetchProviders();
-            window.renderAgendaProveedores();
+            
+            console.log("🔄 Directorio lateral actualizado exitosamente.");
         }
-    } catch (error) { console.error("Error al guardar:", error); }
+    } catch (error) { 
+        console.error("Error al guardar:", error); 
+        alert("❌ Error al conectar con Atlas");
+    } finally {
+        if(boton) boton.disabled = false;
+    }
 };
 
 async function fetchProviders() {
@@ -93,31 +119,42 @@ async function fetchProviders() {
         
         if (Array.isArray(lista)) {
             window.todosLosProveedores = lista.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+            
+            // Actualizar el select para las compras
             actualizarSelectProveedores();
 
-            // DIBUJAR EN EL NUEVO DIRECTORIO FIJO
+            // --- DIBUJAR EN EL PANEL LATERAL DERECHO ---
             const directorio = document.getElementById('directorioProveedores');
             const contador = document.getElementById('contadorProv');
             
             if (directorio) {
-                directorio.innerHTML = window.todosLosProveedores.map(p => `
-                    <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s;">
-                        <div>
-                            <div style="font-weight: bold; color: #1e293b; font-size: 0.9rem; margin-bottom: 2px;">${p.nombre}</div>
-                            <div style="font-size: 0.75rem; color: #64748b;"><i class="fas fa-user" style="width:15px"></i> ${p.contacto || 'N/A'}</div>
-                            <div style="font-size: 0.75rem; color: #64748b;"><i class="fas fa-phone" style="width:15px"></i> ${p.telefono || 'N/A'}</div>
+                if (window.todosLosProveedores.length === 0) {
+                    directorio.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:20px;">No hay proveedores.</p>';
+                } else {
+                    directorio.innerHTML = window.todosLosProveedores.map(p => `
+                        <div style="background: white; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                            <div style="overflow: hidden;">
+                                <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre}</div>
+                                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">
+                                    <i class="fas fa-user" style="width:12px"></i> ${p.contacto || 'N/A'}
+                                </div>
+                            </div>
+                            <a href="tel:${p.telefono}" style="background: #3498db; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0; margin-left: 10px;">
+                                <i class="fas fa-phone-alt" style="font-size: 0.8rem;"></i>
+                            </a>
                         </div>
-                        <a href="tel:${p.telefono}" style="background: #3498db; color: white; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 2px 4px rgba(52,152,219,0.3);">
-                            <i class="fas fa-phone-alt" style="font-size: 0.9rem;"></i>
-                        </a>
-                    </div>
-                `).join('');
+                    `).join('');
+                }
             }
-            if (contador) contador.innerText = `${window.todosLosProveedores.length} registrados`;
+            
+            if (contador) {
+                contador.innerText = `${window.todosLosProveedores.length} registrados`;
+            }
         }
-    } catch (e) { console.error("Error:", e); }
+    } catch (e) { 
+        console.error("❌ Error al obtener proveedores:", e); 
+    }
 }
-
 function renderTable(materiales) {
     const cuerpoTabla = document.getElementById('inventoryTable');
     if (!cuerpoTabla) return;
