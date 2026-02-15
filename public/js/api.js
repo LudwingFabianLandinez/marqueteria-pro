@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.0.0 (Consolidación con Bucle de Compatibilidad)
+ * Módulo de conexión API - Versión 12.1.0 (OPTIMIZADO PARA COMPRAS)
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -22,6 +22,7 @@ window.API = {
         }
         if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
+            // Normalizar arrays para que siempre vengan dentro de un objeto con success
             return Array.isArray(data) ? { success: true, data: data } : data;
         }
         return { success: true };
@@ -66,7 +67,6 @@ window.API = {
         }
     },
 
-    /** NUEVA FUNCIÓN CONSOLIDADA: GUARDAR O EDITAR MATERIAL **/
     saveMaterial: async function(materialData) {
         try {
             const isEdit = materialData.id && materialData.id !== "";
@@ -82,38 +82,35 @@ window.API = {
         } catch (err) { throw err; }
     },
 
+    /** REGISTRO DE COMPRA REFORMADO PARA MATAR EL ERROR 500 **/
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Iniciando registro de compra v12.0.0");
-        const valorCantidad = Number(purchaseData.cantidad || purchaseData.cantidad_m2 || 0);
-        const valorPrecio = Number(purchaseData.precio || purchaseData.precio_total || 0);
+        console.log("🚀 Enviando compra normalizada v12.1.0...");
         
-        const tiposDePrueba = ['compra', 'PURCHASE', 'INGRESO', 'entrada'];
-        let ultimoError = null;
+        // Mapeamos los datos exactamente como los pide la BD relacional
+        const payload = {
+            materialId: purchaseData.materialId,
+            proveedorId: purchaseData.proveedorId || purchaseData.providerId,
+            cantidad_m2: Number(purchaseData.cantidad_m2 || purchaseData.cantidad || 0),
+            precio_total: Number(purchaseData.precio_total || purchaseData.precio || 0),
+            tipo: "COMPRA", // Tipo unificado para evitar el bucle de rechazo
+            detalles: purchaseData.detalles || {},
+            fecha: purchaseData.fecha || new Date().toISOString()
+        };
 
-        for (const tipo of tiposDePrueba) {
-            try {
-                const payload = {
-                    materialId: purchaseData.materialId,
-                    proveedorId: purchaseData.proveedorId || purchaseData.providerId,
-                    cantidad: valorCantidad,
-                    precio: valorPrecio,
-                    tipo: tipo,
-                    detalles: purchaseData.detalles || {},
-                    fecha: new Date().toISOString()
-                };
+        try {
+            const response = await fetch(`${window.API.url}/inventory/purchase`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-                const response = await fetch(`${window.API.url}/inventory/purchase`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (response.ok) return await window.API._safeParse(response);
-                const errorData = await response.json();
-                ultimoError = errorData.message || "Error de validación";
-            } catch (err) { ultimoError = err.message; }
+            const res = await window.API._safeParse(response);
+            console.log("✅ Servidor respondió:", res);
+            return res;
+        } catch (err) {
+            console.error("❌ Fallo en registro de compra:", err.message);
+            throw err;
         }
-        throw new Error("Error crítico en compra: " + ultimoError);
     },
 
     adjustStock: async function(data) {
@@ -161,17 +158,6 @@ window.API = {
             }); 
             return await window.API._safeParse(r); 
         } catch(e) { return { success: false, message: e.message }; } 
-    },
-
-    generateQuote: async function(quoteData) {
-        try {
-            const response = await fetch(`${window.API.url}/quotes/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(quoteData)
-            });
-            return await window.API._safeParse(response);
-        } catch (err) { return { success: false, error: err.message }; }
     }
 };
 
@@ -182,4 +168,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.0.0 - Blindaje Activo.");
+console.log("🛡️ API v12.1.0 - Blindaje Activo.");
