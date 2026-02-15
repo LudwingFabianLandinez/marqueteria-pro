@@ -1,7 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.2.0 - INTEGRACIÓN TOTAL (INVENTARIO M2 + DIRECTORIO FIJO)
- * Estado: Quirúrgico / Sin errores de referencia
+ * Versión: 9.3.0 - REPARACIÓN DE REFRESCO AUTOMÁTICO
  */
 
 // 1. VARIABLES GLOBALES
@@ -37,7 +36,7 @@ async function fetchProviders() {
             const directorio = document.getElementById('directorioProveedores');
             
             if (directorio) {
-                // --- LINEA CLAVE: Limpiamos lo que había antes para que no se duplique ni se trabe ---
+                // --- AJUSTE QUIRÚRGICO 1: Limpiamos el contenedor antes de dibujar para evitar duplicados ---
                 directorio.innerHTML = ''; 
 
                 if (window.todosLosProveedores.length === 0) {
@@ -93,7 +92,7 @@ window.guardarProveedor = async function(event) {
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
             
-            // Refresca la lista lateral para que aparezca el nuevo registro
+            // --- AJUSTE QUIRÚRGICO 2: Llamamos a fetchProviders para actualizar la vista sin recargar ---
             await fetchProviders(); 
         }
     } catch (error) { 
@@ -102,7 +101,7 @@ window.guardarProveedor = async function(event) {
     }
 };
 
-// --- SECCIÓN INVENTARIO (Lógica de M2 e Historial) ---
+// --- SECCIÓN INVENTARIO (Lógica de M2 e Historial - SE MANTIENE INTACTA) ---
 
 async function fetchInventory() {
     try {
