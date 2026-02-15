@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.1.2 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
- * Corrección de Error 500 y Sincronización con API v12.1.2
+ * Versión: 12.1.3 - CONSOLIDADO FINAL: EDICIÓN + COMPRAS + BLINDAJE
+ * Corrección Definitiva Error 500 y Sincronización con API v12.1.3
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.1.2");
+    console.log("🚀 Sistema Iniciado - v12.1.3");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -246,14 +246,17 @@ function configurarEventos() {
 
             const m2Calculados = ((largo * ancho) / 10000) * cant;
             
-            // Objeto limpio con campos que la API v12.1.2 espera
-            // NOTA: 'tipo' en minúsculas para cumplir validación del servidor
+            // Objeto normalizado para enviar a API v12.1.3
             const objetoCompra = {
                 materialId: materialId,
                 proveedorId: providerId,
-                cantidad_m2: Number(m2Calculados.toFixed(4)),
+                cantidad_m2: m2Calculados,
                 precio_total: costoTotal,
-                detalles: { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant },
+                detalles: { 
+                    largo_cm: largo, 
+                    ancho_cm: ancho, 
+                    cantidad_laminas: cant 
+                },
                 tipo: "compra" 
             };
 

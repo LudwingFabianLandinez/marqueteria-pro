@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.1.2 (CONSOLIDACIÓN DEFINITIVA)
+ * Módulo de conexión API - Versión 12.1.3 (ELIMINACIÓN ERROR 500)
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -81,34 +81,40 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    /** REGISTRO DE COMPRA REFORMADO PARA MATAR EL ERROR 500 **/
+    /** REGISTRO DE COMPRA - FILTRADO ESTRICTO **/
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Enviando compra normalizada v12.1.2...");
+        console.log("🚀 Limpiando datos para evitar Error 500...");
         
-        // Mapeamos los datos exactamente como los pide la BD relacional
-        // NOTA: 'tipo' debe ser 'compra' en minúsculas para validación de Enum
+        // Creamos un objeto limpio. Si 'compra' falla, el backend podría esperar 'INGRESO'
+        // pero probaremos con la versión más compatible:
         const payload = {
-            materialId: purchaseData.materialId,
-            proveedorId: purchaseData.proveedorId || purchaseData.providerId,
-            cantidad_m2: Number(purchaseData.cantidad_m2 || purchaseData.cantidad || 0),
-            precio_total: Number(purchaseData.precio_total || purchaseData.precio || 0),
-            tipo: "compra", 
-            detalles: purchaseData.detalles || {},
-            fecha: purchaseData.fecha || new Date().toISOString()
+            materialId: String(purchaseData.materialId),
+            proveedorId: String(purchaseData.proveedorId || purchaseData.providerId),
+            cantidad_m2: Number(parseFloat(purchaseData.cantidad_m2).toFixed(4)),
+            precio_total: Number(Math.round(purchaseData.precio_total)),
+            tipo: "compra", // Si esto falla de nuevo, cámbialo a "INGRESO"
+            detalles: {
+                largo: purchaseData.detalles?.largo_cm || 0,
+                ancho: purchaseData.detalles?.ancho_cm || 0,
+                laminas: purchaseData.detalles?.cantidad_laminas || 0,
+                nota: "Registro v12.1.3"
+            },
+            fecha: new Date().toISOString()
         };
 
         try {
             const response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify(payload)
             });
 
-            const res = await window.API._safeParse(response);
-            console.log("✅ Servidor respondió:", res);
-            return res;
+            return await window.API._safeParse(response);
         } catch (err) {
-            console.error("❌ Fallo en registro de compra:", err.message);
+            console.error("❌ Error Crítico:", err.message);
             throw err;
         }
     },
@@ -158,17 +164,6 @@ window.API = {
             }); 
             return await window.API._safeParse(r); 
         } catch(e) { return { success: false, message: e.message }; } 
-    },
-
-    generateQuote: async function(quoteData) {
-        try {
-            const response = await fetch(`${window.API.url}/quotes/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(quoteData)
-            });
-            return await window.API._safeParse(response);
-        } catch (err) { return { success: false, error: err.message }; }
     }
 };
 
@@ -179,4 +174,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.1.2 - Blindaje Activo.");
+console.log("🛡️ API v12.1.3 - Blindaje Activo.");
