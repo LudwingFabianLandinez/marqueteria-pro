@@ -40,22 +40,19 @@ window.API = {
         }
     },
 
-    saveProvider: async function(providerData) {
-        try {
-            const response = await fetch(`${this.url}/providers`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(providerData)
-            });
-            return await this._safeParse(response);
-        } catch (err) {
-            const localData = localStorage.getItem('db_proveedores');
-            let lista = localData ? JSON.parse(localData) : [];
-            lista.push({ ...providerData, _id: Date.now().toString() });
-            localStorage.setItem('db_proveedores', JSON.stringify(lista));
-            return { success: true, local: true };
-        }
-    },
+  saveProvider: async function(providerData) {
+    try {
+        const response = await fetch(`${this.url}/providers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(providerData)
+        });
+        return await this._safeParse(response);
+    } catch (err) {
+        console.error("🚨 ERROR REAL DE CONEXIÓN:", err);
+        throw err; // Esto hará que el 'catch' de inventory_v7 muestre el error real
+    }
+},
 
     // ==========================================
     // INVENTARIO Y HISTORIAL
