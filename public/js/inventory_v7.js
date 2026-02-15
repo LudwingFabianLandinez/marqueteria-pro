@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.6.0 - FIX: PROTECCIÓN DE SELECTORES Y COMPATIBILIDAD TOTAL
+ * Versión: 9.7.0 - FIX QUIRÚRGICO: COMPRAS Y PROTECCIÓN TOTAL
  */
 
 // 1. VARIABLES GLOBALES
@@ -28,15 +28,14 @@ async function fetchProviders() {
         const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
         if (Array.isArray(listaBruta)) {
-            // Ordenamos alfabéticamente protegiendo contra valores nulos
-            window.todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+            // Ordenamos y limpiamos
+            window.todosLosProveedores = listaBruta
+                .filter(p => p !== null)
+                .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
-            // Guardar en localStorage para respaldo del modal
             localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
             
             actualizarSelectProveedores();
-            
-            // Llenar selectores del modal si existen
             window.cargarListasModal();
 
             const directorio = document.getElementById('directorioProveedores');
@@ -67,14 +66,13 @@ async function fetchProviders() {
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
-    // Objeto limpio para evitar Error 400
     const payload = {
-        nombre: document.getElementById('provNombre')?.value || "",
-        nit: document.getElementById('provNit')?.value || "",
-        contacto: document.getElementById('provContacto')?.value || "",
-        telefono: document.getElementById('provTelefono')?.value || "",
-        email: document.getElementById('provEmail')?.value || "",
-        direccion: document.getElementById('provDireccion')?.value || "",
+        nombre: document.getElementById('provNombre')?.value.trim() || "",
+        nit: document.getElementById('provNit')?.value.trim() || "",
+        contacto: document.getElementById('provContacto')?.value.trim() || "",
+        telefono: document.getElementById('provTelefono')?.value.trim() || "",
+        email: document.getElementById('provEmail')?.value.trim() || "",
+        direccion: document.getElementById('provDireccion')?.value.trim() || "",
         categoria: document.getElementById('provCategoria')?.value || "General"
     };
     
@@ -82,14 +80,13 @@ window.guardarProveedor = async function(event) {
     
     try {
         const res = await window.API.saveProvider(payload);
-
         if (res.success) {
             alert("✅ Proveedor guardado");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
             await fetchProviders(); 
         } else {
-            alert("❌ Error: " + (res.message || "No se pudo guardar"));
+            alert("❌ Error: " + (res.message || "No se pudo guardar (Estado 400)"));
         }
     } catch (error) { 
         console.error("Error al guardar:", error); 
@@ -184,9 +181,9 @@ window.cargarListasModal = function() {
     if (provSelect) {
         provSelect.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => {
-                // Protección contra nombres nulos para evitar error toUpperCase
-                const nombreSeguro = (p.nombre || "Proveedor Sin Nombre").toUpperCase();
-                return `<option value="${p._id}">${nombreSeguro}</option>`;
+                // BLINDAJE QUIRÚRGICO contra toUpperCase de null
+                const nombreSeguro = p && p.nombre ? String(p.nombre).toUpperCase() : "PROVEEDOR SIN NOMBRE";
+                return `<option value="${p._id || ''}">${nombreSeguro}</option>`;
             }).join('');
     }
 
@@ -206,30 +203,43 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
+    // FIX COMPRA: Detección robusta de formulario
+    const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm') || document.querySelector('form[id*="Compra"]');
+    
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) btn.disabled = true;
 
+            // Captura de datos con IDs alternativos para máxima compatibilidad
             const materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value || document.getElementById('proveedorSelect')?.value;
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
-            const costo = parseFloat(document.getElementById('compraCosto')?.value) || 0;
+            const costoTotal = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
+            if(!materialId || !providerId) {
+                alert("Selecciona material y proveedor");
+                if(btn) btn.disabled = false;
+                return;
+            }
+
             const m2Calculados = ((largo * ancho) / 10000) * cant;
 
+            // OBJETO REESTRUCTURADO (Sabiduría Quirúrgica para evitar Error 400)
             const objetoCompra = {
                 materialId: materialId,
                 proveedorId: providerId,
-                cantidad_m2: m2Calculados,
-                precio_total: costo * cant,
-                largo_cm: largo,
-                ancho_cm: ancho,
-                cantidad_laminas: cant
+                cantidad_m2: Number(m2Calculados.toFixed(4)),
+                precio_total: Number(costoTotal),
+                detalles: {
+                    largo_cm: largo,
+                    ancho_cm: ancho,
+                    cantidad_laminas: cant
+                },
+                fecha: new Date().toISOString()
             };
 
             try {
@@ -238,12 +248,16 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert("✅ Compra registrada e inventario actualizado");
+                    alert("✅ Compra registrada con éxito");
                 } else {
-                    alert("❌ Error: " + (res.message || "No se pudo registrar"));
+                    alert("❌ Error del Servidor: " + (res.message || "Datos incompatibles (400)"));
                 }
-            } catch (err) { alert("❌ Error de conexión"); } 
-            finally { if(btn) btn.disabled = false; }
+            } catch (err) { 
+                console.error("Error en Fetch Compra:", err);
+                alert("❌ Error de conexión: El servidor no respondió"); 
+            } finally { 
+                if(btn) btn.disabled = false; 
+            }
         });
     }
 
@@ -275,7 +289,7 @@ window.verHistorial = async function(id, nombre) {
             contenedorHistorial.innerHTML = datos.map(h => `
                 <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items:center;">
                     <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
-                    <div style="text-align: right;"><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formateador.format(h.costo_unitario || 0)}</span></div>
+                    <div style="text-align: right;"><span style="font-weight: bold; color: ${h.tipo === 'COMPRA' ? '#10b981' : '#f43f5e'};">${formateador.format(h.costo_unitario || h.precio_total || 0)}</span></div>
                 </div>`).join('');
         } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
         
@@ -309,7 +323,7 @@ function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
     if (select) {
         select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre}</option>`).join('');
+            window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre || 'S/N'}</option>`).join('');
     }
 }
 
