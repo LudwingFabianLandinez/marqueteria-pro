@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 9.3.0 - REPARACIÓN DE REFRESCO AUTOMÁTICO
+ * Versión: 9.4.0 - FIX: CARGA DE SELECTORES Y COMPATIBILIDAD MODAL
  */
 
 // 1. VARIABLES GLOBALES
@@ -31,12 +31,14 @@ async function fetchProviders() {
             // Ordenamos alfabéticamente
             window.todosLosProveedores = listaBruta.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
+            // Guardar en localStorage para respaldo del modal
+            localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
+            
             actualizarSelectProveedores();
 
             const directorio = document.getElementById('directorioProveedores');
             
             if (directorio) {
-                // --- AJUSTE QUIRÚRGICO 1: Limpiamos el contenedor antes de dibujar para evitar duplicados ---
                 directorio.innerHTML = ''; 
 
                 if (window.todosLosProveedores.length === 0) {
@@ -64,7 +66,6 @@ async function fetchProviders() {
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
-    // Captura extendida de todos los campos del formulario
     const nombre = document.getElementById('provNombre')?.value;
     const nit = document.getElementById('provNit')?.value;
     const contacto = document.getElementById('provContacto')?.value;
@@ -76,23 +77,14 @@ window.guardarProveedor = async function(event) {
     if (!nombre) return alert("El nombre es obligatorio");
     
     try {
-        // Enviamos el objeto completo a la API
         const res = await window.API.saveProvider({ 
-            nombre, 
-            nit, 
-            contacto, 
-            telefono, 
-            email, 
-            direccion, 
-            categoria 
+            nombre, nit, contacto, telefono, email, direccion, categoria 
         });
 
         if (res.success) {
             alert("✅ Proveedor guardado");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
-            
-            // --- AJUSTE QUIRÚRGICO 2: Llamamos a fetchProviders para actualizar la vista sin recargar ---
             await fetchProviders(); 
         }
     } catch (error) { 
@@ -101,7 +93,7 @@ window.guardarProveedor = async function(event) {
     }
 };
 
-// --- SECCIÓN INVENTARIO (Lógica de M2 e Historial - SE MANTIENE INTACTA) ---
+// --- SECCIÓN INVENTARIO ---
 
 async function fetchInventory() {
     try {
@@ -115,6 +107,7 @@ async function fetchInventory() {
 
             return {
                 ...m,
+                id: m._id, // Normalizamos el ID
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
@@ -123,6 +116,9 @@ async function fetchInventory() {
                 stock_minimo: Number(stockMin)
             };
         });
+        
+        // Guardar para respaldo del modal
+        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
@@ -176,6 +172,25 @@ function renderTable(materiales) {
     });
 }
 
+// --- NUEVA LÓGICA DE CARGA PARA EL MODAL DE COMPRA ---
+
+window.cargarListasModal = function() {
+    const provSelect = document.getElementById('compraProveedor');
+    const matSelect = document.getElementById('compraMaterial');
+
+    if (provSelect) {
+        provSelect.innerHTML = window.todosLosProveedores.length > 0 
+            ? window.todosLosProveedores.map(p => `<option value="${p._id}">${p.nombre.toUpperCase()}</option>`).join('')
+            : '<option value="">Cargue proveedores primero</option>';
+    }
+
+    if (matSelect) {
+        matSelect.innerHTML = window.todosLosMateriales.length > 0 
+            ? window.todosLosMateriales.map(m => `<option value="${m._id}">${m.nombre}</option>`).join('')
+            : '<option value="">Cargue inventario primero</option>';
+    }
+};
+
 // --- EVENTOS Y UTILIDADES ---
 
 function configurarEventos() {
@@ -186,30 +201,37 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    document.getElementById('purchaseForm')?.addEventListener('submit', async (e) => {
+    // Manejo del formulario de compra (Compatible con el nuevo modal)
+    document.getElementById('formNuevaCompra')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const boton = e.target.querySelector('button[type="submit"]');
-        const nombreMat = document.getElementById('nombreMaterial').value;
+        const largo = parseFloat(document.getElementById('compraLargo').value);
+        const ancho = parseFloat(document.getElementById('compraAncho').value);
+        const cant = parseFloat(document.getElementById('compraCantidad').value);
+        
+        // El servidor suele preferir el cálculo final de m2
+        const m2Calculados = ((largo * ancho) / 10000) * cant;
+
         const objetoCompra = {
-            nombre: nombreMat.trim(),
-            tipo: (nombreMat.toLowerCase().includes('marco') || nombreMat.toLowerCase().includes('moldura')) ? 'ml' : 'm2',
-            proveedor: document.getElementById('proveedorSelect').value,
-            ancho_lamina_cm: parseFloat(document.getElementById('ancho_compra').value) || 0,
-            largo_lamina_cm: parseFloat(document.getElementById('largo_compra').value) || 0,
-            precio_total_lamina: parseFloat(document.getElementById('precio_compra').value) || 0,
-            cantidad_laminas: parseFloat(document.getElementById('cantidad_compra').value) || 0
+            materialId: document.getElementById('compraMaterial').value,
+            providerId: document.getElementById('compraProveedor').value,
+            cantidad_m2: m2Calculados,
+            costo_unitario: parseFloat(document.getElementById('compraCosto').value),
+            largo_cm: largo,
+            ancho_cm: ancho,
+            unidades: cant
         };
-        if(boton) boton.disabled = true;
+
         try {
             const res = await window.API.registerPurchase(objetoCompra);
             if (res.success) { 
                 window.cerrarModales(); 
                 await fetchInventory(); 
                 e.target.reset(); 
-                alert("✅ Inventario actualizado");
+                alert("✅ Compra registrada e inventario actualizado");
+            } else {
+                alert("❌ Error: " + (res.message || "No se pudo registrar"));
             }
-        } catch (err) { alert("❌ Error al registrar"); } 
-        finally { if(boton) boton.disabled = false; }
+        } catch (err) { alert("❌ Error de conexión"); } 
     });
 
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {

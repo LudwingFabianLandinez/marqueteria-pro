@@ -125,7 +125,7 @@
             font-size: 0.85rem;
         }
 
-        /* DIRECTORIO DE PROVEEDORES (Barra Lateral Derecha) */
+        /* DIRECTORIO DE PROVEEDORES */
         .providers-sidebar {
             background: #2d3748;
             border-radius: 12px;
@@ -169,7 +169,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        /* MODAL DE COMPRA (Integrado sin dañar el diseño) */
+        /* MODAL DE COMPRA */
         .modal { 
             display: none; 
             position: fixed; 
@@ -248,11 +248,15 @@
         <form id="formNuevaCompra" class="modal-body">
             <div class="form-group">
                 <label>Proveedor</label>
-                <select id="compraProveedor" name="providerId" required></select>
+                <select id="compraProveedor" name="providerId" required>
+                    <option value="">Cargando proveedores...</option>
+                </select>
             </div>
             <div class="form-group">
                 <label>Material</label>
-                <select id="compraMaterial" name="materialId" required onchange="calcularConversionM2()"></select>
+                <select id="compraMaterial" name="materialId" required onchange="calcularConversionM2()">
+                    <option value="">Cargando materiales...</option>
+                </select>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
@@ -275,8 +279,8 @@
                 </div>
             </div>
             <div class="calc-preview">
-                <strong>Resultado de conversión:</strong><br>
-                <span id="labelConversion">Total: 0.00 m²</span>
+                <strong>Conversión automática:</strong><br>
+                <span id="labelConversion" style="color: #2f855a; font-weight: bold;">Total a ingresar: 0.00 m²</span>
             </div>
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button type="submit" class="btn-action btn-green" style="flex: 1;">Guardar Compra</button>
@@ -289,12 +293,31 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    // Lógica para abrir modal
+    // Lógica para abrir modal y asegurar que los listados se llenen
     window.abrirModalCompra = () => {
         const modal = document.getElementById('modalCompra');
-        if(modal) {
-            modal.style.display = 'block';
-            if (typeof window.cargarListasModal === 'function') window.cargarListasModal();
+        if(!modal) return;
+        
+        modal.style.display = 'block';
+
+        // REPARACIÓN: Buscar datos en localStorage si la función del JS falla
+        const provSelect = document.getElementById('compraProveedor');
+        const matSelect = document.getElementById('compraMaterial');
+
+        // Obtener datos de la memoria
+        const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
+        const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
+
+        if(provSelect) {
+            provSelect.innerHTML = proveedores.length > 0 
+                ? proveedores.map(p => `<option value="${p.id}">${p.name.toUpperCase()}</option>`).join('')
+                : '<option value="">No hay proveedores registrados</option>';
+        }
+
+        if(matSelect) {
+            matSelect.innerHTML = inventario.length > 0 
+                ? inventario.map(m => `<option value="${m.id}">${m.name}</option>`).join('')
+                : '<option value="">No hay materiales registrados</option>';
         }
     };
 
@@ -303,11 +326,13 @@
         const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
         const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+        
+        // Conversión: (cm * cm / 10000) * cantidad = m2 totales
         const m2Total = ((largo * ancho) / 10000) * cant;
-        document.getElementById('labelConversion').textContent = `Total: ${m2Total.toFixed(2)} m²`;
+        document.getElementById('labelConversion').textContent = `Total a ingresar: ${m2Total.toFixed(2)} m²`;
     }
 
-    // Render del directorio (Tu lógica original)
+    // Render del directorio
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
         const badge = document.getElementById('prov-count');
