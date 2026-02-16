@@ -7,13 +7,20 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* ESTRUCTURA DASHBOARD */
-        .dashboard-wrapper {
-            display: flex;
-            min-height: 100vh;
+        /* --- BLOQUE DE FUERZA PARA RODADO --- */
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            margin: 0;
+            padding: 0;
         }
 
-        /* BARRA LATERAL */
+        .dashboard-wrapper {
+            display: flex;
+            width: 100vw; /* Ocupa el ancho total de la ventana visual */
+        }
+
+        /* BARRA LATERAL FIJA */
         .sidebar {
             width: 260px;
             background: #1a2c5b;
@@ -34,11 +41,7 @@
             letter-spacing: 1px;
         }
 
-        .menu-nav {
-            display: flex;
-            flex-direction: column;
-        }
-
+        .menu-nav { display: flex; flex-direction: column; }
         .menu-link {
             padding: 15px 25px;
             color: #a0aec0;
@@ -49,30 +52,30 @@
             transition: all 0.3s;
             font-size: 0.95rem;
         }
-
         .menu-link.active {
             background: #2b4485;
             color: white;
             border-left: 4px solid #3182ce;
         }
 
-        /* --- OPTIMIZACIÓN DE RODADO --- */
+        /* --- CONTENEDOR PRINCIPAL EXPANDIDO --- */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
-            /* Quitamos padding lateral para que el directorio se pegue al borde */
+            /* El padding derecho en 0 es vital para el rodado */
             padding: 30px 0 30px 30px; 
             display: grid;
-            /* Tabla flexible | Directorio rígido de 280px */
+            /* Tabla toma el espacio sobrante | Directorio 280px exactos */
             grid-template-columns: 1fr 280px; 
             min-height: 100vh;
-            box-sizing: border-box;
+            width: calc(100vw - 260px); /* Ajuste matemático perfecto */
+            max-width: none !important; 
         }
 
         .content-left {
             min-width: 0;
-            padding-right: 10px; /* Separación mínima con el directorio */
+            padding-right: 20px; /* Separación estética de la tabla */
         }
 
         .page-title {
@@ -101,7 +104,6 @@
             gap: 8px;
             font-size: 0.9rem;
         }
-
         .btn-purple { background: #9f7aea; }
         .btn-green { background: #48bb78; }
 
@@ -112,7 +114,6 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             padding: 20px;
             overflow-x: auto;
-            margin-right: 10px;
         }
 
         .inventory-table {
@@ -130,17 +131,18 @@
             font-size: 0.85rem;
         }
 
-        /* --- DIRECTORIO PEGADO AL BORDE DERECHO --- */
+        /* --- EL DIRECTORIO "RODADO" AL BORDE --- */
         .providers-sidebar {
             background: #2d3748;
-            /* Eliminamos redondeado derecho para que se vea integrado al borde */
-            border-radius: 12px 0 0 12px; 
+            /* Cero redondeado a la derecha para pegar al borde físico del monitor */
+            border-radius: 15px 0 0 15px; 
             height: calc(100vh - 60px);
             position: sticky;
             top: 30px;
-            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+            box-shadow: -8px 0 15px rgba(0, 0, 0, 0.15);
             display: flex;
             flex-direction: column;
+            margin-right: 0; /* Sin margen final */
         }
 
         .providers-header {
@@ -148,7 +150,7 @@
             padding: 15px;
             text-align: center;
             color: white;
-            border-radius: 12px 0 0 0;
+            border-radius: 15px 0 0 0;
         }
 
         .providers-header h3 {
@@ -167,6 +169,7 @@
             gap: 12px;
         }
 
+        /* ESTILO CARDS DIRECTORIO */
         .provider-card {
             background: white;
             border-radius: 8px;
@@ -181,6 +184,7 @@
             color: #2b6cb0;
             border-bottom: 1px solid #edf2f7;
             padding-bottom: 5px;
+            text-transform: uppercase;
         }
 
         .provider-detail {
@@ -190,12 +194,6 @@
             align-items: center;
             gap: 8px;
             color: #4a5568;
-        }
-
-        .provider-detail i {
-            color: #3182ce;
-            width: 14px;
-            text-align: center;
         }
 
         .cat-tag {
@@ -232,7 +230,7 @@
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #4a5568; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
-        .calc-preview { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 10px; font-size: 0.85rem; }
+        
         #contenedorNombreNuevo { display: none; margin-top: 10px; padding: 10px; background: #ebf8ff; border-radius: 6px; border: 1px dashed #3182ce; }
     </style>
 </head>
@@ -256,6 +254,7 @@
                 <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
                 <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
             </div>
+            
             <div class="inventory-card">
                 <table class="inventory-table">
                     <thead>
@@ -267,7 +266,8 @@
                             <th>ACCIONES</th>
                         </tr>
                     </thead>
-                    <tbody id="inventoryTable"></tbody>
+                    <tbody id="inventoryTable">
+                        </tbody>
                 </table>
             </div>
         </div>
@@ -319,7 +319,7 @@
                     <input type="number" id="compraCosto" required>
                 </div>
             </div>
-            <div class="calc-preview">
+            <div style="background: #f8fafc; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; border: 1px solid #edf2f7;">
                 <strong>Conversión automática:</strong><br>
                 <span id="labelConversion" style="color: #2f855a; font-weight: bold;">Total a ingresar: 0.00 m²</span>
             </div>
@@ -334,15 +334,16 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
+    // Lógica de interfaz para el modal (mantenida de tu código)
     function manejarCambioMaterial() {
         const select = document.getElementById('compraMaterial');
         const contenedor = document.getElementById('contenedorNombreNuevo');
         const input = document.getElementById('nombreNuevoMaterial');
-        if (select.value === "NUEVO") {
+        if (select && select.value === "NUEVO") {
             contenedor.style.display = 'block';
             input.required = true;
             input.focus();
-        } else {
+        } else if (contenedor) {
             contenedor.style.display = 'none';
             input.required = false;
         }
@@ -353,15 +354,16 @@
         const modal = document.getElementById('modalCompra');
         if(!modal) return;
         modal.style.display = 'block';
-        document.getElementById('contenedorNombreNuevo').style.display = 'none';
-        document.getElementById('formNuevaCompra').reset();
         
+        // Carga de datos para los selects
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
 
         const provSelect = document.getElementById('compraProveedor');
         if(provSelect) {
-            provSelect.innerHTML = proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
+            provSelect.innerHTML = proveedores.map(p => 
+                `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`
+            ).join('');
         }
 
         const matSelect = document.getElementById('compraMaterial');
