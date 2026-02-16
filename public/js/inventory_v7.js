@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.6.1 - UI: Consolidación Definitiva + Auto-Fix Atlas
- * Respetando estructura visual y blindaje de datos v12.1.7 / v12.5.0
+ * Versión: 12.7.0 - UI: Consolidación Definitiva + Cálculo Universal de m²
+ * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.6.1 - AUTO-CORRECCIÓN ACTIVADA");
+    console.log("🚀 Sistema Iniciado - v12.7.0 - CÁLCULO DINÁMICO ACTIVADO");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -107,7 +107,7 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
 
-            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS (Punto 3 Solicitado) ---
+            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS ---
             if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina === 21600) {
                 console.warn("⚠️ Detectado error de precio en Atlas ($21.600). Ejecutando Auto-Fix a $108.000...");
                 window.API.saveMaterial({
@@ -117,8 +117,7 @@ async function fetchInventory() {
                     ancho_lamina_cm: materialProcesado.ancho_lamina_cm || 220,
                     largo_lamina_cm: materialProcesado.largo_lamina_cm || 160
                 }).then(() => {
-                    console.log("✅ Atlas actualizado. Recargando para aplicar cambios...");
-                    // No hacemos fetch de nuevo aquí para evitar bucles, el blindaje de renderTable se encarga del resto
+                    console.log("✅ Atlas actualizado.");
                 });
             }
 
@@ -145,9 +144,10 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- BLINDAJE MATEMÁTICO ABSOLUTO (v12.6.0) ---
-        const anchoMetros = (m.ancho_lamina_cm || 220) / 100;
-        const largoMetros = (m.largo_lamina_cm || 160) / 100;
+        // --- BLINDAJE MATEMÁTICO UNIVERSAL (v12.7.0) ---
+        // Usamos las medidas específicas del material, si no existen usamos 0 para evitar cálculos erróneos
+        const anchoMetros = (Number(m.ancho_lamina_cm) || 0) / 100;
+        const largoMetros = (Number(m.largo_lamina_cm) || 0) / 100;
         const areaUnaLaminaM2 = anchoMetros * largoMetros;
         
         let costoMostrar = 0;
