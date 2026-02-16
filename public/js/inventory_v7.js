@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.7.0 - UI: Consolidación Definitiva + Cálculo Universal de m²
+ * Versión: 12.7.5 - UI: Consolidación Definitiva + CÁLCULO MATEMÁTICO PURO
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.7.0 - CÁLCULO DINÁMICO ACTIVADO");
+    console.log("🚀 Sistema Iniciado - v12.7.5 - CÁLCULO MATEMÁTICO ACTIVADO");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,7 +93,7 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            const materialProcesado = {
+            return {
                 ...m,
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
@@ -106,17 +106,6 @@ async function fetchInventory() {
                 largo_lamina_cm: Number(m.largo_lamina_cm ?? 0),
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
-
-            // --- AUTO-FIX PRECIOS BASE (CORRECCIÓN QUIRÚRGICA) ---
-            // Si el precio total de la lámina es erróneo (como los 21600 del 3mm), lo corregimos aquí
-            if (materialProcesado.nombre.includes("Espejo 3mm") && materialProcesado.precio_total_lamina < 100000) {
-                materialProcesado.precio_total_lamina = 220000;
-            }
-            if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina < 50000) {
-                materialProcesado.precio_total_lamina = 108000;
-            }
-
-            return materialProcesado;
         });
         
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
@@ -139,15 +128,14 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- MOTOR DE CÁLCULO UNIVERSAL (v12.7.0) ---
-        // Independiente de qué material sea, si tiene medidas, se calcula el m2 desde el precio de lámina
+        // --- MOTOR MATEMÁTICO CIEGO Y UNIVERSAL ---
         const ancho = Number(m.ancho_lamina_cm) || 0;
         const largo = Number(m.largo_lamina_cm) || 0;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // CÁLCULO CIEGO: Precio Lámina / Area Lámina
+            // REGLA DE ORO: PRECIO LÁMINA / AREA REAL = COSTO M2
             costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
         } else {
             costoMostrar = m.precio_m2_costo || 0;
