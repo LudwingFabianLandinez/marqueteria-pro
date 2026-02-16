@@ -192,6 +192,9 @@
         .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #4a5568; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
         .calc-preview { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 10px; font-size: 0.85rem; }
+
+        /* GANCHO VISUAL PARA MATERIAL NUEVO (Sin alterar diseño general) */
+        #contenedorNombreNuevo { display: none; margin-top: 10px; padding: 10px; background: #ebf8ff; border-radius: 6px; border: 1px dashed #3182ce; }
     </style>
 </head>
 <body>
@@ -254,9 +257,13 @@
             </div>
             <div class="form-group">
                 <label>Material</label>
-                <select id="compraMaterial" name="materialId" required onchange="calcularConversionM2()">
+                <select id="compraMaterial" name="materialId" required onchange="manejarCambioMaterial()">
                     <option value="">Cargando materiales...</option>
                 </select>
+                <div id="contenedorNombreNuevo">
+                    <label style="color: #2b6cb0;">Nombre del Material Nuevo</label>
+                    <input type="text" id="nombreNuevoMaterial" placeholder="Escribe el nombre aquí...">
+                </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
@@ -294,6 +301,25 @@
 <script src="./js/inventory_v7.js"></script>
 <script>
     /**
+     * FUNCIÓN PARA MOSTRAR/OCULTAR CAMPO DE MATERIAL NUEVO
+     */
+    function manejarCambioMaterial() {
+        const select = document.getElementById('compraMaterial');
+        const contenedor = document.getElementById('contenedorNombreNuevo');
+        const input = document.getElementById('nombreNuevoMaterial');
+
+        if (select.value === "NUEVO") {
+            contenedor.style.display = 'block';
+            input.required = true;
+            input.focus();
+        } else {
+            contenedor.style.display = 'none';
+            input.required = false;
+        }
+        calcularConversionM2();
+    }
+
+    /**
      * CIRUGÍA DE BLINDAJE: 
      * Se agregaron verificaciones String() y validaciones de existencia 
      * para evitar errores de .toUpperCase() en datos nulos.
@@ -303,6 +329,9 @@
         if(!modal) return;
         
         modal.style.display = 'block';
+        // Resetear estado del campo dinámico al abrir
+        document.getElementById('contenedorNombreNuevo').style.display = 'none';
+        document.getElementById('formNuevaCompra').reset();
 
         const provSelect = document.getElementById('compraProveedor');
         const matSelect = document.getElementById('compraMaterial');
@@ -320,12 +349,17 @@
         }
 
         if(matSelect) {
-            matSelect.innerHTML = inventario.length > 0 
-                ? inventario.map(m => {
+            // Creamos las opciones con el disparador de "+ NUEVO MATERIAL"
+            let opciones = '<option value="">-- Seleccione Material --</option>';
+            opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
+            
+            if(inventario.length > 0) {
+                opciones += inventario.map(m => {
                     const nombreMat = m.nombre || m.name || 'Sin nombre';
                     return `<option value="${m._id || m.id}">${nombreMat}</option>`;
-                }).join('')
-                : '<option value="">No hay materiales registrados</option>';
+                }).join('');
+            }
+            matSelect.innerHTML = opciones;
         }
     };
 
@@ -353,7 +387,6 @@
         }
 
         container.innerHTML = datos.map(p => {
-            // Blindaje quirúrgico para datos nulos
             const nombreSeguro = String(p.nombre || p.name || 'S/N').toUpperCase();
             const telSeguro = p.telefono || p.phone || 'Sin número';
             const catSeguro = p.categoria || p.category || 'General';

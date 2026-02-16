@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.1.5 - CONSOLIDADO FINAL: FIX ENUM "PURCHASE"
- * Corrección de Error 500 mediante estandarización de tipo a nivel API.
+ * Versión: 12.1.6 - CONSOLIDADO FINAL: SELECT HÍBRIDO + FIX ENUM "PURCHASE"
+ * Soporte para creación dinámica de materiales desde el modal de compra.
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.1.5");
+    console.log("🚀 Sistema Iniciado - v12.1.6");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -166,29 +166,6 @@ function renderTable(materiales) {
     });
 }
 
-// --- EDICIÓN Y CREACIÓN ---
-
-window.prepararNuevoMaterial = function() {
-    const form = document.getElementById('matForm');
-    if(form) form.reset();
-    if(document.getElementById('matId')) document.getElementById('matId').value = "";
-    const modal = document.getElementById('modalNuevoMaterial');
-    if(modal) modal.style.display = 'flex';
-};
-
-window.prepararEdicionMaterial = function(id) {
-    const m = window.todosLosMateriales.find(mat => mat.id === id);
-    if (!m) return;
-    if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
-    if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
-    if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
-    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_m2_costo;
-    if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
-    if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
-    const modal = document.getElementById('modalNuevoMaterial');
-    if(modal) modal.style.display = 'flex';
-};
-
 // --- EVENTOS Y UTILIDADES ---
 
 function configurarEventos() {
@@ -219,7 +196,7 @@ function configurarEventos() {
 
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 
-    /** LÓGICA DE COMPRA CORREGIDA V12.1.5 **/
+    /** LÓGICA DE COMPRA HÍBRIDA V12.1.6 **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -227,8 +204,9 @@ function configurarEventos() {
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) btn.disabled = true;
 
-            const materialId = document.getElementById('compraMaterial')?.value;
+            let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
+            const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value.trim();
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
@@ -240,14 +218,40 @@ function configurarEventos() {
                 return;
             }
 
+            // --- GANCHO: CREACIÓN DINÁMICA DE MATERIAL SI ES "NUEVO" ---
+            if (materialId === "NUEVO") {
+                if (!nuevoNombre) {
+                    alert("⚠️ Por favor escribe el nombre del nuevo material");
+                    if(btn) btn.disabled = false;
+                    return;
+                }
+                
+                try {
+                    const resMat = await window.API.saveMaterial({
+                        nombre: nuevoNombre,
+                        categoria: "General",
+                        proveedorId: providerId,
+                        precio_m2_costo: costoTotal / (((largo * ancho) / 10000) * cant || 1) // Estimación de costo base
+                    });
+                    
+                    if (resMat.success) {
+                        materialId = resMat.data._id || resMat.data.id;
+                    } else {
+                        throw new Error("No se pudo crear el nuevo material");
+                    }
+                } catch (err) {
+                    alert("❌ Error al crear material nuevo: " + err.message);
+                    if(btn) btn.disabled = false;
+                    return;
+                }
+            }
+
             const m2Calculados = Number(((largo * ancho) / 10000 * cant).toFixed(4));
-            
             const objetoCompra = Object.create(null);
             objetoCompra.materialId = materialId;
             objetoCompra.proveedorId = providerId;
             objetoCompra.cantidad_m2 = m2Calculados;
             objetoCompra.precio_total = costoTotal;
-            // CAMBIO CRÍTICO: Usando "PURCHASE" para compatibilidad con el Backend
             objetoCompra.tipo = "PURCHASE"; 
             objetoCompra.detalles = { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant };
 
@@ -259,7 +263,7 @@ function configurarEventos() {
                     e.target.reset(); 
                     alert("✅ Compra registrada con éxito");
                 } else {
-                    alert("❌ Error: " + (res.message || "Valor de 'tipo' no aceptado"));
+                    alert("❌ Error: " + (res.message || "Error al procesar la compra"));
                 }
             } catch (err) { 
                 alert("❌ Error en la comunicación con el servidor"); 
@@ -284,16 +288,22 @@ window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
     const provRegisterSelect = document.getElementById('proveedorSelect');
+    
     const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
         window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
 
     if (provSelect) provSelect.innerHTML = opcionesProv;
     if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
+    
     if (matSelect) {
-        matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
-            window.todosLosMateriales.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        let opcionesMat = '<option value="">-- Seleccionar Material --</option>';
+        opcionesMat += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
+        opcionesMat += window.todosLosMateriales.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        matSelect.innerHTML = opcionesMat;
     }
 };
+
+// --- MÁS FUNCIONES MANTENIDAS ---
 
 window.verHistorial = async function(id, nombre) {
     try {
@@ -334,6 +344,19 @@ window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
     if(document.getElementById('adjustCantidad')) document.getElementById('adjustCantidad').value = stockActual;
     if(document.getElementById('adjustReorden')) document.getElementById('adjustReorden').value = stockMinimo;
     const modal = document.getElementById('modalAjuste');
+    if(modal) modal.style.display = 'flex';
+};
+
+window.prepararEdicionMaterial = function(id) {
+    const m = window.todosLosMateriales.find(mat => mat.id === id);
+    if (!m) return;
+    if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
+    if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
+    if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
+    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_m2_costo;
+    if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
+    if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
+    const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };
 
