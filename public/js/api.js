@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.1.8 (SINCRO TOTAL SCHEMA)
- * Ajustado para cumplir con Transaccion.js y evitar Error 500 de validación.
+ * Módulo de conexión API - Versión 12.2.9 (SINCRO TOTAL SCHEMA)
+ * Ajustado para cumplir con Transaccion.js y asegurar cálculo Área x Cantidad.
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -82,21 +82,28 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    /** * REGISTRO DE COMPRA - REESTRUCTURADO V12.1.8
-     * Sincronizado con Transaccion.js (Model)
+    /** * REGISTRO DE COMPRA - REESTRUCTURADO V12.2.9
+     * Sincronizado con Transaccion.js (Model) y FIX de Medidas Totales
      */
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Sincronizando con TransaccionSchema...");
+        console.log("🚀 Sincronizando Compra con Medidas Totales...");
         
+        // Calculamos el costo unitario por m2 para el historial si no viene definido
+        const cantidadFinal = Number(purchaseData.cantidad || 0);
+        const costoTotal = Number(purchaseData.costo_total || 0);
+        const costoUnitarioCalculado = cantidadFinal > 0 ? (costoTotal / cantidadFinal) : 0;
+
         // Mapeo quirúrgico para coincidir con los campos del Schema de Mongoose
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedor: String(purchaseData.proveedor || purchaseData.providerId || purchaseData.proveedorId),
-            cantidad: Number(parseFloat(purchaseData.cantidad || purchaseData.cantidad_m2).toFixed(4)),
-            cantidad_m2: Number(parseFloat(purchaseData.cantidad_m2 || purchaseData.cantidad).toFixed(4)),
-            costo_total: Number(Math.round(purchaseData.costo_total || purchaseData.precio_total)),
-            costo_unitario: Number(purchaseData.costo_unitario || 0),
-            tipo: "COMPRA", // Coincide con Enum y normalización del pre-save
+            // 'cantidad' ahora recibe el total de m2 (Ej: 17.60) calculado en inventory.js
+            cantidad: Number(parseFloat(cantidadFinal).toFixed(4)),
+            cantidad_m2: Number(parseFloat(cantidadFinal).toFixed(4)),
+            costo_total: Number(Math.round(costoTotal)),
+            // Aseguramos que el historial guarde el costo por cada m2
+            costo_unitario: Number(purchaseData.precio_m2_costo || costoUnitarioCalculado),
+            tipo: "COMPRA",
             motivo: purchaseData.motivo || "Registro de compra",
             fecha: new Date().toISOString()
         };
@@ -120,7 +127,6 @@ window.API = {
 
     adjustStock: async function(data) {
         try {
-            // Aseguramos que el tipo sea aceptado por el Enum
             if (!data.tipo) data.tipo = "AJUSTE_MAS"; 
             
             const response = await fetch(`${window.API.url}/inventory/adjust`, {
@@ -176,4 +182,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.1.8 - Blindaje y Sincronización Schema Activa.");
+console.log("🛡️ API v12.2.9 - Blindaje y Sincronización Total Activa.");
