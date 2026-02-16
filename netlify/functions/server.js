@@ -1,3 +1,9 @@
+/**
+ * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+ * Módulo de Servidor (Netlify Function) - Versión 12.2.0 (RUTA ULTRA-ROBUSTA)
+ * Objetivo: Eliminar definitivamente el Error 404 mediante mapeo forzado.
+ */
+
 const express = require('express');
 const cors = require('cors');
 const serverless = require('serverless-http'); 
@@ -6,8 +12,7 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 
-// 1. CARGA DE MODELOS (Singleton)
-// Aseguramos que los modelos se registren antes de cargar las rutas
+// 1. CARGA DE MODELOS (Singleton - Asegura que existan antes de las rutas)
 try {
     require('./models/Provider');
     require('./models/Material');
@@ -15,9 +20,9 @@ try {
     require('./models/Transaction'); 
     require('./models/Purchase');
     require('./models/Client');
-    console.log("📦 Modelos cargados exitosamente");
+    console.log("📦 Modelos v12.2.0 cargados");
 } catch (err) {
-    console.error("🚨 Error cargando modelos:", err.message);
+    console.error("🚨 Error modelos:", err.message);
 }
 
 const app = express();
@@ -27,22 +32,24 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (FIX 404 NETLIFY)
+// 3. NORMALIZACIÓN QUIRÚRGICA DE URL (Blindaje 404)
 app.use((req, res, next) => {
     const basePrefix = '/.netlify/functions/server';
     
-    // Limpiamos el prefijo de Netlify
+    // Eliminamos el prefijo de Netlify si existe
     if (req.url.startsWith(basePrefix)) {
         req.url = req.url.replace(basePrefix, '');
     }
 
-    // Si la ruta queda vacía o es solo un slash, aseguramos la raíz
+    // ELIMINACIÓN DE DOBLE SLASH: Netlify a veces envía //inventory
+    req.url = req.url.replace(/\/+/g, '/');
+
+    // Aseguramos que la ruta no quede vacía
     if (!req.url || req.url === '') {
         req.url = '/';
     }
 
-    // LOG DE DEPURACIÓN: Verás exactamente qué ruta llega al router
-    console.log(`🛣️ [v12.1.8] ${req.method} ${req.url}`);
+    console.log(`📡 [v12.2.0] ${req.method} procesado para: ${req.url}`);
     next();
 });
 
@@ -63,48 +70,51 @@ const connect = async () => {
     }
 };
 
-// 5. DEFINICIÓN DE RUTAS
+// 5. DEFINICIÓN DE RUTAS (Mapeo Ultra-Robusto)
 const router = express.Router();
 
 try {
-    // Rutas principales
-    router.use('/inventory', require('./routes/inventoryRoutes'));
-    router.use('/providers', require('./routes/providerRoutes'));
+    const inventoryRoutes = require('./routes/inventoryRoutes');
+    const purchaseRoutes = require('./routes/purchaseRoutes');
+    const providerRoutes = require('./routes/providerRoutes');
+
+    // Mapeo Directo
+    router.use('/inventory', inventoryRoutes);
+    router.use('/providers', providerRoutes);
+    router.use('/purchases', purchaseRoutes);
+    
+    // ALIAS DE SEGURIDAD: Si el frontend busca /inventory/purchase, redirigimos aquí.
+    router.use('/inventory/purchase', purchaseRoutes);
+    
+    // Rutas Complementarias
     router.use('/clients', require('./routes/clientRoutes'));
     router.use('/invoices', require('./routes/invoiceRoutes'));
     router.use('/quotes', require('./routes/quoteRoutes'));
     router.use('/stats', require('./routes/statsRoutes'));
 
-    /** * ALINEACIÓN QUIRÚRGICA:
-     * Si el frontend envía a /inventory/purchase, pero tienes un archivo purchaseRoutes,
-     * creamos un alias aquí para que no de 404.
-     */
-    const purchaseRoutes = require('./routes/purchaseRoutes');
-    router.use('/purchases', purchaseRoutes);
-    router.use('/inventory/purchase', purchaseRoutes); // <--- ALIAS PARA EVITAR 404
-
     router.get('/health', (req, res) => {
         res.json({ 
             status: 'OK', 
-            version: '12.1.8',
+            version: '12.2.0',
             db: mongoose.connection.readyState === 1 
         });
     });
 
-    console.log("✅ Sistema de rutas mapeado");
+    console.log("✅ Sistema de rutas ultra-robusto mapeado");
 } catch (error) {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
 // 6. VINCULACIÓN FINAL
+// Montamos todo en la raíz para que el middleware de limpieza sea efectivo
 app.use('/', router);
 
-// Manejador de errores global para evitar que la función muera sin aviso
+// Manejador de errores global
 app.use((err, req, res, next) => {
-    console.error("🔥 Error no controlado:", err.stack);
+    console.error("🔥 Error crítico servidor:", err.stack);
     res.status(500).json({
         success: false,
-        message: "Error interno en el servidor de Netlify",
+        message: "Error interno en Netlify",
         error: err.message
     });
 });
@@ -112,7 +122,6 @@ app.use((err, req, res, next) => {
 const handler = serverless(app);
 
 module.exports.handler = async (event, context) => {
-    // Permite que la función responda inmediatamente sin esperar a que el loop de eventos esté vacío
     context.callbackWaitsForEmptyEventLoop = false;
     
     try {
@@ -125,7 +134,7 @@ module.exports.handler = async (event, context) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 success: false, 
-                error: 'Fallo de conexión en el Handler', 
+                error: 'Fallo fatal en ejecución', 
                 details: error.message 
             })
         };
