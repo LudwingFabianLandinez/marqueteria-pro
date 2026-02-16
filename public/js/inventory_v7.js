@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.5.0 - UI: Reingeniería Total de Cálculos Matemáticos
- * Respetando estructura visual y blindaje de datos v12.1.7
+ * Versión: 12.6.0 - UI: Consolidación Definitiva de Cálculos
+ * Respetando estructura visual y blindaje de datos v12.1.7 / v12.5.0
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.5.0");
+    console.log("🚀 Sistema Iniciado - v12.6.0");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -128,12 +128,15 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- REINGENIERÍA DE CÁLCULO MATEMÁTICO ---
-        const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
+        // --- BLINDAJE MATEMÁTICO ABSOLUTO (v12.6.0) ---
+        const anchoMetros = m.ancho_lamina_cm / 100;
+        const largoMetros = m.largo_lamina_cm / 100;
+        const areaUnaLaminaM2 = anchoMetros * largoMetros;
         
         let costoMostrar = 0;
-        // Obligamos a usar la división pura: Precio de 1 lámina / Área de 1 lámina
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
+            // FORZAMOS: Precio de 1 lámina / Área de 1 lámina. 
+            // Ignoramos lo que diga el servidor sobre el precio_m2_costo.
             costoMostrar = m.precio_total_lamina / areaUnaLaminaM2;
         } else {
             costoMostrar = m.precio_m2_costo || 0;
@@ -235,7 +238,6 @@ function configurarEventos() {
                 return;
             }
 
-            // CÁLCULOS ESTRICTOS PARA EL REGISTRO
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2AAgregar = areaUnaLamina * cant;
             const costoIndividualLamina = costoFacturaTotal / cant;
@@ -361,6 +363,7 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
+    // Forzamos que edites el precio de LA LÁMINA ($108.000)
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
