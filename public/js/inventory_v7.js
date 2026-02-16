@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.6.0");
+    console.log("🚀 Sistema Iniciado - v12.6.0 - CORRECCIÓN MANUAL");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
