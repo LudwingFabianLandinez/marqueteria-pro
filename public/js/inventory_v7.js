@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.6.2 - UI: Consolidación + Activación de Botones
- * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1
+ * Versión: 12.6.1 - UI: Consolidación Definitiva + Auto-Fix Atlas
+ * Respetando estructura visual y blindaje de datos v12.1.7 / v12.5.0
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.6.2 - BOTONES ACTIVADOS");
+    console.log("🚀 Sistema Iniciado - v12.6.1 - AUTO-CORRECCIÓN ACTIVADA");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,12 +93,9 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            // NORMALIZACIÓN DE ID: Aseguramos que el ID de MongoDB Atlas esté disponible como .id
-            const idNormalizado = m._id || m.id;
-            
             const materialProcesado = {
                 ...m,
-                id: idNormalizado,
+                id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
@@ -110,15 +107,18 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
 
-            // AUTO-CORRECCIÓN ATLAS
+            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS (Punto 3 Solicitado) ---
             if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina === 21600) {
-                console.warn("⚠️ Ejecutando Auto-Fix Atlas a $108.000...");
+                console.warn("⚠️ Detectado error de precio en Atlas ($21.600). Ejecutando Auto-Fix a $108.000...");
                 window.API.saveMaterial({
-                    id: idNormalizado,
+                    id: materialProcesado.id,
                     nombre: materialProcesado.nombre,
                     precio_total_lamina: 108000,
                     ancho_lamina_cm: materialProcesado.ancho_lamina_cm || 220,
                     largo_lamina_cm: materialProcesado.largo_lamina_cm || 160
+                }).then(() => {
+                    console.log("✅ Atlas actualizado. Recargando para aplicar cambios...");
+                    // No hacemos fetch de nuevo aquí para evitar bucles, el blindaje de renderTable se encarga del resto
                 });
             }
 
@@ -145,12 +145,14 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
+        // --- BLINDAJE MATEMÁTICO ABSOLUTO (v12.6.0) ---
         const anchoMetros = (m.ancho_lamina_cm || 220) / 100;
         const largoMetros = (m.largo_lamina_cm || 160) / 100;
         const areaUnaLaminaM2 = anchoMetros * largoMetros;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
+            // Si el precio es el erróneo de Atlas, lo forzamos visualmente a 108.000 mientras el auto-fix termina
             const precioParaCalculo = m.precio_total_lamina === 21600 ? 108000 : m.precio_total_lamina;
             costoMostrar = precioParaCalculo / areaUnaLaminaM2;
         } else {
@@ -241,6 +243,7 @@ function configurarEventos() {
 
             let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
+            const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 1; 
@@ -255,6 +258,31 @@ function configurarEventos() {
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2AAgregar = areaUnaLamina * cant;
             const costoIndividualLamina = costoFacturaTotal / cant;
+
+            if (materialId === "NUEVO") {
+                if (!nuevoNombre) {
+                    alert("⚠️ Escribe el nombre del nuevo material");
+                    if(btn) btn.disabled = false;
+                    return;
+                }
+                try {
+                    const resMat = await window.API.saveMaterial({
+                        nombre: nuevoNombre,
+                        categoria: "General",
+                        proveedorId: providerId,
+                        ancho_lamina_cm: ancho,
+                        largo_lamina_cm: largo,
+                        precio_total_lamina: costoIndividualLamina 
+                    });
+                    if (resMat.success) {
+                        materialId = resMat.data._id || resMat.data.id;
+                    } else { throw new Error("Error al crear el material base"); }
+                } catch (err) {
+                    alert("❌ Error: " + err.message);
+                    if(btn) btn.disabled = false;
+                    return;
+                }
+            }
 
             const objetoCompra = {
                 materialId: materialId,
@@ -274,10 +302,13 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert(`✅ Compra exitosa.`);
+                    alert(`✅ Compra exitosa: ${cant} láminas agregadas.`);
+                } else {
+                    alert("❌ Error Servidor: " + (res.message || "Error de validación"));
                 }
-            } catch (err) { alert("❌ Error de comunicación."); } 
-            finally { if(btn) btn.disabled = false; }
+            } catch (err) { 
+                alert("❌ Error de comunicación."); 
+            } finally { if(btn) btn.disabled = false; }
         });
     }
 
@@ -335,28 +366,23 @@ window.eliminarMaterial = async function(id) {
 };
 
 window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
-    document.getElementById('adjustId').value = id;
-    document.getElementById('adjustMaterialNombre').innerText = nombre;
-    document.getElementById('adjustCantidad').value = stockActual;
-    document.getElementById('adjustReorden').value = stockMinimo;
+    if(document.getElementById('adjustId')) document.getElementById('adjustId').value = id;
+    if(document.getElementById('adjustMaterialNombre')) document.getElementById('adjustMaterialNombre').innerText = nombre;
+    if(document.getElementById('adjustCantidad')) document.getElementById('adjustCantidad').value = stockActual;
+    if(document.getElementById('adjustReorden')) document.getElementById('adjustReorden').value = stockMinimo;
     const modal = document.getElementById('modalAjuste');
     if(modal) modal.style.display = 'flex';
 };
 
 window.prepararEdicionMaterial = function(id) {
-    // Buscamos usando el ID normalizado que guardamos en fetchInventory
     const m = window.todosLosMateriales.find(mat => mat.id === id);
-    if (!m) return console.warn("No se encontró material con ID:", id);
-
+    if (!m) return;
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
-    
-    const provId = m.proveedor?._id || m.proveedorId || "";
-    if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = provId;
-    
+    if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };
