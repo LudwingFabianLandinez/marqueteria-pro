@@ -107,13 +107,12 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
 
-            // --- AUTO-FIX VIDRIO 2MM (CORRECCIÓN QUIRÚRGICA) ---
-            if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina === 21600) {
-                console.warn("⚠️ Corrigiendo precio base de Vidrio 2mm en servidor...");
-                window.API.saveMaterial({
-                    id: materialProcesado.id,
-                    precio_total_lamina: 108000
-                });
+            // --- AUTO-FIX PRECIOS BASE (CORRECCIÓN QUIRÚRGICA) ---
+            // Si el precio total de la lámina es erróneo (como los 21600 del 3mm), lo corregimos aquí
+            if (materialProcesado.nombre.includes("Espejo 3mm") && materialProcesado.precio_total_lamina < 100000) {
+                materialProcesado.precio_total_lamina = 220000;
+            }
+            if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina < 50000) {
                 materialProcesado.precio_total_lamina = 108000;
             }
 
@@ -140,14 +139,15 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- MOTOR DE CÁLCULO QUIRÚRGICO (v12.7.0) ---
+        // --- MOTOR DE CÁLCULO UNIVERSAL (v12.7.0) ---
+        // Independiente de qué material sea, si tiene medidas, se calcula el m2 desde el precio de lámina
         const ancho = Number(m.ancho_lamina_cm) || 0;
         const largo = Number(m.largo_lamina_cm) || 0;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // Se ignora el campo precio_m2_costo de la DB y se calcula de cero
+            // CÁLCULO CIEGO: Precio Lámina / Area Lámina
             costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
         } else {
             costoMostrar = m.precio_m2_costo || 0;
