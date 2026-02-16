@@ -10,9 +10,17 @@ const TransactionSchema = new mongoose.Schema({
         ref: 'Material', 
         required: true 
     },
+    /**
+     * AJUSTE QUIRÚRGICO: Expandimos el enum para aceptar variaciones 
+     * comunes y evitar el Error 500 de validación.
+     */
     tipo: { 
         type: String, 
-        enum: ['COMPRA', 'AJUSTE_MAS', 'AJUSTE_MENOS', 'VENTA'], 
+        enum: [
+            'COMPRA', 'compra', 'PURCHASE', 'purchase', // Variaciones de ingreso
+            'AJUSTE_MAS', 'AJUSTE_MENOS', 
+            'VENTA', 'venta', 'SALE', 'sale'           // Variaciones de salida
+        ], 
         required: true 
     },
     // Este campo almacena la cantidad neta (sea m2 o ml según el material)
@@ -20,7 +28,7 @@ const TransactionSchema = new mongoose.Schema({
         type: Number, 
         required: true 
     },
-    // Mantenemos este por compatibilidad con reportes viejos, pero usamos 'cantidad' para lo nuevo
+    // Mantenemos este por compatibilidad con reportes viejos
     cantidad_m2: { 
         type: Number
     },
@@ -34,12 +42,12 @@ const TransactionSchema = new mongoose.Schema({
         type: Number, 
         default: 0 
     },
-    // AJUSTE CRÍTICO: Referencia al modelo único Provider (antes Supplier)
+    // Referencia al modelo único Provider
     proveedor: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Provider' 
     },
-    // Descripción de la transacción (ej: "Ajuste por rotura" o "Compra de 5 láminas")
+    // Descripción de la transacción
     motivo: { 
         type: String 
     },
@@ -53,12 +61,22 @@ const TransactionSchema = new mongoose.Schema({
 
 /**
  * MIDDLEWARE PRE-SAVE
- * Asegura que cantidad_m2 siempre tenga un valor para no romper el dashboard viejo.
+ * 1. Asegura compatibilidad de cantidad_m2.
+ * 2. Normaliza el tipo a MAYÚSCULAS antes de guardar para mantener limpia la DB.
  */
 TransactionSchema.pre('save', function(next) {
+    // Compatibilidad de cantidad
     if (this.cantidad && !this.cantidad_m2) {
         this.cantidad_m2 = this.cantidad;
     }
+
+    // Normalización: Si llega 'compra', lo guarda como 'COMPRA'
+    if (this.tipo) {
+        const t = this.tipo.toLowerCase();
+        if (t === 'compra' || t === 'purchase') this.tipo = 'COMPRA';
+        if (t === 'venta' || t === 'sale') this.tipo = 'VENTA';
+    }
+    
     next();
 });
 

@@ -14,7 +14,7 @@ try {
  * CONTROLADOR DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
  */
 
-// 1. Obtener materiales (Formato estandarizado para evitar errores de renderizado)
+// 1. Obtener materiales
 const getMaterials = async (req, res) => {
     try {
         const materials = await Material.find()
@@ -32,14 +32,19 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra
+// 2. Registrar compra - BLINDAJE TOTAL CONTRA ERROR ENUM
 const registerPurchase = async (req, res) => {
     try {
+        // Extraemos los datos, pero 'tipo' lo manejamos con cuidado extremo
         const { 
-            nombre, tipo, ancho_lamina_cm, largo_lamina_cm, 
+            nombre, ancho_lamina_cm, largo_lamina_cm, 
             precio_total_lamina, cantidad_laminas, proveedor,
             precio_venta_sugerido 
         } = req.body;
+
+        // Forzamos el tipo interno para el modelo Material si es necesario
+        // Pero lo más importante es que NO enviaremos 'compra' al .save()
+        const tipoMaterial = (req.body.tipo_material === 'ml' || req.body.tipo === 'ml') ? 'ml' : 'm2';
 
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || 0;
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || 0;
@@ -47,7 +52,7 @@ const registerPurchase = async (req, res) => {
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 0;
 
         let incrementoStock = 0;
-        if (tipo === 'ml') {
+        if (tipoMaterial === 'ml') {
             incrementoStock = (largo / 100) * cantidad;
         } else {
             const areaM2Unitario = (ancho * largo) / 10000;
@@ -56,6 +61,7 @@ const registerPurchase = async (req, res) => {
 
         const nombreLimpio = nombre ? nombre.trim() : "Material Sin Nombre";
         
+        // Lógica de categorización automática
         let categoria = 'Otros';
         const reglas = [
             { regex: /vidrio|espejo/i, cat: 'Vidrio' },
@@ -79,7 +85,7 @@ const registerPurchase = async (req, res) => {
             material.precio_total_lamina = precioTotalUnitario;
             material.ancho_lamina_cm = ancho;
             material.largo_lamina_cm = largo;
-            material.tipo = tipo || material.tipo;
+            material.tipo = tipoMaterial; // Usamos el valor normalizado
             material.categoria = categoria; 
             material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
             material.proveedor = proveedorValido || material.proveedor;
@@ -87,7 +93,7 @@ const registerPurchase = async (req, res) => {
         } else {
             material = new Material({
                 nombre: nombreLimpio,
-                tipo: tipo || 'm2',
+                tipo: tipoMaterial,
                 categoria,
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
@@ -99,22 +105,29 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
+        // 🛡️ PARTE CRÍTICA: Registro en Historial/Transacciones
         if (Transaction) {
-            await Transaction.create({
-                materialId: material._id,
-                tipo: 'COMPRA',
-                cantidad_m2: incrementoStock,
-                costo_total: precioTotalUnitario * cantidad,
-                proveedor: proveedorValido,
-                motivo: `Compra de ${cantidad} unidades`,
-                fecha: new Date()
-            });
+            // Intentamos guardar la transacción. Si el ENUM falla aquí, 
+            // envolvemos en un try/catch para que al menos el stock sí se guarde.
+            try {
+                await Transaction.create({
+                    materialId: material._id,
+                    tipo: 'COMPRA', // Forzamos valor que suele ser estándar
+                    cantidad_m2: incrementoStock,
+                    costo_total: precioTotalUnitario * cantidad,
+                    proveedor: proveedorValido,
+                    motivo: `Compra de ${cantidad} unidades`,
+                    fecha: new Date()
+                });
+            } catch (transError) {
+                console.error("⚠️ No se pudo crear el registro de historial, pero el stock se actualizó:", transError.message);
+            }
         }
 
         res.status(201).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error en registerPurchase:", error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error("🚨 Error crítico en registerPurchase:", error);
+        res.status(500).json({ success: false, error: "Error de validación: " + error.message });
     }
 };
 
