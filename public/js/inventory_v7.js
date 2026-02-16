@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.10 - UI OPTIMIZADA: Directorio Rodado y Sin Iconos
+ * Versión: 12.3.5 - UI: Stock con Desglose entre Paréntesis
  * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.2.10");
+    console.log("🚀 Sistema Iniciado - v12.3.5");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -45,7 +45,6 @@ async function fetchProviders() {
                 } else {
                     directorio.innerHTML = window.todosLosProveedores.map(p => {
                         const nombreSeguro = String(p.nombre || 'S/N').toUpperCase();
-                        // AJUSTE: Tarjeta limpia sin iconos y con clases para CSS consolidado
                         return `
                         <div class="provider-card">
                             <h4>${nombreSeguro}</h4>
@@ -126,11 +125,34 @@ function renderTable(materiales) {
     
     materiales.forEach(m => {
         const fila = document.createElement('tr');
-        const stockActual = m.stock_actual || 0;
+        const stockActualM2 = m.stock_actual || 0;
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
-        let colorStock = stockActual <= 0 ? '#ef4444' : (stockActual <= stockMinimo ? '#f59e0b' : '#059669');
+        let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
         
+        // --- LÓGICA DE DESGLOSE ENTRE PARÉNTESIS ---
+        let textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
+        
+        if (m.tipo !== 'ml' && m.ancho_lamina_cm > 0 && m.largo_lamina_cm > 0) {
+            const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
+            if (areaUnaLaminaM2 > 0) {
+                const laminasCompletas = Math.floor(stockActualM2 / areaUnaLaminaM2);
+                const sobranteM2 = stockActualM2 % areaUnaLaminaM2;
+                
+                let desglose = "";
+                if (laminasCompletas > 0) {
+                    desglose = `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)`;
+                } else {
+                    desglose = `(${sobranteM2.toFixed(2)} m²)`;
+                }
+                
+                textoStockVisual = `
+                    <div style="font-weight: 700; font-size: 0.95rem;">${stockActualM2.toFixed(2)} ${tipoUnidad}</div>
+                    <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
+                `;
+            }
+        }
+
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
@@ -147,14 +169,14 @@ function renderTable(materiales) {
                 ${formateador.format(m.precio_m2_costo || 0)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div style="background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-block; min-width: 100px;">
-                    <div style="font-weight: 700; color: ${colorStock}; font-size: 0.95rem;">${stockActual.toFixed(2)} ${tipoUnidad}</div>
+                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
+                    ${textoStockVisual}
                 </div>
             </td>
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
                     <button class="btn-table-action" onclick="window.prepararEdicionMaterial('${m.id}')" title="Editar Material"><i class="fas fa-edit"></i></button>
-                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}', ${stockActual}, ${stockMinimo})" title="Ajustar Stock"><i class="fas fa-sliders-h"></i></button>
+                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}', ${stockActualM2}, ${stockMinimo})" title="Ajustar Stock"><i class="fas fa-sliders-h"></i></button>
                     <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m.id}', '${m.nombre}')"><i class="fas fa-history"></i></button>
                     <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m.id}')"><i class="fas fa-trash"></i></button>
                 </div>
