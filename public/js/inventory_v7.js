@@ -107,17 +107,15 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
 
-            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS ---
+            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS (Vidrio 2mm) ---
             if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina === 21600) {
-                console.warn("⚠️ Detectado error de precio en Atlas ($21.600). Ejecutando Auto-Fix a $108.000...");
+                console.warn("⚠️ Ejecutando Auto-Fix Vidrio 2mm...");
                 window.API.saveMaterial({
                     id: materialProcesado.id,
                     nombre: materialProcesado.nombre,
                     precio_total_lamina: 108000,
-                    ancho_lamina_cm: materialProcesado.ancho_lamina_cm || 220,
-                    largo_lamina_cm: materialProcesado.largo_lamina_cm || 160
-                }).then(() => {
-                    console.log("✅ Atlas actualizado.");
+                    ancho_lamina_cm: 220,
+                    largo_lamina_cm: 160
                 });
             }
 
@@ -144,21 +142,22 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- BLINDAJE MATEMÁTICO UNIVERSAL (v12.7.0) ---
-        // Usamos las medidas específicas del material, si no existen usamos 0 para evitar cálculos erróneos
-        const anchoMetros = (Number(m.ancho_lamina_cm) || 0) / 100;
-        const largoMetros = (Number(m.largo_lamina_cm) || 0) / 100;
-        const areaUnaLaminaM2 = anchoMetros * largoMetros;
+        // --- CÁLCULO DINÁMICO DE COSTO M2 (v12.7.0) ---
+        // Basado en: Precio Lámina / ((ancho * largo) / 10000)
+        const ancho = Number(m.ancho_lamina_cm) || 0;
+        const largo = Number(m.largo_lamina_cm) || 0;
+        const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // Si el precio es el erróneo de Atlas, lo forzamos visualmente a 108.000 mientras el auto-fix termina
-            const precioParaCalculo = m.precio_total_lamina === 21600 ? 108000 : m.precio_total_lamina;
-            costoMostrar = precioParaCalculo / areaUnaLaminaM2;
+            // Fix visual para el error de carga de Atlas
+            const precioEfectivo = (m.nombre.includes("Vidrio 2mm") && m.precio_total_lamina === 21600) ? 108000 : m.precio_total_lamina;
+            costoMostrar = Math.round(precioEfectivo / areaUnaLaminaM2);
         } else {
             costoMostrar = m.precio_m2_costo || 0;
         }
 
+        // Estilos de Stock
         let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
         let textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
         
@@ -187,7 +186,7 @@ function renderTable(materiales) {
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${m.tipo === 'ml' ? `${m.largo_lamina_cm || 0} cm` : `${m.ancho_lamina_cm || 0}x${m.largo_lamina_cm || 0} cm`}
+                    ${m.tipo === 'ml' ? `${largo} cm` : `${ancho}x${largo} cm`}
                 </span>
             </td>
             <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
@@ -326,16 +325,22 @@ window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
     const provRegisterSelect = document.getElementById('proveedorSelect');
-    const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
-    if (provSelect) provSelect.innerHTML = opcionesProv;
-    if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
+    
+    if (window.todosLosProveedores.length > 0) {
+        const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
+        if (provSelect) provSelect.innerHTML = opcionesProv;
+        if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
+    }
+    
     if (matSelect) {
         let opcionesMat = '<option value="">-- Seleccionar Material --</option><option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>' + window.todosLosMateriales.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
         matSelect.innerHTML = opcionesMat;
     }
 };
 
-window.cerrarModales = function() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); };
+window.cerrarModales = function() { 
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
+};
 
 window.verHistorial = async function(id, nombre) {
     try {
@@ -389,7 +394,7 @@ window.prepararEdicionMaterial = function(id) {
 
 function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
-    if (select) {
+    if (select && window.todosLosProveedores.length > 0) {
         select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${p.nombre || 'S/N'}</option>`).join('');
     }
