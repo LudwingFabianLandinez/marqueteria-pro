@@ -1,2 +1,6 @@
-/api/* /.netlify/functions/server/:splat  200
-/* /dashboard.html                     200
+# Prioridad para la API de Cotizaciones y Familias
+/api/quotes/materials  /.netlify/functions/server/quotes/materials  200
+/api/* /.netlify/functions/server/:splat            200
+
+# SPA Routing para el Dashboard
+/* /dashboard.html  200

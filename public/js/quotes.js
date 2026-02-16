@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
         // Sincronización con el motor de inventario a través del proxy de Netlify
-        const response = await fetch('/api/quotes/materials');
+       const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
         if (result.success) {
