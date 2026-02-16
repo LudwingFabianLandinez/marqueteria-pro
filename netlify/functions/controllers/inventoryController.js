@@ -283,4 +283,4 @@ module.exports = {
     manualAdjustment,
     adjustStock: manualAdjustment,
     deleteMaterial
-};
+};  
