@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.2.2 (SINCRO TOTAL & FIX SAVE)
+ * Controlador de Inventario - Versión 12.2.3 (FIX BUILD & SINCRO TOTAL)
  */
 
 const mongoose = require('mongoose');
@@ -8,21 +8,15 @@ const mongoose = require('mongoose');
 // Carga segura de modelos
 const Material = require('../models/Material');
 const Provider = require('../models/Provider');
-let Transaction;
-try {
-    // Intentamos cargar ambos nombres comunes para evitar fallos de importación
-    Transaction = mongoose.models.Transaction || mongoose.models.Transaccion || require('../models/Transaction');
-} catch (e) {
-    try {
-        Transaction = require('../models/Transaccion');
-    } catch (err) {
-        console.error("⚠️ Modelo Transaction/Transaccion no encontrado");
-    }
-}
+
+// Función interna para obtener el modelo de transacción de forma dinámica
+// Esto evita que el build de Netlify falle por rutas de archivos inconsistentes
+const getTransactionModel = () => {
+    return mongoose.models.Transaction || mongoose.models.Transaccion;
+};
 
 /**
- * 🚀 NUEVA FUNCIÓN: saveMaterial (Solución definitiva al error de rutas)
- * Maneja la creación y edición de materiales desde el inventario.
+ * 🚀 saveMaterial: Maneja la creación y edición de materiales
  */
 const saveMaterial = async (req, res) => {
     try {
@@ -30,7 +24,6 @@ const saveMaterial = async (req, res) => {
 
         let material;
         if (id && mongoose.Types.ObjectId.isValid(id)) {
-            // EDITAR EXISTENTE
             material = await Material.findById(id);
             if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
 
@@ -43,7 +36,6 @@ const saveMaterial = async (req, res) => {
             
             await material.save();
         } else {
-            // CREAR NUEVO
             material = new Material({
                 nombre: nombre || "Nuevo Material",
                 categoria: categoria || "Otros",
@@ -80,7 +72,7 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra - VERSIÓN INTELIGENTE (CORRECCIÓN DE STOCK Y ÁREA)
+// 2. Registrar compra - VERSIÓN INTELIGENTE
 const registerPurchase = async (req, res) => {
     try {
         const { 
@@ -91,7 +83,7 @@ const registerPurchase = async (req, res) => {
             cantidad_m2, 
             precio_venta_sugerido,
             precio_total,
-            costo_total // Campo mapeado en v12.1.8
+            costo_total 
         } = req.body;
 
         let material;
@@ -141,8 +133,9 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
-        if (Transaction) {
-            await Transaction.create({
+        const TransactionModel = getTransactionModel();
+        if (TransactionModel) {
+            await TransactionModel.create({
                 materialId: material._id,
                 tipo: 'COMPRA',
                 cantidad: incrementoStock,
@@ -164,8 +157,9 @@ const registerPurchase = async (req, res) => {
 // 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
     try {
-        if (!Transaction) return res.status(200).json({ success: true, data: [] });
-        const purchases = await Transaction.find({ tipo: 'COMPRA' })
+        const TransactionModel = getTransactionModel();
+        if (!TransactionModel) return res.status(200).json({ success: true, data: [] });
+        const purchases = await TransactionModel.find({ tipo: 'COMPRA' })
             .populate('materialId', 'nombre categoria')
             .populate('proveedor', 'nombre')
             .sort({ fecha: -1 })
@@ -180,8 +174,9 @@ const getAllPurchases = async (req, res) => {
 const getMaterialHistory = async (req, res) => {
     try {
         const { id } = req.params;
-        if (!Transaction) return res.status(200).json({ success: true, data: [] });
-        const history = await Transaction.find({ materialId: id })
+        const TransactionModel = getTransactionModel();
+        if (!TransactionModel) return res.status(200).json({ success: true, data: [] });
+        const history = await TransactionModel.find({ materialId: id })
             .sort({ fecha: -1 })
             .limit(20)
             .lean();
@@ -194,8 +189,9 @@ const getMaterialHistory = async (req, res) => {
 // 5. Resumen de KPIs
 const getPurchasesSummary = async (req, res) => {
     try {
-        if (!Transaction) return res.json({ totalInvertido: 0, totalCantidad: 0, conteo: 0 });
-        const stats = await Transaction.aggregate([
+        const TransactionModel = getTransactionModel();
+        if (!TransactionModel) return res.json({ totalInvertido: 0, totalCantidad: 0, conteo: 0 });
+        const stats = await TransactionModel.aggregate([
             { $match: { tipo: 'COMPRA' } },
             { $group: {
                 _id: null,
@@ -235,8 +231,9 @@ const manualAdjustment = async (req, res) => {
         
         await material.save();
 
-        if (Transaction) {
-            await Transaction.create({
+        const TransactionModel = getTransactionModel();
+        if (TransactionModel) {
+            await TransactionModel.create({
                 materialId: material._id,
                 tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
                 cantidad: Math.abs(diferencia),
@@ -255,14 +252,15 @@ const manualAdjustment = async (req, res) => {
 const deleteMaterial = async (req, res) => {
     try {
         await Material.findByIdAndDelete(req.params.id);
-        if (Transaction) await Transaction.deleteMany({ materialId: req.params.id });
+        const TransactionModel = getTransactionModel();
+        if (TransactionModel) await TransactionModel.deleteMany({ materialId: req.params.id });
         res.status(200).json({ success: true, message: "Material eliminado" });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error al eliminar" });
     }
 };
 
-// EXPORTACIÓN CONSOLIDADA (Asegura compatibilidad con rutas)
+// EXPORTACIÓN CONSOLIDADA
 module.exports = {
     saveMaterial,
     createMaterial: saveMaterial,
