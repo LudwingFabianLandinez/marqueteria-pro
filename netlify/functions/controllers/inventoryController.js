@@ -32,15 +32,17 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra - VERSIÓN INTELIGENTE (ID + NOMBRE + BLINDAJE)
+// 2. Registrar compra - VERSIÓN INTELIGENTE (CORRECCIÓN DE STOCK Y ÁREA)
 const registerPurchase = async (req, res) => {
     try {
         const { 
-            materialId, proveedorId, // Datos del dashboard nuevo
-            nombre, proveedor,       // Datos del sistema anterior/manual
+            materialId, proveedorId, 
+            nombre, proveedor,      
             ancho_lamina_cm, largo_lamina_cm, 
             precio_total_lamina, cantidad_laminas,
-            precio_venta_sugerido 
+            cantidad_m2, // <--- IMPORTANTE: Capturamos el cálculo del frontend
+            precio_venta_sugerido,
+            precio_total // Algunos frontends envían el total de la factura aquí
         } = req.body;
 
         // --- PASO 1: LOCALIZAR EL MATERIAL ---
@@ -54,23 +56,27 @@ const registerPurchase = async (req, res) => {
             });
         }
 
-        // --- PASO 2: NORMALIZAR DATOS TÉCNICOS ---
+        // --- PASO 2: NORMALIZAR DATOS TÉCNICOS Y CÁLCULO DE STOCK ---
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0);
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0);
-        const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 1;
-
-        // Forzamos tipo ml o m2
-        const tipoMaterial = (req.body.tipo_material === 'ml' || req.body.tipo === 'ml' || (material && material.tipo === 'ml')) ? 'ml' : 'm2';
-
-        // Cálculo de incremento
+        
+        // Determinamos el incremento de stock: Prioridad al dato del frontend (17.60 m2)
         let incrementoStock = 0;
-        if (tipoMaterial === 'ml') {
-            incrementoStock = (largo / 100) * cantidad;
+        if (cantidad_m2 && parseFloat(cantidad_m2) > 0) {
+            incrementoStock = parseFloat(cantidad_m2);
         } else {
-            const areaM2Unitario = (ancho * largo) / 10000;
-            incrementoStock = areaM2Unitario * cantidad;
+            // Recálculo de respaldo si el frontend no envía la conversión
+            const tipoMaterial = (req.body.tipo_material === 'ml' || req.body.tipo === 'ml' || (material && material.tipo === 'ml')) ? 'ml' : 'm2';
+            if (tipoMaterial === 'ml') {
+                incrementoStock = (largo / 100) * cantidad;
+            } else {
+                incrementoStock = ((ancho * largo) / 10000) * cantidad;
+            }
         }
+
+        // Costo unitario por lámina/unidad
+        const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
 
         // --- PASO 3: PROVEEDOR Y CATEGORÍA ---
         const idProvFinal = proveedorId || proveedor;
@@ -92,18 +98,20 @@ const registerPurchase = async (req, res) => {
 
         // --- PASO 4: GUARDADO DE MATERIAL ---
         if (material) {
+            // Actualizamos stock sumando el nuevo ingreso
             material.stock_actual += incrementoStock;
+            // Actualizamos precios y medidas solo si vienen datos nuevos
             material.precio_total_lamina = precioTotalUnitario > 0 ? precioTotalUnitario : material.precio_total_lamina;
-            material.ancho_lamina_cm = ancho;
-            material.largo_lamina_cm = largo;
-            material.tipo = tipoMaterial;
+            material.ancho_lamina_cm = ancho > 0 ? ancho : material.ancho_lamina_cm;
+            material.largo_lamina_cm = largo > 0 ? largo : material.largo_lamina_cm;
             material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
             material.proveedor = proveedorValido || material.proveedor;
             await material.save();
         } else {
+            // Creación de material nuevo
             material = new Material({
                 nombre: nombre ? nombre.trim() : "Material Nuevo",
-                tipo: tipoMaterial,
+                tipo: (req.body.tipo_material || 'm2'),
                 categoria,
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
@@ -118,14 +126,17 @@ const registerPurchase = async (req, res) => {
         // --- PASO 5: REGISTRO DE TRANSACCIÓN ---
         if (Transaction) {
             try {
+                // El costo total de la transacción
+                const costoTransaccion = precio_total || (precioTotalUnitario * cantidad);
+                
                 await Transaction.create({
                     materialId: material._id,
-                    tipo: 'COMPRA', // Blindado por el Enum del modelo
+                    tipo: 'COMPRA',
                     cantidad: incrementoStock,
                     cantidad_m2: incrementoStock,
-                    costo_total: precioTotalUnitario * cantidad,
+                    costo_total: costoTransaccion,
                     proveedor: proveedorValido,
-                    motivo: `Compra de ${cantidad} unidades registrada`,
+                    motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2`,
                     fecha: new Date()
                 });
             } catch (transError) {
