@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.2.3 (FIX BUILD & SINCRO TOTAL)
+ * Controlador de Inventario - Versión 12.2.6 (FIX MEDIDAS Y COSTOS)
  */
 
 const mongoose = require('mongoose');
@@ -10,17 +10,21 @@ const Material = require('../models/Material');
 const Provider = require('../models/Provider');
 
 // Función interna para obtener el modelo de transacción de forma dinámica
-// Esto evita que el build de Netlify falle por rutas de archivos inconsistentes
 const getTransactionModel = () => {
     return mongoose.models.Transaction || mongoose.models.Transaccion;
 };
 
 /**
  * 🚀 saveMaterial: Maneja la creación y edición de materiales
+ * FIX: Se añadieron campos de dimensiones para evitar el 0x0 cm.
  */
 const saveMaterial = async (req, res) => {
     try {
-        const { id, nombre, categoria, tipo, stock_actual, precio_total_lamina, proveedor } = req.body;
+        const { 
+            id, nombre, categoria, tipo, stock_actual, 
+            precio_total_lamina, proveedor,
+            ancho_lamina_cm, largo_lamina_cm // Campos recuperados
+        } = req.body;
 
         let material;
         if (id && mongoose.Types.ObjectId.isValid(id)) {
@@ -32,6 +36,8 @@ const saveMaterial = async (req, res) => {
             material.tipo = tipo || material.tipo;
             material.stock_actual = stock_actual !== undefined ? parseFloat(stock_actual) : material.stock_actual;
             material.precio_total_lamina = precio_total_lamina !== undefined ? parseFloat(precio_total_lamina) : material.precio_total_lamina;
+            material.ancho_lamina_cm = ancho_lamina_cm !== undefined ? parseFloat(ancho_lamina_cm) : material.ancho_lamina_cm;
+            material.largo_lamina_cm = largo_lamina_cm !== undefined ? parseFloat(largo_lamina_cm) : material.largo_lamina_cm;
             material.proveedor = (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : material.proveedor;
             
             await material.save();
@@ -42,6 +48,8 @@ const saveMaterial = async (req, res) => {
                 tipo: tipo || "m2",
                 stock_actual: parseFloat(stock_actual) || 0,
                 precio_total_lamina: parseFloat(precio_total_lamina) || 0,
+                ancho_lamina_cm: parseFloat(ancho_lamina_cm) || 0,
+                largo_lamina_cm: parseFloat(largo_lamina_cm) || 0,
                 proveedor: (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : null
             });
             await material.save();
