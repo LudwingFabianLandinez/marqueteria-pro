@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* ESTRUCTURA DASHBOARD (Mantenida de tu código) */
+        /* ESTRUCTURA DASHBOARD (Mantenida y Optimizada) */
         .dashboard-wrapper {
             display: flex;
             min-height: 100vh;
@@ -55,14 +55,15 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* CONTENIDO PRINCIPAL */
+        /* CONTENIDO PRINCIPAL - AJUSTE DE PROPORCIONES */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
             padding: 30px;
             display: grid;
-            grid-template-columns: 1fr 340px;
+            /* Se redujo la columna derecha de 340px a 280px para dar más aire al inventario */
+            grid-template-columns: 1fr 280px; 
             gap: 25px;
             align-items: flex-start;
         }
@@ -125,7 +126,7 @@
             font-size: 0.85rem;
         }
 
-        /* DIRECTORIO DE PROVEEDORES */
+        /* DIRECTORIO DE PROVEEDORES - AJUSTE VISUAL */
         .providers-sidebar {
             background: #2d3748;
             border-radius: 12px;
@@ -139,34 +140,46 @@
             background: #1a202c;
             padding: 15px;
             display: flex;
-            justify-content: space-between;
+            justify-content: center; /* Centrado tras quitar el contador */
             align-items: center;
             color: white;
+            text-align: center;
         }
 
-        .badge-count {
-            background: #3182ce;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.75rem;
+        .providers-header h3 {
+            font-size: 0.85rem; /* Un poco más pequeño para el nuevo ancho */
+            margin: 0;
+            letter-spacing: 0.5px;
         }
+
+        /* El contador .badge-count ha sido eliminado del CSS por limpieza */
 
         #directorioProveedores {
-            padding: 15px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
 
         .provider-card {
             background: white;
             border-radius: 8px;
-            padding: 15px;
+            padding: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             color: #2d3748;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .provider-info h4 {
+            font-size: 0.85rem;
+            margin-bottom: 2px;
+        }
+
+        .provider-info p {
+            font-size: 0.75rem;
+            margin: 0;
         }
 
         /* MODAL DE COMPRA */
@@ -193,7 +206,6 @@
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
         .calc-preview { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 10px; font-size: 0.85rem; }
 
-        /* GANCHO VISUAL PARA MATERIAL NUEVO (Sin alterar diseño general) */
         #contenedorNombreNuevo { display: none; margin-top: 10px; padding: 10px; background: #ebf8ff; border-radius: 6px; border: 1px dashed #3182ce; }
     </style>
 </head>
@@ -236,7 +248,6 @@
         <aside class="providers-sidebar">
             <div class="providers-header">
                 <h3><i class="fas fa-address-book"></i> DIRECTORIO DE PROVEEDORES</h3>
-                <span class="badge-count" id="prov-count">0 registrados</span>
             </div>
             <div id="directorioProveedores">
                 <p style="color: #a0aec0; text-align: center;">Cargando...</p>
@@ -300,14 +311,10 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    /**
-     * FUNCIÓN PARA MOSTRAR/OCULTAR CAMPO DE MATERIAL NUEVO
-     */
     function manejarCambioMaterial() {
         const select = document.getElementById('compraMaterial');
         const contenedor = document.getElementById('contenedorNombreNuevo');
         const input = document.getElementById('nombreNuevoMaterial');
-
         if (select.value === "NUEVO") {
             contenedor.style.display = 'block';
             input.required = true;
@@ -319,23 +326,14 @@
         calcularConversionM2();
     }
 
-    /**
-     * CIRUGÍA DE BLINDAJE: 
-     * Se agregaron verificaciones String() y validaciones de existencia 
-     * para evitar errores de .toUpperCase() en datos nulos.
-     */
     window.abrirModalCompra = () => {
         const modal = document.getElementById('modalCompra');
         if(!modal) return;
-        
         modal.style.display = 'block';
-        // Resetear estado del campo dinámico al abrir
         document.getElementById('contenedorNombreNuevo').style.display = 'none';
         document.getElementById('formNuevaCompra').reset();
-
         const provSelect = document.getElementById('compraProveedor');
         const matSelect = document.getElementById('compraMaterial');
-
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
 
@@ -349,10 +347,8 @@
         }
 
         if(matSelect) {
-            // Creamos las opciones con el disparador de "+ NUEVO MATERIAL"
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
-            
             if(inventario.length > 0) {
                 opciones += inventario.map(m => {
                     const nombreMat = m.nombre || m.name || 'Sin nombre';
@@ -367,7 +363,6 @@
         const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
         const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        
         const m2Total = ((largo * ancho) / 10000) * cant;
         const label = document.getElementById('labelConversion');
         if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m²`;
@@ -375,22 +370,17 @@
 
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
-        const badge = document.getElementById('prov-count');
+        // Se quitó la lógica que actualizaba el badge inexistente
         const datos = Array.isArray(lista) ? lista : [];
-
-        if(badge) badge.textContent = `${datos.length} registrados`;
         if(!container) return;
-        
         if (datos.length === 0) {
             container.innerHTML = '<p style="color:#a0aec0; text-align:center;">No hay proveedores.</p>';
             return;
         }
-
         container.innerHTML = datos.map(p => {
             const nombreSeguro = String(p.nombre || p.name || 'S/N').toUpperCase();
             const telSeguro = p.telefono || p.phone || 'Sin número';
             const catSeguro = p.categoria || p.category || 'General';
-
             return `
             <div class="provider-card">
                 <div class="provider-info">
