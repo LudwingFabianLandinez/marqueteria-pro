@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.4.6 - UI: Corrección Final de Costo por m2
- * Respetando estructura visual y blindaje de datos v12.1.7
+ * Versión: 12.4.7 - UI: Consolidación de Cálculo m2 y Blindaje de Datos
+ * Respetando estructura visual y lógica v12.1.7 / v12.4.6
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.4.6");
+    console.log("🚀 Sistema Iniciado - v12.4.7");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -126,15 +126,15 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- CÁLCULO DE COSTO M2 CORRECTO (PRECIO LÁMINA UNITARIA / ÁREA LÁMINA UNITARIA) ---
+        // --- CÁLCULO DE COSTO M2 BLINDADO ---
         const anchoMetros = (m.ancho_lamina_cm || 0) / 100;
         const largoMetros = (m.largo_lamina_cm || 0) / 100;
         const areaUnaLaminaM2 = anchoMetros * largoMetros;
         
         let costoMostrar = 0;
-        // Obligamos al sistema a usar el precio_total_lamina (costo de 1 unidad) para el cálculo visual
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            const precioBase = m.precio_total_lamina > 0 ? m.precio_total_lamina : (m.precio_m2_costo * areaUnaLaminaM2);
+            // Priorizamos precio_total_lamina para el cálculo del m2 visual
+            const precioBase = (m.precio_total_lamina > 0) ? m.precio_total_lamina : (m.precio_m2_costo * areaUnaLaminaM2);
             costoMostrar = precioBase / areaUnaLaminaM2;
         } else {
             costoMostrar = m.precio_m2_costo || 0;
@@ -303,7 +303,7 @@ function configurarEventos() {
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 }
 
-// --- UTILIDADES DE UI (Resto del código sin cambios para mantener estabilidad) ---
+// --- UTILIDADES DE UI ---
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
@@ -363,6 +363,7 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
+    // Forzamos a que el campo costo muestre el precio de UNA lámina para evitar confusiones
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina || m.precio_m2_costo;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
