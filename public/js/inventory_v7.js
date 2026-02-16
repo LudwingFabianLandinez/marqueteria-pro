@@ -107,16 +107,14 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
 
-            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS (Vidrio 2mm) ---
+            // --- AUTO-FIX VIDRIO 2MM (CORRECCIÓN QUIRÚRGICA) ---
             if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina === 21600) {
-                console.warn("⚠️ Ejecutando Auto-Fix Vidrio 2mm...");
+                console.warn("⚠️ Corrigiendo precio base de Vidrio 2mm en servidor...");
                 window.API.saveMaterial({
                     id: materialProcesado.id,
-                    nombre: materialProcesado.nombre,
-                    precio_total_lamina: 108000,
-                    ancho_lamina_cm: 220,
-                    largo_lamina_cm: 160
+                    precio_total_lamina: 108000
                 });
+                materialProcesado.precio_total_lamina = 108000;
             }
 
             return materialProcesado;
@@ -142,24 +140,22 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- CÁLCULO DINÁMICO DE COSTO M2 (v12.7.0) ---
-        // Basado en: Precio Lámina / ((ancho * largo) / 10000)
+        // --- MOTOR DE CÁLCULO QUIRÚRGICO (v12.7.0) ---
         const ancho = Number(m.ancho_lamina_cm) || 0;
         const largo = Number(m.largo_lamina_cm) || 0;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // Fix visual para el error de carga de Atlas
-            const precioEfectivo = (m.nombre.includes("Vidrio 2mm") && m.precio_total_lamina === 21600) ? 108000 : m.precio_total_lamina;
-            costoMostrar = Math.round(precioEfectivo / areaUnaLaminaM2);
+            // Se ignora el campo precio_m2_costo de la DB y se calcula de cero
+            costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
         } else {
             costoMostrar = m.precio_m2_costo || 0;
         }
 
         // Estilos de Stock
         let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
-        let textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
+        let textoStockVisual = "";
         
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
             const laminasExactas = stockActualM2 / areaUnaLaminaM2;
@@ -175,6 +171,8 @@ function renderTable(materiales) {
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualM2.toFixed(2)} ${tipoUnidad}</div>
                 <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
             `;
+        } else {
+            textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
         }
 
         fila.innerHTML = `
