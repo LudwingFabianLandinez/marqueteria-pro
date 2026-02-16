@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.2.5 (BUILD FINAL & SINCRO)
- * Objetivo: Ejecución garantizada y blindaje de modelos para Inventario.
+ * Módulo de Servidor (Netlify Function) - Versión 12.8.0 (BUILD FINAL & MOTOR MATEMÁTICO)
+ * Objetivo: Ejecución garantizada + BLINDAJE DE DATOS MAESTROS.
  */
 
 const express = require('express');
@@ -13,14 +13,13 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 
 // 1. CARGA DE MODELOS (Singleton - Asegura que existan antes de las rutas)
-// Nota: El orden importa para evitar errores de referencia circular
 try {
     require('./models/Provider');
-    require('./models/Material'); // Este ya incluye el Enum 'General'
+    require('./models/Material'); 
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.2.5 registrados exitosamente");
+    console.log("📦 Modelos v12.8.0 registrados y blindados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -47,7 +46,7 @@ app.use((req, res, next) => {
         req.url = '/';
     }
 
-    console.log(`📡 [v12.2.5] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v12.8.0] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -68,23 +67,25 @@ const connect = async () => {
     }
 };
 
-// 5. DEFINICIÓN DE RUTAS (Mapeo Ultra-Robusto)
+// 5. DEFINICIÓN DE RUTAS (Mapeo Ultra-Robusto v12.8.0)
 const router = express.Router();
 
 try {
-    // Importamos las rutas que acabamos de consolidar
+    // Importamos las rutas de Inventario y Proveedores
     const inventoryRoutes = require('./routes/inventoryRoutes');
     const providerRoutes = require('./routes/providerRoutes');
 
-    // Mapeo Directo: /api/inventory -> inventoryRoutes
+    /**
+     * IMPORTANTE: La lógica de la "Solución de Peso" (dividir precio_lamina / area)
+     * reside dentro de inventoryRoutes.js para mantener este server.js limpio.
+     */
     router.use('/inventory', inventoryRoutes);
     router.use('/providers', providerRoutes);
     
-    // REDIRECCIÓN INTELIGENTE: Si el frontend llama a /purchases lo enviamos al inventario
-    // donde reside la lógica de registerPurchase consolidada.
+    // REDIRECCIÓN INTELIGENTE: Sincronización de Compras -> Inventario
     router.use('/purchases', inventoryRoutes);
     
-    // Rutas Complementarias (Carga dinámica para evitar fallos si no existen)
+    // Rutas Complementarias (Carga dinámica con blindaje de errores)
     try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
     try { router.use('/invoices', require('./routes/invoiceRoutes')); } catch(e){}
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
@@ -93,13 +94,14 @@ try {
     router.get('/health', (req, res) => {
         res.json({ 
             status: 'OK', 
-            version: '12.2.5',
+            version: '12.8.0',
+            engine: 'Matemático Blindado',
             db: mongoose.connection.readyState === 1,
             env: process.env.NODE_ENV || 'production'
         });
     });
 
-    console.log("✅ Mapa de rutas sincronizado con controladores v12.2.x");
+    console.log("✅ Mapa de rutas sincronizado con Motor Matemático v12.8.0");
 } catch (error) {
     console.error(`🚨 Error vinculando rutas en server.js: ${error.message}`);
 }
@@ -112,7 +114,7 @@ app.use((err, req, res, next) => {
     console.error("🔥 Error en ejecución serverless:", err.stack);
     res.status(500).json({
         success: false,
-        message: "Error interno procesando la solicitud",
+        message: "Error interno procesando la solicitud en La Chica Morales",
         error: err.message
     });
 });
@@ -136,7 +138,7 @@ module.exports.handler = async (event, context) => {
             },
             body: JSON.stringify({ 
                 success: false, 
-                error: 'Fallo fatal en el servidor Netlify', 
+                error: 'Fallo fatal en el servidor Netlify (La Chica Morales)', 
                 details: error.message 
             })
         };

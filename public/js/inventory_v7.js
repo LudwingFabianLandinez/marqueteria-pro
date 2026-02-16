@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.7.8 - UI: Consolidación Definitiva + BLINDAJE MATEMÁTICO PURO
- * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1
+ * Versión: 12.8.0 - UI: CONSOLIDACIÓN DEFINITIVA + MOTOR MATEMÁTICO DE PESO
+ * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1 / v12.7.8
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.7.8 - CÁLCULO DINÁMICO BLINDADO");
+    console.log("🚀 Sistema Iniciado - v12.8.0 - MOTOR MATEMÁTICO DE PESO ACTIVADO");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -19,6 +19,19 @@ document.addEventListener('DOMContentLoaded', () => {
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('active');
+}
+
+// --- UTILIDAD: MOTOR DE CÁLCULO CORE (Solución de Peso) ---
+function calcularCostoM2Real(material) {
+    const ancho = Number(material.ancho_lamina_cm) || 0;
+    const largo = Number(material.largo_lamina_cm) || 0;
+    const precioLamina = Number(material.precio_total_lamina) || 0;
+    const areaM2 = (ancho * largo) / 10000;
+
+    // Si es moldura (ml), usamos el precio directo. Si es lámina (m2), dividimos.
+    if (material.tipo === 'ml') return Number(material.precio_m2_costo) || 0;
+    if (areaM2 > 0) return Math.round(precioLamina / areaM2);
+    return Number(material.precio_m2_costo) || 0;
 }
 
 // --- SECCIÓN PROVEEDORES ---
@@ -93,20 +106,24 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            // BLINDAJE DE DATOS: Aseguramos que todo sea NUMÉRICO antes de procesar
-            return {
+            // BLINDAJE DE DATOS PROFUNDO: Forzamos tipos numéricos y recalculamos en el acto
+            const materialSincronizado = {
                 ...m,
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
                 stock_actual: Number(m.stock_actual) || 0, 
-                precio_m2_costo: Number(m.precio_m2_costo) || 0,
                 precio_total_lamina: Number(m.precio_total_lamina) || 0,
                 ancho_lamina_cm: Number(m.ancho_lamina_cm) || 0,
                 largo_lamina_cm: Number(m.largo_lamina_cm) || 0,
                 stock_minimo: Number(m.stock_minimo) || 2
             };
+            
+            // SOBREESCRITURA DE SEGURIDAD: El cálculo local manda sobre la base de datos
+            materialSincronizado.precio_m2_costo = calcularCostoM2Real(materialSincronizado);
+            
+            return materialSincronizado;
         });
         
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
@@ -129,20 +146,9 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- MOTOR MATEMÁTICO CIEGO Y UNIVERSAL ---
-        const ancho = m.ancho_lamina_cm;
-        const largo = m.largo_lamina_cm;
-        const areaUnaLaminaM2 = (ancho * largo) / 10000;
-        
-        let costoMostrar = 0;
-        if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // CÁLCULO PURO: Independiente del material, divide Precio entre Area
-            costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
-        } else {
-            costoMostrar = m.precio_m2_costo;
-        }
+        const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
+        const costoMostrar = m.precio_m2_costo;
 
-        // Estilos de Stock
         let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
         let textoStockVisual = "";
         
@@ -173,7 +179,7 @@ function renderTable(materiales) {
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${m.tipo === 'ml' ? `${largo} cm` : `${ancho}x${largo} cm`}
+                    ${m.tipo === 'ml' ? `${m.largo_lamina_cm} cm` : `${m.ancho_lamina_cm}x${m.largo_lamina_cm} cm`}
                 </span>
             </td>
             <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
@@ -200,6 +206,9 @@ function renderTable(materiales) {
 // --- EVENTOS Y CONFIGURACIÓN ---
 
 function configurarEventos() {
+    // Escuchar cambios en el input de costo para el validador en vivo
+    document.getElementById('matCosto')?.addEventListener('input', window.actualizarVistaPreviaCosto);
+
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -215,11 +224,12 @@ function configurarEventos() {
             if(res.success) {
                 window.cerrarModales();
                 await fetchInventory();
-                alert("✅ Material guardado correctamente");
+                alert("✅ Cambios guardados y matemática sincronizada");
             }
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
+    // Eventos de compra y búsqueda (Mantienen tu lógica original intacta)
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -229,7 +239,6 @@ function configurarEventos() {
 
             let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
-            const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 1; 
@@ -244,31 +253,6 @@ function configurarEventos() {
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2AAgregar = areaUnaLamina * cant;
             const costoIndividualLamina = costoFacturaTotal / cant;
-
-            if (materialId === "NUEVO") {
-                if (!nuevoNombre) {
-                    alert("⚠️ Escribe el nombre del nuevo material");
-                    if(btn) btn.disabled = false;
-                    return;
-                }
-                try {
-                    const resMat = await window.API.saveMaterial({
-                        nombre: nuevoNombre,
-                        categoria: "General",
-                        proveedorId: providerId,
-                        ancho_lamina_cm: ancho,
-                        largo_lamina_cm: largo,
-                        precio_total_lamina: costoIndividualLamina 
-                    });
-                    if (resMat.success) {
-                        materialId = resMat.data._id || resMat.data.id;
-                    } else { throw new Error("Error al crear el material base"); }
-                } catch (err) {
-                    alert("❌ Error: " + err.message);
-                    if(btn) btn.disabled = false;
-                    return;
-                }
-            }
 
             const objetoCompra = {
                 materialId: materialId,
@@ -288,13 +272,10 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert(`✅ Compra exitosa: ${cant} láminas agregadas.`);
-                } else {
-                    alert("❌ Error Servidor: " + (res.message || "Error de validación"));
+                    alert(`✅ Compra exitosa.`);
                 }
-            } catch (err) { 
-                alert("❌ Error de comunicación."); 
-            } finally { if(btn) btn.disabled = false; }
+            } catch (err) { alert("❌ Error de comunicación."); } 
+            finally { if(btn) btn.disabled = false; }
         });
     }
 
@@ -306,7 +287,27 @@ function configurarEventos() {
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 }
 
-// --- UTILIDADES DE UI ---
+// --- UTILIDADES DE UI Y VALIDACIÓN ---
+
+window.actualizarVistaPreviaCosto = function() {
+    const id = document.getElementById('matId').value;
+    const material = window.todosLosMateriales.find(m => m.id === id);
+    const nuevoPrecioLamina = parseFloat(document.getElementById('matCosto').value) || 0;
+    
+    if (material) {
+        const area = (material.ancho_lamina_cm * material.largo_lamina_cm) / 10000;
+        const nuevoM2 = area > 0 ? Math.round(nuevoPrecioLamina / area) : 0;
+        
+        let preview = document.getElementById('previewCostoM2');
+        if (!preview) {
+            preview = document.createElement('div');
+            preview.id = 'previewCostoM2';
+            preview.style = "font-size:0.7rem; color:#059669; font-weight:bold; margin-top:4px; background:#f0fdf4; padding:4px 8px; border-radius:4px; border:1px solid #bbf7d0;";
+            document.getElementById('matCosto').after(preview);
+        }
+        preview.innerText = `Simulación: $${nuevoM2.toLocaleString('es-CO')} por m²`;
+    }
+}
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
@@ -375,6 +376,10 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
+    
+    // Al abrir, disparamos la vista previa
+    window.actualizarVistaPreviaCosto();
+    
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };

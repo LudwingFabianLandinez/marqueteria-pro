@@ -1,6 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.2.6 (FIX MEDIDAS Y COSTOS)
+ * Controlador de Inventario - Versión 12.8.0 (MOTOR MATEMÁTICO INTEGRADO)
+ * Objetivo: Sincronización absoluta de dimensiones, stock y costos maestros.
  */
 
 const mongoose = require('mongoose');
@@ -15,16 +16,35 @@ const getTransactionModel = () => {
 };
 
 /**
+ * 🛠️ UTILIDAD DE CÁLCULO DE COSTO (Blindaje de Datos)
+ * Esta función asegura que el precio por m2 sea siempre coherente con la lámina.
+ */
+const calcularPrecioM2Costo = (datos) => {
+    const ancho = parseFloat(datos.ancho_lamina_cm) || 0;
+    const largo = parseFloat(datos.largo_lamina_cm) || 0;
+    const precioLamina = parseFloat(datos.precio_total_lamina) || 0;
+    const areaM2 = (ancho * largo) / 10000;
+
+    if (areaM2 > 0 && precioLamina > 0) {
+        return Math.round(precioLamina / areaM2);
+    }
+    return datos.precio_m2_costo || 0;
+};
+
+/**
  * 🚀 saveMaterial: Maneja la creación y edición de materiales
- * FIX: Se añadieron campos de dimensiones para evitar el 0x0 cm.
  */
 const saveMaterial = async (req, res) => {
     try {
         const { 
             id, nombre, categoria, tipo, stock_actual, 
             precio_total_lamina, proveedor,
-            ancho_lamina_cm, largo_lamina_cm // Campos recuperados
+            ancho_lamina_cm, largo_lamina_cm,
+            precio_venta_sugerido
         } = req.body;
+
+        // Calculamos el costo m2 blindado antes de procesar
+        const precioM2Calculado = calcularPrecioM2Costo(req.body);
 
         let material;
         if (id && mongoose.Types.ObjectId.isValid(id)) {
@@ -38,8 +58,12 @@ const saveMaterial = async (req, res) => {
             material.precio_total_lamina = precio_total_lamina !== undefined ? parseFloat(precio_total_lamina) : material.precio_total_lamina;
             material.ancho_lamina_cm = ancho_lamina_cm !== undefined ? parseFloat(ancho_lamina_cm) : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo_lamina_cm !== undefined ? parseFloat(largo_lamina_cm) : material.largo_lamina_cm;
+            material.precio_venta_sugerido = precio_venta_sugerido !== undefined ? parseFloat(precio_venta_sugerido) : material.precio_venta_sugerido;
             material.proveedor = (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : material.proveedor;
             
+            // Inyección del blindaje matemático
+            material.precio_m2_costo = precioM2Calculado;
+
             await material.save();
         } else {
             material = new Material({
@@ -50,6 +74,8 @@ const saveMaterial = async (req, res) => {
                 precio_total_lamina: parseFloat(precio_total_lamina) || 0,
                 ancho_lamina_cm: parseFloat(ancho_lamina_cm) || 0,
                 largo_lamina_cm: parseFloat(largo_lamina_cm) || 0,
+                precio_m2_costo: precioM2Calculado,
+                precio_venta_sugerido: parseFloat(precio_venta_sugerido) || 0,
                 proveedor: (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : null
             });
             await material.save();
@@ -80,7 +106,7 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra - VERSIÓN INTELIGENTE
+// 2. Registrar compra - VERSIÓN INTELIGENTE CON BLINDAJE 12.8.0
 const registerPurchase = async (req, res) => {
     try {
         const { 
@@ -107,20 +133,25 @@ const registerPurchase = async (req, res) => {
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0);
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0);
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 1;
+        const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
         
+        // Recalcular costo m2 para esta compra específica
+        const areaIndividual = (ancho * largo) / 10000;
+        const nuevoCostoM2 = areaIndividual > 0 ? Math.round(precioTotalUnitario / areaIndividual) : 0;
+
         let incrementoStock = parseFloat(cantidad_m2) || 0;
         if (incrementoStock <= 0) {
             const tipoMaterial = (req.body.tipo_material === 'ml' || (material && material.tipo === 'ml')) ? 'ml' : 'm2';
-            incrementoStock = (tipoMaterial === 'ml') ? (largo / 100) * cantidad : ((ancho * largo) / 10000) * cantidad;
+            incrementoStock = (tipoMaterial === 'ml') ? (largo / 100) * cantidad : areaIndividual * cantidad;
         }
 
-        const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
         const idProvFinal = proveedor || proveedorId;
         let proveedorValido = (idProvFinal && mongoose.Types.ObjectId.isValid(idProvFinal)) ? idProvFinal : null;
 
         if (material) {
             material.stock_actual += incrementoStock;
             material.precio_total_lamina = precioTotalUnitario > 0 ? precioTotalUnitario : material.precio_total_lamina;
+            material.precio_m2_costo = nuevoCostoM2 > 0 ? nuevoCostoM2 : material.precio_m2_costo;
             material.ancho_lamina_cm = ancho > 0 ? ancho : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo > 0 ? largo : material.largo_lamina_cm;
             material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
@@ -134,6 +165,7 @@ const registerPurchase = async (req, res) => {
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioTotalUnitario,
+                precio_m2_costo: nuevoCostoM2,
                 stock_actual: incrementoStock,
                 precio_venta_sugerido: precio_venta_sugerido || 0,
                 proveedor: proveedorValido
@@ -283,4 +315,4 @@ module.exports = {
     manualAdjustment,
     adjustStock: manualAdjustment,
     deleteMaterial
-};  
+};
