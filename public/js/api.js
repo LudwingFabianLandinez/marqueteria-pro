@@ -1,6 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.1.3 (ELIMINACIÓN ERROR 500)
+ * Módulo de conexión API - Versión 12.1.8 (SINCRO TOTAL SCHEMA)
+ * Ajustado para cumplir con Transaccion.js y evitar Error 500 de validación.
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -81,24 +82,22 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    /** REGISTRO DE COMPRA - FILTRADO ESTRICTO **/
+    /** * REGISTRO DE COMPRA - REESTRUCTURADO V12.1.8
+     * Sincronizado con Transaccion.js (Model)
+     */
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Limpiando datos para evitar Error 500...");
+        console.log("🚀 Sincronizando con TransaccionSchema...");
         
-        // Creamos un objeto limpio. Si 'compra' falla, el backend podría esperar 'INGRESO'
-        // pero probaremos con la versión más compatible:
+        // Mapeo quirúrgico para coincidir con los campos del Schema de Mongoose
         const payload = {
             materialId: String(purchaseData.materialId),
-            proveedorId: String(purchaseData.proveedorId || purchaseData.providerId),
-            cantidad_m2: Number(parseFloat(purchaseData.cantidad_m2).toFixed(4)),
-            precio_total: Number(Math.round(purchaseData.precio_total)),
-            tipo: "compra", // Si esto falla de nuevo, cámbialo a "INGRESO"
-            detalles: {
-                largo: purchaseData.detalles?.largo_cm || 0,
-                ancho: purchaseData.detalles?.ancho_cm || 0,
-                laminas: purchaseData.detalles?.cantidad_laminas || 0,
-                nota: "Registro v12.1.3"
-            },
+            proveedor: String(purchaseData.proveedor || purchaseData.providerId || purchaseData.proveedorId),
+            cantidad: Number(parseFloat(purchaseData.cantidad || purchaseData.cantidad_m2).toFixed(4)),
+            cantidad_m2: Number(parseFloat(purchaseData.cantidad_m2 || purchaseData.cantidad).toFixed(4)),
+            costo_total: Number(Math.round(purchaseData.costo_total || purchaseData.precio_total)),
+            costo_unitario: Number(purchaseData.costo_unitario || 0),
+            tipo: "COMPRA", // Coincide con Enum y normalización del pre-save
+            motivo: purchaseData.motivo || "Registro de compra",
             fecha: new Date().toISOString()
         };
 
@@ -114,13 +113,16 @@ window.API = {
 
             return await window.API._safeParse(response);
         } catch (err) {
-            console.error("❌ Error Crítico:", err.message);
+            console.error("❌ Error Crítico en Compra:", err.message);
             throw err;
         }
     },
 
     adjustStock: async function(data) {
         try {
+            // Aseguramos que el tipo sea aceptado por el Enum
+            if (!data.tipo) data.tipo = "AJUSTE_MAS"; 
+            
             const response = await fetch(`${window.API.url}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -167,11 +169,11 @@ window.API = {
     }
 };
 
-// COMPATIBILIDAD
+// COMPATIBILIDAD DE MÉTODOS
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.1.3 - Blindaje Activo.");
+console.log("🛡️ API v12.1.8 - Blindaje y Sincronización Schema Activa.");

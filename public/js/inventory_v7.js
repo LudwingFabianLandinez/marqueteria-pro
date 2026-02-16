@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.1.6 - CONSOLIDADO FINAL: SELECT HÍBRIDO + FIX ENUM "PURCHASE"
- * Soporte para creación dinámica de materiales desde el modal de compra.
+ * Versión: 12.1.7 - CONSOLIDADO FINAL: FIX SCHEMA MONGOOSE + SELECT HÍBRIDO
+ * Alineado con Transaccion.js (campos: proveedor, costo_total, cantidad, tipo: "COMPRA")
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.1.6");
+    console.log("🚀 Sistema Iniciado - v12.1.7");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -166,7 +166,7 @@ function renderTable(materiales) {
     });
 }
 
-// --- EVENTOS Y UTILIDADES ---
+// --- EVENTOS Y CONFIGURACIÓN ---
 
 function configurarEventos() {
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
@@ -189,14 +189,7 @@ function configurarEventos() {
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
-    document.getElementById('searchInput')?.addEventListener('input', (e) => {
-        const termino = e.target.value.toLowerCase();
-        renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
-    });
-
-    document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
-
-    /** LÓGICA DE COMPRA HÍBRIDA V12.1.6 **/
+    /** LÓGICA DE COMPRA HÍBRIDA V12.1.7 (FIX SCHEMA & ENUM) **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -206,11 +199,11 @@ function configurarEventos() {
 
             let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
-            const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value.trim();
+            const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
-            const costoTotal = parseFloat(document.getElementById('compraCosto')?.value) || 0;
+            const costoTotalInput = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
             if(!materialId || !providerId) {
                 alert("⚠️ Selecciona material y proveedor");
@@ -218,42 +211,44 @@ function configurarEventos() {
                 return;
             }
 
-            // --- GANCHO: CREACIÓN DINÁMICA DE MATERIAL SI ES "NUEVO" ---
+            // CREACIÓN DINÁMICA DE MATERIAL SI ES "NUEVO"
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
-                    alert("⚠️ Por favor escribe el nombre del nuevo material");
+                    alert("⚠️ Escribe el nombre del nuevo material");
                     if(btn) btn.disabled = false;
                     return;
                 }
-                
                 try {
                     const resMat = await window.API.saveMaterial({
                         nombre: nuevoNombre,
                         categoria: "General",
                         proveedorId: providerId,
-                        precio_m2_costo: costoTotal / (((largo * ancho) / 10000) * cant || 1) // Estimación de costo base
+                        precio_m2_costo: costoTotalInput / (((largo * ancho) / 10000) * cant || 1)
                     });
-                    
                     if (resMat.success) {
                         materialId = resMat.data._id || resMat.data.id;
-                    } else {
-                        throw new Error("No se pudo crear el nuevo material");
-                    }
+                    } else { throw new Error("Error al crear el material base"); }
                 } catch (err) {
-                    alert("❌ Error al crear material nuevo: " + err.message);
+                    alert("❌ Error: " + err.message);
                     if(btn) btn.disabled = false;
                     return;
                 }
             }
 
+            // CÁLCULOS Y MAPEADO PARA TRANSACCION.JS
             const m2Calculados = Number(((largo * ancho) / 10000 * cant).toFixed(4));
-            const objetoCompra = Object.create(null);
-            objetoCompra.materialId = materialId;
-            objetoCompra.proveedorId = providerId;
-            objetoCompra.cantidad_m2 = m2Calculados;
-            objetoCompra.precio_total = costoTotal;
-            objetoCompra.tipo = "PURCHASE"; 
-            objetoCompra.detalles = { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant };
+            
+            const objetoCompra = {
+                materialId: materialId,
+                proveedor: providerId,        // Mapeado a 'proveedor' según Schema
+                cantidad: m2Calculados,      // Mapeado a 'cantidad' según Schema
+                cantidad_m2: m2Calculados,   // Compatibilidad
+                costo_total: costoTotalInput, // Mapeado a 'costo_total' según Schema
+                costo_unitario: costoTotalInput / (m2Calculados || 1),
+                tipo: "COMPRA",               // Enum exacto para evitar Error 500
+                motivo: `Compra: ${cant} láminas de ${largo}x${ancho}cm`,
+                detalles: { largo_cm: largo, ancho_cm: ancho, cantidad_laminas: cant }
+            };
 
             try {
                 const res = await window.API.registerPurchase(objetoCompra);
@@ -263,26 +258,36 @@ function configurarEventos() {
                     e.target.reset(); 
                     alert("✅ Compra registrada con éxito");
                 } else {
-                    alert("❌ Error: " + (res.message || "Error al procesar la compra"));
+                    alert("❌ Error Servidor: " + (res.message || "Error de validación"));
                 }
             } catch (err) { 
-                alert("❌ Error en la comunicación con el servidor"); 
+                alert("❌ Error de comunicación. Revisa el archivo api.js"); 
             } finally { if(btn) btn.disabled = false; }
         });
     }
 
+    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+        const termino = e.target.value.toLowerCase();
+        renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
+    });
+
+    document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
+    
     document.getElementById('adjustForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
             materialId: document.getElementById('adjustId').value,
             nuevaCantidad: parseFloat(document.getElementById('adjustCantidad').value),
             stock_minimo: parseFloat(document.getElementById('adjustReorden')?.value) || 2,
-            motivo: document.getElementById('adjustMotivo').value || "Ajuste manual"
+            motivo: document.getElementById('adjustMotivo').value || "Ajuste manual",
+            tipo: "AJUSTE_MAS" 
         };
         const res = await window.API.adjustStock(payload);
         if (res.success) { window.cerrarModales(); await fetchInventory(); }
     });
 }
+
+// --- UTILIDADES DE UI ---
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
@@ -303,7 +308,7 @@ window.cargarListasModal = function() {
     }
 };
 
-// --- MÁS FUNCIONES MANTENIDAS ---
+window.cerrarModales = function() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); };
 
 window.verHistorial = async function(id, nombre) {
     try {
@@ -315,11 +320,11 @@ window.verHistorial = async function(id, nombre) {
         if (Array.isArray(datos) && datos.length > 0) {
             const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
             contenedorHistorial.innerHTML = datos.map(h => {
-                const colorCosto = (h.tipo || "").toUpperCase() === 'PURCHASE' ? '#10b981' : '#f43f5e';
+                const colorCosto = (h.tipo || "").includes('COMPRA') ? '#10b981' : '#f43f5e';
                 return `
                 <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between;">
                     <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
-                    <div><span style="font-weight: bold; color: ${colorCosto};">${formateador.format(h.costo_unitario || h.precio_total || 0)}</span></div>
+                    <div><span style="font-weight: bold; color: ${colorCosto};">${formateador.format(h.costo_unitario || h.costo_total || 0)}</span></div>
                 </div>`;
             }).join('');
         } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
@@ -335,8 +340,6 @@ window.eliminarMaterial = async function(id) {
         } catch (error) { console.error("Error:", error); }
     }
 };
-
-window.cerrarModales = function() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); };
 
 window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
     if(document.getElementById('adjustId')) document.getElementById('adjustId').value = id;
