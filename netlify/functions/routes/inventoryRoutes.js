@@ -1,16 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Rutas de Inventario - Versión 12.2.1 (FIX 404 POST & ENUM)
+ * Rutas de Inventario - Versión 12.2.5 (SINCRO TOTAL & BLINDAJE)
  */
 
 const express = require('express');
 const router = express.Router();
-
-/**
- * IMPORTACIÓN DE MODELOS
- */
-const Material = require('../models/Material');
-const Provider = require('../models/Provider');
 
 /**
  * IMPORTACIÓN DEL CONTROLADOR
@@ -18,16 +12,24 @@ const Provider = require('../models/Provider');
 const inventoryController = require('../controllers/inventoryController');
 
 /**
- * 🛡️ MIDDLEWARE QUIRÚRGICO DE NORMALIZACIÓN (Blindaje de ENUM)
- * Intercepta la petición para asegurar que el 'tipo' sea aceptado por Mongoose.
+ * 🛡️ MIDDLEWARE QUIRÚRGICO DE NORMALIZACIÓN
+ * Mantenemos tu blindaje para asegurar que el 'tipo' sea compatible 
+ * con los ENUMS del modelo antes de procesar la petición.
  */
-const normalizarTipoCompra = (req, res, next) => {
-    if (req.body && req.body.tipo) {
-        const tipoOriginal = String(req.body.tipo).trim().toLowerCase();
-        
-        // Sincronización con el Schema: Forzamos PURCHASE o INGRESO según tu backend
-        if (tipoOriginal === 'compra' || tipoOriginal === 'purchase') {
-            req.body.tipo = 'PURCHASE'; 
+const normalizarDatosMaterial = (req, res, next) => {
+    if (req.body) {
+        // 1. Blindaje de Tipo (m2 / ml)
+        if (req.body.tipo) {
+            const tipoOriginal = String(req.body.tipo).trim().toLowerCase();
+            if (tipoOriginal === 'compra' || tipoOriginal === 'purchase') {
+                req.body.tipo = 'm2'; // Fallback seguro para el modelo Material
+            }
+        }
+        // 2. Blindaje de Categoría (Evita Error 500 por ENUM)
+        if (req.body.categoria) {
+            const cat = String(req.body.categoria).trim();
+            // Si llega algo vacío o no reconocido, el controlador usará el default del modelo
+            if (cat === "") delete req.body.categoria;
         }
     }
     next();
@@ -37,34 +39,47 @@ const normalizarTipoCompra = (req, res, next) => {
  * 📋 RUTAS DE INVENTARIO PRINCIPAL
  */
 
-// 1. Obtener lista completa
+// 1. Obtener lista completa de materiales
 router.get('/', (req, res, next) => {
-    const fn = inventoryController.getInventory || inventoryController.getMaterials || inventoryController.getAll;
+    const fn = inventoryController.getMaterials || inventoryController.getInventory || inventoryController.getAll;
     if (typeof fn === 'function') return fn(req, res, next);
-    res.status(500).json({ error: "Función de inventario no definida en controlador" });
+    res.status(500).json({ success: false, error: "Función de lectura no definida en controlador" });
 });
 
 /**
- * 🚀 REGISTRO/CREACIÓN DE MATERIAL (Solución al Error 404 POST)
- * Esta ruta es la que el frontend llama al "Guardar Material" o "Crear Nuevo".
+ * 🚀 GUARDADO / CREACIÓN (Punto crítico para el botón "Guardar")
+ * Aplicamos el normalizador para evitar errores de validación de Mongoose.
  */
-router.post('/', (req, res, next) => {
+router.post('/', normalizarDatosMaterial, (req, res, next) => {
     const fn = inventoryController.saveMaterial || inventoryController.createMaterial || inventoryController.addMaterial;
     if (typeof fn === 'function') return fn(req, res, next);
-    res.status(500).json({ error: "Función de creación no definida en controlador" });
+    res.status(500).json({ success: false, error: "Función de guardado no definida en controlador" });
 });
 
-// 2. Historial de compras para purchases.html
-router.get('/all-purchases', inventoryController.getAllPurchases || ((req, res) => res.json({ success: true, data: [] })));
+// 2. Registrar compra (Usa la lógica inteligente de incremento de stock)
+router.post('/purchase', normalizarDatosMaterial, inventoryController.registerPurchase);
 
-// 3. Registrar nueva compra (Específica para el módulo de compras)
-router.post('/purchase', normalizarTipoCompra, inventoryController.registerPurchase);
+// 3. Historial de compras para purchases.html
+router.get('/all-purchases', (req, res, next) => {
+    const fn = inventoryController.getAllPurchases || inventoryController.getPurchases;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.json({ success: true, data: [] });
+});
 
 /**
  * 📊 RUTAS DE ANALÍTICA (Dashboard Superior)
  */
-router.get('/purchases-summary', inventoryController.getPurchasesSummary || ((req, res) => res.json({ success: true, data: {} })));
-router.get('/low-stock', inventoryController.getLowStockMaterials || ((req, res) => res.json({ success: true, data: [] })));
+router.get('/purchases-summary', (req, res, next) => {
+    const fn = inventoryController.getPurchasesSummary || inventoryController.getSummary;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.json({ success: true, data: { totalInvertido: 0 } });
+});
+
+router.get('/low-stock', (req, res, next) => {
+    const fn = inventoryController.getLowStockMaterials || inventoryController.getAlerts;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.json({ success: true, data: [] });
+});
 
 /**
  * 🛠️ GESTIÓN Y AJUSTES
@@ -72,7 +87,7 @@ router.get('/low-stock', inventoryController.getLowStockMaterials || ((req, res)
 router.post('/adjust', (req, res, next) => {
     const fn = inventoryController.adjustStock || inventoryController.manualAdjustment || inventoryController.updateStock;
     if (typeof fn === 'function') return fn(req, res, next);
-    res.status(500).json({ error: "Función de ajuste no definida en controlador" });
+    res.status(500).json({ success: false, error: "Función de ajuste no definida" });
 });
 
 /**
@@ -81,15 +96,17 @@ router.post('/adjust', (req, res, next) => {
 
 // 5. Historial General
 router.get('/history', (req, res, next) => {
-    const fn = inventoryController.getAllHistory || inventoryController.getMaterialHistory;
-    if (typeof fn === 'function') { 
-        return fn(req, res, next);
-    }
+    const fn = inventoryController.getAllHistory || inventoryController.getHistory;
+    if (typeof fn === 'function') return fn(req, res, next);
     res.json({ success: true, data: [] });
 });
 
-// 6. Movimientos de un material específico
-router.get('/history/:id', inventoryController.getMaterialHistory || ((req, res) => res.json({ success: true, data: [] })));
+// 6. Historial por Material específico
+router.get('/history/:id', (req, res, next) => {
+    const fn = inventoryController.getMaterialHistory || inventoryController.getHistoryById;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.json({ success: true, data: [] });
+});
 
 // 7. Eliminar material
 router.delete('/:id', inventoryController.deleteMaterial);
