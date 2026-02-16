@@ -32,25 +32,38 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra - BLINDAJE TOTAL CONTRA ERROR ENUM
+// 2. Registrar compra - VERSIÓN INTELIGENTE (ID + NOMBRE + BLINDAJE)
 const registerPurchase = async (req, res) => {
     try {
-        // Extraemos los datos, pero 'tipo' lo manejamos con cuidado extremo
         const { 
-            nombre, ancho_lamina_cm, largo_lamina_cm, 
-            precio_total_lamina, cantidad_laminas, proveedor,
+            materialId, proveedorId, // Datos del dashboard nuevo
+            nombre, proveedor,       // Datos del sistema anterior/manual
+            ancho_lamina_cm, largo_lamina_cm, 
+            precio_total_lamina, cantidad_laminas,
             precio_venta_sugerido 
         } = req.body;
 
-        // Forzamos el tipo interno para el modelo Material si es necesario
-        // Pero lo más importante es que NO enviaremos 'compra' al .save()
-        const tipoMaterial = (req.body.tipo_material === 'ml' || req.body.tipo === 'ml') ? 'ml' : 'm2';
+        // --- PASO 1: LOCALIZAR EL MATERIAL ---
+        let material;
+        if (materialId && mongoose.Types.ObjectId.isValid(materialId)) {
+            material = await Material.findById(materialId);
+        } else if (nombre) {
+            const nombreLimpio = nombre.trim();
+            material = await Material.findOne({ 
+                nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
+            });
+        }
 
-        const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || 0;
-        const largo = Math.abs(parseFloat(largo_lamina_cm)) || 0;
+        // --- PASO 2: NORMALIZAR DATOS TÉCNICOS ---
+        const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0);
+        const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0);
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
-        const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 0;
+        const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 1;
 
+        // Forzamos tipo ml o m2
+        const tipoMaterial = (req.body.tipo_material === 'ml' || req.body.tipo === 'ml' || (material && material.tipo === 'ml')) ? 'ml' : 'm2';
+
+        // Cálculo de incremento
         let incrementoStock = 0;
         if (tipoMaterial === 'ml') {
             incrementoStock = (largo / 100) * cantidad;
@@ -59,40 +72,37 @@ const registerPurchase = async (req, res) => {
             incrementoStock = areaM2Unitario * cantidad;
         }
 
-        const nombreLimpio = nombre ? nombre.trim() : "Material Sin Nombre";
-        
-        // Lógica de categorización automática
-        let categoria = 'Otros';
-        const reglas = [
-            { regex: /vidrio|espejo/i, cat: 'Vidrio' },
-            { regex: /mdf|triplex|respaldo|madera/i, cat: 'Respaldo' },
-            { regex: /paspartu|passepartout|carton/i, cat: 'Paspartu' },
-            { regex: /foam|icopor/i, cat: 'Foam' },
-            { regex: /tela|lona|lienzo/i, cat: 'Tela' },
-            { regex: /marco|moldura/i, cat: 'Moldura' }
-        ];
-        const reglaEncontrada = reglas.find(r => r.regex.test(nombreLimpio));
-        if (reglaEncontrada) categoria = reglaEncontrada.cat;
+        // --- PASO 3: PROVEEDOR Y CATEGORÍA ---
+        const idProvFinal = proveedorId || proveedor;
+        let proveedorValido = (idProvFinal && mongoose.Types.ObjectId.isValid(idProvFinal)) ? idProvFinal : null;
 
-        let proveedorValido = (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : null;
+        let categoria = material ? material.categoria : 'Otros';
+        if (!material && nombre) {
+            const reglas = [
+                { regex: /vidrio|espejo/i, cat: 'Vidrio' },
+                { regex: /mdf|triplex|respaldo|madera/i, cat: 'Respaldo' },
+                { regex: /paspartu|passepartout|carton/i, cat: 'Paspartu' },
+                { regex: /foam|icopor/i, cat: 'Foam' },
+                { regex: /tela|lona|lienzo/i, cat: 'Tela' },
+                { regex: /marco|moldura/i, cat: 'Moldura' }
+            ];
+            const reglaEncontrada = reglas.find(r => r.regex.test(nombre));
+            if (reglaEncontrada) categoria = reglaEncontrada.cat;
+        }
 
-        let material = await Material.findOne({ 
-            nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
-        });
-
+        // --- PASO 4: GUARDADO DE MATERIAL ---
         if (material) {
             material.stock_actual += incrementoStock;
-            material.precio_total_lamina = precioTotalUnitario;
+            material.precio_total_lamina = precioTotalUnitario > 0 ? precioTotalUnitario : material.precio_total_lamina;
             material.ancho_lamina_cm = ancho;
             material.largo_lamina_cm = largo;
-            material.tipo = tipoMaterial; // Usamos el valor normalizado
-            material.categoria = categoria; 
+            material.tipo = tipoMaterial;
             material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
             material.proveedor = proveedorValido || material.proveedor;
             await material.save();
         } else {
             material = new Material({
-                nombre: nombreLimpio,
+                nombre: nombre ? nombre.trim() : "Material Nuevo",
                 tipo: tipoMaterial,
                 categoria,
                 ancho_lamina_cm: ancho,
@@ -105,29 +115,28 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
-        // 🛡️ PARTE CRÍTICA: Registro en Historial/Transacciones
+        // --- PASO 5: REGISTRO DE TRANSACCIÓN ---
         if (Transaction) {
-            // Intentamos guardar la transacción. Si el ENUM falla aquí, 
-            // envolvemos en un try/catch para que al menos el stock sí se guarde.
             try {
                 await Transaction.create({
                     materialId: material._id,
-                    tipo: 'COMPRA', // Forzamos valor que suele ser estándar
+                    tipo: 'COMPRA', // Blindado por el Enum del modelo
+                    cantidad: incrementoStock,
                     cantidad_m2: incrementoStock,
                     costo_total: precioTotalUnitario * cantidad,
                     proveedor: proveedorValido,
-                    motivo: `Compra de ${cantidad} unidades`,
+                    motivo: `Compra de ${cantidad} unidades registrada`,
                     fecha: new Date()
                 });
             } catch (transError) {
-                console.error("⚠️ No se pudo crear el registro de historial, pero el stock se actualizó:", transError.message);
+                console.error("⚠️ Error en Historial:", transError.message);
             }
         }
 
         res.status(201).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error crítico en registerPurchase:", error);
-        res.status(500).json({ success: false, error: "Error de validación: " + error.message });
+        console.error("🚨 Error en registerPurchase:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
@@ -209,6 +218,7 @@ const manualAdjustment = async (req, res) => {
             await Transaction.create({
                 materialId: material._id,
                 tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
+                cantidad: Math.abs(diferencia),
                 cantidad_m2: Math.abs(diferencia),
                 motivo: motivo || 'Ajuste manual',
                 fecha: new Date()
