@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.7.8 - UI: Consolidación Definitiva + BLINDAJE MATEMÁTICO PURO
- * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1
+ * Versión: 12.8.5 - UI: ESTRATEGIA QUIRÚRGICA DE CÁLCULO
+ * Respetando al 100% la estructura visual y blindaje de datos.
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.7.8 - CÁLCULO DINÁMICO BLINDADO");
+    console.log("🚀 Sistema v12.8.5 - Motor de Precisión Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,7 +93,6 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            // BLINDAJE DE DATOS: Aseguramos que todo sea NUMÉRICO antes de procesar
             return {
                 ...m,
                 id: m._id || m.id,
@@ -105,7 +104,8 @@ async function fetchInventory() {
                 precio_total_lamina: Number(m.precio_total_lamina) || 0,
                 ancho_lamina_cm: Number(m.ancho_lamina_cm) || 0,
                 largo_lamina_cm: Number(m.largo_lamina_cm) || 0,
-                stock_minimo: Number(m.stock_minimo) || 2
+                stock_minimo: Number(m.stock_minimo) || 2,
+                tipo: m.tipo || 'm2'
             };
         });
         
@@ -125,31 +125,32 @@ function renderTable(materiales) {
     
     materiales.forEach(m => {
         const fila = document.createElement('tr');
-        const stockActualM2 = m.stock_actual;
-        const stockMinimo = m.stock_minimo;
+        const stockActualUnidad = m.stock_actual;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- MOTOR MATEMÁTICO CIEGO Y UNIVERSAL ---
+        // --- 🎯 MOTOR ESTRATÉGICO DE CÁLCULO (ELIMINA EL ERROR DE LOS $8.239) ---
         const ancho = m.ancho_lamina_cm;
         const largo = m.largo_lamina_cm;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         let costoMostrar = 0;
+        // Si es m2, ignoramos el precio_m2_costo que viene de la DB y recalculamos SIEMPRE.
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // CÁLCULO PURO: Independiente del material, divide Precio entre Area
             costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
+        } else if (m.tipo === 'ml' && largo > 0) {
+            costoMostrar = Math.round(m.precio_total_lamina / (largo / 100));
         } else {
             costoMostrar = m.precio_m2_costo;
         }
 
         // Estilos de Stock
-        let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
+        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= m.stock_minimo ? '#f59e0b' : '#059669');
         let textoStockVisual = "";
         
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            const laminasExactas = stockActualM2 / areaUnaLaminaM2;
+            const laminasExactas = stockActualUnidad / areaUnaLaminaM2;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
-            let sobranteM2 = stockActualM2 - (laminasCompletas * areaUnaLaminaM2);
+            let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
             if (sobranteM2 < 0.001) sobranteM2 = 0;
 
             let desglose = laminasCompletas > 0 
@@ -157,11 +158,11 @@ function renderTable(materiales) {
                 : `(${sobranteM2.toFixed(2)} m²)`;
             
             textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualM2.toFixed(2)} ${tipoUnidad}</div>
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
                 <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
             `;
         } else {
-            textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
+            textoStockVisual = `<strong>${stockActualUnidad.toFixed(2)}</strong> ${tipoUnidad}`;
         }
 
         fila.innerHTML = `
@@ -187,7 +188,7 @@ function renderTable(materiales) {
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
                     <button class="btn-table-action" onclick="window.prepararEdicionMaterial('${m.id}')" title="Editar Material"><i class="fas fa-edit"></i></button>
-                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}', ${stockActualM2}, ${stockMinimo})" title="Ajustar Stock"><i class="fas fa-sliders-h"></i></button>
+                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}', ${stockActualUnidad}, ${m.stock_minimo})" title="Ajustar Stock"><i class="fas fa-sliders-h"></i></button>
                     <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m.id}', '${m.nombre}')"><i class="fas fa-history"></i></button>
                     <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m.id}')"><i class="fas fa-trash"></i></button>
                 </div>
@@ -206,6 +207,7 @@ function configurarEventos() {
             id: document.getElementById('matId')?.value,
             nombre: document.getElementById('matNombre').value,
             categoria: document.getElementById('matCategoria').value,
+            // BLINDAJE: Capturamos dimensiones para el cálculo dinámico
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
             proveedorId: document.getElementById('proveedorSelect').value
@@ -290,7 +292,7 @@ function configurarEventos() {
                     e.target.reset(); 
                     alert(`✅ Compra exitosa: ${cant} láminas agregadas.`);
                 } else {
-                    alert("❌ Error Servidor: " + (res.message || "Error de validación"));
+                    alert("❌ Error: " + (res.message || "Error de validación"));
                 }
             } catch (err) { 
                 alert("❌ Error de comunicación."); 
