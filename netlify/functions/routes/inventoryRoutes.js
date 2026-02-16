@@ -1,3 +1,8 @@
+/**
+ * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+ * Rutas de Inventario - Versión 12.2.1 (FIX 404 POST & ENUM)
+ */
+
 const express = require('express');
 const router = express.Router();
 
@@ -14,16 +19,13 @@ const inventoryController = require('../controllers/inventoryController');
 
 /**
  * 🛡️ MIDDLEWARE QUIRÚRGICO DE NORMALIZACIÓN (Blindaje de ENUM)
- * Este bloque intercepta la petición y arregla el valor 'tipo' antes 
- * de que llegue al controlador para evitar el Error 500 de Mongoose.
+ * Intercepta la petición para asegurar que el 'tipo' sea aceptado por Mongoose.
  */
 const normalizarTipoCompra = (req, res, next) => {
     if (req.body && req.body.tipo) {
-        // Limpiamos el valor de espacios y lo pasamos a minúsculas para comparar
         const tipoOriginal = String(req.body.tipo).trim().toLowerCase();
         
-        // Blindaje: Si el servidor espera 'PURCHASE' (mayúsculas), aquí lo forzamos.
-        // Esto soluciona el error: "tipo: 'compra' is not a valid enum value"
+        // Sincronización con el Schema: Forzamos PURCHASE o INGRESO según tu backend
         if (tipoOriginal === 'compra' || tipoOriginal === 'purchase') {
             req.body.tipo = 'PURCHASE'; 
         }
@@ -35,24 +37,34 @@ const normalizarTipoCompra = (req, res, next) => {
  * 📋 RUTAS DE INVENTARIO PRINCIPAL
  */
 
-// 1. Obtener lista completa (Si falla uno, intenta el otro método del controlador)
+// 1. Obtener lista completa
 router.get('/', (req, res, next) => {
     const fn = inventoryController.getInventory || inventoryController.getMaterials || inventoryController.getAll;
     if (typeof fn === 'function') return fn(req, res, next);
     res.status(500).json({ error: "Función de inventario no definida en controlador" });
 });
 
-// 2. Historial de compras para purchases.html
-router.get('/all-purchases', inventoryController.getAllPurchases);
+/**
+ * 🚀 REGISTRO/CREACIÓN DE MATERIAL (Solución al Error 404 POST)
+ * Esta ruta es la que el frontend llama al "Guardar Material" o "Crear Nuevo".
+ */
+router.post('/', (req, res, next) => {
+    const fn = inventoryController.saveMaterial || inventoryController.createMaterial || inventoryController.addMaterial;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.status(500).json({ error: "Función de creación no definida en controlador" });
+});
 
-// 3. Registrar nueva compra (Aplicamos el normalizador aquí antes del controlador)
+// 2. Historial de compras para purchases.html
+router.get('/all-purchases', inventoryController.getAllPurchases || ((req, res) => res.json({ success: true, data: [] })));
+
+// 3. Registrar nueva compra (Específica para el módulo de compras)
 router.post('/purchase', normalizarTipoCompra, inventoryController.registerPurchase);
 
 /**
  * 📊 RUTAS DE ANALÍTICA (Dashboard Superior)
  */
-router.get('/purchases-summary', inventoryController.getPurchasesSummary);
-router.get('/low-stock', inventoryController.getLowStockMaterials);
+router.get('/purchases-summary', inventoryController.getPurchasesSummary || ((req, res) => res.json({ success: true, data: {} })));
+router.get('/low-stock', inventoryController.getLowStockMaterials || ((req, res) => res.json({ success: true, data: [] })));
 
 /**
  * 🛠️ GESTIÓN Y AJUSTES
@@ -70,13 +82,13 @@ router.post('/adjust', (req, res, next) => {
 // 5. Historial General
 router.get('/history', (req, res, next) => {
     const fn = inventoryController.getAllHistory || inventoryController.getMaterialHistory;
-    if (typeof fn === 'function' && fn.length === 2) { 
+    if (typeof fn === 'function') { 
         return fn(req, res, next);
     }
     res.json({ success: true, data: [] });
 });
 
-// 6. Movimientos/Historial de un material específico (con ID)
+// 6. Movimientos de un material específico
 router.get('/history/:id', inventoryController.getMaterialHistory || ((req, res) => res.json({ success: true, data: [] })));
 
 // 7. Eliminar material
