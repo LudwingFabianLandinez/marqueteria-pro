@@ -9,15 +9,17 @@
     <style>
         /* --- BLOQUE DE FUERZA PARA RODADO --- */
         html, body {
-            overflow-x: hidden;
+            overflow: hidden; /* Evita scroll doble */
             width: 100%;
             margin: 0;
             padding: 0;
+            height: 100vh;
         }
 
         .dashboard-wrapper {
             display: flex;
-            width: 100vw; /* Ocupa el ancho total de la ventana visual */
+            width: 100vw;
+            height: 100vh;
         }
 
         /* BARRA LATERAL FIJA */
@@ -58,38 +60,49 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* --- CONTENEDOR PRINCIPAL EXPANDIDO --- */
+        /* --- CONTENEDOR PRINCIPAL CON SCROLL --- */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
-            /* El padding derecho en 0 es vital para el rodado */
-            padding: 30px 0 30px 30px; 
+            padding: 0; /* Quitamos padding para controlar el sticky */
             display: grid;
-            /* Tabla toma el espacio sobrante | Directorio 280px exactos */
             grid-template-columns: 1fr 280px; 
-            min-height: 100vh;
-            width: calc(100vw - 260px); /* Ajuste matemático perfecto */
-            max-width: none !important; 
+            height: 100vh;
+            width: calc(100vw - 260px);
+            overflow: hidden;
         }
 
+        /* COLUMNA IZQUIERDA: INVENTARIO */
         .content-left {
-            min-width: 0;
-            padding-right: 20px; /* Separación estética de la tabla */
+            overflow-y: auto; /* Aquí sucede el scroll del inventario */
+            padding: 30px 20px 30px 30px;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 🎯 ELEMENTOS STICKY (CABECERAS FIJAS) */
+        .sticky-header-container {
+            position: sticky;
+            top: -30px; /* Compensa el padding superior */
+            background: #f7fafc;
+            z-index: 100;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
         }
 
         .page-title {
             font-size: 2rem;
             color: #1a202c;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             font-weight: 800;
+            margin-top: 0;
         }
 
-        /* BOTONES DE ACCIÓN */
         .top-actions {
             display: flex;
             gap: 15px;
-            margin-bottom: 25px;
+            margin-bottom: 15px;
         }
 
         .btn-action {
@@ -112,8 +125,8 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            padding: 20px;
-            overflow-x: auto;
+            padding: 0; /* Padding 0 para que el thead llegue al borde */
+            overflow: hidden;
         }
 
         .inventory-table {
@@ -124,6 +137,9 @@
         .inventory-table thead {
             background: #3182ce;
             color: white;
+            position: sticky;
+            top: 145px; /* Ajustado para quedar debajo de botones y título */
+            z-index: 90;
         }
 
         .inventory-table th {
@@ -131,18 +147,18 @@
             font-size: 0.85rem;
         }
 
-        /* --- EL DIRECTORIO "RODADO" AL BORDE --- */
+        /* --- 🎯 EL DIRECTORIO FIJO (PROVEEDORES) --- */
         .providers-sidebar {
             background: #2d3748;
-            /* Cero redondeado a la derecha para pegar al borde físico del monitor */
             border-radius: 15px 0 0 15px; 
-            height: calc(100vh - 60px);
+            height: calc(100vh - 40px);
             position: sticky;
-            top: 30px;
+            top: 20px;
+            margin-top: 20px;
             box-shadow: -8px 0 15px rgba(0, 0, 0, 0.15);
             display: flex;
             flex-direction: column;
-            margin-right: 0; /* Sin margen final */
+            z-index: 200; /* Siempre por encima */
         }
 
         .providers-header {
@@ -249,10 +265,12 @@
 
     <main class="main-container">
         <div class="content-left">
-            <h1 class="page-title">Control de Existencias</h1>
-            <div class="top-actions">
-                <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
-                <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
+            <div class="sticky-header-container">
+                <h1 class="page-title">Control de Existencias</h1>
+                <div class="top-actions">
+                    <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
+                    <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
+                </div>
             </div>
             
             <div class="inventory-card">
@@ -334,7 +352,6 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    // Lógica de interfaz para el modal (mantenida de tu código)
     function manejarCambioMaterial() {
         const select = document.getElementById('compraMaterial');
         const contenedor = document.getElementById('contenedorNombreNuevo');
@@ -354,18 +371,14 @@
         const modal = document.getElementById('modalCompra');
         if(!modal) return;
         modal.style.display = 'block';
-        
-        // Carga de datos para los selects
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
-
         const provSelect = document.getElementById('compraProveedor');
         if(provSelect) {
             provSelect.innerHTML = proveedores.map(p => 
                 `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`
             ).join('');
         }
-
         const matSelect = document.getElementById('compraMaterial');
         if(matSelect) {
             let opciones = '<option value="">-- Seleccione Material --</option>';
