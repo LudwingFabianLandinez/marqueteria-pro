@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.3.5 - UI: Stock con Desglose entre Paréntesis
+ * Versión: 12.3.6 - UI: Stock Desglosado con Corrección de Precisión
  * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.3.5");
+    console.log("🚀 Sistema Iniciado - v12.3.6");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -130,15 +130,22 @@ function renderTable(materiales) {
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
         
-        // --- LÓGICA DE DESGLOSE ENTRE PARÉNTESIS ---
+        // --- LÓGICA DE DESGLOSE CON CORRECCIÓN DE PRECISIÓN ---
         let textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
         
         if (m.tipo !== 'ml' && m.ancho_lamina_cm > 0 && m.largo_lamina_cm > 0) {
             const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
+            
             if (areaUnaLaminaM2 > 0) {
-                const laminasCompletas = Math.floor(stockActualM2 / areaUnaLaminaM2);
-                const sobranteM2 = stockActualM2 % areaUnaLaminaM2;
+                // CORRECCIÓN: Usamos un margen de error (épsilon) para compensar fallos de precisión decimal
+                // Si el stock es 17.86 y el área es 4.465, la división debe ser 4 exacta.
+                const laminasExactas = stockActualM2 / areaUnaLaminaM2;
+                const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
                 
+                // Calculamos el sobrante y si es insignificante (menor a 0.001), lo tratamos como cero
+                let sobranteM2 = stockActualM2 - (laminasCompletas * areaUnaLaminaM2);
+                if (sobranteM2 < 0.001) sobranteM2 = 0;
+
                 let desglose = "";
                 if (laminasCompletas > 0) {
                     desglose = `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)`;
