@@ -64,17 +64,16 @@ const connect = async () => {
 const router = express.Router();
 
 try {
-    const Material = mongoose.model('Material'); // Referencia al modelo para la nueva ruta
+    // Referencia al modelo para la nueva ruta de familias
+    const Material = mongoose.model('Material'); 
 
-    // --- 🚀 NUEVA RUTA: SINCRONIZACIÓN DE FAMILIAS PARA COTIZACIÓN ---
-    // Esta ruta resuelve el error 404 que ves en la consola
+    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
         try {
             const materiales = await Material.find({ estado: 'Activo' });
             
-            // Clasificación por familias según el nombre o categoría para el frontend
             const data = {
-                vidrios: materiales.filter(m => m.nombre.toLowerCase().includes('vidrio')),
+                vidrios: materiales.filter(m => m.nombre.toLowerCase().includes('vidrio') || m.categoria === 'Vidrio'),
                 respaldos: materiales.filter(m => m.nombre.toLowerCase().includes('mdf') || m.nombre.toLowerCase().includes('respaldo')),
                 marcos: materiales.filter(m => m.categoria === 'Marco' || m.nombre.toLowerCase().includes('marco') || m.nombre.toLowerCase().includes('moldura')),
                 paspartu: materiales.filter(m => m.nombre.toLowerCase().includes('paspartu')),
@@ -90,7 +89,7 @@ try {
         }
     });
 
-    // Rutas existentes (Mapeo v12.2.x)
+    // Rutas existentes
     const inventoryRoutes = require('./routes/inventoryRoutes');
     const providerRoutes = require('./routes/providerRoutes');
 
@@ -118,11 +117,7 @@ app.use('/', router);
 // Manejador de errores global
 app.use((err, req, res, next) => {
     console.error("🔥 Error en ejecución serverless:", err.stack);
-    res.status(500).json({
-        success: false,
-        message: "Error interno procesando la solicitud",
-        error: err.message
-    });
+    res.status(500).json({ success: false, message: "Error interno", error: err.message });
 });
 
 const handler = serverless(app);

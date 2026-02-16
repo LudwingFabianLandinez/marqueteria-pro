@@ -1,6 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
  * Versión: 12.9.0 - Sincronización de Familias + Blindaje v12.8.6
+ * Objetivo: Carga automática de materiales por categorías y cálculo blindado.
  */
 
 let datosCotizacionActual = null;
@@ -21,10 +22,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!selects.Vidrio) return;
 
     try {
-        // Indicador de carga visual
+        // Indicador de carga visual en los selectores
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // Sincronización con el motor de inventario consolidado
+        // Sincronización con el motor de inventario a través del proxy de Netlify
         const response = await fetch('/api/quotes/materials');
         const result = await response.json();
         
@@ -47,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
                 lista.forEach(m => {
-                    // Protegemos la lectura de stock (m2 o unidades según tipo)
+                    // Protegemos la lectura de stock
                     const stock = m.stock_actual || m.stock_actual_m2 || 0;
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
@@ -60,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             };
 
-            // 🚀 REPARTO QUIRÚRGICO POR FAMILIAS
+            // 🚀 REPARTO QUIRÚRGICO POR FAMILIAS A LOS SELECTS
             llenar(selects.Vidrio, cat.vidrios);
             llenar(selects.Respaldo, cat.respaldos);
             llenar(selects.Paspartu, cat.paspartu);
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
+        Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Error de conexión</option>'; });
     }
 });
 
@@ -98,7 +100,7 @@ async function procesarCotizacion() {
     const largo = parseFloat(document.getElementById('largo').value);
     const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
-    // Recopilación de materiales seleccionados (Ganchos v12.9)
+    // Recopilación de materiales seleccionados (IDs v12.9)
     const idsSeleccionados = [
         document.getElementById('materialId').value,
         document.getElementById('materialRespaldoId').value,
@@ -128,7 +130,7 @@ async function procesarCotizacion() {
             result.data.anchoOriginal = ancho;
             result.data.largoOriginal = largo;
             
-            // 🎯 LÓGICA DE NEGOCIO BLINDADA: (Costo x 3) + Mano de Obra
+            // 🎯 LÓGICA DE NEGOCIO: (Costo x 3) + Mano de Obra
             const costoBaseMateriales = result.data.costos.valor_materiales;
             const nuevoTotalSugerido = (costoBaseMateriales * 3) + manoObraInput;
 
@@ -166,7 +168,7 @@ function actualizarSaldoEnRecibo() {
 }
 
 /**
- * UI DE RESULTADOS E IMPRESIÓN (Respetando estructura visual original)
+ * UI DE RESULTADOS E IMPRESIÓN
  */
 function mostrarResultado(data) {
     const divRes = document.getElementById('resultado');
@@ -175,7 +177,7 @@ function mostrarResultado(data) {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    // Validación de Stock Crítica en el momento de mostrar
+    // Validación de Stock Crítica
     let htmlStockAlert = "";
     let hayInsuficiente = false;
 
@@ -279,9 +281,6 @@ function imprimirResumen() {
     setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
 
-/**
- * CIERRE DE VENTA Y FACTURACIÓN
- */
 async function facturarVenta() {
     if (!datosCotizacionActual) return;
     const nombre = document.getElementById('nombreCliente').value.trim();
