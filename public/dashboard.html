@@ -7,13 +7,13 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* ESTRUCTURA DASHBOARD (Mantenida y Optimizada) */
+        /* ESTRUCTURA DASHBOARD */
         .dashboard-wrapper {
             display: flex;
             min-height: 100vh;
         }
 
-        /* BARRA LATERAL (Sidebar Azul) */
+        /* BARRA LATERAL */
         .sidebar {
             width: 260px;
             background: #1a2c5b;
@@ -55,16 +55,16 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* CONTENIDO PRINCIPAL - AJUSTE DE PROPORCIONES */
+        /* CONTENIDO PRINCIPAL - DIRECTORIO MÁS PEQUEÑO Y A LA DERECHA */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
             padding: 30px;
             display: grid;
-            /* Se redujo la columna derecha de 340px a 280px para dar más aire al inventario */
-            grid-template-columns: 1fr 280px; 
-            gap: 25px;
+            /* Se ajustó la columna derecha a 250px para hacerlo más pequeño */
+            grid-template-columns: 1fr 250px; 
+            gap: 30px;
             align-items: flex-start;
         }
 
@@ -126,7 +126,7 @@
             font-size: 0.85rem;
         }
 
-        /* DIRECTORIO DE PROVEEDORES - AJUSTE VISUAL */
+        /* DIRECTORIO DE PROVEEDORES - MINI ESTILO */
         .providers-sidebar {
             background: #2d3748;
             border-radius: 12px;
@@ -134,55 +134,82 @@
             height: fit-content;
             position: sticky;
             top: 30px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
         .providers-header {
             background: #1a202c;
-            padding: 15px;
+            padding: 12px;
             display: flex;
-            justify-content: center; /* Centrado tras quitar el contador */
+            justify-content: center;
             align-items: center;
             color: white;
             text-align: center;
         }
 
         .providers-header h3 {
-            font-size: 0.85rem; /* Un poco más pequeño para el nuevo ancho */
+            font-size: 0.75rem;
             margin: 0;
             letter-spacing: 0.5px;
+            font-weight: 700;
         }
 
-        /* El contador .badge-count ha sido eliminado del CSS por limpieza */
-
         #directorioProveedores {
-            padding: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
         }
 
         .provider-card {
             background: white;
             border-radius: 8px;
-            padding: 12px;
+            padding: 10px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column; /* Cambiado a columna para que quepan todos los datos */
+            gap: 4px;
             color: #2d3748;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 3px solid #3182ce;
         }
 
         .provider-info h4 {
-            font-size: 0.85rem;
-            margin-bottom: 2px;
-        }
-
-        .provider-info p {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             margin: 0;
+            color: #2b6cb0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        /* MODAL DE COMPRA */
+        .provider-detail {
+            font-size: 0.68rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #4a5568;
+        }
+
+        .provider-detail i {
+            width: 12px;
+            color: #a0aec0;
+            text-align: center;
+        }
+
+        .cat-tag {
+            display: inline-block;
+            background: #edf2f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            font-weight: bold;
+            color: #718096;
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+
+        /* MODALES */
         .modal { 
             display: none; 
             position: fixed; 
@@ -205,7 +232,6 @@
         .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #4a5568; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
         .calc-preview { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 10px; font-size: 0.85rem; }
-
         #contenedorNombreNuevo { display: none; margin-top: 10px; padding: 10px; background: #ebf8ff; border-radius: 6px; border: 1px dashed #3182ce; }
     </style>
 </head>
@@ -247,10 +273,10 @@
 
         <aside class="providers-sidebar">
             <div class="providers-header">
-                <h3><i class="fas fa-address-book"></i> DIRECTORIO DE PROVEEDORES</h3>
+                <h3><i class="fas fa-address-book"></i> DIRECTORIO</h3>
             </div>
             <div id="directorioProveedores">
-                <p style="color: #a0aec0; text-align: center;">Cargando...</p>
+                <p style="color: #a0aec0; text-align: center; font-size: 0.7rem;">Cargando...</p>
             </div>
         </aside>
     </main>
@@ -262,15 +288,11 @@
         <form id="formNuevaCompra" class="modal-body">
             <div class="form-group">
                 <label>Proveedor</label>
-                <select id="compraProveedor" name="providerId" required>
-                    <option value="">Cargando proveedores...</option>
-                </select>
+                <select id="compraProveedor" name="providerId" required></select>
             </div>
             <div class="form-group">
                 <label>Material</label>
-                <select id="compraMaterial" name="materialId" required onchange="manejarCambioMaterial()">
-                    <option value="">Cargando materiales...</option>
-                </select>
+                <select id="compraMaterial" name="materialId" required onchange="manejarCambioMaterial()"></select>
                 <div id="contenedorNombreNuevo">
                     <label style="color: #2b6cb0;">Nombre del Material Nuevo</label>
                     <input type="text" id="nombreNuevoMaterial" placeholder="Escribe el nombre aquí...">
@@ -339,10 +361,7 @@
 
         if(provSelect) {
             provSelect.innerHTML = proveedores.length > 0 
-                ? proveedores.map(p => {
-                    const nombre = p.nombre || p.name || 'Sin nombre';
-                    return `<option value="${p._id || p.id}">${String(nombre).toUpperCase()}</option>`;
-                }).join('')
+                ? proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || p.name || 'S/N').toUpperCase()}</option>`).join('')
                 : '<option value="">No hay proveedores registrados</option>';
         }
 
@@ -350,10 +369,7 @@
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
             if(inventario.length > 0) {
-                opciones += inventario.map(m => {
-                    const nombreMat = m.nombre || m.name || 'Sin nombre';
-                    return `<option value="${m._id || m.id}">${nombreMat}</option>`;
-                }).join('');
+                opciones += inventario.map(m => `<option value="${m._id || m.id}">${m.nombre || m.name}</option>`).join('');
             }
             matSelect.innerHTML = opciones;
         }
@@ -370,25 +386,32 @@
 
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
-        // Se quitó la lógica que actualizaba el badge inexistente
         const datos = Array.isArray(lista) ? lista : [];
         if(!container) return;
+        
         if (datos.length === 0) {
-            container.innerHTML = '<p style="color:#a0aec0; text-align:center;">No hay proveedores.</p>';
+            container.innerHTML = '<p style="color:#a0aec0; text-align:center; font-size: 0.7rem;">No hay registros.</p>';
             return;
         }
+
         container.innerHTML = datos.map(p => {
-            const nombreSeguro = String(p.nombre || p.name || 'S/N').toUpperCase();
-            const telSeguro = p.telefono || p.phone || 'Sin número';
-            const catSeguro = p.categoria || p.category || 'General';
+            const nombre = String(p.nombre || p.name || 'S/N').toUpperCase();
+            const nit = p.nit || p.identificacion || 'No registra NIT';
+            const contacto = p.contacto || p.nombre_contacto || 'Sin contacto';
+            const tel = p.telefono || p.phone || 'Sin teléfono';
+            const correo = p.correo || p.email || 'Sin correo';
+            const direccion = p.direccion || p.address || 'Sin dirección';
+            const cat = p.categoria || p.category || 'General';
+
             return `
             <div class="provider-card">
-                <div class="provider-info">
-                    <h4>${nombreSeguro}</h4>
-                    <p>${telSeguro}</p>
-                    <p style="font-size: 0.7rem; color: #a0aec0;">${catSeguro}</p>
-                </div>
-                <div class="btn-call"><i class="fas fa-phone-alt"></i></div>
+                <h4>${nombre} <i class="fas fa-phone-alt" style="font-size: 0.6rem; color: #3182ce;"></i></h4>
+                <p class="provider-detail"><i class="fas fa-id-card"></i> ${nit}</p>
+                <p class="provider-detail"><i class="fas fa-user"></i> ${contacto}</p>
+                <p class="provider-detail"><i class="fab fa-whatsapp"></i> ${tel}</p>
+                <p class="provider-detail"><i class="fas fa-envelope"></i> ${correo}</p>
+                <p class="provider-detail"><i class="fas fa-map-marker-alt"></i> ${direccion}</p>
+                <span class="cat-tag">${cat}</span>
             </div>
             `;
         }).join('');
