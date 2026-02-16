@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.7.5 - UI: Consolidación Definitiva + CÁLCULO MATEMÁTICO PURO
+ * Versión: 12.7.8 - UI: Consolidación Definitiva + BLINDAJE MATEMÁTICO PURO
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.7.5 - CÁLCULO MATEMÁTICO ACTIVADO");
+    console.log("🚀 Sistema Iniciado - v12.7.8 - CÁLCULO DINÁMICO BLINDADO");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,18 +93,19 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
+            // BLINDAJE DE DATOS: Aseguramos que todo sea NUMÉRICO antes de procesar
             return {
                 ...m,
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
-                stock_actual: Number(m.stock_actual ?? 0), 
-                precio_m2_costo: Number(m.precio_m2_costo ?? 0),
-                precio_total_lamina: Number(m.precio_total_lamina ?? 0),
-                ancho_lamina_cm: Number(m.ancho_lamina_cm ?? 0),
-                largo_lamina_cm: Number(m.largo_lamina_cm ?? 0),
-                stock_minimo: Number(m.stock_minimo ?? 2)
+                stock_actual: Number(m.stock_actual) || 0, 
+                precio_m2_costo: Number(m.precio_m2_costo) || 0,
+                precio_total_lamina: Number(m.precio_total_lamina) || 0,
+                ancho_lamina_cm: Number(m.ancho_lamina_cm) || 0,
+                largo_lamina_cm: Number(m.largo_lamina_cm) || 0,
+                stock_minimo: Number(m.stock_minimo) || 2
             };
         });
         
@@ -124,21 +125,21 @@ function renderTable(materiales) {
     
     materiales.forEach(m => {
         const fila = document.createElement('tr');
-        const stockActualM2 = m.stock_actual || 0;
-        const stockMinimo = m.stock_minimo || 2;
+        const stockActualM2 = m.stock_actual;
+        const stockMinimo = m.stock_minimo;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
         // --- MOTOR MATEMÁTICO CIEGO Y UNIVERSAL ---
-        const ancho = Number(m.ancho_lamina_cm) || 0;
-        const largo = Number(m.largo_lamina_cm) || 0;
+        const ancho = m.ancho_lamina_cm;
+        const largo = m.largo_lamina_cm;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // REGLA DE ORO: PRECIO LÁMINA / AREA REAL = COSTO M2
+            // CÁLCULO PURO: Independiente del material, divide Precio entre Area
             costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
         } else {
-            costoMostrar = m.precio_m2_costo || 0;
+            costoMostrar = m.precio_m2_costo;
         }
 
         // Estilos de Stock
