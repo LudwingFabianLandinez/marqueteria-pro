@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.4.0 - UI: Blindaje Matemático Unitario (Costo m2 Fijo)
+ * Versión: 12.4.5 - UI: Corrección Definitiva Costo m2 Unitario
  * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.4.0");
+    console.log("🚀 Sistema Iniciado - v12.4.5");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -126,13 +126,17 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- LÓGICA DE BLINDAJE UNITARIO ---
-        const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
-        let costoMostrar = m.precio_m2_costo || 0;
-
-        // Si es m2 y tiene medidas, forzamos el cálculo: Precio de 1 Lámina / Area de 1 Lámina
+        // --- CÁLCULO DE COSTO M2 CORRECTO (PRECIO LÁMINA / ÁREA LÁMINA) ---
+        const anchoMetros = (m.ancho_lamina_cm || 0) / 100;
+        const largoMetros = (m.largo_lamina_cm || 0) / 100;
+        const areaUnaLaminaM2 = anchoMetros * largoMetros;
+        
+        let costoMostrar = 0;
+        // Si tenemos precio de lámina y área, calculamos el m2 real
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0 && m.precio_total_lamina > 0) {
             costoMostrar = m.precio_total_lamina / areaUnaLaminaM2;
+        } else {
+            costoMostrar = m.precio_m2_costo || 0;
         }
 
         let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
@@ -222,8 +226,8 @@ function configurarEventos() {
             const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
-            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
-            const costoTotalInput = parseFloat(document.getElementById('compraCosto')?.value) || 0;
+            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 1; // Evitar división por cero
+            const costoFacturaTotal = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
             if(!materialId || !providerId) {
                 alert("⚠️ Selecciona material y proveedor");
@@ -231,12 +235,12 @@ function configurarEventos() {
                 return;
             }
 
-            // --- LÓGICA DE COMPRA CORREGIDA ---
+            // --- LÓGICA DE COMPRA BLINDADA ---
             const areaUnaLamina = (largo * ancho) / 10000;
-            const totalStockM2 = areaUnaLamina * cant;
+            const totalStockM2AAgregar = areaUnaLamina * cant;
 
-            // PRECIO DE UNA SOLA LÁMINA (Garantiza que no importa si compras 5 o 100)
-            const precioUnaLaminaUnitario = costoTotalInput / (cant || 1);
+            // EL SECRETO: Siempre calcular cuánto cuesta UNA lámina antes de guardar
+            const costoIndividualLamina = costoFacturaTotal / cant;
 
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -251,7 +255,7 @@ function configurarEventos() {
                         proveedorId: providerId,
                         ancho_lamina_cm: ancho,
                         largo_lamina_cm: largo,
-                        precio_total_lamina: precioUnaLaminaUnitario
+                        precio_total_lamina: costoIndividualLamina // Guardamos el de UNA
                     });
                     if (resMat.success) {
                         materialId = resMat.data._id || resMat.data.id;
@@ -269,9 +273,9 @@ function configurarEventos() {
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 cantidad_laminas: cant,
-                cantidad: totalStockM2, 
-                precio_total_lamina: precioUnaLaminaUnitario, // Guardamos SIEMPRE el de 1 unidad
-                costo_total: costoTotalInput,
+                cantidad: totalStockM2AAgregar, 
+                precio_total_lamina: costoIndividualLamina, // Valor de UNA lámina
+                costo_total: costoFacturaTotal, // Valor de la factura completa
                 tipo_material: 'm2'
             };
 
@@ -281,7 +285,7 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert(`✅ Compra exitosa: Se agregaron ${totalStockM2.toFixed(2)} m² al inventario.`);
+                    alert(`✅ Compra exitosa: ${cant} láminas agregadas (${totalStockM2AAgregar.toFixed(2)} m²).`);
                 } else {
                     alert("❌ Error Servidor: " + (res.message || "Error de validación"));
                 }
