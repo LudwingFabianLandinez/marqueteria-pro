@@ -9,7 +9,7 @@
     <style>
         /* --- BLOQUE DE FUERZA PARA RODADO --- */
         html, body {
-            overflow: hidden; /* Evita scroll doble */
+            overflow: hidden; /* Congela el fondo para que nada rebote */
             width: 100%;
             margin: 0;
             padding: 0;
@@ -60,12 +60,11 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* --- CONTENEDOR PRINCIPAL CON SCROLL --- */
+        /* --- CONTENEDOR PRINCIPAL --- */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
-            padding: 0; /* Quitamos padding para controlar el sticky */
             display: grid;
             grid-template-columns: 1fr 280px; 
             height: 100vh;
@@ -73,28 +72,24 @@
             overflow: hidden;
         }
 
-        /* COLUMNA IZQUIERDA: INVENTARIO */
+        /* COLUMNA IZQUIERDA: GESTIÓN DE SCROLL */
         .content-left {
-            overflow-y: auto; /* Aquí sucede el scroll del inventario */
-            padding: 30px 20px 30px 30px;
-            height: 100%;
+            display: flex;
+            flex-direction: column; /* Alineación vertical */
+            padding: 30px;
+            height: 100vh;
             box-sizing: border-box;
         }
 
-        /* 🎯 ELEMENTOS STICKY (CABECERAS FIJAS) */
-        .sticky-header-container {
-            position: sticky;
-            top: -30px; /* Compensa el padding superior */
-            background: #f7fafc;
-            z-index: 100;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
+        /* 🛡️ CABECERA BLINDADA (Título y Botones quedan quietos) */
+        .page-header-fixed {
+            flex-shrink: 0; /* Impide que se desplace o achique */
         }
 
         .page-title {
             font-size: 2rem;
             color: #1a202c;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             font-weight: 800;
             margin-top: 0;
         }
@@ -102,7 +97,76 @@
         .top-actions {
             display: flex;
             gap: 15px;
-            margin-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        /* 📦 CONTENEDOR DE LA TABLA (Lo único que se mueve) */
+        .inventory-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Para que el scroll sea interno */
+            flex-grow: 1; /* Ocupa todo el espacio sobrante hacia abajo */
+            border: 1px solid #e2e8f0;
+        }
+
+        /* EL MOTOR DEL SCROLL INTERNO */
+        .table-scroll-container {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .inventory-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        /* 🟦 LA BARRA AZUL FIJA (Header de la tabla) */
+        .inventory-table thead {
+            position: sticky;
+            top: 0; /* Se clava al inicio del contenedor blanco */
+            z-index: 10;
+            background: #3182ce;
+            color: white;
+        }
+
+        .inventory-table th {
+            padding: 15px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        /* --- DIRECTORIO --- */
+        .providers-sidebar {
+            background: #2d3748;
+            border-radius: 15px 0 0 15px; 
+            height: calc(100vh - 60px);
+            position: sticky;
+            top: 30px;
+            box-shadow: -8px 0 15px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            margin-top: 30px;
+        }
+
+        .providers-header {
+            background: #1a202c;
+            padding: 15px;
+            text-align: center;
+            color: white;
+            border-radius: 15px 0 0 0;
+        }
+
+        #directorioProveedores {
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
         .btn-action {
@@ -119,110 +183,6 @@
         }
         .btn-purple { background: #9f7aea; }
         .btn-green { background: #48bb78; }
-
-        /* TABLA DE INVENTARIO */
-        .inventory-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            padding: 0; /* Padding 0 para que el thead llegue al borde */
-            overflow: hidden;
-        }
-
-        .inventory-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .inventory-table thead {
-            background: #3182ce;
-            color: white;
-            position: sticky;
-            top: 145px; /* Ajustado para quedar debajo de botones y título */
-            z-index: 90;
-        }
-
-        .inventory-table th {
-            padding: 15px;
-            font-size: 0.85rem;
-        }
-
-        /* --- 🎯 EL DIRECTORIO FIJO (PROVEEDORES) --- */
-        .providers-sidebar {
-            background: #2d3748;
-            border-radius: 15px 0 0 15px; 
-            height: calc(100vh - 40px);
-            position: sticky;
-            top: 20px;
-            margin-top: 20px;
-            box-shadow: -8px 0 15px rgba(0, 0, 0, 0.15);
-            display: flex;
-            flex-direction: column;
-            z-index: 200; /* Siempre por encima */
-        }
-
-        .providers-header {
-            background: #1a202c;
-            padding: 15px;
-            text-align: center;
-            color: white;
-            border-radius: 15px 0 0 0;
-        }
-
-        .providers-header h3 {
-            font-size: 0.8rem;
-            margin: 0;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        #directorioProveedores {
-            padding: 15px;
-            overflow-y: auto;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        /* ESTILO CARDS DIRECTORIO */
-        .provider-card {
-            background: white;
-            border-radius: 8px;
-            padding: 12px;
-            border-left: 4px solid #3182ce;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .provider-card h4 {
-            font-size: 0.85rem;
-            margin: 0 0 8px 0;
-            color: #2b6cb0;
-            border-bottom: 1px solid #edf2f7;
-            padding-bottom: 5px;
-            text-transform: uppercase;
-        }
-
-        .provider-detail {
-            font-size: 0.7rem;
-            margin: 4px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #4a5568;
-        }
-
-        .cat-tag {
-            display: inline-block;
-            background: #ebf8ff;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.6rem;
-            font-weight: bold;
-            color: #3182ce;
-            margin-top: 8px;
-            border: 1px solid #bee3f8;
-        }
 
         /* MODALES */
         .modal { 
@@ -265,7 +225,7 @@
 
     <main class="main-container">
         <div class="content-left">
-            <div class="sticky-header-container">
+            <div class="page-header-fixed">
                 <h1 class="page-title">Control de Existencias</h1>
                 <div class="top-actions">
                     <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
@@ -274,19 +234,21 @@
             </div>
             
             <div class="inventory-card">
-                <table class="inventory-table">
-                    <thead>
-                        <tr>
-                            <th style="text-align: left;">MATERIAL / CATEGORÍA</th>
-                            <th>MEDIDAS MATERIAL</th>
-                            <th>COSTO M²</th>
-                            <th>STOCK DISPONIBLE</th>
-                            <th>ACCIONES</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventoryTable">
-                        </tbody>
-                </table>
+                <div class="table-scroll-container">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">MATERIAL / CATEGORÍA</th>
+                                <th>MEDIDAS MATERIAL</th>
+                                <th>COSTO M²</th>
+                                <th>STOCK DISPONIBLE</th>
+                                <th>ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable">
+                            </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
