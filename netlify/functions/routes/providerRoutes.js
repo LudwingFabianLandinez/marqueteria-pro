@@ -7,10 +7,10 @@ const provCtrl = require('../controllers/providerController');
 
 /**
  * GESTIÓN DE PROVEEDORES - MARQUETERÍA LA CHICA MORALES
- * Sincronizado con server.js y api.js (v4.8+)
+ * Ajuste v12.2.13: Validación de NIT único y liberación de duplicidad de nombres.
  */
 
-// Middleware de normalización: Limpia los datos antes de enviarlos al controlador
+// Middleware de normalización
 const normalizeData = (req, res, next) => {
     if (req.method === 'POST' || req.method === 'PUT') {
         const { nombre, telefono, correo } = req.body;
@@ -24,63 +24,65 @@ const normalizeData = (req, res, next) => {
     next();
 };
 
-// --- RUTAS CON PROTECCIÓN DE CALLBACKS Y MULTI-NOMBRE ---
+// --- RUTAS ---
 
 // 1. Obtener todos los proveedores (GET /)
 router.get('/', async (req, res, next) => {
-    // Buscamos cualquier variante del nombre de la función en el controlador
     const method = provCtrl.getProviders || provCtrl.getAll || provCtrl.list || provCtrl.getProvidersAll;
-    
-    if (typeof method === 'function') {
-        return method(req, res, next);
-    }
-    
-    console.error("🚨 Error: Método de consulta no encontrado en providerController");
-    res.status(500).json({ 
-        success: false, 
-        error: "El servidor no encontró la función de lectura de proveedores" 
-    });
+    if (typeof method === 'function') return method(req, res, next);
+    res.status(500).json({ success: false, error: "Función de lectura no encontrada" });
 });
 
-// 2. Crear un nuevo proveedor (POST /)
+// 2. Crear un nuevo proveedor (POST /) - ¡AJUSTE CLAVE AQUÍ!
 router.post('/', normalizeData, async (req, res, next) => {
-    const method = provCtrl.createProvider || provCtrl.saveProvider || provCtrl.addProvider || provCtrl.create;
-    
-    if (typeof method === 'function') {
-        return method(req, res, next);
+    try {
+        const { nit, nombre } = req.body;
+
+        // VALIDACIÓN DE NIT MAESTRO
+        if (nit) {
+            const existeNit = await Provider.findOne({ nit: nit.trim() });
+            if (existeNit) {
+                // Devolvemos el error exacto que solicitaste
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `El NIT ${nit} ya pertenece al proveedor ${existeNit.nombre}` 
+                });
+            }
+        }
+
+        // Si el NIT no existe, procedemos al controlador original
+        const method = provCtrl.createProvider || provCtrl.saveProvider || provCtrl.addProvider || provCtrl.create;
+        
+        if (typeof method === 'function') {
+            return method(req, res, next);
+        }
+        
+        res.status(500).json({ success: false, error: "Función de guardado no encontrada" });
+
+    } catch (error) {
+        console.error("🚨 Error en validación de ruta:", error);
+        res.status(500).json({ success: false, error: "Error interno al validar el NIT" });
     }
-    
-    console.error("🚨 Error: Método de creación no encontrado en providerController");
-    res.status(500).json({ success: false, error: "El servidor no encontró la función para guardar proveedores" });
 });
 
 // 3. Obtener un solo proveedor por ID (GET /:id)
 router.get('/:id', async (req, res, next) => {
     const method = provCtrl.getOneProvider || provCtrl.getProviderById || provCtrl.getById;
-    
-    if (typeof method === 'function') {
-        return method(req, res, next);
-    }
-    res.status(500).json({ success: false, error: "Método de búsqueda por ID no definido" });
+    if (typeof method === 'function') return method(req, res, next);
+    res.status(500).json({ success: false, error: "Método por ID no definido" });
 });
 
 // 4. Actualizar un proveedor (PUT /:id)
 router.put('/:id', normalizeData, async (req, res, next) => {
     const method = provCtrl.updateProvider || provCtrl.editProvider || provCtrl.update;
-    
-    if (typeof method === 'function') {
-        return method(req, res, next);
-    }
+    if (typeof method === 'function') return method(req, res, next);
     res.status(500).json({ success: false, error: "Método de actualización no definido" });
 });
 
 // 5. Eliminar un proveedor (DELETE /:id)
 router.delete('/:id', async (req, res, next) => {
     const method = provCtrl.deleteProvider || provCtrl.removeProvider || provCtrl.destroy;
-    
-    if (typeof method === 'function') {
-        return method(req, res, next);
-    }
+    if (typeof method === 'function') return method(req, res, next);
     res.status(500).json({ success: false, error: "Método de eliminación no definido" });
 });
 
