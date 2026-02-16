@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.9 - CONSOLIDADO FINAL: FIX STOCK (ÁREA x CANTIDAD)
+ * Versión: 12.2.10 - UI OPTIMIZADA: Directorio Rodado y Sin Iconos
  * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.2.9");
+    console.log("🚀 Sistema Iniciado - v12.2.10");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -45,16 +45,14 @@ async function fetchProviders() {
                 } else {
                     directorio.innerHTML = window.todosLosProveedores.map(p => {
                         const nombreSeguro = String(p.nombre || 'S/N').toUpperCase();
+                        // AJUSTE: Tarjeta limpia sin iconos y con clases para CSS consolidado
                         return `
-                        <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                            <div style="overflow: hidden;">
-                                <div style="font-weight: bold; color: #1e293b; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${nombreSeguro}</div>
-                                <div style="font-size: 0.7rem; color: #64748b;">${p.telefono || 'Sin Tel.'}</div>
-                                <div style="font-size: 0.6rem; color: #94a3b8;">${p.categoria || 'General'}</div>
-                            </div>
-                            <a href="tel:${p.telefono}" style="background: #3498db; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0;">
-                                <i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i>
-                            </a>
+                        <div class="provider-card">
+                            <h4>${nombreSeguro}</h4>
+                            <div class="provider-detail"><strong>NIT:</strong> ${p.nit || 'N/A'}</div>
+                            <div class="provider-detail"><strong>Tel:</strong> ${p.telefono || 'Sin Tel.'}</div>
+                            <div class="provider-detail"><strong>Cont:</strong> ${p.contacto || 'N/A'}</div>
+                            <span class="cat-tag">${p.categoria || 'General'}</span>
                         </div>
                     `}).join('');
                 }
@@ -189,7 +187,6 @@ function configurarEventos() {
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
-    /** LÓGICA DE COMPRA HÍBRIDA - FIX: ÁREA x CANTIDAD **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -211,13 +208,9 @@ function configurarEventos() {
                 return;
             }
 
-            // --- CORRECCIÓN MATEMÁTICA ---
-            // 1. Calculamos el área de UNA sola lámina en metros cuadrados
             const areaUnaLamina = (largo * ancho) / 10000;
-            // 2. Multiplicamos por la cantidad de láminas compradas para obtener el stock real
             const totalStockM2 = areaUnaLamina * cant;
 
-            // CREACIÓN DINÁMICA DE MATERIAL SI ES "NUEVO"
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
@@ -243,14 +236,13 @@ function configurarEventos() {
                 }
             }
 
-            // MAPEADO PARA EL BACKEND (Enviamos 'cantidad' ya multiplicada)
             const objetoCompra = {
                 materialId: materialId,
                 proveedorId: providerId,
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 cantidad_laminas: cant,
-                cantidad: totalStockM2, // <-- Aquí enviamos los 17.60 m2 (ejemplo)
+                cantidad: totalStockM2, 
                 precio_total_lamina: costoTotalInput / (cant || 1),
                 costo_total: costoTotalInput,
                 tipo_material: 'm2'
