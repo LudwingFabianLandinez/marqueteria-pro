@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.6.0 - UI: Consolidación Definitiva de Cálculos
+ * Versión: 12.6.1 - UI: Consolidación Definitiva + Auto-Fix Atlas
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.5.0
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.6.0 - CORRECCIÓN MANUAL");
+    console.log("🚀 Sistema Iniciado - v12.6.1 - AUTO-CORRECCIÓN ACTIVADA");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,7 +93,7 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            return {
+            const materialProcesado = {
                 ...m,
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
@@ -106,6 +106,23 @@ async function fetchInventory() {
                 largo_lamina_cm: Number(m.largo_lamina_cm ?? 0),
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
+
+            // --- GANCHO DE AUTO-CORRECCIÓN ATLAS (Punto 3 Solicitado) ---
+            if (materialProcesado.nombre.includes("Vidrio 2mm") && materialProcesado.precio_total_lamina === 21600) {
+                console.warn("⚠️ Detectado error de precio en Atlas ($21.600). Ejecutando Auto-Fix a $108.000...");
+                window.API.saveMaterial({
+                    id: materialProcesado.id,
+                    nombre: materialProcesado.nombre,
+                    precio_total_lamina: 108000,
+                    ancho_lamina_cm: materialProcesado.ancho_lamina_cm || 220,
+                    largo_lamina_cm: materialProcesado.largo_lamina_cm || 160
+                }).then(() => {
+                    console.log("✅ Atlas actualizado. Recargando para aplicar cambios...");
+                    // No hacemos fetch de nuevo aquí para evitar bucles, el blindaje de renderTable se encarga del resto
+                });
+            }
+
+            return materialProcesado;
         });
         
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
@@ -129,15 +146,15 @@ function renderTable(materiales) {
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
         // --- BLINDAJE MATEMÁTICO ABSOLUTO (v12.6.0) ---
-        const anchoMetros = m.ancho_lamina_cm / 100;
-        const largoMetros = m.largo_lamina_cm / 100;
+        const anchoMetros = (m.ancho_lamina_cm || 220) / 100;
+        const largoMetros = (m.largo_lamina_cm || 160) / 100;
         const areaUnaLaminaM2 = anchoMetros * largoMetros;
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // FORZAMOS: Precio de 1 lámina / Área de 1 lámina. 
-            // Ignoramos lo que diga el servidor sobre el precio_m2_costo.
-            costoMostrar = m.precio_total_lamina / areaUnaLaminaM2;
+            // Si el precio es el erróneo de Atlas, lo forzamos visualmente a 108.000 mientras el auto-fix termina
+            const precioParaCalculo = m.precio_total_lamina === 21600 ? 108000 : m.precio_total_lamina;
+            costoMostrar = precioParaCalculo / areaUnaLaminaM2;
         } else {
             costoMostrar = m.precio_m2_costo || 0;
         }
@@ -363,7 +380,6 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
-    // Forzamos que edites el precio de LA LÁMINA ($108.000)
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
