@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.4.7 - UI: Consolidación de Cálculo m2 y Blindaje de Datos
- * Respetando estructura visual y lógica v12.1.7 / v12.4.6
+ * Versión: 12.5.0 - UI: Reingeniería Total de Cálculos Matemáticos
+ * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.4.7");
+    console.log("🚀 Sistema Iniciado - v12.5.0");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -102,6 +102,8 @@ async function fetchInventory() {
                 stock_actual: Number(m.stock_actual ?? 0), 
                 precio_m2_costo: Number(m.precio_m2_costo ?? 0),
                 precio_total_lamina: Number(m.precio_total_lamina ?? 0),
+                ancho_lamina_cm: Number(m.ancho_lamina_cm ?? 0),
+                largo_lamina_cm: Number(m.largo_lamina_cm ?? 0),
                 stock_minimo: Number(m.stock_minimo ?? 2)
             };
         });
@@ -126,16 +128,13 @@ function renderTable(materiales) {
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- CÁLCULO DE COSTO M2 BLINDADO ---
-        const anchoMetros = (m.ancho_lamina_cm || 0) / 100;
-        const largoMetros = (m.largo_lamina_cm || 0) / 100;
-        const areaUnaLaminaM2 = anchoMetros * largoMetros;
+        // --- REINGENIERÍA DE CÁLCULO MATEMÁTICO ---
+        const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
         
         let costoMostrar = 0;
+        // Obligamos a usar la división pura: Precio de 1 lámina / Área de 1 lámina
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // Priorizamos precio_total_lamina para el cálculo del m2 visual
-            const precioBase = (m.precio_total_lamina > 0) ? m.precio_total_lamina : (m.precio_m2_costo * areaUnaLaminaM2);
-            costoMostrar = precioBase / areaUnaLaminaM2;
+            costoMostrar = m.precio_total_lamina / areaUnaLaminaM2;
         } else {
             costoMostrar = m.precio_m2_costo || 0;
         }
@@ -171,8 +170,8 @@ function renderTable(materiales) {
                     ${m.tipo === 'ml' ? `${m.largo_lamina_cm || 0} cm` : `${m.ancho_lamina_cm || 0}x${m.largo_lamina_cm || 0} cm`}
                 </span>
             </td>
-            <td style="text-align: center; font-weight: 500; font-size: 0.85rem; color: #475569;">
-                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
+            <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
+                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${tipoUnidad}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
                 <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
@@ -236,10 +235,9 @@ function configurarEventos() {
                 return;
             }
 
+            // CÁLCULOS ESTRICTOS PARA EL REGISTRO
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2AAgregar = areaUnaLamina * cant;
-
-            // EL SECRETO: Calculamos el costo de UNA SOLA lámina para guardarlo en la base de datos
             const costoIndividualLamina = costoFacturaTotal / cant;
 
             if (materialId === "NUEVO") {
@@ -363,8 +361,7 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
-    // Forzamos a que el campo costo muestre el precio de UNA lámina para evitar confusiones
-    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina || m.precio_m2_costo;
+    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     const modal = document.getElementById('modalNuevoMaterial');
