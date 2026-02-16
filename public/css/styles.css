@@ -127,50 +127,95 @@ body {
     box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
-.menu-item.active::before {
-    transform: scaleY(1);
-}
-
 /* ============================================ */
-/* CONTENIDO PRINCIPAL */
+/* CONTENIDO PRINCIPAL Y DIRECTORIO */
 /* ============================================ */
 .main-content {
     margin-left: 280px;
     flex: 1;
     padding: 30px 40px;
     background: var(--gray-100);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: grid; /* Cambiado a Grid para manejar inventario + directorio */
+    grid-template-columns: 1fr 250px; /* Inventario grande, directorio 250px */
+    gap: 30px;
+    align-items: flex-start;
 }
 
 .container-fluid {
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
+    min-width: 0; /* Evita que el contenido desborde el grid */
 }
 
-.page-header {
-    margin-bottom: 35px;
-    width: 100%;
-    max-width: 1200px;
+/* DIRECTORIO DE PROVEEDORES (ASIDE) */
+.providers-sidebar {
+    background: var(--gray-800);
+    border-radius: 12px;
+    overflow: hidden;
+    position: sticky;
+    top: 30px;
+    box-shadow: var(--shadow-lg);
 }
 
-.page-header h1 {
-    color: var(--gray-900);
-    font-size: 32px;
+.providers-header {
+    background: var(--gray-900);
+    padding: 12px;
+    text-align: center;
+    color: white;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.providers-header h3 {
+    font-size: 0.8rem;
     font-weight: 700;
-    margin-bottom: 8px;
+    letter-spacing: 1px;
 }
 
-.page-header::after {
-    content: '';
-    display: block;
-    width: 60px;
-    height: 4px;
-    background: linear-gradient(90deg, var(--primary-light), var(--accent));
-    border-radius: 2px;
-    margin-top: 10px;
+.provider-card {
+    background: white;
+    margin: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-light);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.provider-card h4 {
+    color: var(--primary);
+    font-size: 0.85rem;
+    margin-bottom: 5px;
+    border-bottom: 1px solid var(--gray-100);
+    padding-bottom: 3px;
+    text-transform: uppercase;
+}
+
+.provider-detail {
+    font-size: 0.72rem;
+    color: var(--gray-700);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.provider-detail i {
+    color: var(--accent);
+    width: 14px;
+    text-align: center;
+}
+
+.cat-tag {
+    display: inline-block;
+    background: var(--gray-100);
+    color: var(--secondary);
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-top: 5px;
+    text-transform: uppercase;
+    border: 1px solid var(--gray-200);
 }
 
 /* ============================================ */
@@ -197,82 +242,54 @@ body {
 .inventory-table th, .inventory-table td {
     padding: 18px 20px;
     text-align: center;
+    font-size: 0.9rem;
+}
+
+.inventory-table tbody tr:hover {
+    background-color: var(--gray-50);
 }
 
 /* ============================================ */
-/* ⚡ SOLUCIÓN DEFINITIVA PARA MODALES ⚡ */
+/* MODALES */
 /* ============================================ */
 .modal {
-    display: none; /* JS controla esto */
+    display: none;
     position: fixed;
     z-index: 99999; 
     left: 0;
     top: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(15, 23, 42, 0.85) !important; /* Fondo oscuro opaco */
+    background: rgba(15, 23, 42, 0.85) !important;
     align-items: center;
     justify-content: center;
     backdrop-filter: blur(5px);
 }
 
-/* Forzamos visibilidad cuando el JS ponga display: block o flex */
-.modal[style*="display: block"], 
-.modal[style*="display: flex"],
-.modal.active {
-    display: flex !important;
-}
-
 .modal-content {
-    background: #ffffff !important; /* Cuadro blanco puro */
+    background: #ffffff !important;
     margin: auto;
     padding: 0;
     border-radius: 16px;
     width: 90%;
-    max-width: 600px;
+    max-width: 500px;
     box-shadow: var(--shadow-xl);
     overflow: hidden;
     position: relative;
-    color: var(--gray-900) !important;
-    display: block !important; /* Evita que el contenido se colapse */
-    border: 1px solid var(--gray-200);
 }
 
-/* Título del Modal */
 .modal-content h2 {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
     color: white !important;
     padding: 20px 25px;
     margin: 0;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
 }
 
-/* Cuerpo del Modal (Donde van los datos) */
-#agendaContent, #compraContent, .modal-body {
+.modal-body {
     padding: 25px;
-    max-height: 70vh;
-    overflow-y: auto;
     background: white !important;
-    color: var(--gray-800) !important;
-}
-
-/* Botón de cerrar (X) */
-.close-modal {
-    cursor: pointer;
-    font-size: 28px;
-    line-height: 1;
-    color: white;
-    opacity: 0.8;
-    transition: 0.2s;
-}
-
-.close-modal:hover {
-    opacity: 1;
-    transform: scale(1.1);
 }
 
 /* ============================================ */
@@ -293,9 +310,6 @@ body {
 
 .btn-primary { background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%); color: white; }
 .btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; }
-
-.btn-save { background: var(--success); color: white; padding: 10px 20px; border-radius: 8px; }
-.btn-close { background: var(--gray-200); color: var(--gray-700); padding: 10px 20px; border-radius: 8px; }
 
 /* SCROLLBAR */
 ::-webkit-scrollbar { width: 8px; }

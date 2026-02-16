@@ -55,16 +55,16 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* CONTENIDO PRINCIPAL - DIRECTORIO MÁS PEQUEÑO Y A LA DERECHA */
+        /* CONTENIDO PRINCIPAL - INVENTARIO MÁS ANCHO Y DIRECTORIO COMPACTO */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
             padding: 30px;
             display: grid;
-            /* Se ajustó la columna derecha a 250px para hacerlo más pequeño */
+            /* Prioridad absoluta al inventario, directorio en columna de 250px */
             grid-template-columns: 1fr 250px; 
-            gap: 30px;
+            gap: 25px;
             align-items: flex-start;
         }
 
@@ -126,7 +126,7 @@
             font-size: 0.85rem;
         }
 
-        /* DIRECTORIO DE PROVEEDORES - MINI ESTILO */
+        /* DIRECTORIO DE PROVEEDORES - ESTILO PEGADO A LA DERECHA */
         .providers-sidebar {
             background: #2d3748;
             border-radius: 12px;
@@ -144,7 +144,6 @@
             justify-content: center;
             align-items: center;
             color: white;
-            text-align: center;
         }
 
         .providers-header h3 {
@@ -166,47 +165,50 @@
             border-radius: 8px;
             padding: 10px;
             display: flex;
-            flex-direction: column; /* Cambiado a columna para que quepan todos los datos */
-            gap: 4px;
+            flex-direction: column;
+            gap: 3px;
             color: #2d3748;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border-left: 3px solid #3182ce;
+            border-left: 4px solid #3182ce;
         }
 
-        .provider-info h4 {
+        .provider-card h4 {
             font-size: 0.8rem;
-            margin: 0;
+            margin: 0 0 4px 0;
             color: #2b6cb0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-bottom: 1px solid #edf2f7;
+            padding-bottom: 4px;
+            text-transform: uppercase;
         }
 
         .provider-detail {
             font-size: 0.68rem;
             margin: 0;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 6px;
             color: #4a5568;
+            line-height: 1.3;
         }
 
         .provider-detail i {
+            margin-top: 2px;
             width: 12px;
-            color: #a0aec0;
+            color: #3182ce;
             text-align: center;
         }
 
         .cat-tag {
-            display: inline-block;
-            background: #edf2f7;
+            align-self: flex-start;
+            background: #ebf8ff;
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 0.6rem;
             font-weight: bold;
-            color: #718096;
-            margin-top: 4px;
+            color: #3182ce;
+            margin-top: 5px;
             text-transform: uppercase;
+            border: 1px solid #bee3f8;
         }
 
         /* MODALES */
@@ -250,7 +252,7 @@
 
     <main class="main-container">
         <div class="content-left">
-            <h1 class="page-title">Control de Existencias y Compras</h1>
+            <h1 class="page-title">Control de Existencias</h1>
             <div class="top-actions">
                 <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
                 <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
@@ -276,7 +278,7 @@
                 <h3><i class="fas fa-address-book"></i> DIRECTORIO</h3>
             </div>
             <div id="directorioProveedores">
-                <p style="color: #a0aec0; text-align: center; font-size: 0.7rem;">Cargando...</p>
+                <p style="color: #a0aec0; text-align: center; font-size: 0.7rem;">Cargando proveedores...</p>
             </div>
         </aside>
     </main>
@@ -333,6 +335,7 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
+    // Se mantiene tu lógica de cálculo de m2 y manejo de material nuevo
     function manejarCambioMaterial() {
         const select = document.getElementById('compraMaterial');
         const contenedor = document.getElementById('contenedorNombreNuevo');
@@ -354,14 +357,16 @@
         modal.style.display = 'block';
         document.getElementById('contenedorNombreNuevo').style.display = 'none';
         document.getElementById('formNuevaCompra').reset();
+        
         const provSelect = document.getElementById('compraProveedor');
         const matSelect = document.getElementById('compraMaterial');
+        
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
 
         if(provSelect) {
             provSelect.innerHTML = proveedores.length > 0 
-                ? proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || p.name || 'S/N').toUpperCase()}</option>`).join('')
+                ? proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('')
                 : '<option value="">No hay proveedores registrados</option>';
         }
 
@@ -369,7 +374,7 @@
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
             if(inventario.length > 0) {
-                opciones += inventario.map(m => `<option value="${m._id || m.id}">${m.nombre || m.name}</option>`).join('');
+                opciones += inventario.map(m => `<option value="${m._id || m.id}">${m.nombre}</option>`).join('');
             }
             matSelect.innerHTML = opciones;
         }
@@ -384,6 +389,7 @@
         if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m²`;
     }
 
+    // FUNCIÓN DE RENDERIZADO ACTUALIZADA PARA MOSTRAR TODO SIN ICONOS DE TELÉFONO EN TÍTULO
     function renderDirectorio(lista) {
         const container = document.getElementById('directorioProveedores');
         const datos = Array.isArray(lista) ? lista : [];
@@ -396,19 +402,19 @@
 
         container.innerHTML = datos.map(p => {
             const nombre = String(p.nombre || p.name || 'S/N').toUpperCase();
-            const nit = p.nit || p.identificacion || 'No registra NIT';
-            const contacto = p.contacto || p.nombre_contacto || 'Sin contacto';
-            const tel = p.telefono || p.phone || 'Sin teléfono';
-            const correo = p.correo || p.email || 'Sin correo';
-            const direccion = p.direccion || p.address || 'Sin dirección';
-            const cat = p.categoria || p.category || 'General';
+            const nit = p.nit || 'No registra NIT';
+            const contacto = p.contacto || 'Sin contacto';
+            const tel = p.telefono || 'Sin teléfono';
+            const correo = p.correo || 'Sin correo';
+            const direccion = p.direccion || 'Sin dirección';
+            const cat = p.categoria || 'General';
 
             return `
             <div class="provider-card">
-                <h4>${nombre} <i class="fas fa-phone-alt" style="font-size: 0.6rem; color: #3182ce;"></i></h4>
-                <p class="provider-detail"><i class="fas fa-id-card"></i> ${nit}</p>
-                <p class="provider-detail"><i class="fas fa-user"></i> ${contacto}</p>
-                <p class="provider-detail"><i class="fab fa-whatsapp"></i> ${tel}</p>
+                <h4>${nombre}</h4>
+                <p class="provider-detail"><i class="fas fa-id-card"></i> <b>NIT:</b> ${nit}</p>
+                <p class="provider-detail"><i class="fas fa-user"></i> <b>Ref:</b> ${contacto}</p>
+                <p class="provider-detail"><i class="fab fa-whatsapp"></i> <b>Tel:</b> ${tel}</p>
                 <p class="provider-detail"><i class="fas fa-envelope"></i> ${correo}</p>
                 <p class="provider-detail"><i class="fas fa-map-marker-alt"></i> ${direccion}</p>
                 <span class="cat-tag">${cat}</span>
