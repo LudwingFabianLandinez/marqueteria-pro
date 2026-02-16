@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.8 - CONSOLIDADO: FIX MEDIDAS Y COSTOS (SOBRE BASE 12.1.7)
- * Alineado con Transaccion.js y Material.js (Cálculos automáticos)
+ * Versión: 12.2.9 - CONSOLIDADO FINAL: FIX STOCK (ÁREA x CANTIDAD)
+ * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
 // 1. VARIABLES GLOBALES
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.2.8");
+    console.log("🚀 Sistema Iniciado - v12.2.9");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -96,7 +96,6 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            // Mapeo corregido para leer los campos calculados por el servidor
             const stockReal = m.stock_actual ?? 0;
             const stockMin = m.stock_minimo ?? 2;
             const precioCosto = m.precio_m2_costo ?? 0;
@@ -176,7 +175,6 @@ function configurarEventos() {
             id: document.getElementById('matId')?.value,
             nombre: document.getElementById('matNombre').value,
             categoria: document.getElementById('matCategoria').value,
-            // Sincronización técnica:
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
             proveedorId: document.getElementById('proveedorSelect').value
@@ -191,7 +189,7 @@ function configurarEventos() {
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
-    /** LÓGICA DE COMPRA HÍBRIDA (Sincronizada con Campos Técnicos) **/
+    /** LÓGICA DE COMPRA HÍBRIDA - FIX: ÁREA x CANTIDAD **/
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -213,6 +211,12 @@ function configurarEventos() {
                 return;
             }
 
+            // --- CORRECCIÓN MATEMÁTICA ---
+            // 1. Calculamos el área de UNA sola lámina en metros cuadrados
+            const areaUnaLamina = (largo * ancho) / 10000;
+            // 2. Multiplicamos por la cantidad de láminas compradas para obtener el stock real
+            const totalStockM2 = areaUnaLamina * cant;
+
             // CREACIÓN DINÁMICA DE MATERIAL SI ES "NUEVO"
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -225,7 +229,6 @@ function configurarEventos() {
                         nombre: nuevoNombre,
                         categoria: "General",
                         proveedorId: providerId,
-                        // Enviamos los campos técnicos para que el servidor calcule el costo/m2
                         ancho_lamina_cm: ancho,
                         largo_lamina_cm: largo,
                         precio_total_lamina: costoTotalInput / (cant || 1)
@@ -240,13 +243,14 @@ function configurarEventos() {
                 }
             }
 
-            // MAPEADO EXACTO PARA EL CONTROLADOR v12.2.6
+            // MAPEADO PARA EL BACKEND (Enviamos 'cantidad' ya multiplicada)
             const objetoCompra = {
                 materialId: materialId,
                 proveedorId: providerId,
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 cantidad_laminas: cant,
+                cantidad: totalStockM2, // <-- Aquí enviamos los 17.60 m2 (ejemplo)
                 precio_total_lamina: costoTotalInput / (cant || 1),
                 costo_total: costoTotalInput,
                 tipo_material: 'm2'
@@ -258,12 +262,12 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert("✅ Compra registrada con éxito");
+                    alert(`✅ Compra exitosa: Se agregaron ${totalStockM2.toFixed(2)} m² al inventario.`);
                 } else {
                     alert("❌ Error Servidor: " + (res.message || "Error de validación"));
                 }
             } catch (err) { 
-                alert("❌ Error de comunicación. Revisa el archivo api.js"); 
+                alert("❌ Error de comunicación."); 
             } finally { if(btn) btn.disabled = false; }
         });
     }
@@ -358,7 +362,6 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
-    // Ajuste para que el costo se vea correctamente al editar
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina || m.precio_m2_costo;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
