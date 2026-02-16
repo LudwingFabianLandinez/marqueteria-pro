@@ -4,7 +4,7 @@ const Purchase = require('../models/Purchase');
 
 /**
  * GESTIÓN DE COMPRAS - MARQUETERÍA LA CHICA MORALES
- * Este archivo maneja el historial de adquisiciones de suministros.
+ * Versión: 12.1.9 - SINCRO TOTAL DE CAMPOS (costo_total / proveedor)
  */
 
 // 1. Obtener todas las compras
@@ -12,15 +12,14 @@ router.get('/', async (req, res) => {
     try {
         console.log("📥 Consultando historial de compras...");
         
-        // Verificamos si el modelo existe para evitar crash
         if (!Purchase) {
             throw new Error("El modelo Purchase no está cargado correctamente.");
         }
 
         const purchases = await Purchase.find()
-            .populate('proveedorId', 'nombre')
+            .populate('proveedor', 'nombre') // Ajustado a 'proveedor' según el nuevo estándar
             .sort({ fecha: -1 })
-            .lean(); // .lean() mejora el rendimiento en Netlify
+            .lean(); 
 
         res.json({ 
             success: true, 
@@ -40,30 +39,46 @@ router.get('/', async (req, res) => {
 // 2. Registrar una nueva compra
 router.post('/', async (req, res) => {
     try {
-        const { proveedorId, montoTotal, items } = req.body;
+        console.log("📝 Procesando cuerpo de compra recibida:", req.body);
 
-        // Validación básica de integridad
-        if (!proveedorId) {
+        /**
+         * GANCHO DE COMPATIBILIDAD V12.1.9
+         * Mapeamos las variaciones de nombres de campos para que coincidan con el Schema
+         */
+        const data = {
+            proveedor: req.body.proveedor || req.body.proveedorId || req.body.providerId,
+            costo_total: req.body.costo_total || req.body.precio_total || req.body.montoTotal,
+            cantidad: req.body.cantidad || req.body.cantidad_m2 || 0,
+            materialId: req.body.materialId,
+            tipo: req.body.tipo || "COMPRA",
+            detalles: req.body.detalles || {},
+            fecha: req.body.fecha || new Date()
+        };
+
+        // Validación de integridad con los nuevos nombres
+        if (!data.proveedor) {
             return res.status(400).json({ 
                 success: false, 
-                error: "El ID del proveedor es obligatorio." 
+                error: "El ID del proveedor (proveedor) es obligatorio." 
             });
         }
 
-        if (!montoTotal || montoTotal <= 0) {
+        if (data.costo_total === undefined || data.costo_total < 0) {
             return res.status(400).json({ 
                 success: false, 
-                error: "El monto total debe ser mayor a cero." 
+                error: "El monto total (costo_total) es inválido." 
             });
         }
 
-        console.log(`📝 Registrando nueva compra para proveedor ID: ${proveedorId}`);
+        console.log(`✅ Validado: Registrando compra para proveedor: ${data.proveedor}`);
         
-        const newPurchase = new Purchase(req.body);
+        // Creamos la instancia con el objeto normalizado
+        const newPurchase = new Purchase(data);
         await newPurchase.save();
         
         res.status(201).json({ 
             success: true, 
+            message: "Compra registrada correctamente",
             data: newPurchase 
         });
     } catch (err) {
