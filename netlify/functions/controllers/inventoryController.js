@@ -1,3 +1,8 @@
+/**
+ * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+ * Controlador de Inventario - Versión 12.2.2 (SINCRO TOTAL & FIX SAVE)
+ */
+
 const mongoose = require('mongoose');
 
 // Carga segura de modelos
@@ -5,14 +10,57 @@ const Material = require('../models/Material');
 const Provider = require('../models/Provider');
 let Transaction;
 try {
-    Transaction = require('../models/Transaction');
+    // Intentamos cargar ambos nombres comunes para evitar fallos de importación
+    Transaction = mongoose.models.Transaction || mongoose.models.Transaccion || require('../models/Transaction');
 } catch (e) {
-    console.error("⚠️ Modelo Transaction no encontrado");
+    try {
+        Transaction = require('../models/Transaccion');
+    } catch (err) {
+        console.error("⚠️ Modelo Transaction/Transaccion no encontrado");
+    }
 }
 
 /**
- * CONTROLADOR DE INVENTARIO - MARQUETERÍA LA CHICA MORALES
+ * 🚀 NUEVA FUNCIÓN: saveMaterial (Solución definitiva al error de rutas)
+ * Maneja la creación y edición de materiales desde el inventario.
  */
+const saveMaterial = async (req, res) => {
+    try {
+        const { id, nombre, categoria, tipo, stock_actual, precio_total_lamina, proveedor } = req.body;
+
+        let material;
+        if (id && mongoose.Types.ObjectId.isValid(id)) {
+            // EDITAR EXISTENTE
+            material = await Material.findById(id);
+            if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
+
+            material.nombre = nombre || material.nombre;
+            material.categoria = categoria || material.categoria;
+            material.tipo = tipo || material.tipo;
+            material.stock_actual = stock_actual !== undefined ? parseFloat(stock_actual) : material.stock_actual;
+            material.precio_total_lamina = precio_total_lamina !== undefined ? parseFloat(precio_total_lamina) : material.precio_total_lamina;
+            material.proveedor = (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : material.proveedor;
+            
+            await material.save();
+        } else {
+            // CREAR NUEVO
+            material = new Material({
+                nombre: nombre || "Nuevo Material",
+                categoria: categoria || "Otros",
+                tipo: tipo || "m2",
+                stock_actual: parseFloat(stock_actual) || 0,
+                precio_total_lamina: parseFloat(precio_total_lamina) || 0,
+                proveedor: (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : null
+            });
+            await material.save();
+        }
+
+        res.status(200).json({ success: true, data: material });
+    } catch (error) {
+        console.error("🚨 Error en saveMaterial:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
 
 // 1. Obtener materiales
 const getMaterials = async (req, res) => {
@@ -40,12 +88,12 @@ const registerPurchase = async (req, res) => {
             nombre, proveedor,      
             ancho_lamina_cm, largo_lamina_cm, 
             precio_total_lamina, cantidad_laminas,
-            cantidad_m2, // <--- IMPORTANTE: Capturamos el cálculo del frontend
+            cantidad_m2, 
             precio_venta_sugerido,
-            precio_total // Algunos frontends envían el total de la factura aquí
+            precio_total,
+            costo_total // Campo mapeado en v12.1.8
         } = req.body;
 
-        // --- PASO 1: LOCALIZAR EL MATERIAL ---
         let material;
         if (materialId && mongoose.Types.ObjectId.isValid(materialId)) {
             material = await Material.findById(materialId);
@@ -56,51 +104,22 @@ const registerPurchase = async (req, res) => {
             });
         }
 
-        // --- PASO 2: NORMALIZAR DATOS TÉCNICOS Y CÁLCULO DE STOCK ---
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0);
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0);
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 1;
         
-        // Determinamos el incremento de stock: Prioridad al dato del frontend (17.60 m2)
-        let incrementoStock = 0;
-        if (cantidad_m2 && parseFloat(cantidad_m2) > 0) {
-            incrementoStock = parseFloat(cantidad_m2);
-        } else {
-            // Recálculo de respaldo si el frontend no envía la conversión
-            const tipoMaterial = (req.body.tipo_material === 'ml' || req.body.tipo === 'ml' || (material && material.tipo === 'ml')) ? 'ml' : 'm2';
-            if (tipoMaterial === 'ml') {
-                incrementoStock = (largo / 100) * cantidad;
-            } else {
-                incrementoStock = ((ancho * largo) / 10000) * cantidad;
-            }
+        let incrementoStock = parseFloat(cantidad_m2) || 0;
+        if (incrementoStock <= 0) {
+            const tipoMaterial = (req.body.tipo_material === 'ml' || (material && material.tipo === 'ml')) ? 'ml' : 'm2';
+            incrementoStock = (tipoMaterial === 'ml') ? (largo / 100) * cantidad : ((ancho * largo) / 10000) * cantidad;
         }
 
-        // Costo unitario por lámina/unidad
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
-
-        // --- PASO 3: PROVEEDOR Y CATEGORÍA ---
-        const idProvFinal = proveedorId || proveedor;
+        const idProvFinal = proveedor || proveedorId;
         let proveedorValido = (idProvFinal && mongoose.Types.ObjectId.isValid(idProvFinal)) ? idProvFinal : null;
 
-        let categoria = material ? material.categoria : 'Otros';
-        if (!material && nombre) {
-            const reglas = [
-                { regex: /vidrio|espejo/i, cat: 'Vidrio' },
-                { regex: /mdf|triplex|respaldo|madera/i, cat: 'Respaldo' },
-                { regex: /paspartu|passepartout|carton/i, cat: 'Paspartu' },
-                { regex: /foam|icopor/i, cat: 'Foam' },
-                { regex: /tela|lona|lienzo/i, cat: 'Tela' },
-                { regex: /marco|moldura/i, cat: 'Moldura' }
-            ];
-            const reglaEncontrada = reglas.find(r => r.regex.test(nombre));
-            if (reglaEncontrada) categoria = reglaEncontrada.cat;
-        }
-
-        // --- PASO 4: GUARDADO DE MATERIAL ---
         if (material) {
-            // Actualizamos stock sumando el nuevo ingreso
             material.stock_actual += incrementoStock;
-            // Actualizamos precios y medidas solo si vienen datos nuevos
             material.precio_total_lamina = precioTotalUnitario > 0 ? precioTotalUnitario : material.precio_total_lamina;
             material.ancho_lamina_cm = ancho > 0 ? ancho : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo > 0 ? largo : material.largo_lamina_cm;
@@ -108,11 +127,10 @@ const registerPurchase = async (req, res) => {
             material.proveedor = proveedorValido || material.proveedor;
             await material.save();
         } else {
-            // Creación de material nuevo
             material = new Material({
                 nombre: nombre ? nombre.trim() : "Material Nuevo",
                 tipo: (req.body.tipo_material || 'm2'),
-                categoria,
+                categoria: 'Otros',
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioTotalUnitario,
@@ -123,25 +141,17 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
-        // --- PASO 5: REGISTRO DE TRANSACCIÓN ---
         if (Transaction) {
-            try {
-                // El costo total de la transacción
-                const costoTransaccion = precio_total || (precioTotalUnitario * cantidad);
-                
-                await Transaction.create({
-                    materialId: material._id,
-                    tipo: 'COMPRA',
-                    cantidad: incrementoStock,
-                    cantidad_m2: incrementoStock,
-                    costo_total: costoTransaccion,
-                    proveedor: proveedorValido,
-                    motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2`,
-                    fecha: new Date()
-                });
-            } catch (transError) {
-                console.error("⚠️ Error en Historial:", transError.message);
-            }
+            await Transaction.create({
+                materialId: material._id,
+                tipo: 'COMPRA',
+                cantidad: incrementoStock,
+                cantidad_m2: incrementoStock,
+                costo_total: costo_total || precio_total || (precioTotalUnitario * cantidad),
+                proveedor: proveedorValido,
+                motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2`,
+                fecha: new Date()
+            });
         }
 
         res.status(201).json({ success: true, data: material });
@@ -252,7 +262,11 @@ const deleteMaterial = async (req, res) => {
     }
 };
 
+// EXPORTACIÓN CONSOLIDADA (Asegura compatibilidad con rutas)
 module.exports = {
+    saveMaterial,
+    createMaterial: saveMaterial,
+    addMaterial: saveMaterial,
     getMaterials,
     getInventory: getMaterials,
     getMaterialHistory,
