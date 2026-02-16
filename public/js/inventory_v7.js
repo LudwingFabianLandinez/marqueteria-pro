@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.3.8 - UI: Corrección Matemática Costo m2 Directo
+ * Versión: 12.3.9 - UI: Visualización Costo m2 Real (Lámina/Área)
  * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.3.8");
+    console.log("🚀 Sistema Iniciado - v12.3.9");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,19 +93,16 @@ async function fetchInventory() {
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         window.todosLosMateriales = datos.map(m => {
-            const stockReal = m.stock_actual ?? 0;
-            const stockMin = m.stock_minimo ?? 2;
-            const precioCosto = m.precio_m2_costo ?? 0;
-
             return {
                 ...m,
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
-                stock_actual: Number(stockReal), 
-                precio_m2_costo: Number(precioCosto),
-                stock_minimo: Number(stockMin)
+                stock_actual: Number(m.stock_actual ?? 0), 
+                precio_m2_costo: Number(m.precio_m2_costo ?? 0),
+                precio_total_lamina: Number(m.precio_total_lamina ?? 0),
+                stock_minimo: Number(m.stock_minimo ?? 2)
             };
         });
         
@@ -128,32 +125,34 @@ function renderTable(materiales) {
         const stockActualM2 = m.stock_actual || 0;
         const stockMinimo = m.stock_minimo || 2;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
+        
+        // --- CÁLCULO DE COSTO POR M2 EN PANTALLA ---
+        let costoMostrar = m.precio_m2_costo || 0;
+        const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
+        
+        // Si es por m2 y tenemos datos de lámina, calculamos: Valor Lámina / Área Lámina
+        if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0 && m.precio_total_lamina > 0) {
+            costoMostrar = m.precio_total_lamina / areaUnaLaminaM2;
+        }
+
         let colorStock = stockActualM2 <= 0 ? '#ef4444' : (stockActualM2 <= stockMinimo ? '#f59e0b' : '#059669');
         
         let textoStockVisual = `<strong>${stockActualM2.toFixed(2)}</strong> ${tipoUnidad}`;
         
-        if (m.tipo !== 'ml' && m.ancho_lamina_cm > 0 && m.largo_lamina_cm > 0) {
-            const areaUnaLaminaM2 = (m.ancho_lamina_cm * m.largo_lamina_cm) / 10000;
-            
-            if (areaUnaLaminaM2 > 0) {
-                const laminasExactas = stockActualM2 / areaUnaLaminaM2;
-                const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
-                
-                let sobranteM2 = stockActualM2 - (laminasCompletas * areaUnaLaminaM2);
-                if (sobranteM2 < 0.001) sobranteM2 = 0;
+        if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
+            const laminasExactas = stockActualM2 / areaUnaLaminaM2;
+            const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
+            let sobranteM2 = stockActualM2 - (laminasCompletas * areaUnaLaminaM2);
+            if (sobranteM2 < 0.001) sobranteM2 = 0;
 
-                let desglose = "";
-                if (laminasCompletas > 0) {
-                    desglose = `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)`;
-                } else {
-                    desglose = `(${sobranteM2.toFixed(2)} m²)`;
-                }
-                
-                textoStockVisual = `
-                    <div style="font-weight: 700; font-size: 0.95rem;">${stockActualM2.toFixed(2)} ${tipoUnidad}</div>
-                    <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
-                `;
-            }
+            let desglose = laminasCompletas > 0 
+                ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)` 
+                : `(${sobranteM2.toFixed(2)} m²)`;
+            
+            textoStockVisual = `
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualM2.toFixed(2)} ${tipoUnidad}</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
+            `;
         }
 
         fila.innerHTML = `
@@ -169,7 +168,7 @@ function renderTable(materiales) {
                 </span>
             </td>
             <td style="text-align: center; font-weight: 500; font-size: 0.85rem; color: #475569;">
-                ${formateador.format(m.precio_m2_costo || 0)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
+                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem">/${tipoUnidad}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
                 <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
@@ -233,13 +232,11 @@ function configurarEventos() {
                 return;
             }
 
-            // --- LÓGICA MATEMÁTICA PURA ---
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2 = areaUnaLamina * cant;
 
-            // PRECIO POR LÁMINA (SIEMPRE COSTO TOTAL / CANTIDAD)
-            // Si el usuario pone 880,000 y compra 4, cada lámina cuesta 220,000.
-            const precioLaminaUnitaria = costoTotalInput / (cant || 1);
+            // Precio por una sola lámina: Total / Cantidad
+            const precioUnaLamina = costoTotalInput / (cant || 1);
 
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -254,7 +251,7 @@ function configurarEventos() {
                         proveedorId: providerId,
                         ancho_lamina_cm: ancho,
                         largo_lamina_cm: largo,
-                        precio_total_lamina: precioLaminaUnitaria
+                        precio_total_lamina: precioUnaLamina
                     });
                     if (resMat.success) {
                         materialId = resMat.data._id || resMat.data.id;
@@ -273,7 +270,7 @@ function configurarEventos() {
                 largo_lamina_cm: largo,
                 cantidad_laminas: cant,
                 cantidad: totalStockM2, 
-                precio_total_lamina: precioLaminaUnitaria, 
+                precio_total_lamina: precioUnaLamina, 
                 costo_total: costoTotalInput,
                 tipo_material: 'm2'
             };
