@@ -23,6 +23,7 @@
             flex-direction: column;
             position: fixed;
             height: 100vh;
+            z-index: 1000;
         }
 
         .logo-area {
@@ -55,21 +56,23 @@
             border-left: 4px solid #3182ce;
         }
 
-        /* CONTENIDO PRINCIPAL - INVENTARIO MÁS ANCHO Y DIRECTORIO COMPACTO */
+        /* --- OPTIMIZACIÓN DE RODADO --- */
         .main-container {
             flex: 1;
             margin-left: 260px;
             background: #f7fafc;
-            padding: 30px;
+            /* Quitamos padding lateral para que el directorio se pegue al borde */
+            padding: 30px 0 30px 30px; 
             display: grid;
-            /* Prioridad absoluta al inventario, directorio en columna de 250px */
-            grid-template-columns: 1fr 250px; 
-            gap: 25px;
-            align-items: flex-start;
+            /* Tabla flexible | Directorio rígido de 280px */
+            grid-template-columns: 1fr 280px; 
+            min-height: 100vh;
+            box-sizing: border-box;
         }
 
         .content-left {
             min-width: 0;
+            padding-right: 10px; /* Separación mínima con el directorio */
         }
 
         .page-title {
@@ -109,6 +112,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             padding: 20px;
             overflow-x: auto;
+            margin-right: 10px;
         }
 
         .inventory-table {
@@ -126,88 +130,83 @@
             font-size: 0.85rem;
         }
 
-        /* DIRECTORIO DE PROVEEDORES - ESTILO PEGADO A LA DERECHA */
+        /* --- DIRECTORIO PEGADO AL BORDE DERECHO --- */
         .providers-sidebar {
             background: #2d3748;
-            border-radius: 12px;
-            overflow: hidden;
-            height: fit-content;
+            /* Eliminamos redondeado derecho para que se vea integrado al borde */
+            border-radius: 12px 0 0 12px; 
+            height: calc(100vh - 60px);
             position: sticky;
             top: 30px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
         }
 
         .providers-header {
             background: #1a202c;
-            padding: 12px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 15px;
+            text-align: center;
             color: white;
+            border-radius: 12px 0 0 0;
         }
 
         .providers-header h3 {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             margin: 0;
-            letter-spacing: 0.5px;
-            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         #directorioProveedores {
-            padding: 10px;
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 12px;
         }
 
         .provider-card {
             background: white;
             border-radius: 8px;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            color: #2d3748;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 12px;
             border-left: 4px solid #3182ce;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .provider-card h4 {
-            font-size: 0.8rem;
-            margin: 0 0 4px 0;
+            font-size: 0.85rem;
+            margin: 0 0 8px 0;
             color: #2b6cb0;
             border-bottom: 1px solid #edf2f7;
-            padding-bottom: 4px;
-            text-transform: uppercase;
+            padding-bottom: 5px;
         }
 
         .provider-detail {
-            font-size: 0.68rem;
-            margin: 0;
+            font-size: 0.7rem;
+            margin: 4px 0;
             display: flex;
-            align-items: flex-start;
-            gap: 6px;
+            align-items: center;
+            gap: 8px;
             color: #4a5568;
-            line-height: 1.3;
         }
 
         .provider-detail i {
-            margin-top: 2px;
-            width: 12px;
             color: #3182ce;
+            width: 14px;
             text-align: center;
         }
 
         .cat-tag {
-            align-self: flex-start;
+            display: inline-block;
             background: #ebf8ff;
-            padding: 2px 6px;
+            padding: 2px 8px;
             border-radius: 4px;
             font-size: 0.6rem;
             font-weight: bold;
             color: #3182ce;
-            margin-top: 5px;
-            text-transform: uppercase;
+            margin-top: 8px;
             border: 1px solid #bee3f8;
         }
 
@@ -335,7 +334,6 @@
 <script src="./js/api.js"></script>
 <script src="./js/inventory_v7.js"></script>
 <script>
-    // Se mantiene tu lógica de cálculo de m2 y manejo de material nuevo
     function manejarCambioMaterial() {
         const select = document.getElementById('compraMaterial');
         const contenedor = document.getElementById('contenedorNombreNuevo');
@@ -358,24 +356,19 @@
         document.getElementById('contenedorNombreNuevo').style.display = 'none';
         document.getElementById('formNuevaCompra').reset();
         
-        const provSelect = document.getElementById('compraProveedor');
-        const matSelect = document.getElementById('compraMaterial');
-        
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
 
+        const provSelect = document.getElementById('compraProveedor');
         if(provSelect) {
-            provSelect.innerHTML = proveedores.length > 0 
-                ? proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('')
-                : '<option value="">No hay proveedores registrados</option>';
+            provSelect.innerHTML = proveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
         }
 
+        const matSelect = document.getElementById('compraMaterial');
         if(matSelect) {
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
-            if(inventario.length > 0) {
-                opciones += inventario.map(m => `<option value="${m._id || m.id}">${m.nombre}</option>`).join('');
-            }
+            opciones += inventario.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
             matSelect.innerHTML = opciones;
         }
     };
@@ -387,40 +380,6 @@
         const m2Total = ((largo * ancho) / 10000) * cant;
         const label = document.getElementById('labelConversion');
         if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m²`;
-    }
-
-    // FUNCIÓN DE RENDERIZADO ACTUALIZADA PARA MOSTRAR TODO SIN ICONOS DE TELÉFONO EN TÍTULO
-    function renderDirectorio(lista) {
-        const container = document.getElementById('directorioProveedores');
-        const datos = Array.isArray(lista) ? lista : [];
-        if(!container) return;
-        
-        if (datos.length === 0) {
-            container.innerHTML = '<p style="color:#a0aec0; text-align:center; font-size: 0.7rem;">No hay registros.</p>';
-            return;
-        }
-
-        container.innerHTML = datos.map(p => {
-            const nombre = String(p.nombre || p.name || 'S/N').toUpperCase();
-            const nit = p.nit || 'No registra NIT';
-            const contacto = p.contacto || 'Sin contacto';
-            const tel = p.telefono || 'Sin teléfono';
-            const correo = p.correo || 'Sin correo';
-            const direccion = p.direccion || 'Sin dirección';
-            const cat = p.categoria || 'General';
-
-            return `
-            <div class="provider-card">
-                <h4>${nombre}</h4>
-                <p class="provider-detail"><i class="fas fa-id-card"></i> <b>NIT:</b> ${nit}</p>
-                <p class="provider-detail"><i class="fas fa-user"></i> <b>Ref:</b> ${contacto}</p>
-                <p class="provider-detail"><i class="fab fa-whatsapp"></i> <b>Tel:</b> ${tel}</p>
-                <p class="provider-detail"><i class="fas fa-envelope"></i> ${correo}</p>
-                <p class="provider-detail"><i class="fas fa-map-marker-alt"></i> ${direccion}</p>
-                <span class="cat-tag">${cat}</span>
-            </div>
-            `;
-        }).join('');
     }
 </script>
 </body>

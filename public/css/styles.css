@@ -1,5 +1,5 @@
 /* ============================================ */
-/* DISEÑO EMPRESARIAL PROFESIONAL */
+/* DISEÑO EMPRESARIAL PROFESIONAL - RODADO */
 /* Sistema de Gestión - Marquetería Pro */
 /* ============================================ */
 
@@ -46,6 +46,7 @@ body {
     display: flex;
     min-height: 100vh;
     line-height: 1.6;
+    overflow-x: hidden; /* Evita scroll horizontal por el rodado */
 }
 
 /* ============================================ */
@@ -99,26 +100,10 @@ body {
     overflow: hidden;
 }
 
-.menu-item::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 4px;
-    background: var(--accent);
-    transform: scaleY(0);
-    transition: transform 0.3s;
-}
-
 .menu-item:hover {
     background: rgba(255, 255, 255, 0.1);
     color: white;
     transform: translateX(5px);
-}
-
-.menu-item:hover::before {
-    transform: scaleY(1);
 }
 
 .menu-item.active {
@@ -128,67 +113,88 @@ body {
 }
 
 /* ============================================ */
-/* CONTENIDO PRINCIPAL Y DIRECTORIO */
+/* CONTENIDO PRINCIPAL - EFECTO RODADO */
 /* ============================================ */
 .main-content {
     margin-left: 280px;
     flex: 1;
-    padding: 30px 40px;
+    /* Ajuste de padding para rodar el directorio al borde derecho */
+    padding: 30px 0 30px 40px; 
     background: var(--gray-100);
-    display: grid; /* Cambiado a Grid para manejar inventario + directorio */
-    grid-template-columns: 1fr 250px; /* Inventario grande, directorio 250px */
-    gap: 30px;
+    display: grid; 
+    /* Inventario flexible | Directorio sólido pegado al borde */
+    grid-template-columns: 1fr 280px; 
+    gap: 0; /* Quitamos gap para control total con márgenes internos */
     align-items: flex-start;
+    min-height: 100vh;
 }
 
 .container-fluid {
     width: 100%;
-    min-width: 0; /* Evita que el contenido desborde el grid */
+    min-width: 0;
+    padding-right: 30px; /* Espacio entre tabla y directorio */
 }
 
-/* DIRECTORIO DE PROVEEDORES (ASIDE) */
+/* ============================================ */
+/* DIRECTORIO DE PROVEEDORES (ASIDE) RODADO */
+/* ============================================ */
 .providers-sidebar {
     background: var(--gray-800);
-    border-radius: 12px;
+    /* Rodado: 0 borde derecho para pegar a la pantalla */
+    border-radius: 15px 0 0 15px; 
     overflow: hidden;
     position: sticky;
     top: 30px;
-    box-shadow: var(--shadow-lg);
+    height: calc(100vh - 60px);
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
 }
 
 .providers-header {
     background: var(--gray-900);
-    padding: 12px;
+    padding: 15px;
     text-align: center;
     color: white;
     border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .providers-header h3 {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 700;
     letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+#directorioProveedores {
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .provider-card {
     background: white;
-    margin: 10px;
     padding: 12px;
     border-radius: 8px;
-    border-left: 4px solid var(--primary-light);
+    border-left: 4px solid var(--accent);
     box-shadow: var(--shadow-sm);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    transition: transform 0.2s;
+}
+
+.provider-card:hover {
+    transform: translateY(-2px);
 }
 
 .provider-card h4 {
     color: var(--primary);
     font-size: 0.85rem;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
     border-bottom: 1px solid var(--gray-100);
-    padding-bottom: 3px;
+    padding-bottom: 4px;
     text-transform: uppercase;
+    font-weight: 700;
 }
 
 .provider-detail {
@@ -197,6 +203,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 3px;
 }
 
 .provider-detail i {
@@ -207,19 +214,19 @@ body {
 
 .cat-tag {
     display: inline-block;
-    background: var(--gray-100);
-    color: var(--secondary);
+    background: #ebf8ff;
+    color: var(--primary-light);
     font-size: 0.65rem;
-    font-weight: 700;
+    font-weight: 800;
     padding: 2px 8px;
     border-radius: 4px;
-    margin-top: 5px;
+    margin-top: 6px;
     text-transform: uppercase;
-    border: 1px solid var(--gray-200);
+    border: 1px solid #bee3f8;
 }
 
 /* ============================================ */
-/* TABLAS */
+/* TABLAS Y COMPONENTES */
 /* ============================================ */
 .table-container {
     background: white;
@@ -242,7 +249,7 @@ body {
 .inventory-table th, .inventory-table td {
     padding: 18px 20px;
     text-align: center;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
 }
 
 .inventory-table tbody tr:hover {
@@ -250,7 +257,7 @@ body {
 }
 
 /* ============================================ */
-/* MODALES */
+/* MODALES (BLINDAJE VISUAL) */
 /* ============================================ */
 .modal {
     display: none;
@@ -269,48 +276,15 @@ body {
 .modal-content {
     background: #ffffff !important;
     margin: auto;
-    padding: 0;
     border-radius: 16px;
     width: 90%;
     max-width: 500px;
     box-shadow: var(--shadow-xl);
     overflow: hidden;
-    position: relative;
 }
 
-.modal-content h2 {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-    color: white !important;
-    padding: 20px 25px;
-    margin: 0;
-    font-size: 20px;
-    font-weight: 700;
-}
-
-.modal-body {
-    padding: 25px;
-    background: white !important;
-}
-
-/* ============================================ */
-/* BOTONES Y OTROS */
-/* ============================================ */
-.btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.btn-primary { background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%); color: white; }
-.btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; }
-
-/* SCROLLBAR */
-::-webkit-scrollbar { width: 8px; }
+/* SCROLLBAR PERSONALIZADO */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--secondary); }
