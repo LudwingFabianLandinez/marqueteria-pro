@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.3.7 - UI: Stock Desglosado con Parche de Costo Real
+ * Versión: 12.3.8 - UI: Corrección Matemática Costo m2 Directo
  * Respetando estructura visual y blindaje de datos v12.1.7
  */
 
@@ -10,7 +10,7 @@ window.todosLosProveedores = [];
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema Iniciado - v12.3.7");
+    console.log("🚀 Sistema Iniciado - v12.3.8");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -233,17 +233,13 @@ function configurarEventos() {
                 return;
             }
 
-            // --- LÓGICA DE COSTO REAL CORREGIDA ---
+            // --- LÓGICA MATEMÁTICA PURA ---
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2 = areaUnaLamina * cant;
 
-            // Detectamos si el usuario puso el costo de una lámina o el total de la compra
-            // Si el costo ingresado dividido las cantidades da un valor lógico para una lámina, lo ajustamos.
-            let costoUnitarioLamina = costoTotalInput;
-            if (costoTotalInput > 150000 && cant > 1) {
-                // Si el monto es alto, asumimos que es el total de la factura y dividimos
-                costoUnitarioLamina = costoTotalInput / cant;
-            }
+            // PRECIO POR LÁMINA (SIEMPRE COSTO TOTAL / CANTIDAD)
+            // Si el usuario pone 880,000 y compra 4, cada lámina cuesta 220,000.
+            const precioLaminaUnitaria = costoTotalInput / (cant || 1);
 
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -258,7 +254,7 @@ function configurarEventos() {
                         proveedorId: providerId,
                         ancho_lamina_cm: ancho,
                         largo_lamina_cm: largo,
-                        precio_total_lamina: costoUnitarioLamina
+                        precio_total_lamina: precioLaminaUnitaria
                     });
                     if (resMat.success) {
                         materialId = resMat.data._id || resMat.data.id;
@@ -277,8 +273,8 @@ function configurarEventos() {
                 largo_lamina_cm: largo,
                 cantidad_laminas: cant,
                 cantidad: totalStockM2, 
-                precio_total_lamina: costoUnitarioLamina, // Valor por lámina ($220.000)
-                costo_total: costoTotalInput, // Valor total factura ($880.000)
+                precio_total_lamina: precioLaminaUnitaria, 
+                costo_total: costoTotalInput,
                 tipo_material: 'm2'
             };
 
