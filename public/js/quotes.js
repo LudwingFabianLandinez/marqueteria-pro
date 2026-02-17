@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.5 - CONSOLIDACIÓN DE DATOS DE VENTA
- * Objetivo: Asegurar el envío de 'cantidad' y 'materialId' para evitar errores de validación.
+ * Versión: 13.0.6 - RESOLUCIÓN QUIRÚRGICA DE TRANSACCIÓN
+ * Objetivo: Asegurar el envío de 'cantidad' y 'materialId' manteniendo el blindaje.
  */
 
 let datosCotizacionActual = null;
@@ -133,23 +133,25 @@ async function procesarCotizacion() {
         });
 
         const result = await response.json();
+        const areaCalculada = (ancho * largo) / 10000;
         let dataFinal;
 
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
+            // Forzamos que detalles.materiales contenga los IDs del frontend para la venta
+            dataFinal.detalles.materiales = materialesSeleccionados;
         } else {
-            const areaM2 = (ancho * largo) / 10000;
             let costoBaseLocal = 0;
             materialesSeleccionados.forEach(m => {
-                costoBaseLocal += (m.costoUnitario * areaM2);
+                costoBaseLocal += (m.costoUnitario * areaCalculada);
             });
             
             dataFinal = {
                 valor_materiales: costoBaseLocal,
-                area: areaM2,
+                area: areaCalculada,
                 detalles: {
                     medidas: `${ancho} x ${largo} cm`,
-                    materiales: materialesSeleccionados // Guardamos el objeto completo aquí para el descuento de stock
+                    materiales: materialesSeleccionados 
                 }
             };
         }
@@ -158,6 +160,7 @@ async function procesarCotizacion() {
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
+        dataFinal.areaFinal = dataFinal.area || areaCalculada; // Aseguramos que exista el área
         dataFinal.valor_mano_obra = manoObraInput;
         
         datosCotizacionActual = dataFinal;
@@ -300,16 +303,19 @@ async function facturarVenta() {
 
     const facturaData = {
         cliente: { nombre, telefono: document.getElementById('telCliente').value || "N/A" },
-        // 🔥 MAPEADO CORREGIDO: Inyectamos materialId y cantidad para el blindaje de stock
+        // 🔥 MAPEADO QUIRÚRGICO: Aseguramos que 'cantidad' y 'materialId' nunca falten
         items: (datosCotizacionActual.detalles?.materiales || []).map(m => {
             const esObjeto = (typeof m === 'object' && m !== null);
+            const idMaterial = esObjeto ? (m.id || m._id) : null;
+            const areaM2 = datosCotizacionActual.areaFinal || datosCotizacionActual.area || 0;
+
             return {
-                materialId: esObjeto ? (m.id || m._id) : null,
+                materialId: idMaterial,
                 materialNombre: esObjeto ? m.nombre : m, 
                 ancho: datosCotizacionActual.anchoOriginal,
                 largo: datosCotizacionActual.largoOriginal,
-                area_m2: datosCotizacionActual.area,
-                cantidad: datosCotizacionActual.area, // <--- GANCHO CRÍTICO: Requerido por Transaction
+                area_m2: areaM2,
+                cantidad: areaM2, // <--- REQUERIDO POR TRANSACCIÓN
                 total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
             };
         }), 
