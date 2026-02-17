@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.4 (REPARACIÓN VÍNCULO HISTORIAL)
- * Objetivo: Mantener contador corregido y habilitar el puente para visualización de ventas.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.5 (BLINDAJE DE RUTAS HISTORIAL)
+ * Objetivo: Asegurar que el historial cargue datos sin afectar el contador ni la lógica de negocio.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.4 registrados exitosamente");
+    console.log("📦 Modelos v13.3.5 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -49,7 +49,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.4] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.5] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -179,7 +179,7 @@ try {
         try {
             const facturaData = req.body;
 
-            // --- 🔧 MEJORA QUIRÚRGICA CONTADOR (v13.3.3) ---
+            // --- 🔧 MEJORA QUIRÚRGICA CONTADOR (MANTENIDA v13.3.3) ---
             const facturasParaConteo = await Invoice.find({}, 'numeroFactura numeroOrden').lean();
             let maxNumero = 0;
 
@@ -242,13 +242,15 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.4', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.5', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
     console.error(`🚨 Error vinculando rutas en server.js: ${error.message}`);
 }
 
+// 6. BLINDAJE FINAL DE RUTAS (Garantiza que el frontend encuentre la API)
+app.use('/api', router); 
 app.use('/', router);
 
 app.use((err, req, res, next) => {
