@@ -1,14 +1,13 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.3 - Rastreador Universal de Precios & Estabilidad Estructural
- * Objetivo: Carga automática, cálculo real (Costo x 3 + MO) y estabilidad total.
+ * Versión: 13.0.4 - RASTREADOR DE PRECIOS INFALIBLE
+ * Objetivo: Asegurar que el dataset 'costo' se llene correctamente desde el servidor.
  */
 
 let datosCotizacionActual = null;
-let materialesOriginales = []; // Referencia global para validación de stock
+let materialesOriginales = []; 
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 🎯 GANCHOS DE LOS SELECTS (Respetando tus IDs de dashboard.html)
     const selects = {
         Vidrio: document.getElementById('materialId'),
         Respaldo: document.getElementById('materialRespaldoId'),
@@ -24,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // 🛡️ SINCRONIZACIÓN BLINDADA
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
@@ -53,11 +51,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // 🛠️ RASTREADOR UNIVERSAL: Busca el precio en cualquier campo posible enviado por el servidor
-                    const precioDetectado = m.costo_m2 || m.precio_m2 || m.precio_costo || m.precio_unitario || m.precio || m.valor || m.costo || 0;
+                    // 🛠️ RASTREADOR UNIVERSAL: 
+                    // Busca el costo en costo_m2 (inyectado por server) o precio_m2_costo (modelo)
+                    const precioDetectado = m.costo_m2 || m.precio_m2_costo || 0;
                     
                     option.dataset.costo = precioDetectado;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
+                    
+                    if (precioDetectado === 0) {
+                        console.warn(`⚠️ El material ${m.nombre} no tiene precio cargado.`);
+                    }
+
                     select.appendChild(option);
                 });
             };
@@ -70,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Familias de materiales desplegadas con precios mapeados");
+            console.log("✅ Materiales cargados con blindaje de precios v13.0.4");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -116,8 +120,6 @@ async function procesarCotizacion() {
         return;
     }
 
-    console.log("🔍 Verificando costos cargados:", materialesSeleccionados);
-
     try {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
@@ -125,8 +127,7 @@ async function procesarCotizacion() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                ancho, 
-                largo, 
+                ancho, largo, 
                 materialesIds: materialesSeleccionados.map(m => m.id), 
                 manoObra: manoObraInput 
             })
@@ -135,16 +136,13 @@ async function procesarCotizacion() {
         const result = await response.json();
         let dataFinal;
 
-        // Decidimos usar el motor local si el servidor devuelve 0 para asegurar el cálculo
+        // Motor de respaldo: Si el servidor falla, calculamos localmente con el dataset blindado
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
         } else {
-            console.warn("⚠️ Servidor inconsistente o costo 0. Usando motor local con dataset.");
             const areaM2 = (ancho * largo) / 10000;
             let costoBaseLocal = 0;
-            
             materialesSeleccionados.forEach(m => {
-                if(m.costoUnitario === 0) console.error(`🚨 El material ${m.nombre} tiene precio $0 en el inventario.`);
                 costoBaseLocal += (m.costoUnitario * areaM2);
             });
             
@@ -158,10 +156,9 @@ async function procesarCotizacion() {
             };
         }
 
-        // 🎯 FÓRMULA UNIVERSAL: (Costo Base x 3) + Mano de Obra
+        // 🎯 FÓRMULA: (Costo x 3) + Mano de Obra
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
-        
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
         dataFinal.valor_mano_obra = manoObraInput;
@@ -172,7 +169,7 @@ async function procesarCotizacion() {
 
     } catch (error) {
         console.error("Error crítico:", error);
-        alert("Error al procesar. Verifique su conexión.");
+        alert("Error al procesar la cotización.");
     } finally {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
     }

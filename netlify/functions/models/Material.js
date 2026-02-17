@@ -2,8 +2,9 @@ const mongoose = require('mongoose');
 
 /**
  * MODELO DE MATERIALES - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.5 - BLINDAJE DE CATEGORÍAS & SINCRONIZACIÓN DE COSTOS
- * Objetivo: Asegurar que el campo 'costo_m2' sea accesible para el motor de cálculo.
+ * Versión: 12.2.6 - BLINDAJE DE DATOS Y VIRTUALS
+ * Objetivo: Asegurar que el campo 'costo_m2' sea accesible para el motor de cálculo,
+ * incluso si el documento es antiguo.
  */
 const MaterialSchema = new mongoose.Schema({
     nombre: { 
@@ -53,7 +54,7 @@ const MaterialSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    // 🛡️ GANCHO DE SEGURIDAD: Campo duplicado para compatibilidad con el servidor
+    // 🛡️ GANCHO DE SEGURIDAD: Campo duplicado para compatibilidad total
     costo_m2: {
         type: Number,
         default: 0
@@ -83,12 +84,15 @@ const MaterialSchema = new mongoose.Schema({
         trim: true
     }
 }, { 
-    timestamps: true 
+    timestamps: true,
+    // 🔥 PERMITIR VIRTUALES: Esto hace que los datos calculados viajen al frontend
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
 /**
  * MIDDLEWARE PRE-SAVE:
- * Mantiene sincronizado 'costo_m2' con 'precio_m2_costo' automáticamente.
+ * Realiza cálculos técnicos y sincroniza ambos campos de costo.
  */
 MaterialSchema.pre('save', function(next) {
     // Cálculo de área
@@ -107,7 +111,7 @@ MaterialSchema.pre('save', function(next) {
     }
 
     // 🔥 SINCRONIZACIÓN CRÍTICA:
-    // Aseguramos que 'costo_m2' siempre tenga el valor de 'precio_m2_costo'
+    // Forzamos que 'costo_m2' sea idéntico a 'precio_m2_costo'
     this.costo_m2 = this.precio_m2_costo;
     
     if (this.stock_actual < 0) this.stock_actual = 0;
@@ -115,4 +119,8 @@ MaterialSchema.pre('save', function(next) {
     next();
 });
 
+/**
+ * EXPORTACIÓN CORREGIDA:
+ * Mantenemos el Singleton para evitar errores de recompilación en Netlify.
+ */
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');

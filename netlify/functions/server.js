@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.3.3 (ESTABILIZACIÓN DE COSTOS)
- * Objetivo: Mapeo explícito de costos para eliminar el error de $0 en el Frontend.
+ * Módulo de Servidor (Netlify Function) - Versión 12.3.4 (MAPEADO AGRESIVO)
+ * Objetivo: Estandarizar el envío de costos para eliminar el error de $0 en el Cotizador.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.3.3 registrados exitosamente");
+    console.log("📦 Modelos v12.3.4 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v12.3.3] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v12.3.4] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -72,13 +72,16 @@ try {
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
             const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
 
-            // Mapeo preventivo: Aseguramos que cada objeto lleve el campo 'costo_m2' 
-            // sin importar cómo esté guardado en la base de datos.
-            const materialesMapeados = materiales.map(m => ({
-                ...m,
-                costo_m2: m.costo_m2 || m.precio_costo_m2 || m.precio || m.costo || 0,
-                id: m._id // Aseguramos compatibilidad de ID
-            }));
+            // 🔥 MAPEADO DE SEGURIDAD: Inyectamos el costo real en 'costo_m2' 
+            // Esto corrige los materiales antiguos que solo tienen 'precio_m2_costo'
+            const materialesMapeados = materiales.map(m => {
+                const costoReal = m.costo_m2 || m.precio_m2_costo || 0;
+                return {
+                    ...m,
+                    costo_m2: costoReal,
+                    id: m._id // Compatibilidad de ID
+                };
+            });
 
             const data = {
                 vidrios: materialesMapeados.filter(m => {
@@ -122,7 +125,8 @@ try {
             let detallesItems = [];
 
             materialesDB.forEach(mat => {
-                const costoM2 = mat.costo_m2 || mat.precio_costo_m2 || mat.precio || mat.costo || 0;
+                // Buscamos el costo en cualquier campo posible para no fallar
+                const costoM2 = mat.costo_m2 || mat.precio_m2_costo || 0;
                 const costoProporcional = area_m2 * costoM2;
                 
                 costoBaseTotalMateriales += costoProporcional;
@@ -135,14 +139,13 @@ try {
                 });
             });
 
-            // 🎯 REGLA: Costo base real de materiales
             const valorMaterialesBase = costoBaseTotalMateriales;
             const valorManoObraFinal = parseFloat(manoObra || 0);
 
-            const respuestaPlana = {
+            res.json({
                 success: true,
                 data: {
-                    valor_materiales: valorMaterialesBase, // Enviamos el costo base (el x3 se hace en quotes.js para evitar doble cobro)
+                    valor_materiales: valorMaterialesBase,
                     valor_mano_obra: valorManoObraFinal,
                     area: area_m2,
                     detalles: {
@@ -150,9 +153,7 @@ try {
                         materiales: detallesItems
                     }
                 }
-            };
-
-            res.json(respuestaPlana);
+            });
         } catch (error) {
             console.error("🚨 Error en motor de cálculo:", error);
             res.status(500).json({ success: false, error: error.message });
@@ -160,19 +161,16 @@ try {
     });
 
     // Rutas existentes
-    const inventoryRoutes = require('./routes/inventoryRoutes');
-    const providerRoutes = require('./routes/providerRoutes');
-
-    router.use('/inventory', inventoryRoutes);
-    router.use('/providers', providerRoutes);
-    router.use('/purchases', inventoryRoutes);
+    router.use('/inventory', require('./routes/inventoryRoutes'));
+    router.use('/providers', require('./routes/providerRoutes'));
+    router.use('/purchases', require('./routes/inventoryRoutes'));
     
     try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
     try { router.use('/invoices', require('./routes/invoiceRoutes')); } catch(e){}
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '12.3.3', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '12.3.4', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
