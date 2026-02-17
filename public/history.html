@@ -209,28 +209,40 @@
     </div>
 
     <script>
+        /**
+         * Lógica del Historial Consolidada
+         * Mantiene compatibilidad total con el backend y las rutas de Netlify
+         */
         let facturasCargadas = [];
         let facturasFiltradas = [];
         let facturaSeleccionadaId = null;
         const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
+        // --- CARGA INICIAL (Ruta Netlify Blindada) ---
         async function cargarFacturas() {
             try {
-                const response = await fetch('/api/invoices');
+                const response = await fetch('/.netlify/functions/invoices');
+                if (!response.ok) throw new Error("Error en servidor");
+                
                 const result = await response.json();
                 if (result.success) {
                     facturasCargadas = result.data;
                     facturasFiltradas = [...facturasCargadas];
                     renderTable(facturasFiltradas);
                 }
-            } catch (error) { console.error("Error al cargar facturas:", error); }
+            } catch (error) { 
+                console.error("Error al cargar facturas:", error);
+                document.getElementById('noData').style.display = 'block';
+                document.getElementById('noData').innerHTML = `<p style="color:red;">Error al conectar con el servidor. Revisa tu conexión.</p>`;
+            }
         }
 
+        // --- RENDERIZADO DE TABLA ---
         function renderTable(data) {
             const tabla = document.getElementById('tablaFacturas');
             const noData = document.getElementById('noData');
             
-            if (data.length === 0) {
+            if (!data || data.length === 0) {
                 tabla.innerHTML = '';
                 noData.style.display = 'block';
                 return;
@@ -238,16 +250,22 @@
             
             noData.style.display = 'none';
             tabla.innerHTML = data.map(inv => {
-                const saldo = inv.totalFactura - (inv.totalPagado || 0);
-                let badgeClass = saldo <= 0 ? 'badge-pagado' : (inv.totalPagado > 0 ? 'badge-abonado' : 'badge-pendiente');
-                let estadoTexto = saldo <= 0 ? 'Pagado' : (inv.totalPagado > 0 ? 'Abonado' : 'Pendiente');
+                const total = Number(inv.totalFactura || inv.total) || 0;
+                const pagado = Number(inv.totalPagado || inv.abono || 0);
+                const saldo = total - pagado;
+                
+                let badgeClass = saldo <= 0 ? 'badge-pagado' : (pagado > 0 ? 'badge-abonado' : 'badge-pendiente');
+                let estadoTexto = saldo <= 0 ? 'Pagado' : (pagado > 0 ? 'Abonado' : 'Pendiente');
+
+                // Formateo de OT
+                const numOT = inv.numeroFactura || inv.ot || "N/A";
 
                 return `
                     <tr>
                         <td style="color: #64748b;">${new Date(inv.fecha).toLocaleDateString()}</td>
-                        <td style="font-weight:800; color: var(--primary-blue);">${inv.numeroFactura}</td>
-                        <td style="font-weight:600;">${inv.cliente.nombre}</td>
-                        <td style="font-weight:600;">${formatter.format(inv.totalFactura)}</td>
+                        <td style="font-weight:800; color: var(--primary-blue);">${numOT}</td>
+                        <td style="font-weight:600;">${(inv.cliente?.nombre || inv.clienteNombre || 'CLIENTE GENÉRICO').toUpperCase()}</td>
+                        <td style="font-weight:600;">${formatter.format(total)}</td>
                         <td style="color:${saldo > 0 ? 'var(--danger-red)' : 'var(--success-green)'}; font-weight:800;">
                             ${formatter.format(saldo)}
                         </td>
@@ -255,13 +273,14 @@
                         <td>
                             <div class="actions-cell">
                                 <button class="btn-action btn-view" title="Ver Detalles / Abonar" onclick="verDetalle('${inv._id}')"><i class="fas fa-eye"></i></button>
-                                <button class="btn-action btn-delete" title="Anular" onclick="eliminarFactura('${inv._id}', '${inv.numeroFactura}')"><i class="fas fa-trash-alt"></i></button>
+                                <button class="btn-action btn-delete" title="Anular" onclick="eliminarFactura('${inv._id}', '${numOT}')"><i class="fas fa-trash-alt"></i></button>
                             </div>
                         </td>
                     </tr>`;
             }).join('');
         }
 
+        // --- FILTROS ---
         function aplicarFiltros() {
             const term = document.getElementById('searchInput').value.toLowerCase();
             const desde = document.getElementById('fechaDesde').value;
@@ -269,9 +288,13 @@
 
             facturasFiltradas = facturasCargadas.filter(inv => {
                 const fechaInv = inv.fecha.split('T')[0];
-                const cumpleBusqueda = inv.numeroFactura.toLowerCase().includes(term) || inv.cliente.nombre.toLowerCase().includes(term);
+                const numOT = (inv.numeroFactura || inv.ot || "").toLowerCase();
+                const nomCli = (inv.cliente?.nombre || inv.clienteNombre || "").toLowerCase();
+                
+                const cumpleBusqueda = numOT.includes(term) || nomCli.includes(term);
                 const cumpleDesde = desde ? fechaInv >= desde : true;
                 const cumpleHasta = hasta ? fechaInv <= hasta : true;
+                
                 return cumpleBusqueda && cumpleDesde && cumpleHasta;
             });
 
@@ -286,18 +309,24 @@
             renderTable(facturasFiltradas);
         }
 
+        // --- DETALLE Y PAGOS ---
         async function verDetalle(id) {
             facturaSeleccionadaId = id;
             try {
-                const res = await fetch(`/api/invoices/${id}`);
+                const res = await fetch(`/.netlify/functions/invoices/${id}`);
                 const result = await res.json();
                 if (result.success) {
                     const inv = result.data;
-                    const saldo = inv.totalFactura - (inv.totalPagado || 0);
-                    document.getElementById('detNumeroFactura').innerText = `Orden ${inv.numeroFactura}`;
-                    document.getElementById('detInfoCliente').innerHTML = `<strong>Cliente:</strong> ${inv.cliente.nombre}<br><strong>Tel:</strong> ${inv.cliente.telefono || 'Sin teléfono'}`;
-                    document.getElementById('detTotalVenta').innerText = formatter.format(inv.totalFactura);
-                    document.getElementById('detTotalPagado').innerText = formatter.format(inv.totalPagado || 0);
+                    const total = Number(inv.totalFactura || inv.total) || 0;
+                    const pagado = Number(inv.totalPagado || inv.abono || 0);
+                    const saldo = total - pagado;
+
+                    document.getElementById('detNumeroFactura').innerText = `Orden ${inv.numeroFactura || inv.ot}`;
+                    document.getElementById('detInfoCliente').innerHTML = `
+                        <strong>Cliente:</strong> ${(inv.cliente?.nombre || inv.clienteNombre || 'N/A').toUpperCase()}<br>
+                        <strong>Tel:</strong> ${inv.cliente?.telefono || 'Sin teléfono'}`;
+                    document.getElementById('detTotalVenta').innerText = formatter.format(total);
+                    document.getElementById('detTotalPagado').innerText = formatter.format(pagado);
                     document.getElementById('detSaldoPendiente').innerText = formatter.format(saldo);
                     document.getElementById('zonaAbono').style.display = saldo <= 0 ? 'none' : 'block';
                     document.getElementById('modalDetalle').style.display = 'block';
@@ -307,11 +336,11 @@
 
         async function procesarPago() {
             const monto = parseFloat(document.getElementById('montoNuevoAbono').value);
-            if(!monto || monto <= 0) return alert("Por favor, ingrese un monto válido.");
+            if(!monto || monto <= 0) return alert("Ingrese un monto válido.");
             
             try {
-                const res = await fetch(`/api/invoices/${facturaSeleccionadaId}/payment`, {
-                    method: 'PUT', // Ajustado a la ruta de invoiceRoutes.js
+                const res = await fetch(`/.netlify/functions/invoices/${facturaSeleccionadaId}`, {
+                    method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ montoAbono: monto })
                 });
@@ -320,18 +349,19 @@
                 if(result.success) {
                     cerrarModal();
                     document.getElementById('montoNuevoAbono').value = '';
-                    cargarFacturas();
+                    await cargarFacturas();
                     alert("Abono registrado con éxito.");
                 } else {
                     alert("Error: " + result.error);
                 }
-            } catch (error) { alert("Error de conexión al procesar pago"); }
+            } catch (error) { alert("Error al procesar pago"); }
         }
 
+        // --- ELIMINAR / ANULAR ---
         async function eliminarFactura(id, num) {
-            if (confirm(`¿Está seguro de anular la orden ${num}? Esta acción reintegrará los materiales al inventario y no se puede deshacer.`)) {
+            if (confirm(`¿Está seguro de anular la orden ${num}?`)) {
                 try {
-                    const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+                    const res = await fetch(`/.netlify/functions/invoices/${id}`, { method: 'DELETE' });
                     const result = await res.json();
                     if (result.success) {
                         alert("Orden anulada con éxito.");
@@ -341,78 +371,53 @@
             }
         }
 
-        async function generarReporteDiario() {
-            try {
-                const response = await fetch('/api/invoices/report/daily');
-                const result = await response.json();
-                
-                if (result.success && result.data.ordenes.length > 0) {
-                    const { ordenes, totalVentas, totalAbonos, totalPendiente } = result.data;
-                    
-                    let html = `
-                        <table class="report-table">
-                            <thead>
-                                <tr>
-                                    <th>Orden</th>
-                                    <th>Cliente</th>
-                                    <th>Total OT</th>
-                                    <th>Pagado</th>
-                                    <th>Saldo</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-                    
-                    ordenes.forEach(item => {
-                        const saldo = item.total - item.pagado;
-                        html += `
-                            <tr>
-                                <td><b>${item.numero}</b></td>
-                                <td>${item.cliente}</td>
-                                <td>${formatter.format(item.total)}</td>
-                                <td style="color:green;">${formatter.format(item.pagado)}</td>
-                                <td style="color:${saldo > 0 ? 'red' : 'green'};">${formatter.format(saldo)}</td>
-                            </tr>`;
-                    });
+        // --- REPORTES Y EXCEL ---
+        function generarReporteDiario() {
+            const hoyStr = new Date().toLocaleDateString();
+            const hoyFiltradas = facturasCargadas.filter(f => new Date(f.fecha).toLocaleDateString() === hoyStr);
 
-                    html += `
-                        </tbody>
-                        </table>
-                        <div class="report-summary-box">
-                            <div class="summary-card"><span>Ventas Nuevas</span><strong>${formatter.format(totalVentas)}</strong></div>
-                            <div class="summary-card"><span>Recaudo Total</span><strong>${formatter.format(totalAbonos)}</strong></div>
-                            <div class="summary-card"><span>Por Cobrar</span><strong>${formatter.format(totalPendiente)}</strong></div>
-                        </div>`;
-                    
-                    document.getElementById('reportContent').innerHTML = html;
-                    document.getElementById('modalReporte').style.display = 'block';
-                } else {
-                    alert("Hoy no se han registrado movimientos financieros.");
-                }
-            } catch (e) { alert("Error al generar el reporte diario."); }
+            if (hoyFiltradas.length === 0) return alert("Hoy no hay movimientos registrados.");
+
+            let totalV = 0, totalP = 0;
+            let html = `<table class="report-table"><thead><tr><th>Orden</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>`;
+            
+            hoyFiltradas.forEach(item => {
+                const t = Number(item.totalFactura || item.total) || 0;
+                const p = Number(item.totalPagado || item.abono || 0);
+                const s = t - p;
+                totalV += t; totalP += p;
+                html += `<tr><td><b>${item.numeroFactura || item.ot}</b></td><td>${(item.cliente?.nombre || item.clienteNombre || 'N/A').toUpperCase()}</td><td>${formatter.format(t)}</td><td style="color:green;">${formatter.format(p)}</td><td style="color:red;">${formatter.format(s)}</td></tr>`;
+            });
+
+            html += `</tbody></table><div class="report-summary-box">
+                <div class="summary-card"><span>Ventas Hoy</span><strong>${formatter.format(totalV)}</strong></div>
+                <div class="summary-card"><span>Recaudo</span><strong>${formatter.format(totalP)}</strong></div>
+                <div class="summary-card"><span>Por Cobrar</span><strong>${formatter.format(totalV - totalP)}</strong></div>
+            </div>`;
+
+            document.getElementById('reportContent').innerHTML = html;
+            document.getElementById('modalReporte').style.display = 'block';
         }
 
         function exportarExcel() {
             if (facturasFiltradas.length === 0) return alert("No hay datos para exportar.");
-            
             const datosExcel = facturasFiltradas.map(f => ({
                 Fecha: new Date(f.fecha).toLocaleDateString(),
-                OT: f.numeroFactura,
-                Cliente: f.cliente.nombre,
-                'Total Factura': f.totalFactura,
-                'Total Abonado': f.totalPagado || 0,
-                'Saldo Pendiente': f.totalFactura - (f.totalPagado || 0)
+                OT: f.numeroFactura || f.ot,
+                Cliente: (f.cliente?.nombre || f.clienteNombre || 'N/A').toUpperCase(),
+                'Total Factura': Number(f.totalFactura || f.total) || 0,
+                'Total Abonado': Number(f.totalPagado || f.abono || 0),
+                'Saldo': (Number(f.totalFactura || f.total) || 0) - (Number(f.totalPagado || f.abono || 0))
             }));
-
             const ws = XLSX.utils.json_to_sheet(datosExcel);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Historial Ventas");
-            XLSX.writeFile(wb, `Reporte_Ventas_Morales_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, "Ventas");
+            XLSX.writeFile(wb, `Reporte_Morales_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
 
-        function cerrarModal() { 
-            document.getElementById('modalDetalle').style.display = 'none'; 
-        }
+        function cerrarModal() { document.getElementById('modalDetalle').style.display = 'none'; }
 
+        // Event Listeners
         document.getElementById('searchInput').addEventListener('input', aplicarFiltros);
         document.addEventListener('DOMContentLoaded', cargarFacturas);
         window.onclick = (e) => { if(e.target.className === 'modal') e.target.style.display = 'none'; }

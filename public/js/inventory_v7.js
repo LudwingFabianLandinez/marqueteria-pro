@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.7 - CONSOLIDACIÓN QUIRÚRGICA HISTORIAL
+ * Versión: 13.3.8 - CONSOLIDACIÓN TOTAL INTEGRADA
  * Mantiene intacta la lógica de Inventario, Proveedores y Compras.
- * Fix: Renderizado de 7 columnas en Historial y detección de ruta.
+ * Incluye: Ganchos de Ajuste de Stock, Historial de 7 columnas y Blindaje de Datos.
  */
 
 // 1. VARIABLES GLOBALES
@@ -12,7 +12,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.7 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.8 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -28,7 +28,7 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- SECCIÓN HISTORIAL (INTERVENCIÓN QUIRÚRGICA PARA EVITAR TABLA EN BLANCO) ---
+// --- SECCIÓN HISTORIAL (INTERVENCIÓN QUIRÚRGICA) ---
 
 async function cargarHistorialVentas() {
     const cuerpoTabla = document.getElementById('lista-ventas');
@@ -37,7 +37,6 @@ async function cargarHistorialVentas() {
         return;
     }
 
-    // Estado de carga visual
     cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando historial...</td></tr>';
 
     try {
@@ -52,11 +51,9 @@ async function cargarHistorialVentas() {
 
         if (Array.isArray(ventas) && ventas.length > 0) {
             cuerpoTabla.innerHTML = ventas.map(venta => {
-                // Extracción segura de datos para las 7 columnas
                 const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
                 const orden = venta.numeroOrden || venta.ot || venta.numeroFactura || "S/N";
                 
-                // Evita el error [object Object] en el nombre del cliente
                 const nombreCliente = (typeof venta.clienteNombre === 'string') ? venta.clienteNombre : 
                                      (typeof venta.cliente === 'string' ? venta.cliente : "Cliente General");
 
@@ -93,7 +90,7 @@ async function cargarHistorialVentas() {
     }
 }
 
-// --- SECCIÓN PROVEEDORES (RESPETADA AL 100%) ---
+// --- SECCIÓN PROVEEDORES ---
 
 async function fetchProviders() {
     try {
@@ -157,7 +154,7 @@ window.guardarProveedor = async function(event) {
     } catch (error) { alert("❌ Error de conexión"); }
 };
 
-// --- SECCIÓN INVENTARIO (RESPETADA AL 100%) ---
+// --- SECCIÓN INVENTARIO ---
 
 async function fetchInventory() {
     try {
@@ -267,7 +264,7 @@ function renderTable(materiales) {
     });
 }
 
-// --- FACTURACIÓN Y CONEXIÓN API (RESPETADA AL 100%) ---
+// --- FACTURACIÓN Y CONEXIÓN API ---
 
 async function facturarVenta() {
     if (!datosCotizacionActual) {
@@ -337,6 +334,7 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
+    // Guardar/Editar Material
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -359,6 +357,29 @@ function configurarEventos() {
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
+    // Ajuste Directo de Stock
+    document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('adjustId').value;
+        const nuevaCantidad = parseFloat(document.getElementById('adjustCantidad').value);
+        const nuevoMinimo = parseFloat(document.getElementById('adjustReorden').value);
+
+        if (isNaN(nuevaCantidad)) return alert("Cantidad no válida");
+
+        try {
+            const res = await window.API.updateStock(id, { 
+                stock_actual: nuevaCantidad, 
+                stock_minimo: nuevoMinimo 
+            });
+            if (res.success) {
+                alert("✅ Stock actualizado");
+                window.cerrarModales();
+                await fetchInventory();
+            }
+        } catch (err) { alert("❌ Error al ajustar stock"); }
+    });
+
+    // Nueva Compra
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -447,7 +468,7 @@ function configurarEventos() {
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 }
 
-// --- UTILIDADES DE UI (SIN CAMBIOS) ---
+// --- UTILIDADES DE UI ---
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
