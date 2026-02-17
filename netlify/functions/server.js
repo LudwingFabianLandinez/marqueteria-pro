@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.3 (REPARACIÓN CONTADOR)
- * Objetivo: Asegurar que el consecutivo de OT suba correctamente filtrando basura de la DB.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.4 (REPARACIÓN VÍNCULO HISTORIAL)
+ * Objetivo: Mantener contador corregido y habilitar el puente para visualización de ventas.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.3 registrados exitosamente");
+    console.log("📦 Modelos v13.3.4 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -31,15 +31,25 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (Blindaje Netlify)
+// 3. NORMALIZACIÓN DE URL (Blindaje Netlify + Puente API)
 app.use((req, res, next) => {
     const basePrefix = '/.netlify/functions/server';
+    
+    // Eliminamos el prefijo de Netlify si existe
     if (req.url.startsWith(basePrefix)) {
         req.url = req.url.replace(basePrefix, '');
     }
+
+    // --- 🔧 GANCHO QUIRÚRGICO PARA HISTORIAL ---
+    // Si la petición viene como /api/invoices, la redirigimos internamente a /invoices
+    if (req.url.startsWith('/api/')) {
+        req.url = req.url.replace('/api', '');
+    }
+    // -------------------------------------------
+
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.3] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.4] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -175,11 +185,9 @@ try {
 
             facturasParaConteo.forEach(doc => {
                 const idTexto = doc.numeroFactura || doc.numeroOrden || "";
-                // Filtro estricto: Solo procesar si el campo empieza con "OT-"
                 if (idTexto.startsWith('OT-')) {
                     const partes = idTexto.split('-');
                     const num = parseInt(partes[partes.length - 1]);
-                    // Solo sumamos si es un número válido y menor a 1 millón (evita basura como teléfonos)
                     if (!isNaN(num) && num < 1000000 && num > maxNumero) {
                         maxNumero = num;
                     }
@@ -234,7 +242,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.3', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.4', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
