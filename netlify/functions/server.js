@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.0 (HISTORIAL + STOCK DINÁMICO)
- * Objetivo: Habilitar lectura de órdenes y asegurar descuento de inventario.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.1 (CORRECCIÓN CONTADOR OT)
+ * Objetivo: Asegurar que el consecutivo de OT suba correctamente (OT-00001, OT-00002...)
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.0 registrados exitosamente");
+    console.log("📦 Modelos v13.3.1 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.0] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.1] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -67,7 +67,7 @@ try {
     const Material = mongoose.model('Material'); 
     const Invoice = mongoose.model('Invoice');
 
-    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS (Mantenida 100%) ---
+    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
         try {
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
@@ -113,7 +113,7 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (Mantenido 100%) ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -153,9 +153,8 @@ try {
         }
     });
 
-    // --- 🧾 GESTIÓN DE FACTURAS / OT (HISTORIAL + STOCK) ---
+    // --- 🧾 GESTIÓN DE FACTURAS / OT ---
 
-    // GET: Cargar el historial de órdenes (Soluciona el error 404 en el dashboard)
     router.get('/invoices', async (req, res) => {
         try {
             const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100);
@@ -166,20 +165,31 @@ try {
         }
     });
 
-    // POST: Generar venta y descontar stock
     router.post('/invoices', async (req, res) => {
         try {
             const facturaData = req.body;
 
-            // GENERACIÓN DE CONSECUTIVO OT
+            // --- 🔧 CORRECCIÓN QUIRÚRGICA DEL CONTADOR (v13.3.1) ---
+            // Buscamos la última factura usando el campo real 'numeroFactura'
             const ultimaFactura = await Invoice.findOne().sort({ createdAt: -1 });
             let siguienteNumero = 1;
-            if (ultimaFactura && ultimaFactura.numeroOrden) {
-                const ultimoNum = parseInt(ultimaFactura.numeroOrden.split('-')[1]);
-                if (!isNaN(ultimoNum)) siguienteNumero = ultimoNum + 1;
+
+            if (ultimaFactura) {
+                // Verificamos tanto 'numeroFactura' como 'numeroOrden' por compatibilidad
+                const idTexto = ultimaFactura.numeroFactura || ultimaFactura.numeroOrden || "";
+                if (idTexto.includes('-')) {
+                    const partes = idTexto.split('-');
+                    const ultimoNum = parseInt(partes[partes.length - 1]);
+                    if (!isNaN(ultimoNum)) siguienteNumero = ultimoNum + 1;
+                }
             }
+
             const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
-            facturaData.numeroOrden = otConsecutivo;
+            
+            // Asignamos el número a ambos campos para evitar huecos en la base de datos
+            facturaData.numeroFactura = otConsecutivo;
+            facturaData.numeroOrden = otConsecutivo; 
+            // -------------------------------------------------------
 
             // 1. Guardar la factura
             const nuevaFactura = new Invoice(facturaData);
@@ -189,9 +199,7 @@ try {
             if (facturaData.items && Array.isArray(facturaData.items)) {
                 for (const item of facturaData.items) {
                     if (item.productoId) {
-                        // Cálculo de seguridad del área
                         const area = parseFloat(item.area_m2) || ((parseFloat(item.ancho || 0) * parseFloat(item.largo || 0)) / 10000);
-                        
                         if (area > 0) {
                             await Material.findByIdAndUpdate(item.productoId, {
                                 $inc: { stock_actual: -area }
@@ -206,7 +214,7 @@ try {
                 success: true, 
                 message: "OT generada con éxito", 
                 ot: otConsecutivo,
-                cliente: facturaData.clienteNombre,
+                cliente: (facturaData.cliente && facturaData.cliente.nombre) || facturaData.clienteNombre,
                 data: nuevaFactura 
             });
         } catch (error) {
@@ -224,7 +232,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.0', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.1', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
@@ -233,7 +241,6 @@ try {
 
 app.use('/', router);
 
-// Manejador de errores global
 app.use((err, req, res, next) => {
     console.error("🔥 Error en ejecución serverless:", err.stack);
     res.status(500).json({ success: false, message: "Error interno", error: err.message });
