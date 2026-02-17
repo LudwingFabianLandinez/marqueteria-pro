@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.6 - RUTA ROBUSTA + SINCRONIZACIÓN DE STOCK
- * Objetivo: Asegurar que la venta se registre usando el puente funcional de Netlify.
+ * Versión: 13.1.7 - CONSOLIDACIÓN ESTRICTA (FRONT 13.1.7 + BACK 13.1.0)
+ * Objetivo: Asegurar que la venta se registre respetando el diseño y el blindaje actual.
  */
 
 let datosCotizacionActual = null;
@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // Usamos la ruta que ya confirmamos que funciona para traer data
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
@@ -69,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Materiales cargados con blindaje v13.1.6");
+            console.log("✅ Materiales cargados con blindaje v13.1.7");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -272,19 +271,23 @@ function imprimirResumen() {
     setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
 
+// --- FUNCIÓN ACTUALIZADA CON GANCHOS PARA MODELO 13.1.0 ---
 async function facturarVenta() {
     if (!datosCotizacionActual) return;
     const nombre = document.getElementById('nombreCliente').value.trim();
+    const tel = document.getElementById('telCliente').value.trim() || "N/A";
     const abono = parseFloat(document.getElementById('abonoInicial').value) || 0;
     const btnVenta = document.getElementById('btnFinalizarVenta');
 
     if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
 
+    // Sincronización con InvoiceSchema: cliente { nombre, telefono }, totalFactura, totalPagado
     const facturaData = {
-        clienteNombre: nombre,
-        clienteTelefono: document.getElementById('telCliente').value || "N/A",
-        total: datosCotizacionActual.precioSugeridoCliente,
-        abono: abono,
+        cliente: {
+            nombre: nombre,
+            telefono: tel
+        },
+        medidas: datosCotizacionActual.detalles?.medidas || '--',
         items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
             productoId: m.id || m._id,
             materialNombre: m.nombre, 
@@ -294,27 +297,24 @@ async function facturarVenta() {
             costo_base_unitario: m.costoUnitario || 0
         })), 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
-        medidas: datosCotizacionActual.detalles?.medidas || '--'
+        totalFactura: datosCotizacionActual.precioSugeridoCliente,
+        totalPagado: abono,
+        fecha: new Date()
     };
 
     try {
         btnVenta.disabled = true;
         btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         
-        /**
-         * RUTA CONSOLIDADA: Usamos la ruta del motor principal '/server/invoices' 
-         * que es la que Netlify reconoce bajo la función principal.
-         */
         const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)
         });
 
-        // Verificamos si la respuesta es HTML (error de ruta) o JSON (éxito)
         const contentType = response.headers.get("content-type");
         if (!response.ok || !contentType || !contentType.includes("application/json")) {
-             throw new Error("El servidor no respondió con un JSON válido. Revisa la ruta.");
+             throw new Error("El servidor no respondió correctamente. Revisa la ruta.");
         }
 
         const result = await response.json();
@@ -322,30 +322,12 @@ async function facturarVenta() {
             alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
             window.location.href = "/history.html"; 
         } else {
-            alert("🚨 Error: " + (result.error || "No se pudo registrar la venta."));
-            btnVenta.disabled = false;
-            btnVenta.innerHTML = '<i class="fas fa-save"></i> CONFIRMAR VENTA';
+            throw new Error(result.error || "No se pudo registrar la venta.");
         }
     } catch (error) { 
         console.error("Error en facturación:", error);
-        alert("Error de conexión. Se intentará usar ruta de respaldo...");
-        
-        // Intento final con ruta directa por si acaso
-        try {
-            const resBackup = await fetch('/.netlify/functions/invoices', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(facturaData)
-            });
-            const dataB = await resBackup.json();
-            if(dataB.success) {
-                alert("✅ Venta registrada (Vía Respaldo)");
-                window.location.href = "/history.html";
-            }
-        } catch(e) {
-            alert("🚨 Error persistente. No se pudo guardar la venta.");
-            btnVenta.disabled = false;
-            btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
-        }
+        alert("🚨 ERROR: " + error.message);
+        btnVenta.disabled = false;
+        btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
     }
 }
