@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Indicador de carga visual en los selectores
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // Sincronización con el motor de inventario a través del proxy de Netlify
-       const response = await fetch('/.netlify/functions/server/quotes/materials');
+        // 🛡️ SINCRONIZACIÓN BLINDADA: Ruta directa a la función de Netlify
+        const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
         if (result.success) {
@@ -119,7 +119,8 @@ async function procesarCotizacion() {
     try {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
-        const response = await fetch('/api/quotes', {
+        // 🛡️ RUTA BLINDADA: Llamada directa a la función para evitar el 404/Unexpected token error
+        const response = await fetch('/.netlify/functions/server/quotes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ancho, largo, materialesIds: idsSeleccionados, manoObra: manoObraInput })
@@ -143,7 +144,7 @@ async function procesarCotizacion() {
         }
     } catch (error) {
         console.error("Error:", error);
-        alert("Error al procesar la cotización.");
+        alert("Error al procesar la cotización. Revisa la consola para más detalles.");
     } finally {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
     }
@@ -313,7 +314,9 @@ async function facturarVenta() {
     try {
         btnVenta.disabled = true;
         btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-        const response = await fetch('/api/invoices', {
+        
+        // 🛡️ RUTA BLINDADA: Llamada directa a invoices
+        const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)

@@ -103,7 +103,7 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (NUEVO GANCHOS) ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -156,6 +156,7 @@ try {
     router.use('/providers', providerRoutes);
     router.use('/purchases', inventoryRoutes);
     
+    // Cargamos rutas adicionales con blindaje por si el archivo no existe
     try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
     try { router.use('/invoices', require('./routes/invoiceRoutes')); } catch(e){}
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
