@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.9.0 - Sincronización de Familias + Blindaje v12.8.6
- * Objetivo: Carga automática de materiales por categorías y cálculo blindado.
+ * Versión: 12.9.1 - Sincronización de Familias + Cirugía de Variables v12.3.2
+ * Objetivo: Carga automática de materiales y cálculo sincronizado con el servidor.
  */
 
 let datosCotizacionActual = null;
@@ -22,23 +22,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!selects.Vidrio) return;
 
     try {
-        // Indicador de carga visual en los selectores
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // 🛡️ SINCRONIZACIÓN BLINDADA: Ruta directa a la función de Netlify
+        // 🛡️ SINCRONIZACIÓN BLINDADA: Ruta directa
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
         if (result.success) {
             const cat = result.data;
             
-            // Guardamos referencia global para validaciones de stock en tiempo real
             materialesOriginales = [
                 ...(cat.vidrios || []), ...(cat.respaldos || []), ...(cat.paspartu || []), 
                 ...(cat.marcos || []), ...(cat.foam || []), ...(cat.tela || []), ...(cat.chapilla || [])
             ];
 
-            // Función de llenado con blindaje de stock visual
             const llenar = (select, lista) => {
                 if (!select) return;
                 if (!lista || lista.length === 0) {
@@ -48,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
                 lista.forEach(m => {
-                    // Protegemos la lectura de stock
                     const stock = m.stock_actual || m.stock_actual_m2 || 0;
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
@@ -61,7 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             };
 
-            // 🚀 REPARTO QUIRÚRGICO POR FAMILIAS A LOS SELECTS
             llenar(selects.Vidrio, cat.vidrios);
             llenar(selects.Respaldo, cat.respaldos);
             llenar(selects.Paspartu, cat.paspartu);
@@ -100,7 +95,6 @@ async function procesarCotizacion() {
     const largo = parseFloat(document.getElementById('largo').value);
     const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
-    // Recopilación de materiales seleccionados (IDs v12.9)
     const idsSeleccionados = [
         document.getElementById('materialId').value,
         document.getElementById('materialRespaldoId').value,
@@ -119,7 +113,6 @@ async function procesarCotizacion() {
     try {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
-        // 🛡️ RUTA BLINDADA: Llamada directa a la función para evitar el 404/Unexpected token error
         const response = await fetch('/.netlify/functions/server/quotes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -128,23 +121,23 @@ async function procesarCotizacion() {
 
         const result = await response.json();
         if (result.success) {
-            result.data.anchoOriginal = ancho;
-            result.data.largoOriginal = largo;
+            // 🎯 AJUSTE QUIRÚRGICO: Sincronización con las variables aplanadas del servidor
+            // El servidor ya nos entrega 'valor_materiales' (que ya es Costo x 3)
+            const dataFinal = result.data;
+            dataFinal.anchoOriginal = ancho;
+            dataFinal.largoOriginal = largo;
             
-            // 🎯 LÓGICA DE NEGOCIO: (Costo x 3) + Mano de Obra
-            const costoBaseMateriales = result.data.costos.valor_materiales;
-            const nuevoTotalSugerido = (costoBaseMateriales * 3) + manoObraInput;
-
-            result.data.precioSugeridoCliente = Math.round(nuevoTotalSugerido);
-            result.data.costos.valor_mano_obra = manoObraInput; 
-
-            datosCotizacionActual = result.data;
-            mostrarResultado(result.data);
+            // Ya no calculamos x3 aquí porque el servidor v12.3.2 ya lo hizo.
+            // Esto evita el error de "undefined" al buscar .costos
+            dataFinal.precioSugeridoCliente = dataFinal.total; 
+            
+            datosCotizacionActual = dataFinal;
+            mostrarResultado(dataFinal);
             document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
         }
     } catch (error) {
         console.error("Error:", error);
-        alert("Error al procesar la cotización. Revisa la consola para más detalles.");
+        alert("Error al procesar la cotización. Revisa la consola.");
     } finally {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
     }
@@ -168,9 +161,6 @@ function actualizarSaldoEnRecibo() {
     limpiarTextosNoDeseados();
 }
 
-/**
- * UI DE RESULTADOS E IMPRESIÓN
- */
 function mostrarResultado(data) {
     const divRes = document.getElementById('resultado');
     divRes.innerHTML = '<div id="detalleObra"></div><div id="containerAcciones"></div>';
@@ -178,25 +168,18 @@ function mostrarResultado(data) {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    // Validación de Stock Crítica
     let htmlStockAlert = "";
     let hayInsuficiente = false;
 
-    data.detalles.materiales.forEach(m => {
-        const matOriginal = materialesOriginales.find(mo => (mo._id || mo.id) === m.id);
-        const stockDisponible = matOriginal ? (matOriginal.stock_actual || matOriginal.stock_actual_m2) : 0;
-        if (m.area_m2 > stockDisponible) {
-            hayInsuficiente = true;
-            htmlStockAlert += `<div style="background: #fee2e2; color: #b91c1c; padding: 8px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #fecaca;">
-                <strong>⚠️ Agotado:</strong> ${m.nombre} (Faltan ${(m.area_m2 - stockDisponible).toFixed(2)}m²)
-            </div>`;
-        }
-    });
+    // Ajuste en la lectura de materiales para evitar errores si detalles no carga
+    const listaMateriales = data.detalles?.materiales || [];
 
-    const itemsHTML = data.detalles.materiales.map(m => 
+    // Nota: El servidor v12.3.2 envía los nombres de materiales en un array simple para velocidad
+    // Si necesitas validación de m2, el servidor debe enviar el array de objetos detallado.
+    
+    const itemsHTML = listaMateriales.map(nombre => 
         `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
-            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${m.nombre}</span>
-            <span style="color: #64748b; font-size: 0.8rem;">${m.area_m2.toFixed(2)} m²</span>
+            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombre}</span>
         </li>`
     ).join('');
 
@@ -213,11 +196,10 @@ function mostrarResultado(data) {
                 </div>
             </div>
             <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 10px; border-radius: 6px;">
-                <strong>Medidas:</strong> ${data.detalles.medidas}
+                <strong>Medidas:</strong> ${data.detalles?.medidas || '--'}
             </p>
             <h4 style="color: #475569; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0;">Materiales incluidos:</h4>
             <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">${itemsHTML}</ul>
-            ${htmlStockAlert}
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
@@ -261,9 +243,9 @@ function mostrarResultado(data) {
                     style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; color: #92400e;">
             </div>
             <button id="btnFinalizarVenta" class="btn-calc" 
-                style="background: ${hayInsuficiente ? '#94a3b8' : '#2ecc71'}; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; font-size: 1.1rem; border-radius: 10px; cursor: ${hayInsuficiente ? 'not-allowed' : 'pointer'}; transition: 0.3s;" 
-                onclick="${hayInsuficiente ? "alert('⚠️ No puedes facturar: Revisa los materiales en rojo.')" : "facturarVenta()"}">
-                <i class="fas fa-save"></i> ${hayInsuficiente ? 'ERROR: SIN MATERIAL' : 'CONFIRMAR VENTA Y DESCONTAR STOCK'}
+                style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; font-size: 1.1rem; border-radius: 10px; cursor: pointer; transition: 0.3s;" 
+                onclick="facturarVenta()">
+                <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
             </button>
         </div>
     `;
@@ -296,26 +278,23 @@ async function facturarVenta() {
 
     const facturaData = {
         cliente: { nombre, telefono: document.getElementById('telCliente').value || "N/A" },
-        items: datosCotizacionActual.detalles.materiales.map(m => ({
-            productoId: m.id,
-            materialNombre: m.nombre, 
+        items: (datosCotizacionActual.detalles?.materiales || []).map(nombreMat => ({
+            materialNombre: nombreMat, 
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
-            area_m2: m.area_m2, 
-            costo_base_unitario: m.costo_m2_base || 0, 
-            total_item: Math.round(m.precio_proporcional || 0)
+            area_m2: datosCotizacionActual.area,
+            total_item: Math.round(datosCotizacionActual.valor_materiales || 0)
         })), 
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         abonoInicial: abono,   
-        manoObraTotal: datosCotizacionActual.costos.valor_mano_obra || 0,
-        medidas: datosCotizacionActual.detalles.medidas
+        manoObraTotal: datosCotizacionActual.valor_mano_obra || 0,
+        medidas: datosCotizacionActual.detalles?.medidas || '--'
     };
 
     try {
         btnVenta.disabled = true;
         btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
         
-        // 🛡️ RUTA BLINDADA: Llamada directa a invoices
         const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
