@@ -88,20 +88,16 @@ window.API = {
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Sincronizando Compra con Medidas Totales...");
         
-        // Calculamos el costo unitario por m2 para el historial si no viene definido
         const cantidadFinal = Number(purchaseData.cantidad || 0);
         const costoTotal = Number(purchaseData.costo_total || 0);
         const costoUnitarioCalculado = cantidadFinal > 0 ? (costoTotal / cantidadFinal) : 0;
 
-        // Mapeo quirúrgico para coincidir con los campos del Schema de Mongoose
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedor: String(purchaseData.proveedor || purchaseData.providerId || purchaseData.proveedorId),
-            // 'cantidad' ahora recibe el total de m2 (Ej: 17.60) calculado en inventory.js
             cantidad: Number(parseFloat(cantidadFinal).toFixed(4)),
             cantidad_m2: Number(parseFloat(cantidadFinal).toFixed(4)),
             costo_total: Number(Math.round(costoTotal)),
-            // Aseguramos que el historial guarde el costo por cada m2
             costo_unitario: Number(purchaseData.precio_m2_costo || costoUnitarioCalculado),
             tipo: "COMPRA",
             motivo: purchaseData.motivo || "Registro de compra",
