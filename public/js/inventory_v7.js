@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.0 - CONSOLIDACIÓN DEFINITIVA + FIX RUTA API
+ * Versión: 13.1.5 - CONSOLIDACIÓN FINAL + FIX RUTA API DEFINITIVO
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1 / v12.8.5
  */
 
@@ -11,7 +11,7 @@ let datosCotizacionActual = null; // Para manejo de facturación
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.1.0 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.1.5 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -206,7 +206,6 @@ async function facturarVenta() {
     const btnVenta = document.getElementById('btnFinalizarVenta');
     const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
     
-    // MAPEO TÉCNICO HACIA MODELS/INVOICE.JS
     const facturaData = {
         numeroFactura: `OT-${Date.now().toString().slice(-6)}`,
         cliente: { 
@@ -234,8 +233,8 @@ async function facturarVenta() {
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
         }
         
-        // CORRECCIÓN DE RUTA PARA EVITAR ERROR 404 EN NETLIFY
-        const res = await fetch('/.netlify/functions/server/invoices', {
+        // 🎯 RUTA MAESTRA PARA ROMPER EL BUCLE 404
+        const res = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)

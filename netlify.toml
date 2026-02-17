@@ -2,14 +2,22 @@
   publish = "public"
   functions = "netlify/functions"
 
-# Esta es la regla mágica que quita el error de la consola
+# --- REGLAS DE REDIRECCIÓN PARA ROMPER EL BUCLE 404 ---
+
+# 1. Regla para compatibilidad con rutas /api/ (la que configuramos en inventory_v7.js)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/server/:splat"
+  status = 200
+
+# 2. Regla de respaldo para el servidor Express
 [[redirects]]
   from = "/.netlify/functions/server/*"
   to = "/.netlify/functions/server"
   status = 200
 
-# Por si tu código usa "/api/..."
+# 3. Manejo de SPA (Single Page Application) para rutas de frontend
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/server/:splat"
+  from = "/*"
+  to = "/index.html"
   status = 200
