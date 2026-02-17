@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.2.6 (BUILD CON MOTOR DE CÁLCULO)
- * Objetivo: Ejecución garantizada, blindaje de modelos y cálculo dinámico de cotizaciones.
+ * Módulo de Servidor (Netlify Function) - Versión 12.2.7 (BUILD CON MOTOR DE CÁLCULO)
+ * Objetivo: Ejecución garantizada, blindaje de modelos y cálculo con regla (Costo x 3).
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.2.6 registrados exitosamente");
+    console.log("📦 Modelos v12.2.7 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v12.2.6] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v12.2.7] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -103,7 +103,7 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (ACTUALIZADO CON REGLA X3) ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -112,23 +112,27 @@ try {
             const materialesDB = await Material.find({ _id: { $in: materialesIds } });
             
             const area_m2 = (ancho * largo) / 10000;
-            let costoTotalMateriales = 0;
+            let costoBaseTotalMateriales = 0;
             let detallesItems = [];
 
             materialesDB.forEach(mat => {
-                const costoBase = mat.precio_costo_m2 || mat.costo_m2 || 0;
-                const costoProporcional = area_m2 * costoBase;
-                costoTotalMateriales += costoProporcional;
+                // Priorizamos el campo de costo (precio_costo_m2 es el estándar en tu inventario)
+                const costoM2 = mat.precio_costo_m2 || mat.costo_m2 || 0;
+                const costoProporcional = area_m2 * costoM2;
+                
+                costoBaseTotalMateriales += costoProporcional;
                 
                 detallesItems.push({
                     id: mat._id,
                     nombre: mat.nombre,
                     area_m2: area_m2,
-                    costo_m2_base: costoBase,
-                    precio_proporcional: costoProporcional
+                    costo_m2_base: costoM2,
+                    precio_proporcional: costoProporcional // Este es el costo base de este item
                 });
             });
 
+            // 🎯 APLICACIÓN DE REGLA DE NEGOCIO: (Costo Total Materiales * 3)
+            // Se envía el costoBaseTotalMateriales para que el frontend pueda procesar el precio final
             res.json({
                 success: true,
                 data: {
@@ -137,7 +141,7 @@ try {
                         materiales: detallesItems
                     },
                     costos: {
-                        valor_materiales: costoTotalMateriales,
+                        valor_materiales: costoBaseTotalMateriales, // El frontend multiplicará esto x3
                         valor_mano_obra: manoObra || 0
                     }
                 }
@@ -163,7 +167,7 @@ try {
     try { router.use('/stats', require('./routes/statsRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '12.2.6', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '12.2.7', db: mongoose.connection.readyState === 1 });
     });
 
     console.log("✅ Motor de cálculo y familias sincronizados exitosamente");
