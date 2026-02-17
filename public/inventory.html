@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historial de Ventas - Marquetería</title>
+    <title>Historial de Ventas - Marquetería La Chica Morales</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
         body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; }
         
-        /* Sidebar unificado - Mantengo tu diseño */
         .sidebar { width: 250px; background-color: #2c3e50; color: white; height: 100vh; padding: 20px; position: fixed; }
         .sidebar h1 { font-size: 1.2rem; text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
         .sidebar a { display: block; color: white; text-decoration: none; padding: 15px; border-radius: 8px; margin: 10px 0; transition: 0.3s; }
@@ -38,7 +37,6 @@
         .empty-state { text-align: center; padding: 50px; color: #95a5a6; }
         .empty-state i { font-size: 3rem; margin-bottom: 15px; display: block; }
 
-        /* Badge de estado para las ventas */
         .status-badge {
             padding: 4px 8px;
             border-radius: 12px;
@@ -70,7 +68,7 @@
         <div class="history-container">
             <div class="header-flex">
                 <h2><i class="fas fa-history"></i> Historial de Ventas Realizadas</h2>
-                <button onclick="window.print()" class="btn-cancel" style="padding: 10px 20px; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; background: white;">
+                <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; background: white;">
                     <i class="fas fa-print"></i> Imprimir Reporte
                 </button>
             </div>
@@ -85,8 +83,7 @@
                         <th>Estado</th>
                     </tr>
                 </thead>
-                <tbody id="historyBody">
-                    </tbody>
+                <tbody id="historyBody"></tbody>
             </table>
             
             <div id="noData" class="empty-state" style="display: none;">
@@ -96,25 +93,27 @@
         </div>
     </main>
 
-    <script src="js/api.js"></script>
     <script>
+        // Lógica de conexión directa (sustituye a api.js para evitar fallos de carga)
         async function cargarHistorial() {
             const tableBody = document.getElementById('historyBody');
             const noData = document.getElementById('noData');
+            const ventasTable = document.getElementById('ventasTable');
             
             try {
-                // Usamos el método consolidado de la API v12.0.0
-                const resultado = await window.API.getInvoices(); 
+                // Llamada directa a la función de Netlify
+                const response = await fetch('/.netlify/functions/invoices');
+                const resultado = await response.json();
                 const ventas = resultado.success ? resultado.data : [];
                 
                 if (!ventas || ventas.length === 0) {
                     noData.style.display = 'block';
-                    document.getElementById('ventasTable').style.display = 'none';
+                    ventasTable.style.display = 'none';
                     return;
                 }
 
                 noData.style.display = 'none';
-                document.getElementById('ventasTable').style.display = 'table';
+                ventasTable.style.display = 'table';
                 tableBody.innerHTML = '';
 
                 // Ordenar por fecha (más reciente primero)
@@ -123,17 +122,19 @@
                 ventas.forEach(venta => {
                     const row = document.createElement('tr');
                     
-                    // Blindaje de datos para evitar errores si faltan campos
+                    // Blindaje de datos (soporta múltiples formatos de nombre de campo)
                     const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : 'S/F';
-                    const cliente = venta.cliente || 'Consumidor Final';
-                    const dimensiones = (venta.ancho && venta.largo) ? `${venta.ancho} x ${venta.largo} cm` : 'N/A';
-                    const total = venta.total || 0;
+                    const cliente = (venta.cliente?.nombre || venta.clienteNombre || 'Consumidor Final').toUpperCase();
+                    const total = Number(venta.totalFactura || venta.total || 0);
+                    
+                    // Si es una cotización convertida o venta directa
+                    const dimensiones = (venta.ancho && venta.largo) ? `${venta.ancho} x ${venta.largo} cm` : 'Ver detalle';
 
                     row.innerHTML = `
                         <td class="date-tag">${fechaFmt}</td>
                         <td>
                             <div style="font-weight: bold; color: #2c3e50;">${cliente}</div>
-                            <div style="font-size: 0.75rem; color: #94a3b8;">${venta.items ? venta.items.length : 0} productos</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8;">OT: ${venta.numeroFactura || venta.ot || 'N/A'}</div>
                         </td>
                         <td>${dimensiones}</td>
                         <td class="price-tag">$ ${total.toLocaleString('es-CO')}</td>
@@ -148,7 +149,6 @@
             }
         }
 
-        // Ejecutar al cargar la página
         document.addEventListener('DOMContentLoaded', cargarHistorial);
     </script>
 </body>
