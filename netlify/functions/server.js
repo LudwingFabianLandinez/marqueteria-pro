@@ -1,7 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.1.8 (CONSOLIDADO + RUTA NATIVA)
- * Objetivo: Estandarizar costos y blindar la facturación contra errores 404 de rutas externas.
+ * Módulo de Servidor (Netlify Function) - Versión 13.2.5 (OT + STOCK PRECISO)
  */
 
 const express = require('express');
@@ -19,7 +18,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.1.8 registrados exitosamente");
+    console.log("📦 Modelos v13.2.5 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +38,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.1.8] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.2.5] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -152,33 +151,60 @@ try {
         }
     });
 
-    // --- 🧾 NUEVA RUTA NATIVA DE FACTURACIÓN (BLINDAJE ANT-404) ---
+    // --- 🧾 RUTA DE FACTURACIÓN (CONSECUTIVO + STOCK PRECISO) ---
     router.post('/invoices', async (req, res) => {
         try {
             const Invoice = mongoose.model('Invoice');
             const Material = mongoose.model('Material');
             const facturaData = req.body;
 
-            // 1. Guardar la factura en la DB
+            // GENERACIÓN DE CONSECUTIVO OT
+            const ultimaFactura = await Invoice.findOne().sort({ createdAt: -1 });
+            let siguienteNumero = 1;
+            if (ultimaFactura && ultimaFactura.numeroOrden) {
+                const ultimoNum = parseInt(ultimaFactura.numeroOrden.split('-')[1]);
+                if (!isNaN(ultimoNum)) siguienteNumero = ultimoNum + 1;
+            }
+            const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
+            
+            // Asignar OT y asegurar nombre del cliente
+            facturaData.numeroOrden = otConsecutivo;
+
+            // 1. Guardar la factura
             const nuevaFactura = new Invoice(facturaData);
             await nuevaFactura.save();
 
-            // 2. Descuento Automático de Stock (Gancho necesario)
+            // 2. Descuento Preciso de Stock
             if (facturaData.items && Array.isArray(facturaData.items)) {
                 for (const item of facturaData.items) {
                     if (item.productoId) {
-                        const areaADescontar = parseFloat(item.area_m2 || 0);
-                        await Material.findByIdAndUpdate(item.productoId, {
-                            $inc: { stock_actual: -areaADescontar }
-                        });
-                        console.log(`📉 Stock actualizado: ${item.materialNombre} -${areaADescontar}`);
+                        // Priorizamos el área calculada o enviada para el descuento
+                        let areaADescontar = parseFloat(item.area_m2 || 0);
+                        
+                        // Si el área es 0 pero tenemos medidas, la recalculamos por seguridad
+                        if (areaADescontar === 0 && item.ancho && item.largo) {
+                            areaADescontar = (parseFloat(item.ancho) * parseFloat(item.largo)) / 10000;
+                        }
+
+                        if (areaADescontar > 0) {
+                            await Material.findByIdAndUpdate(item.productoId, {
+                                $inc: { stock_actual: -areaADescontar }
+                            });
+                            console.log(`📉 Stock: ${item.materialNombre} | -${areaADescontar.toFixed(4)} m2`);
+                        }
                     }
                 }
             }
 
-            res.json({ success: true, message: "Factura procesada con éxito", data: nuevaFactura });
+            res.json({ 
+                success: true, 
+                message: "OT generada con éxito", 
+                ot: otConsecutivo,
+                cliente: facturaData.clienteNombre,
+                data: nuevaFactura 
+            });
         } catch (error) {
-            console.error("🚨 Error procesando factura nativa:", error);
+            console.error("🚨 Error facturación v13.2.5:", error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
@@ -192,7 +218,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.1.8', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.2.5', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
