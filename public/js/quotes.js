@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.8 - CONSOLIDACIÓN DE PUENTE DE FACTURACIÓN + BLINDAJE
- * Objetivo: Asegurar que la data de salida coincida con el motor de inventario.
+ * Versión: 13.1.2 - RUTA ROBUSTA + BLINDAJE DE GUARDADO
+ * Objetivo: Asegurar que la venta se registre sin errores de ruta 404.
  */
 
 let datosCotizacionActual = null;
@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
+        // Ruta de obtención de materiales (manteniendo tu estructura actual)
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
@@ -56,10 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.dataset.costo = precioDetectado;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
                     
-                    if (precioDetectado === 0) {
-                        console.warn(`⚠️ El material ${m.nombre} no tiene precio cargado.`);
-                    }
-
                     select.appendChild(option);
                 });
             };
@@ -71,8 +68,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Foam, cat.foam);
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
-            
-            console.log("✅ Materiales cargados con blindaje de precios v13.0.4");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -135,21 +130,17 @@ async function procesarCotizacion() {
         const areaCalculada = (ancho * largo) / 10000;
         let dataFinal;
 
-        if (result.success && result.data && result.data.valor_materiales > 0) {
+        if (result.success && result.data) {
             dataFinal = result.data;
         } else {
             let costoBaseLocal = 0;
             materialesSeleccionados.forEach(m => {
                 costoBaseLocal += (m.costoUnitario * areaCalculada);
             });
-            
             dataFinal = {
                 valor_materiales: costoBaseLocal,
                 area: areaCalculada,
-                detalles: {
-                    medidas: `${ancho} x ${largo} cm`,
-                    materiales: materialesSeleccionados 
-                }
+                detalles: { medidas: `${ancho} x ${largo} cm`, materiales: materialesSeleccionados }
             };
         }
 
@@ -162,9 +153,6 @@ async function procesarCotizacion() {
         dataFinal.valor_mano_obra = manoObraInput;
         
         datosCotizacionActual = dataFinal;
-        // Guardamos backup para inventory.js
-        localStorage.setItem('ultima_cotizacion', JSON.stringify(dataFinal));
-        
         mostrarResultado(dataFinal);
         document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
 
@@ -200,10 +188,8 @@ function mostrarResultado(data) {
     divRes.style.display = 'block';
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-    const listaMateriales = data.detalles?.materiales || [];
-
-    const itemsHTML = listaMateriales.map(m => {
-        const nombreVisual = (typeof m === 'object' && m !== null) ? (m.nombre || "MATERIAL") : m;
+    const itemsHTML = (data.detalles?.materiales || []).map(m => {
+        const nombreVisual = m.nombre || "MATERIAL";
         return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
             <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual.toUpperCase()}</span>
         </li>`;
@@ -242,11 +228,10 @@ function mostrarResultado(data) {
             </div>
         </div>
         <div class="no-print" style="margin-top: 20px;">
-            <button onclick="imprimirResumen()" style="background: #334155; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; transition: 0.3s;">
+            <button onclick="imprimirResumen()" style="background: #334155; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">
                 <i class="fas fa-print"></i> IMPRIMIR PARA CLIENTE
             </button>
-        </div>
-    `;
+        </div>`;
 
     document.getElementById('containerAcciones').innerHTML = `
         <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px;">
@@ -260,33 +245,28 @@ function mostrarResultado(data) {
                 </div>
                 <div class="input-group">
                     <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">WHATSAPP / TEL</label>
-                    <input type="text" id="telCliente" placeholder="Ej: 3001234567" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
+                    <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
                 </div>
             </div>
-            <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px; border: 1px solid #fcd34d;">
-                <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center; margin-bottom: 10px;">¿CUÁNTO ABONA EL CLIENTE?</label>
+            <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
+                <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
                 <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
-                    style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; color: #92400e;">
+                    style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center;">
             </div>
-            <button id="btnFinalizarVenta" class="btn-calc" 
-                style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; font-size: 1.1rem; border-radius: 10px; cursor: pointer; transition: 0.3s;" 
-                onclick="facturarVenta()">
+            <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
                 <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
             </button>
-        </div>
-    `;
+        </div>`;
     setTimeout(limpiarTextosNoDeseados, 100);
 }
 
 function imprimirResumen() {
     const printArea = document.getElementById('printArea');
     const ventana = window.open('', '', 'height=750,width=950');
-    ventana.document.write('<html><head><title>Cotización - La Chica Morales</title>');
-    ventana.document.write('<style>body{font-family:sans-serif;padding:40px;color:#333;} .no-print{display:none;}</style></head><body>');
+    ventana.document.write('<html><head><title>Cotización</title><style>body{font-family:sans-serif;padding:40px;}</style></head><body>');
     ventana.document.write(printArea.innerHTML);
     ventana.document.write('</body></html>');
     ventana.document.close();
-    ventana.focus();
     setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
 
@@ -296,61 +276,52 @@ async function facturarVenta() {
     const abono = parseFloat(document.getElementById('abonoInicial').value) || 0;
     const btnVenta = document.getElementById('btnFinalizarVenta');
 
-    if (!nombre) { 
-        alert("⚠️ Por favor, ingresa el nombre del cliente."); 
-        document.getElementById('nombreCliente').focus();
-        return; 
-    }
+    if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
 
     const facturaData = {
-        clienteNombre: nombre, // Sincronizado con server.js
+        clienteNombre: nombre,
         clienteTelefono: document.getElementById('telCliente').value || "N/A",
         total: datosCotizacionActual.precioSugeridoCliente,
         abono: abono,
-        items: (datosCotizacionActual.detalles?.materiales || []).map(m => {
-            const esObjeto = (typeof m === 'object' && m !== null);
-            const idMaterial = esObjeto ? (m.id || m._id) : null;
-            const areaM2 = datosCotizacionActual.areaFinal || datosCotizacionActual.area || 0;
-
-            return {
-                productoId: idMaterial, // Sincronizado con inventario
-                materialNombre: esObjeto ? m.nombre : m, 
-                ancho: datosCotizacionActual.anchoOriginal,
-                largo: datosCotizacionActual.largoOriginal,
-                area_m2: areaM2,
-                cantidad: areaM2, // Para descuento de stock
-                total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
-            };
-        }), 
+        items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
+            productoId: m.id || m._id,
+            materialNombre: m.nombre, 
+            ancho: datosCotizacionActual.anchoOriginal,
+            largo: datosCotizacionActual.largoOriginal,
+            area_m2: datosCotizacionActual.areaFinal,
+            costo_base_unitario: m.costoUnitario || 0
+        })), 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         medidas: datosCotizacionActual.detalles?.medidas || '--'
     };
 
     try {
         btnVenta.disabled = true;
-        btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+        btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         
-        // Sincronización de ruta de API según tu preferencia
-        const response = await fetch('/api/invoices', {
+        // CORRECCIÓN CLAVE: Usamos la ruta directa para evitar Error 404/HTML
+        const response = await fetch('/.netlify/functions/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)
         });
 
+        if (!response.ok) {
+            throw new Error(`Servidor respondió con estado ${response.status}`);
+        }
+
         const result = await response.json();
         if (result.success) {
             alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
-            localStorage.removeItem('ultima_cotizacion');
             window.location.href = "/history.html"; 
         } else {
-            alert("🚨 Error: " + (result.error || "No se pudo registrar la venta."));
+            alert("🚨 Error: " + (result.error || "No se pudo registrar."));
             btnVenta.disabled = false;
-            btnVenta.innerHTML = '<i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK';
         }
     } catch (error) { 
         console.error("Error en facturación:", error);
-        alert("Error de conexión con el servidor.");
+        alert("Error de conexión. Verifica la consola para más detalles.");
         btnVenta.disabled = false;
-        btnVenta.innerHTML = '<i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK';
+        btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
     }
 }
