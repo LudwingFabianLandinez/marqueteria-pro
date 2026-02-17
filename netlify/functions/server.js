@@ -1,6 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.2.5 (OT + STOCK PRECISO)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.0 (HISTORIAL + STOCK DINÁMICO)
+ * Objetivo: Habilitar lectura de órdenes y asegurar descuento de inventario.
  */
 
 const express = require('express');
@@ -18,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.2.5 registrados exitosamente");
+    console.log("📦 Modelos v13.3.0 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -38,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.2.5] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.0] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -64,6 +65,7 @@ const router = express.Router();
 
 try {
     const Material = mongoose.model('Material'); 
+    const Invoice = mongoose.model('Invoice');
 
     // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS (Mantenida 100%) ---
     router.get('/quotes/materials', async (req, res) => {
@@ -151,11 +153,22 @@ try {
         }
     });
 
-    // --- 🧾 RUTA DE FACTURACIÓN (CONSECUTIVO + STOCK PRECISO) ---
+    // --- 🧾 GESTIÓN DE FACTURAS / OT (HISTORIAL + STOCK) ---
+
+    // GET: Cargar el historial de órdenes (Soluciona el error 404 en el dashboard)
+    router.get('/invoices', async (req, res) => {
+        try {
+            const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100);
+            res.json(facturas); 
+        } catch (error) {
+            console.error("🚨 Error obteniendo historial:", error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // POST: Generar venta y descontar stock
     router.post('/invoices', async (req, res) => {
         try {
-            const Invoice = mongoose.model('Invoice');
-            const Material = mongoose.model('Material');
             const facturaData = req.body;
 
             // GENERACIÓN DE CONSECUTIVO OT
@@ -166,31 +179,24 @@ try {
                 if (!isNaN(ultimoNum)) siguienteNumero = ultimoNum + 1;
             }
             const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
-            
-            // Asignar OT y asegurar nombre del cliente
             facturaData.numeroOrden = otConsecutivo;
 
             // 1. Guardar la factura
             const nuevaFactura = new Invoice(facturaData);
             await nuevaFactura.save();
 
-            // 2. Descuento Preciso de Stock
+            // 2. Descuento Automático de Stock
             if (facturaData.items && Array.isArray(facturaData.items)) {
                 for (const item of facturaData.items) {
                     if (item.productoId) {
-                        // Priorizamos el área calculada o enviada para el descuento
-                        let areaADescontar = parseFloat(item.area_m2 || 0);
+                        // Cálculo de seguridad del área
+                        const area = parseFloat(item.area_m2) || ((parseFloat(item.ancho || 0) * parseFloat(item.largo || 0)) / 10000);
                         
-                        // Si el área es 0 pero tenemos medidas, la recalculamos por seguridad
-                        if (areaADescontar === 0 && item.ancho && item.largo) {
-                            areaADescontar = (parseFloat(item.ancho) * parseFloat(item.largo)) / 10000;
-                        }
-
-                        if (areaADescontar > 0) {
+                        if (area > 0) {
                             await Material.findByIdAndUpdate(item.productoId, {
-                                $inc: { stock_actual: -areaADescontar }
+                                $inc: { stock_actual: -area }
                             });
-                            console.log(`📉 Stock: ${item.materialNombre} | -${areaADescontar.toFixed(4)} m2`);
+                            console.log(`📉 Stock Restado: ${item.materialNombre} -${area.toFixed(4)} m2`);
                         }
                     }
                 }
@@ -204,7 +210,7 @@ try {
                 data: nuevaFactura 
             });
         } catch (error) {
-            console.error("🚨 Error facturación v13.2.5:", error);
+            console.error("🚨 Error en proceso de facturación:", error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
@@ -218,7 +224,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.2.5', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.0', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
