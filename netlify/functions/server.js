@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.2.9 (BUILD CONSOLIDADO FINAL)
- * Objetivo: Ejecución garantizada, blindaje de modelos y cálculo dinámico (Costo x 3).
+ * Módulo de Servidor (Netlify Function) - Versión 12.3.1 (SYNC DEFINITIVA)
+ * Objetivo: Ejecución garantizada, blindaje de datos y compatibilidad total con Frontend.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.2.9 registrados exitosamente");
+    console.log("📦 Modelos v12.3.1 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v12.2.9] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v12.3.1] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -103,10 +103,11 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (SINCRONIZACIÓN TOTAL) ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (SINCRONIZADO CON FRONTEND) ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
+
             const materialesDB = await Material.find({ _id: { $in: materialesIds } });
             
             const area_m2 = (ancho * largo) / 10000;
@@ -114,7 +115,7 @@ try {
             let detallesItems = [];
 
             materialesDB.forEach(mat => {
-                // Buscamos el costo en cualquier variante del esquema
+                // Buscamos el costo en cualquier variante de nombre de campo (Mapeo Robusto)
                 const costoM2 = mat.costo_m2 || mat.precio_costo_m2 || mat.precio || mat.costo || 0;
                 const costoProporcional = area_m2 * costoM2;
                 
@@ -122,25 +123,29 @@ try {
                 
                 detallesItems.push({
                     nombre: mat.nombre,
+                    area_m2: area_m2,
                     costo_m2_base: costoM2,
                     precio_proporcional: costoProporcional
                 });
             });
 
-            // REGLA DE NEGOCIO: (Costo Total * 3) + Mano de Obra
-            const costoMaterialesX3 = costoBaseTotalMateriales * 3;
-            const manoObraValor = parseFloat(manoObra || 0);
-            const totalSugerido = costoMaterialesX3 + manoObraValor;
+            // 🎯 APLICACIÓN DE REGLA DE NEGOCIO: (Costo de materiales * 3)
+            const valorMaterialesFinal = costoBaseTotalMateriales * 3;
+            const valorManoObraFinal = parseFloat(manoObra || 0);
+            const totalGeneral = valorMaterialesFinal + valorManoObraFinal;
 
-            // Enviamos un objeto plano y robusto para que el frontend lo lea sin fallos
+            // RESPUESTA AJUSTADA: Enviamos los campos directamente en 'data' para evitar el TypeError
             res.json({
                 success: true,
                 data: {
-                    total: Math.round(totalSugerido),
-                    valor_materiales: costoMaterialesX3,
-                    valor_mano_obra: manoObraValor,
+                    valor_materiales: valorMaterialesFinal,
+                    valor_mano_obra: valorManoObraFinal,
+                    total: Math.round(totalGeneral),
                     area: area_m2,
-                    detalles: detallesItems
+                    detalles: {
+                        medidas: `${ancho} x ${largo} cm`,
+                        materiales: detallesItems
+                    }
                 }
             });
         } catch (error) {
@@ -150,22 +155,32 @@ try {
     });
 
     // Rutas existentes
-    router.use('/inventory', require('./routes/inventoryRoutes'));
-    router.use('/providers', require('./routes/providerRoutes'));
+    const inventoryRoutes = require('./routes/inventoryRoutes');
+    const providerRoutes = require('./routes/providerRoutes');
+
+    router.use('/inventory', inventoryRoutes);
+    router.use('/providers', providerRoutes);
+    router.use('/purchases', inventoryRoutes);
     
     try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
     try { router.use('/invoices', require('./routes/invoiceRoutes')); } catch(e){}
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '12.2.9', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '12.3.1', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
-    console.error(`🚨 Error vinculando rutas: ${error.message}`);
+    console.error(`🚨 Error vinculando rutas en server.js: ${error.message}`);
 }
 
 app.use('/', router);
+
+// Manejador de errores global
+app.use((err, req, res, next) => {
+    console.error("🔥 Error en ejecución serverless:", err.stack);
+    res.status(500).json({ success: false, message: "Error interno", error: err.message });
+});
 
 const handler = serverless(app);
 
@@ -179,7 +194,7 @@ module.exports.handler = async (event, context) => {
         return {
             statusCode: 500,
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ success: false, error: 'Fallo fatal en el servidor' })
+            body: JSON.stringify({ success: false, error: 'Fallo fatal en el servidor Netlify' })
         };
     }
 };
