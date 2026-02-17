@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.9.2 - Sincronización de Familias + Corrección Visual OT
- * Objetivo: Carga automática de materiales y visualización limpia en Orden de Trabajo.
+ * Versión: 12.9.3 - Fórmula de Precio Final (Costo x 3 + MO) + Corrección Visual
+ * Objetivo: Carga automática, visualización limpia y cálculo exacto solicitado.
  */
 
 let datosCotizacionActual = null;
@@ -122,9 +122,18 @@ async function procesarCotizacion() {
         const result = await response.json();
         if (result.success) {
             const dataFinal = result.data;
+            
+            // 🎯 AJUSTE QUIRÚRGICO DE FÓRMULA SOLICITADA: (Materiales x 3) + Mano de Obra
+            // El servidor entrega 'valor_materiales' como el costo base total por el área.
+            const costoBaseMateriales = dataFinal.valor_materiales || 0;
+            const precioVentaMateriales = costoBaseMateriales * 3;
+            
+            // El precio final que ve el cliente
+            dataFinal.precioSugeridoCliente = precioVentaMateriales + manoObraInput;
+            
             dataFinal.anchoOriginal = ancho;
             dataFinal.largoOriginal = largo;
-            dataFinal.precioSugeridoCliente = dataFinal.total; 
+            dataFinal.valor_mano_obra = manoObraInput; // Aseguramos que se guarde la MO ingresada
             
             datosCotizacionActual = dataFinal;
             mostrarResultado(dataFinal);
@@ -167,7 +176,6 @@ function mostrarResultado(data) {
     const listaMateriales = data.detalles?.materiales || [];
 
     const itemsHTML = listaMateriales.map(m => {
-        // Si m es un objeto (v12.3.2), tomamos m.nombre. Si es string, lo usamos directo.
         const nombreVisual = (typeof m === 'object' && m !== null) ? (m.nombre || "MATERIAL") : m;
         
         return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
@@ -275,7 +283,8 @@ async function facturarVenta() {
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
             area_m2: datosCotizacionActual.area,
-            total_item: Math.round(datosCotizacionActual.valor_materiales || 0)
+            // Guardamos el costo multiplicado por 3 en el historial de ventas
+            total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
         })), 
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         abonoInicial: abono,   
