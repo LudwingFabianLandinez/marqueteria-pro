@@ -1,6 +1,6 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.0 - Cálculo Dinámico Universal & Blindaje Quirúrgico
+ * Versión: 13.0.1 - Búsqueda Exhaustiva de Precios & Motor Dinámico
  * Objetivo: Carga automática, cálculo real (Costo x 3 + MO) y estabilidad total.
  */
 
@@ -52,8 +52,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const option = document.createElement('option');
                     option.value = m._id || m.id;
                     option.style = color;
-                    // 💉 INYECCIÓN QUIRÚRGICA: Guardamos el precio de inventario para cálculo dinámico local
-                    option.dataset.costo = m.precio_m2 || m.precio_unitario || m.precio_costo || 0;
+
+                    // 🛠️ MODIFICACIÓN QUIRÚRGICA: Búsqueda exhaustiva del precio en la base de datos
+                    // Intenta encontrar el valor en cualquier nombre de campo posible
+                    const precioDetectado = m.precio_m2 || m.precio_costo || m.precio_unitario || m.precio || m.valor || m.costo || 0;
+                    
+                    option.dataset.costo = precioDetectado;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
                     select.appendChild(option);
                 });
@@ -67,7 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Familias de materiales desplegadas correctamente");
+            console.log("✅ Familias de materiales desplegadas con precios mapeados");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -113,6 +117,9 @@ async function procesarCotizacion() {
         return;
     }
 
+    // Depuración en consola para que tú veas si los precios están llegando bien
+    console.log("🔍 Verificando costos cargados:", materialesSeleccionados);
+
     try {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
@@ -130,15 +137,17 @@ async function procesarCotizacion() {
         const result = await response.json();
         let dataFinal;
 
-        // 🧠 LÓGICA DE DECISIÓN DINÁMICA
+        // 🧠 LÓGICA DE DECISIÓN DINÁMICA MEJORADA
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
         } else {
-            // SI EL SERVIDOR FALLA O DA 0: Calculamos usando los datos cargados del inventario
-            console.warn("⚠️ Servidor inconsistente. Ejecutando motor de cálculo local dinámico.");
+            // SI EL SERVIDOR FALLA O DA 0: Motor de cálculo local dinámico
+            console.warn("⚠️ Servidor inconsistente o costo 0. Usando motor local con dataset.");
             const areaM2 = (ancho * largo) / 10000;
             let costoBaseLocal = 0;
+            
             materialesSeleccionados.forEach(m => {
+                if(m.costoUnitario === 0) console.error(`🚨 El material ${m.nombre} tiene precio $0 en el inventario.`);
                 costoBaseLocal += (m.costoUnitario * areaM2);
             });
             
@@ -274,18 +283,6 @@ function mostrarResultado(data) {
     setTimeout(limpiarTextosNoDeseados, 100);
 }
 
-function imprimirResumen() {
-    const printArea = document.getElementById('printArea');
-    const ventana = window.open('', '', 'height=750,width=950');
-    ventana.document.write('<html><head><title>Cotización - La Chica Morales</title>');
-    ventana.document.write('<style>body{font-family:sans-serif;padding:40px;color:#333;} .no-print{display:none;}</style></head><body>');
-    ventana.document.write(printArea.innerHTML);
-    ventana.document.write('</body></html>');
-    ventana.document.close();
-    ventana.focus();
-    setTimeout(() => { ventana.print(); ventana.close(); }, 500);
-}
-
 async function facturarVenta() {
     if (!datosCotizacionActual) return;
     const nombre = document.getElementById('nombreCliente').value.trim();
@@ -334,4 +331,16 @@ async function facturarVenta() {
         alert("Error de conexión.");
         btnVenta.disabled = false;
     }
+}
+
+function imprimirResumen() {
+    const printArea = document.getElementById('printArea');
+    const ventana = window.open('', '', 'height=750,width=950');
+    ventana.document.write('<html><head><title>Cotización - La Chica Morales</title>');
+    ventana.document.write('<style>body{font-family:sans-serif;padding:40px;color:#333;} .no-print{display:none;}</style></head><body>');
+    ventana.document.write(printArea.innerHTML);
+    ventana.document.write('</body></html>');
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
