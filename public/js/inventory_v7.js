@@ -135,7 +135,6 @@ function renderTable(materiales) {
         
         let costoMostrar = 0;
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // FÓRMULA SOLICITADA: Valor de la lámina / Área de la lámina
             costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
         } else if (m.tipo === 'ml' && largo > 0) {
             costoMostrar = Math.round(m.precio_total_lamina / (largo / 100));
@@ -208,7 +207,9 @@ function configurarEventos() {
             categoria: document.getElementById('matCategoria').value,
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
-            proveedorId: document.getElementById('proveedorSelect').value
+            proveedorId: document.getElementById('proveedorSelect').value,
+            ancho_lamina_cm: parseFloat(document.getElementById('matAncho')?.value) || 0,
+            largo_lamina_cm: parseFloat(document.getElementById('matLargo')?.value) || 0
         };
         try {
             const res = await window.API.saveMaterial(payload);
@@ -233,8 +234,6 @@ function configurarEventos() {
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
             const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 1; 
-            
-            // 🎯 BLINDAJE: El valor ingresado es de UNA lámina ($108.000)
             const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
             if(!materialId || !providerId) {
@@ -246,9 +245,7 @@ function configurarEventos() {
             const areaUnaLamina = (largo * ancho) / 10000;
             const totalStockM2AAgregar = areaUnaLamina * cant;
             const costoTotalCompra = valorUnitarioLamina * cant;
-
-            // FÓRMULA QUIRÚRGICA: Precio de 1 lámina / Área de 1 lámina
-            const precioM2Calculado = valorUnitarioLamina / areaUnaLamina;
+            const precioM2Calculado = areaUnaLamina > 0 ? (valorUnitarioLamina / areaUnaLamina) : 0;
 
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -283,7 +280,7 @@ function configurarEventos() {
                 cantidad_laminas: cant,
                 cantidad: totalStockM2AAgregar, 
                 precio_total_lamina: valorUnitarioLamina, 
-                precio_m2_costo: precioM2Calculado, // Enviamos el costo real por m2
+                precio_m2_costo: precioM2Calculado,
                 costo_total: costoTotalCompra,
                 tipo_material: 'm2'
             };
@@ -294,7 +291,7 @@ function configurarEventos() {
                     window.cerrarModales(); 
                     await fetchInventory(); 
                     e.target.reset(); 
-                    alert(`✅ Compra exitosa: ${cant} láminas agregadas a $${Math.round(precioM2Calculado)} c/u.`);
+                    alert(`✅ Compra exitosa: ${cant} láminas agregadas.`);
                 } else {
                     alert("❌ Error: " + (res.message || "Error de validación"));
                 }
@@ -380,6 +377,8 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
+    if(document.getElementById('matAncho')) document.getElementById('matAncho').value = m.ancho_lamina_cm;
+    if(document.getElementById('matLargo')) document.getElementById('matLargo').value = m.largo_lamina_cm;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';

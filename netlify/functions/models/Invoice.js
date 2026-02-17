@@ -6,7 +6,9 @@ const InvoiceSchema = new mongoose.Schema({
         type: String, 
         required: true, 
         unique: true,
-        trim: true
+        trim: true,
+        // SUMADO: Valor por defecto temporal para evitar errores de validación antes del pre-save
+        default: () => `OT-${Math.floor(Date.now() / 1000)}` 
     },
     cliente: {
         nombre: { type: String, required: true },
@@ -126,6 +128,7 @@ InvoiceSchema.pre('save', function(next) {
 
     // 3. Gestión financiera (Saldo y Estado)
     const totalVenta = Number(this.totalFactura) || 0;
+    // Sincronizamos totalPagado con abonoInicial si es la primera vez que se guarda
     const pagado = Number(this.totalPagado) || 0;
 
     this.saldoPendiente = Math.max(0, totalVenta - pagado);
