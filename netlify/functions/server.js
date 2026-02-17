@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.2 (SOLUCIÓN DEFINITIVA CONTADOR)
- * Objetivo: Asegurar que el consecutivo de OT suba buscando siempre el valor máximo real.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.3 (REPARACIÓN CONTADOR)
+ * Objetivo: Asegurar que el consecutivo de OT suba correctamente filtrando basura de la DB.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.2 registrados exitosamente");
+    console.log("📦 Modelos v13.3.3 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.2] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.3] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -169,17 +169,18 @@ try {
         try {
             const facturaData = req.body;
 
-            // --- 🔧 SOLUCIÓN DEFINITIVA CONTADOR (v13.3.2) ---
-            // Buscamos todas las facturas para encontrar el número más alto real sin depender de fechas
+            // --- 🔧 MEJORA QUIRÚRGICA CONTADOR (v13.3.3) ---
             const facturasParaConteo = await Invoice.find({}, 'numeroFactura numeroOrden').lean();
             let maxNumero = 0;
 
             facturasParaConteo.forEach(doc => {
                 const idTexto = doc.numeroFactura || doc.numeroOrden || "";
-                if (idTexto.includes('-')) {
+                // Filtro estricto: Solo procesar si el campo empieza con "OT-"
+                if (idTexto.startsWith('OT-')) {
                     const partes = idTexto.split('-');
                     const num = parseInt(partes[partes.length - 1]);
-                    if (!isNaN(num) && num > maxNumero) {
+                    // Solo sumamos si es un número válido y menor a 1 millón (evita basura como teléfonos)
+                    if (!isNaN(num) && num < 1000000 && num > maxNumero) {
                         maxNumero = num;
                     }
                 }
@@ -188,10 +189,9 @@ try {
             const siguienteNumero = maxNumero + 1;
             const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
             
-            // Asignamos el número a ambos campos para total compatibilidad
             facturaData.numeroFactura = otConsecutivo;
             facturaData.numeroOrden = otConsecutivo; 
-            // -------------------------------------------------------
+            // -----------------------------------------------
 
             // 1. Guardar la factura
             const nuevaFactura = new Invoice(facturaData);
@@ -234,7 +234,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.2', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.3', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
