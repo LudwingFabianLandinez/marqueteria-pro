@@ -1,6 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.9.4 - Consolidación de Cálculo (Costo x 3 + MO) + Blindaje Local
+ * Versión: 13.0.0 - Cálculo Dinámico Universal & Blindaje Quirúrgico
+ * Objetivo: Carga automática, cálculo real (Costo x 3 + MO) y estabilidad total.
  */
 
 let datosCotizacionActual = null;
@@ -51,8 +52,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const option = document.createElement('option');
                     option.value = m._id || m.id;
                     option.style = color;
-                    // Guardamos el precio_m2 en el dataset para cálculo de emergencia local
-                    option.dataset.costo = m.precio_m2 || m.precio_unitario || 0;
+                    // 💉 INYECCIÓN QUIRÚRGICA: Guardamos el precio de inventario para cálculo dinámico local
+                    option.dataset.costo = m.precio_m2 || m.precio_unitario || m.precio_costo || 0;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
                     select.appendChild(option);
                 });
@@ -93,7 +94,6 @@ async function procesarCotizacion() {
     const largo = parseFloat(document.getElementById('largo').value);
     const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
-    // Capturamos los elementos para obtener sus nombres y costos locales si falla el server
     const selectsIds = [
         'materialId', 'materialRespaldoId', 'materialExtraId', 
         'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
@@ -105,7 +105,7 @@ async function procesarCotizacion() {
         .map(el => ({
             id: el.value,
             nombre: el.options[el.selectedIndex].text.split('(')[0].trim(),
-            costoLocal: parseFloat(el.options[el.selectedIndex].dataset.costo) || 0
+            costoUnitario: parseFloat(el.options[el.selectedIndex].dataset.costo) || 0
         }));
 
     if (!ancho || !largo || materialesSeleccionados.length === 0) {
@@ -130,16 +130,16 @@ async function procesarCotizacion() {
         const result = await response.json();
         let dataFinal;
 
-        if (result.success && result.data && result.data.valor_materiales !== undefined) {
-            // Caso A: El servidor responde correctamente
+        // 🧠 LÓGICA DE DECISIÓN DINÁMICA
+        if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
         } else {
-            // Caso B: El servidor falla (NaN protection) - Calculamos localmente como el Excel
-            console.warn("⚠️ Usando motor de cálculo local por inconsistencia en servidor");
+            // SI EL SERVIDOR FALLA O DA 0: Calculamos usando los datos cargados del inventario
+            console.warn("⚠️ Servidor inconsistente. Ejecutando motor de cálculo local dinámico.");
             const areaM2 = (ancho * largo) / 10000;
             let costoBaseLocal = 0;
             materialesSeleccionados.forEach(m => {
-                costoBaseLocal += (m.costoLocal * areaM2);
+                costoBaseLocal += (m.costoUnitario * areaM2);
             });
             
             dataFinal = {
@@ -152,10 +152,9 @@ async function procesarCotizacion() {
             };
         }
 
-        // 🎯 APLICACIÓN DE LA FÓRMULA SOLICITADA (Costo x 3) + Mano de Obra
-        const costoBaseMateriales = dataFinal.valor_materiales || 0;
-        const precioVentaMateriales = costoBaseMateriales * 3;
-        dataFinal.precioSugeridoCliente = Math.round(precioVentaMateriales + manoObraInput);
+        // 🎯 APLICACIÓN DE FÓRMULA UNIVERSAL: (Costo Base x 3) + Mano de Obra
+        const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
+        dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
