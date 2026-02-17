@@ -1,6 +1,6 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.1 - Búsqueda Exhaustiva de Precios & Motor Dinámico
+ * Versión: 13.0.2 - Parche de Costos de Inventario & Blindaje Estructural
  * Objetivo: Carga automática, cálculo real (Costo x 3 + MO) y estabilidad total.
  */
 
@@ -53,9 +53,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // 🛠️ MODIFICACIÓN QUIRÚRGICA: Búsqueda exhaustiva del precio en la base de datos
-                    // Intenta encontrar el valor en cualquier nombre de campo posible
-                    const precioDetectado = m.precio_m2 || m.precio_costo || m.precio_unitario || m.precio || m.valor || m.costo || 0;
+                    // 🛠️ AJUSTE DE CAMPO: Buscamos 'costo_m2' que es el nombre en tu Inventario
+                    const precioDetectado = m.costo_m2 || m.precio_m2 || m.precio_costo || m.precio_unitario || m.precio || 0;
                     
                     option.dataset.costo = precioDetectado;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
@@ -117,7 +116,6 @@ async function procesarCotizacion() {
         return;
     }
 
-    // Depuración en consola para que tú veas si los precios están llegando bien
     console.log("🔍 Verificando costos cargados:", materialesSeleccionados);
 
     try {
@@ -137,12 +135,10 @@ async function procesarCotizacion() {
         const result = await response.json();
         let dataFinal;
 
-        // 🧠 LÓGICA DE DECISIÓN DINÁMICA MEJORADA
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
         } else {
-            // SI EL SERVIDOR FALLA O DA 0: Motor de cálculo local dinámico
-            console.warn("⚠️ Servidor inconsistente o costo 0. Usando motor local con dataset.");
+            console.warn("⚠️ Servidor inconsistente o costo 0. Usando motor local.");
             const areaM2 = (ancho * largo) / 10000;
             let costoBaseLocal = 0;
             
@@ -161,7 +157,6 @@ async function procesarCotizacion() {
             };
         }
 
-        // 🎯 APLICACIÓN DE FÓRMULA UNIVERSAL: (Costo Base x 3) + Mano de Obra
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         
@@ -283,6 +278,18 @@ function mostrarResultado(data) {
     setTimeout(limpiarTextosNoDeseados, 100);
 }
 
+function imprimirResumen() {
+    const printArea = document.getElementById('printArea');
+    const ventana = window.open('', '', 'height=750,width=950');
+    ventana.document.write('<html><head><title>Cotización - La Chica Morales</title>');
+    ventana.document.write('<style>body{font-family:sans-serif;padding:40px;color:#333;} .no-print{display:none;}</style></head><body>');
+    ventana.document.write(printArea.innerHTML);
+    ventana.document.write('</body></html>');
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => { ventana.print(); ventana.close(); }, 500);
+}
+
 async function facturarVenta() {
     if (!datosCotizacionActual) return;
     const nombre = document.getElementById('nombreCliente').value.trim();
@@ -331,16 +338,4 @@ async function facturarVenta() {
         alert("Error de conexión.");
         btnVenta.disabled = false;
     }
-}
-
-function imprimirResumen() {
-    const printArea = document.getElementById('printArea');
-    const ventana = window.open('', '', 'height=750,width=950');
-    ventana.document.write('<html><head><title>Cotización - La Chica Morales</title>');
-    ventana.document.write('<style>body{font-family:sans-serif;padding:40px;color:#333;} .no-print{display:none;}</style></head><body>');
-    ventana.document.write(printArea.innerHTML);
-    ventana.document.write('</body></html>');
-    ventana.document.close();
-    ventana.focus();
-    setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
