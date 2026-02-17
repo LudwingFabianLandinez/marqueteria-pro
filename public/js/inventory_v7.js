@@ -34,8 +34,9 @@ async function cargarHistorialVentas() {
     if (!cuerpoTabla) return;
 
     try {
-        const res = await fetch('/api/invoices');
-        const ventas = await res.json();
+        // FIX: Ahora usamos el puente de api.js para asegurar la ruta correcta en Netlify
+        const res = await window.API.getInvoices();
+        const ventas = res.success ? res.data : (Array.isArray(res) ? res : []);
         
         const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
@@ -47,7 +48,7 @@ async function cargarHistorialVentas() {
                     : (venta.clienteNombre || "Cliente General");
 
                 const totalVenta = venta.total || venta.totalVenta || 0;
-                const orden = venta.numeroOrden || venta.numeroFactura || "S/N";
+                const orden = venta.numeroOrden || venta.numeroFactura || venta.ot || "S/N";
                 const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
 
                 return `
@@ -285,20 +286,15 @@ async function facturarVenta() {
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
         }
         
-        const res = await fetch('/api/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(facturaData)
-        });
+        // Usamos window.API.saveInvoice si existe para mantener el blindaje
+        const res = await window.API.saveInvoice(facturaData);
         
-        const result = await res.json();
-        
-        if (result.success) {
-            alert("✅ VENTA REGISTRADA: " + (result.ot || "Éxito"));
+        if (res.success) {
+            alert("✅ VENTA REGISTRADA: " + (res.ot || "Éxito"));
             localStorage.removeItem('ultima_cotizacion');
             window.location.href = "/history.html";
         } else {
-            alert("🚨 Error: " + (result.error || "Falla en servidor"));
+            alert("🚨 Error: " + (res.message || res.error || "Falla en servidor"));
             if(btnVenta) {
                 btnVenta.disabled = false;
                 btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
