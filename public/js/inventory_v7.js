@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.5 - CONSOLIDACIÓN FINAL + FIX RUTA API DEFINITIVO
+ * Versión: 13.1.6 - CONSOLIDACIÓN FINAL + INTEGRACIÓN DE FLUJO DE VENTA
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1 / v12.8.5
  */
 
@@ -11,7 +11,7 @@ let datosCotizacionActual = null; // Para manejo de facturación
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.1.5 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.1.6 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -199,31 +199,37 @@ function renderTable(materiales) {
 // --- FACTURACIÓN Y CONEXIÓN API (GANCHO DE SALIDA DEL BUCLE) ---
 
 async function facturarVenta() {
-    if (!datosCotizacionActual) return;
+    // Recuperar datos si la variable global se limpió al cambiar de pestaña
+    if (!datosCotizacionActual) {
+        const backup = localStorage.getItem('ultima_cotizacion');
+        if (backup) datosCotizacionActual = JSON.parse(backup);
+    }
+
+    if (!datosCotizacionActual) {
+        alert("⚠️ No hay datos de cotización activos.");
+        return;
+    }
+
     const nombre = document.getElementById('nombreCliente')?.value.trim();
     if (!nombre) { alert("⚠️ Nombre cliente requerido."); return; }
 
     const btnVenta = document.getElementById('btnFinalizarVenta');
     const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
     
+    // Adaptación para que el servidor reciba los campos correctos para descontar stock
     const facturaData = {
-        numeroFactura: `OT-${Date.now().toString().slice(-6)}`,
-        cliente: { 
-            nombre, 
-            telefono: document.getElementById('telCliente')?.value || "N/A" 
-        },
-        medidas: datosCotizacionActual.detalles.medidas,
+        clienteNombre: nombre, // Adaptado para server.js
+        clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
+        total: datosCotizacionActual.precioSugeridoCliente,
+        abono: abono,
         items: datosCotizacionActual.detalles.materiales.map(m => ({
             productoId: m.id, 
             materialNombre: m.nombre,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
             area_m2: datosCotizacionActual.areaFinal,
-            costo_base_unitario: m.costoUnitario,
-            total_item: Math.round(((m.costoUnitario * datosCotizacionActual.areaFinal) * 3))
+            costo_unitario: m.costoUnitario
         })),
-        totalFactura: datosCotizacionActual.precioSugeridoCliente,
-        totalPagado: abono, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra
     };
 
@@ -233,7 +239,6 @@ async function facturarVenta() {
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
         }
         
-        // 🎯 RUTA MAESTRA PARA ROMPER EL BUCLE 404
         const res = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -243,7 +248,8 @@ async function facturarVenta() {
         const result = await res.json();
         
         if (result.success) {
-            alert("✅ VENTA REGISTRADA Y STOCK ACTUALIZADO");
+            alert("✅ VENTA REGISTRADA: " + (result.ot || "Éxito"));
+            localStorage.removeItem('ultima_cotizacion');
             window.location.href = "/history.html";
         } else {
             alert("🚨 Error: " + (result.error || "Falla en servidor"));
@@ -265,6 +271,10 @@ async function facturarVenta() {
 // --- EVENTOS Y CONFIGURACIÓN ---
 
 function configurarEventos() {
+    // Gancho para el botón de facturar si existe en la vista
+    const btnFacturar = document.getElementById('btnFinalizarVenta');
+    if(btnFacturar) btnFacturar.onclick = facturarVenta;
+
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {

@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.7 - CONSOLIDACIÓN DEFINITIVA DE ÁREA Y STOCK
- * Objetivo: Asegurar que 'cantidad' y 'materialId' se sincronicen incluso en cálculo local.
+ * Versión: 13.0.8 - CONSOLIDACIÓN DE PUENTE DE FACTURACIÓN + BLINDAJE
+ * Objetivo: Asegurar que la data de salida coincida con el motor de inventario.
  */
 
 let datosCotizacionActual = null;
@@ -153,10 +153,7 @@ async function procesarCotizacion() {
             };
         }
 
-        // 🛠️ GANCHO DE SEGURIDAD: Sincronizamos los materiales seleccionados con la data final
-        // Esto asegura que la función facturarVenta() siempre tenga los IDs correctos.
         dataFinal.detalles.materiales = materialesSeleccionados;
-        
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         dataFinal.anchoOriginal = ancho;
@@ -165,6 +162,9 @@ async function procesarCotizacion() {
         dataFinal.valor_mano_obra = manoObraInput;
         
         datosCotizacionActual = dataFinal;
+        // Guardamos backup para inventory.js
+        localStorage.setItem('ultima_cotizacion', JSON.stringify(dataFinal));
+        
         mostrarResultado(dataFinal);
         document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
 
@@ -303,26 +303,26 @@ async function facturarVenta() {
     }
 
     const facturaData = {
-        cliente: { nombre, telefono: document.getElementById('telCliente').value || "N/A" },
-        // 🔥 MAPEADO FINAL: Aseguramos que 'cantidad' sea siempre el área calculada
+        clienteNombre: nombre, // Sincronizado con server.js
+        clienteTelefono: document.getElementById('telCliente').value || "N/A",
+        total: datosCotizacionActual.precioSugeridoCliente,
+        abono: abono,
         items: (datosCotizacionActual.detalles?.materiales || []).map(m => {
             const esObjeto = (typeof m === 'object' && m !== null);
             const idMaterial = esObjeto ? (m.id || m._id) : null;
             const areaM2 = datosCotizacionActual.areaFinal || datosCotizacionActual.area || 0;
 
             return {
-                materialId: idMaterial,
+                productoId: idMaterial, // Sincronizado con inventario
                 materialNombre: esObjeto ? m.nombre : m, 
                 ancho: datosCotizacionActual.anchoOriginal,
                 largo: datosCotizacionActual.largoOriginal,
                 area_m2: areaM2,
-                cantidad: areaM2, // <--- VALOR CRÍTICO PARA LA BASE DE DATOS
+                cantidad: areaM2, // Para descuento de stock
                 total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
             };
         }), 
-        totalFactura: datosCotizacionActual.precioSugeridoCliente,
-        abonoInicial: abono,   
-        manoObraTotal: datosCotizacionActual.valor_mano_obra || 0,
+        mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         medidas: datosCotizacionActual.detalles?.medidas || '--'
     };
 
@@ -330,14 +330,17 @@ async function facturarVenta() {
         btnVenta.disabled = true;
         btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
         
-        const response = await fetch('/.netlify/functions/server/invoices', {
+        // Sincronización de ruta de API según tu preferencia
+        const response = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)
         });
+
         const result = await response.json();
         if (result.success) {
-            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.data.numeroFactura}`);
+            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
+            localStorage.removeItem('ultima_cotizacion');
             window.location.href = "/history.html"; 
         } else {
             alert("🚨 Error: " + (result.error || "No se pudo registrar la venta."));

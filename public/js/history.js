@@ -1,6 +1,7 @@
 /**
  * Lógica del Historial de Órdenes de Trabajo - MARQUETERÍA LA CHICA MORALES
- * Versión Unificada: Gestión de OTs, Buscador, Excel y Reporte Diario Autónomo
+ * Versión: 13.0.9 - SINCRONIZACIÓN TOTAL CON PUENTE DE FACTURACIÓN
+ * Objetivo: Lectura híbrida de datos para asegurar compatibilidad de OTs nuevas y antiguas.
  */
 
 let todasLasFacturas = [];
@@ -30,8 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- 1. FORMATEO DE NÚMERO DE ORDEN ---
 function formatearNumeroOT(f) {
-    if (f.numeroFactura && f.numeroFactura !== "undefined") {
-        return f.numeroFactura.startsWith('OT-') ? f.numeroFactura : `OT-${f.numeroFactura.toString().padStart(6, '0')}`;
+    // Busca número de factura o usa el ID como respaldo
+    const num = f.numeroFactura || f.ot || f.numeroOT;
+    if (num && num !== "undefined") {
+        return num.toString().startsWith('OT-') ? num : `OT-${num.toString().padStart(6, '0')}`;
     }
     const idSufijo = f._id ? f._id.substring(f._id.length - 4).toUpperCase() : '0000';
     return `OT-${idSufijo}`;
@@ -63,7 +66,7 @@ async function generarReporteDiario() {
         const hoyDate = new Date();
         const hoyStr = hoyDate.toLocaleDateString();
         
-        // Filtro local inmediato para garantizar rapidez y evitar fallos de API
+        // Filtro local inmediato
         const facturasHoy = todasLasFacturas.filter(f => {
             const fechaF = new Date(f.fecha).toLocaleDateString();
             return fechaF === hoyStr;
@@ -81,16 +84,19 @@ async function generarReporteDiario() {
         let totalVentas = 0;
         let utilidadTotal = 0;
 
-        // Construcción de las filas con desglose de costos
         let filasHTML = facturasHoy.map(f => {
             const vOT = formatearNumeroOT(f);
-            const vCliente = f.cliente?.nombre || "Cliente Genérico";
+            // Puente de datos: busca en objeto cliente o en propiedad plana clienteNombre
+            const vCliente = (f.cliente?.nombre || f.clienteNombre || "Cliente Genérico").toUpperCase();
             const vDetalle = f.medidas || "Medidas N/A";
             
-            const vVenta = Number(f.totalFactura) || 0;
+            const vVenta = Number(f.totalFactura || f.total) || 0;
             const cMat = Number(f.costo_materiales_total) || 0;
-            const cMO = Number(f.mano_obra_total) || 0;
-            const vUtilidad = vVenta - (cMat + cMO);
+            const cMO = Number(f.mano_obra_total || f.manoObraTotal) || 0;
+            
+            // Si no hay costo de materiales guardado, estimamos al 33% (inverso del x3)
+            const costoEstimadoMat = cMat > 0 ? cMat : (vVenta - cMO) / 3;
+            const vUtilidad = vVenta - (costoEstimadoMat + cMO);
 
             totalVentas += vVenta;
             utilidadTotal += vUtilidad;
@@ -105,8 +111,7 @@ async function generarReporteDiario() {
                         ${vDetalle}
                     </td>
                     <td style="padding: 12px; text-align: right; color: #444;">
-                        <div style="font-size: 0.75rem;">Materiales: ${formatter.format(cMat)}</div>
-                        <div style="font-size: 0.75rem;">Mano Obra: ${formatter.format(cMO)}</div>
+                        <div style="font-size: 0.75rem;">Costos Est.: ${formatter.format(costoEstimadoMat + cMO)}</div>
                         <div style="font-weight: bold; color: #1e3a8a; border-top: 1px solid #eee; margin-top: 4px;">Utilidad: ${formatter.format(vUtilidad)}</div>
                     </td>
                     <td style="padding: 12px; text-align: right; font-weight: bold; color: #15803d; font-size: 1.05rem;">
@@ -130,7 +135,7 @@ async function generarReporteDiario() {
                         <tr style="background: #1e3a8a; color: white;">
                             <th style="padding: 15px; text-align: left;">OT / CLIENTE</th>
                             <th style="padding: 15px; text-align: left;">DETALLE</th>
-                            <th style="padding: 15px; text-align: right;">DESGLOSE (COSTOS/UTI)</th>
+                            <th style="padding: 15px; text-align: right;">DESGLOSE</th>
                             <th style="padding: 15px; text-align: right;">VALOR VENTA</th>
                         </tr>
                     </thead>
@@ -169,7 +174,7 @@ async function generarReporteDiario() {
     }
 }
 
-// --- 4. EXPORTAR A EXCEL (CSV CON SOPORTE UTF-8) ---
+// --- 4. EXPORTAR A EXCEL ---
 function exportarAExcel() {
     if (todasLasFacturas.length === 0) {
         alert("No hay datos para exportar");
@@ -183,9 +188,9 @@ function exportarAExcel() {
         todasLasFacturas.forEach(f => {
             const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
             const ot = formatearNumeroOT(f);
-            const cliente = (f.cliente?.nombre || "Cliente").replace(/,/g, ''); 
-            const total = Number(f.totalFactura) || 0;
-            const abono = Number(f.totalPagado || f.abonoInicial) || 0;
+            const cliente = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, ''); 
+            const total = Number(f.totalFactura || f.total) || 0;
+            const abono = Number(f.totalPagado || f.abono || f.abonoInicial) || 0;
             const saldo = total - abono;
             const estado = saldo <= 0 ? "PAGADO" : "ABONADO";
 
@@ -218,18 +223,19 @@ function renderTable(facturas) {
 
     facturas.forEach(f => {
         const tr = document.createElement('tr');
-        const total = Number(f.totalFactura) || 0;
-        const pagado = Number(f.totalPagado || f.abonoInicial) || 0;
+        const total = Number(f.totalFactura || f.total) || 0;
+        const pagado = Number(f.totalPagado || f.abono || f.abonoInicial) || 0;
         const saldo = total - pagado;
         const numeroOT = formatearNumeroOT(f);
         
         const estadoLabel = (saldo <= 0) ? 'PAGADO' : 'ABONADO';
         const estadoClass = (saldo <= 0) ? 'badge-pagado' : 'badge-abonado';
+        const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
 
         tr.innerHTML = `
             <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
             <td style="font-weight: 700; color: #1e3a8a;">${numeroOT}</td>
-            <td>${f.cliente?.nombre || 'Cliente Genérico'}</td>
+            <td>${clienteVisual}</td>
             <td style="font-weight: 600;">${formatter.format(total)}</td>
             <td style="color: #e11d48; font-weight: 600;">${formatter.format(saldo)}</td>
             <td><span class="badge-status ${estadoClass}">${estadoLabel}</span></td>
@@ -255,7 +261,7 @@ function configurarBuscador() {
     searchInput.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase().trim();
         const filtradas = todasLasFacturas.filter(f => {
-            const nombre = f.cliente?.nombre?.toLowerCase() || "";
+            const nombre = (f.cliente?.nombre || f.clienteNombre || "").toLowerCase();
             const ot = formatearNumeroOT(f).toLowerCase();
             return nombre.includes(term) || ot.includes(term);
         });

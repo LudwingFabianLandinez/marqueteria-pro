@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+/**
+ * Modelo de Facturación/OT - MARQUETERÍA LA CHICA MORALES
+ * Versión: 13.1.0 - CONSOLIDACIÓN DE COSTOS Y VIRTUALS
+ * Objetivo: Actuar como el núcleo de datos para Inventario, Ventas y Reportes.
+ */
+
 const InvoiceSchema = new mongoose.Schema({
     // Número correlativo (Formato estricto OT-000000)
     numeroFactura: { 
@@ -7,7 +13,6 @@ const InvoiceSchema = new mongoose.Schema({
         required: true, 
         unique: true,
         trim: true,
-        // SUMADO: Valor por defecto temporal para evitar errores de validación antes del pre-save
         default: () => `OT-${Math.floor(Date.now() / 1000)}` 
     },
     cliente: {
@@ -32,7 +37,7 @@ const InvoiceSchema = new mongoose.Schema({
         costo_base_unitario: { 
             type: Number, 
             default: 0 
-        }, // Precio de compra m2
+        }, // Precio de compra m2 (Costo real)
         valor_material: { 
             type: Number, 
             default: 0 
@@ -41,10 +46,10 @@ const InvoiceSchema = new mongoose.Schema({
         total_item: { 
             type: Number,
             default: 0 
-        } // Precio de venta final del item
+        } // Precio de venta final del item (Sugerido al cliente)
     }],
     
-    // --- CAMPOS GLOBALES DE COSTO ---
+    // --- CAMPOS GLOBALES DE COSTO (Blindaje para Reportes) ---
     mano_obra_total: {
         type: Number,
         default: 0
@@ -85,13 +90,13 @@ const InvoiceSchema = new mongoose.Schema({
     }
 }, { 
     timestamps: true,
-    toJSON: { virtuals: true }, // SUMADO: Permite que el reporte vea la utilidad calculada
+    toJSON: { virtuals: true }, 
     toObject: { virtuals: true }
 });
 
 /**
- * SUMADO: Propiedad virtual para calcular la Utilidad
- * Esto evita errores en el reporte porque el cálculo se hace en tiempo real
+ * PROPIEDAD VIRTUAL: Utilidad Neta
+ * Calcula en tiempo real: Venta Total - (Costos de Materiales + Mano de Obra)
  */
 InvoiceSchema.virtual('utilidad_neta').get(function() {
     const venta = this.totalFactura || 0;
@@ -101,38 +106,46 @@ InvoiceSchema.virtual('utilidad_neta').get(function() {
 
 /**
  * Middleware Pre-Save: 
- * Calcula automáticamente costos, saldos y estados.
+ * Blindaje final antes de entrar a la base de datos.
  */
 InvoiceSchema.pre('save', function(next) {
-    // 1. Calcular costos automáticos desde los items
     let sumaCostosMateriales = 0;
     
+    // 1. Normalización y cálculo de items
     if (this.items && this.items.length > 0) {
         this.items.forEach(item => {
-            // SUMADO: Forzar número para evitar NaN en el reporte
+            // Aseguramos que el area_m2 esté presente para el descuento de stock
+            if (!item.area_m2 && (item.ancho && item.largo)) {
+                item.area_m2 = (item.ancho * item.largo) / 10000;
+            }
+
             const unitario = Number(item.costo_base_unitario) || 0;
             const area = Number(item.area_m2) || 0;
             
-            const costoItem = unitario * area;
-            item.valor_material = Math.round(costoItem);
+            // El valor_material es el COSTO real para la marquetería
+            item.valor_material = Math.round(unitario * area);
             sumaCostosMateriales += item.valor_material;
+
+            // Si el total_item viene en 0, lo estimamos para no romper el historial
+            if (!item.total_item || item.total_item === 0) {
+                item.total_item = Math.round(item.valor_material * 3);
+            }
         });
     }
 
-    // 2. Asignar totales de costos
+    // 2. Consolidación de Costos Globales
     this.costo_materiales_total = Math.round(sumaCostosMateriales);
-    
-    // SUMADO: Validación de mano de obra para evitar errores matemáticos
     const mo = Number(this.mano_obra_total) || 0;
     this.costo_produccion_total = Math.round(this.costo_materiales_total + mo);
 
-    // 3. Gestión financiera (Saldo y Estado)
+    // 3. Sincronización Financiera
     const totalVenta = Number(this.totalFactura) || 0;
-    // Sincronizamos totalPagado con abonoInicial si es la primera vez que se guarda
     const pagado = Number(this.totalPagado) || 0;
 
+    // Cálculo de saldo (nunca negativo)
     this.saldoPendiente = Math.max(0, totalVenta - pagado);
 
+    // 4. Automatización de Estados
     if (this.estado !== 'Anulado') {
         if (pagado <= 0) {
             this.estado = 'Pendiente';
@@ -146,4 +159,5 @@ InvoiceSchema.pre('save', function(next) {
     next();
 });
 
+// Exportación robusta para entornos Serverless (Netlify)
 module.exports = mongoose.models.Invoice || mongoose.model('Invoice', InvoiceSchema, 'facturas');
