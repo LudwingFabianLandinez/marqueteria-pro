@@ -1,7 +1,6 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.9.3 - Fórmula de Precio Final (Costo x 3 + MO) + Corrección Visual
- * Objetivo: Carga automática, visualización limpia y cálculo exacto solicitado.
+ * Versión: 12.9.4 - Consolidación de Cálculo (Costo x 3 + MO) + Blindaje Local
  */
 
 let datosCotizacionActual = null;
@@ -24,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // 🛡️ SINCRONIZACIÓN BLINDADA: Ruta directa
+        // 🛡️ SINCRONIZACIÓN BLINDADA
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
@@ -52,6 +51,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const option = document.createElement('option');
                     option.value = m._id || m.id;
                     option.style = color;
+                    // Guardamos el precio_m2 en el dataset para cálculo de emergencia local
+                    option.dataset.costo = m.precio_m2 || m.precio_unitario || 0;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
                     select.appendChild(option);
                 });
@@ -73,9 +74,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-/**
- * MOTOR DE CÁLCULO Y LIMPIEZA
- */
 function limpiarTextosNoDeseados() {
     const divRes = document.getElementById('resultado');
     if (!divRes) return;
@@ -95,17 +93,22 @@ async function procesarCotizacion() {
     const largo = parseFloat(document.getElementById('largo').value);
     const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
-    const idsSeleccionados = [
-        document.getElementById('materialId').value,
-        document.getElementById('materialRespaldoId').value,
-        document.getElementById('materialExtraId').value,
-        document.getElementById('materialOtroId').value,
-        document.getElementById('materialFoamId')?.value,
-        document.getElementById('materialTelaId')?.value,
-        document.getElementById('materialChapillaId')?.value
-    ].filter(id => id && id !== "");
+    // Capturamos los elementos para obtener sus nombres y costos locales si falla el server
+    const selectsIds = [
+        'materialId', 'materialRespaldoId', 'materialExtraId', 
+        'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
+    ];
 
-    if (!ancho || !largo || idsSeleccionados.length === 0) {
+    const materialesSeleccionados = selectsIds
+        .map(id => document.getElementById(id))
+        .filter(el => el && el.value !== "")
+        .map(el => ({
+            id: el.value,
+            nombre: el.options[el.selectedIndex].text.split('(')[0].trim(),
+            costoLocal: parseFloat(el.options[el.selectedIndex].dataset.costo) || 0
+        }));
+
+    if (!ancho || !largo || materialesSeleccionados.length === 0) {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
         return;
     }
@@ -116,32 +119,55 @@ async function procesarCotizacion() {
         const response = await fetch('/.netlify/functions/server/quotes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ancho, largo, materialesIds: idsSeleccionados, manoObra: manoObraInput })
+            body: JSON.stringify({ 
+                ancho, 
+                largo, 
+                materialesIds: materialesSeleccionados.map(m => m.id), 
+                manoObra: manoObraInput 
+            })
         });
 
         const result = await response.json();
-        if (result.success) {
-            const dataFinal = result.data;
+        let dataFinal;
+
+        if (result.success && result.data && result.data.valor_materiales !== undefined) {
+            // Caso A: El servidor responde correctamente
+            dataFinal = result.data;
+        } else {
+            // Caso B: El servidor falla (NaN protection) - Calculamos localmente como el Excel
+            console.warn("⚠️ Usando motor de cálculo local por inconsistencia en servidor");
+            const areaM2 = (ancho * largo) / 10000;
+            let costoBaseLocal = 0;
+            materialesSeleccionados.forEach(m => {
+                costoBaseLocal += (m.costoLocal * areaM2);
+            });
             
-            // 🎯 AJUSTE QUIRÚRGICO DE FÓRMULA SOLICITADA: (Materiales x 3) + Mano de Obra
-            // El servidor entrega 'valor_materiales' como el costo base total por el área.
-            const costoBaseMateriales = dataFinal.valor_materiales || 0;
-            const precioVentaMateriales = costoBaseMateriales * 3;
-            
-            // El precio final que ve el cliente
-            dataFinal.precioSugeridoCliente = precioVentaMateriales + manoObraInput;
-            
-            dataFinal.anchoOriginal = ancho;
-            dataFinal.largoOriginal = largo;
-            dataFinal.valor_mano_obra = manoObraInput; // Aseguramos que se guarde la MO ingresada
-            
-            datosCotizacionActual = dataFinal;
-            mostrarResultado(dataFinal);
-            document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
+            dataFinal = {
+                valor_materiales: costoBaseLocal,
+                area: areaM2,
+                detalles: {
+                    medidas: `${ancho} x ${largo} cm`,
+                    materiales: materialesSeleccionados.map(m => m.nombre)
+                }
+            };
         }
+
+        // 🎯 APLICACIÓN DE LA FÓRMULA SOLICITADA (Costo x 3) + Mano de Obra
+        const costoBaseMateriales = dataFinal.valor_materiales || 0;
+        const precioVentaMateriales = costoBaseMateriales * 3;
+        dataFinal.precioSugeridoCliente = Math.round(precioVentaMateriales + manoObraInput);
+        
+        dataFinal.anchoOriginal = ancho;
+        dataFinal.largoOriginal = largo;
+        dataFinal.valor_mano_obra = manoObraInput;
+        
+        datosCotizacionActual = dataFinal;
+        mostrarResultado(dataFinal);
+        document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
+
     } catch (error) {
-        console.error("Error:", error);
-        alert("Error al procesar la cotización. Revisa la consola.");
+        console.error("Error crítico:", error);
+        alert("Error al procesar. Verifique su conexión.");
     } finally {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
     }
@@ -171,13 +197,10 @@ function mostrarResultado(data) {
     divRes.style.display = 'block';
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-
-    // --- CIRUGÍA DE LISTA DE MATERIALES PARA EVITAR [object Object] ---
     const listaMateriales = data.detalles?.materiales || [];
 
     const itemsHTML = listaMateriales.map(m => {
         const nombreVisual = (typeof m === 'object' && m !== null) ? (m.nombre || "MATERIAL") : m;
-        
         return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
             <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual.toUpperCase()}</span>
         </li>`;
@@ -203,7 +226,7 @@ function mostrarResultado(data) {
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
-                    <span style="font-weight: 700; color: #1e293b; font-size: 1.1rem;">${formatter.format(data.precioSugeridoCliente)}</span>
+                    <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(data.precioSugeridoCliente)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669;">
                     <span style="font-weight: 600;">ABONO RECIBIDO:</span>
@@ -283,7 +306,6 @@ async function facturarVenta() {
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
             area_m2: datosCotizacionActual.area,
-            // Guardamos el costo multiplicado por 3 en el historial de ventas
             total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
         })), 
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
