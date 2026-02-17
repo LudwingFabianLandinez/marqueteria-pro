@@ -1,6 +1,7 @@
-# Prioridad para la API de Cotizaciones y Familias
+# 1. API - Prioridad absoluta
 /api/quotes/materials  /.netlify/functions/server/quotes/materials  200
+/api/quotes            /.netlify/functions/server/quotes            200
 /api/* /.netlify/functions/server/:splat            200
 
-# SPA Routing para el Dashboard
+# 2. SPA - Solo si no es una ruta de API
 /* /dashboard.html  200

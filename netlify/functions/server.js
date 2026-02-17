@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.3.1 (SYNC DEFINITIVA)
+ * Módulo de Servidor (Netlify Function) - Versión 12.3.2 (CIRUGÍA FINAL)
  * Objetivo: Ejecución garantizada, blindaje de datos y compatibilidad total con Frontend.
  */
 
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.3.1 registrados exitosamente");
+    console.log("📦 Modelos v12.3.2 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v12.3.1] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v12.3.2] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -103,7 +103,7 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (SINCRONIZADO CON FRONTEND) ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (VERSION CON CIRUGÍA DE VARIABLES) ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -115,7 +115,7 @@ try {
             let detallesItems = [];
 
             materialesDB.forEach(mat => {
-                // Buscamos el costo en cualquier variante de nombre de campo (Mapeo Robusto)
+                // MAPEO ROBUSTO: Blindamos la captura del costo m2 sin importar el nombre del campo en la DB
                 const costoM2 = mat.costo_m2 || mat.precio_costo_m2 || mat.precio || mat.costo || 0;
                 const costoProporcional = area_m2 * costoM2;
                 
@@ -134,8 +134,8 @@ try {
             const valorManoObraFinal = parseFloat(manoObra || 0);
             const totalGeneral = valorMaterialesFinal + valorManoObraFinal;
 
-            // RESPUESTA AJUSTADA: Enviamos los campos directamente en 'data' para evitar el TypeError
-            res.json({
+            // RESPUESTA AJUSTADA (CIRUGÍA): Aplanamos el objeto para asegurar que el Frontend encuentre los valores
+            const respuestaPlana = {
                 success: true,
                 data: {
                     valor_materiales: valorMaterialesFinal,
@@ -147,7 +147,9 @@ try {
                         materiales: detallesItems
                     }
                 }
-            });
+            };
+
+            res.json(respuestaPlana);
         } catch (error) {
             console.error("🚨 Error en motor de cálculo:", error);
             res.status(500).json({ success: false, error: error.message });
@@ -167,7 +169,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '12.3.1', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '12.3.2', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
