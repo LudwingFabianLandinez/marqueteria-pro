@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.9.1 - Sincronización de Familias + Cirugía de Variables v12.3.2
- * Objetivo: Carga automática de materiales y cálculo sincronizado con el servidor.
+ * Versión: 12.9.2 - Sincronización de Familias + Corrección Visual OT
+ * Objetivo: Carga automática de materiales y visualización limpia en Orden de Trabajo.
  */
 
 let datosCotizacionActual = null;
@@ -121,14 +121,9 @@ async function procesarCotizacion() {
 
         const result = await response.json();
         if (result.success) {
-            // 🎯 AJUSTE QUIRÚRGICO: Sincronización con las variables aplanadas del servidor
-            // El servidor ya nos entrega 'valor_materiales' (que ya es Costo x 3)
             const dataFinal = result.data;
             dataFinal.anchoOriginal = ancho;
             dataFinal.largoOriginal = largo;
-            
-            // Ya no calculamos x3 aquí porque el servidor v12.3.2 ya lo hizo.
-            // Esto evita el error de "undefined" al buscar .costos
             dataFinal.precioSugeridoCliente = dataFinal.total; 
             
             datosCotizacionActual = dataFinal;
@@ -168,20 +163,17 @@ function mostrarResultado(data) {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    let htmlStockAlert = "";
-    let hayInsuficiente = false;
-
-    // Ajuste en la lectura de materiales para evitar errores si detalles no carga
+    // --- CIRUGÍA DE LISTA DE MATERIALES PARA EVITAR [object Object] ---
     const listaMateriales = data.detalles?.materiales || [];
 
-    // Nota: El servidor v12.3.2 envía los nombres de materiales en un array simple para velocidad
-    // Si necesitas validación de m2, el servidor debe enviar el array de objetos detallado.
-    
-    const itemsHTML = listaMateriales.map(nombre => 
-        `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
-            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombre}</span>
-        </li>`
-    ).join('');
+    const itemsHTML = listaMateriales.map(m => {
+        // Si m es un objeto (v12.3.2), tomamos m.nombre. Si es string, lo usamos directo.
+        const nombreVisual = (typeof m === 'object' && m !== null) ? (m.nombre || "MATERIAL") : m;
+        
+        return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
+            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual.toUpperCase()}</span>
+        </li>`;
+    }).join('');
 
     document.getElementById('detalleObra').innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif;">
@@ -278,8 +270,8 @@ async function facturarVenta() {
 
     const facturaData = {
         cliente: { nombre, telefono: document.getElementById('telCliente').value || "N/A" },
-        items: (datosCotizacionActual.detalles?.materiales || []).map(nombreMat => ({
-            materialNombre: nombreMat, 
+        items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
+            materialNombre: (typeof m === 'object' && m !== null) ? m.nombre : m, 
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
             area_m2: datosCotizacionActual.area,
