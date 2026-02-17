@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.2.6 (BUILD CON FAMILIAS)
- * Objetivo: Ejecución garantizada, blindaje de modelos y sincronización de familias para cotización.
+ * Módulo de Servidor (Netlify Function) - Versión 12.2.6 (BUILD CON MOTOR DE CÁLCULO)
+ * Objetivo: Ejecución garantizada, blindaje de modelos y cálculo dinámico de cotizaciones.
  */
 
 const express = require('express');
@@ -66,13 +66,10 @@ const router = express.Router();
 try {
     const Material = mongoose.model('Material'); 
 
-    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS (Versión Ultra-Flexible) ---
+    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
         try {
-            // Buscamos materiales que no estén inactivos para asegurar que carguen
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } });
-            
-            // Función auxiliar para comparar sin importar mayúsculas/minúsculas
             const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
 
             const data = {
@@ -106,7 +103,52 @@ try {
         }
     });
 
-    // Rutas existentes (Mantenidas al 100%)
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (NUEVO GANCHOS) ---
+    router.post('/quotes', async (req, res) => {
+        try {
+            const { ancho, largo, materialesIds, manoObra } = req.body;
+
+            // Buscamos los materiales específicos seleccionados
+            const materialesDB = await Material.find({ _id: { $in: materialesIds } });
+            
+            const area_m2 = (ancho * largo) / 10000;
+            let costoTotalMateriales = 0;
+            let detallesItems = [];
+
+            materialesDB.forEach(mat => {
+                const costoBase = mat.precio_costo_m2 || mat.costo_m2 || 0;
+                const costoProporcional = area_m2 * costoBase;
+                costoTotalMateriales += costoProporcional;
+                
+                detallesItems.push({
+                    id: mat._id,
+                    nombre: mat.nombre,
+                    area_m2: area_m2,
+                    costo_m2_base: costoBase,
+                    precio_proporcional: costoProporcional
+                });
+            });
+
+            res.json({
+                success: true,
+                data: {
+                    detalles: {
+                        medidas: `${ancho} x ${largo} cm`,
+                        materiales: detallesItems
+                    },
+                    costos: {
+                        valor_materiales: costoTotalMateriales,
+                        valor_mano_obra: manoObra || 0
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("🚨 Error en motor de cálculo:", error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // Rutas existentes
     const inventoryRoutes = require('./routes/inventoryRoutes');
     const providerRoutes = require('./routes/providerRoutes');
 
@@ -123,7 +165,7 @@ try {
         res.json({ status: 'OK', version: '12.2.6', db: mongoose.connection.readyState === 1 });
     });
 
-    console.log("✅ Mapa de rutas sincronizado y familias ultra-flexibles habilitadas");
+    console.log("✅ Motor de cálculo y familias sincronizados exitosamente");
 } catch (error) {
     console.error(`🚨 Error vinculando rutas en server.js: ${error.message}`);
 }
@@ -131,6 +173,7 @@ try {
 // 6. VINCULACIÓN FINAL
 app.use('/', router);
 
+// Manejador de errores global
 app.use((err, req, res, next) => {
     console.error("🔥 Error en ejecución serverless:", err.stack);
     res.status(500).json({ success: false, message: "Error interno", error: err.message });
