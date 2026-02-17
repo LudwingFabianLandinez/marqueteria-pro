@@ -64,32 +64,49 @@ const connect = async () => {
 const router = express.Router();
 
 try {
-    // Referencia al modelo para la nueva ruta de familias
     const Material = mongoose.model('Material'); 
 
-    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
+    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS (Versión Ultra-Flexible) ---
     router.get('/quotes/materials', async (req, res) => {
         try {
-            const materiales = await Material.find({ estado: 'Activo' });
+            // Buscamos materiales que no estén inactivos para asegurar que carguen
+            const materiales = await Material.find({ estado: { $ne: 'Inactivo' } });
             
+            // Función auxiliar para comparar sin importar mayúsculas/minúsculas
+            const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
+
             const data = {
-                vidrios: materiales.filter(m => m.nombre.toLowerCase().includes('vidrio') || m.categoria === 'Vidrio'),
-                respaldos: materiales.filter(m => m.nombre.toLowerCase().includes('mdf') || m.nombre.toLowerCase().includes('respaldo')),
-                marcos: materiales.filter(m => m.categoria === 'Marco' || m.nombre.toLowerCase().includes('marco') || m.nombre.toLowerCase().includes('moldura')),
-                paspartu: materiales.filter(m => m.nombre.toLowerCase().includes('paspartu')),
-                foam: materiales.filter(m => m.nombre.toLowerCase().includes('foam')),
-                tela: materiales.filter(m => m.nombre.toLowerCase().includes('tela')),
-                chapilla: materiales.filter(m => m.nombre.toLowerCase().includes('chapilla'))
+                vidrios: materiales.filter(m => {
+                    const n = normalizar(m.nombre);
+                    const c = normalizar(m.categoria);
+                    return n.includes('vidrio') || n.includes('espejo') || c.includes('vidrio');
+                }),
+                respaldos: materiales.filter(m => {
+                    const n = normalizar(m.nombre);
+                    return n.includes('mdf') || n.includes('respaldo') || n.includes('triplex') || n.includes('celtex');
+                }),
+                marcos: materiales.filter(m => {
+                    const n = normalizar(m.nombre);
+                    const c = normalizar(m.categoria);
+                    return c.includes('marco') || n.includes('marco') || n.includes('moldura') || n.includes('madera');
+                }),
+                paspartu: materiales.filter(m => {
+                    const n = normalizar(m.nombre);
+                    return n.includes('paspartu') || n.includes('passepartout') || n.includes('cartulina');
+                }),
+                foam: materiales.filter(m => normalizar(m.nombre).includes('foam')),
+                tela: materiales.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
+                chapilla: materiales.filter(m => normalizar(m.nombre).includes('chapilla'))
             };
 
-            res.json({ success: true, data });
+            res.json({ success: true, count: materiales.length, data });
         } catch (error) {
             console.error("🚨 Error en /quotes/materials:", error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
 
-    // Rutas existentes
+    // Rutas existentes (Mantenidas al 100%)
     const inventoryRoutes = require('./routes/inventoryRoutes');
     const providerRoutes = require('./routes/providerRoutes');
 
@@ -106,7 +123,7 @@ try {
         res.json({ status: 'OK', version: '12.2.6', db: mongoose.connection.readyState === 1 });
     });
 
-    console.log("✅ Mapa de rutas sincronizado y familias habilitadas");
+    console.log("✅ Mapa de rutas sincronizado y familias ultra-flexibles habilitadas");
 } catch (error) {
     console.error(`🚨 Error vinculando rutas en server.js: ${error.message}`);
 }
@@ -114,7 +131,6 @@ try {
 // 6. VINCULACIÓN FINAL
 app.use('/', router);
 
-// Manejador de errores global
 app.use((err, req, res, next) => {
     console.error("🔥 Error en ejecución serverless:", err.stack);
     res.status(500).json({ success: false, message: "Error interno", error: err.message });
