@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.1 (CORRECCIÓN CONTADOR OT)
- * Objetivo: Asegurar que el consecutivo de OT suba correctamente (OT-00001, OT-00002...)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.2 (SOLUCIÓN DEFINITIVA CONTADOR)
+ * Objetivo: Asegurar que el consecutivo de OT suba buscando siempre el valor máximo real.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.1 registrados exitosamente");
+    console.log("📦 Modelos v13.3.2 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.1] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.2] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -169,24 +169,26 @@ try {
         try {
             const facturaData = req.body;
 
-            // --- 🔧 CORRECCIÓN QUIRÚRGICA DEL CONTADOR (v13.3.1) ---
-            // Buscamos la última factura usando el campo real 'numeroFactura'
-            const ultimaFactura = await Invoice.findOne().sort({ createdAt: -1 });
-            let siguienteNumero = 1;
+            // --- 🔧 SOLUCIÓN DEFINITIVA CONTADOR (v13.3.2) ---
+            // Buscamos todas las facturas para encontrar el número más alto real sin depender de fechas
+            const facturasParaConteo = await Invoice.find({}, 'numeroFactura numeroOrden').lean();
+            let maxNumero = 0;
 
-            if (ultimaFactura) {
-                // Verificamos tanto 'numeroFactura' como 'numeroOrden' por compatibilidad
-                const idTexto = ultimaFactura.numeroFactura || ultimaFactura.numeroOrden || "";
+            facturasParaConteo.forEach(doc => {
+                const idTexto = doc.numeroFactura || doc.numeroOrden || "";
                 if (idTexto.includes('-')) {
                     const partes = idTexto.split('-');
-                    const ultimoNum = parseInt(partes[partes.length - 1]);
-                    if (!isNaN(ultimoNum)) siguienteNumero = ultimoNum + 1;
+                    const num = parseInt(partes[partes.length - 1]);
+                    if (!isNaN(num) && num > maxNumero) {
+                        maxNumero = num;
+                    }
                 }
-            }
+            });
 
+            const siguienteNumero = maxNumero + 1;
             const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
             
-            // Asignamos el número a ambos campos para evitar huecos en la base de datos
+            // Asignamos el número a ambos campos para total compatibilidad
             facturaData.numeroFactura = otConsecutivo;
             facturaData.numeroOrden = otConsecutivo; 
             // -------------------------------------------------------
@@ -232,7 +234,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.1', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.2', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
