@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.3.4 (MAPEADO AGRESIVO)
- * Objetivo: Estandarizar el envío de costos para eliminar el error de $0 en el Cotizador.
+ * Módulo de Servidor (Netlify Function) - Versión 13.1.8 (CONSOLIDADO + RUTA NATIVA)
+ * Objetivo: Estandarizar costos y blindar la facturación contra errores 404 de rutas externas.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.3.4 registrados exitosamente");
+    console.log("📦 Modelos v13.1.8 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v12.3.4] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.1.8] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -66,20 +66,18 @@ const router = express.Router();
 try {
     const Material = mongoose.model('Material'); 
 
-    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
+    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS (Mantenida 100%) ---
     router.get('/quotes/materials', async (req, res) => {
         try {
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
             const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
 
-            // 🔥 MAPEADO DE SEGURIDAD: Inyectamos el costo real en 'costo_m2' 
-            // Esto corrige los materiales antiguos que solo tienen 'precio_m2_costo'
             const materialesMapeados = materiales.map(m => {
                 const costoReal = m.costo_m2 || m.precio_m2_costo || 0;
                 return {
                     ...m,
                     costo_m2: costoReal,
-                    id: m._id // Compatibilidad de ID
+                    id: m._id 
                 };
             });
 
@@ -114,7 +112,7 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (Mantenido 100%) ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -125,12 +123,9 @@ try {
             let detallesItems = [];
 
             materialesDB.forEach(mat => {
-                // Buscamos el costo en cualquier campo posible para no fallar
                 const costoM2 = mat.costo_m2 || mat.precio_m2_costo || 0;
                 const costoProporcional = area_m2 * costoM2;
-                
                 costoBaseTotalMateriales += costoProporcional;
-                
                 detallesItems.push({
                     nombre: mat.nombre,
                     area_m2: area_m2,
@@ -139,14 +134,11 @@ try {
                 });
             });
 
-            const valorMaterialesBase = costoBaseTotalMateriales;
-            const valorManoObraFinal = parseFloat(manoObra || 0);
-
             res.json({
                 success: true,
                 data: {
-                    valor_materiales: valorMaterialesBase,
-                    valor_mano_obra: valorManoObraFinal,
+                    valor_materiales: costoBaseTotalMateriales,
+                    valor_mano_obra: parseFloat(manoObra || 0),
                     area: area_m2,
                     detalles: {
                         medidas: `${ancho} x ${largo} cm`,
@@ -160,17 +152,47 @@ try {
         }
     });
 
-    // Rutas existentes
+    // --- 🧾 NUEVA RUTA NATIVA DE FACTURACIÓN (BLINDAJE ANT-404) ---
+    router.post('/invoices', async (req, res) => {
+        try {
+            const Invoice = mongoose.model('Invoice');
+            const Material = mongoose.model('Material');
+            const facturaData = req.body;
+
+            // 1. Guardar la factura en la DB
+            const nuevaFactura = new Invoice(facturaData);
+            await nuevaFactura.save();
+
+            // 2. Descuento Automático de Stock (Gancho necesario)
+            if (facturaData.items && Array.isArray(facturaData.items)) {
+                for (const item of facturaData.items) {
+                    if (item.productoId) {
+                        const areaADescontar = parseFloat(item.area_m2 || 0);
+                        await Material.findByIdAndUpdate(item.productoId, {
+                            $inc: { stock_actual: -areaADescontar }
+                        });
+                        console.log(`📉 Stock actualizado: ${item.materialNombre} -${areaADescontar}`);
+                    }
+                }
+            }
+
+            res.json({ success: true, message: "Factura procesada con éxito", data: nuevaFactura });
+        } catch (error) {
+            console.error("🚨 Error procesando factura nativa:", error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // --- VINCULACIÓN DE RUTAS RESTANTES ---
     router.use('/inventory', require('./routes/inventoryRoutes'));
     router.use('/providers', require('./routes/providerRoutes'));
     router.use('/purchases', require('./routes/inventoryRoutes'));
     
     try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
-    try { router.use('/invoices', require('./routes/invoiceRoutes')); } catch(e){}
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '12.3.4', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.1.8', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
