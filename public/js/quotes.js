@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.6 - RESOLUCIÓN QUIRÚRGICA DE TRANSACCIÓN
- * Objetivo: Asegurar el envío de 'cantidad' y 'materialId' manteniendo el blindaje.
+ * Versión: 13.0.7 - CONSOLIDACIÓN DEFINITIVA DE ÁREA Y STOCK
+ * Objetivo: Asegurar que 'cantidad' y 'materialId' se sincronicen incluso en cálculo local.
  */
 
 let datosCotizacionActual = null;
@@ -51,7 +51,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // 🛠️ RASTREADOR UNIVERSAL: 
                     const precioDetectado = m.costo_m2 || m.precio_m2_costo || 0;
                     
                     option.dataset.costo = precioDetectado;
@@ -138,8 +137,6 @@ async function procesarCotizacion() {
 
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
-            // Forzamos que detalles.materiales contenga los IDs del frontend para la venta
-            dataFinal.detalles.materiales = materialesSeleccionados;
         } else {
             let costoBaseLocal = 0;
             materialesSeleccionados.forEach(m => {
@@ -156,11 +153,15 @@ async function procesarCotizacion() {
             };
         }
 
+        // 🛠️ GANCHO DE SEGURIDAD: Sincronizamos los materiales seleccionados con la data final
+        // Esto asegura que la función facturarVenta() siempre tenga los IDs correctos.
+        dataFinal.detalles.materiales = materialesSeleccionados;
+        
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
-        dataFinal.areaFinal = dataFinal.area || areaCalculada; // Aseguramos que exista el área
+        dataFinal.areaFinal = dataFinal.area || areaCalculada;
         dataFinal.valor_mano_obra = manoObraInput;
         
         datosCotizacionActual = dataFinal;
@@ -303,7 +304,7 @@ async function facturarVenta() {
 
     const facturaData = {
         cliente: { nombre, telefono: document.getElementById('telCliente').value || "N/A" },
-        // 🔥 MAPEADO QUIRÚRGICO: Aseguramos que 'cantidad' y 'materialId' nunca falten
+        // 🔥 MAPEADO FINAL: Aseguramos que 'cantidad' sea siempre el área calculada
         items: (datosCotizacionActual.detalles?.materiales || []).map(m => {
             const esObjeto = (typeof m === 'object' && m !== null);
             const idMaterial = esObjeto ? (m.id || m._id) : null;
@@ -315,7 +316,7 @@ async function facturarVenta() {
                 ancho: datosCotizacionActual.anchoOriginal,
                 largo: datosCotizacionActual.largoOriginal,
                 area_m2: areaM2,
-                cantidad: areaM2, // <--- REQUERIDO POR TRANSACCIÓN
+                cantidad: areaM2, // <--- VALOR CRÍTICO PARA LA BASE DE DATOS
                 total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
             };
         }), 
