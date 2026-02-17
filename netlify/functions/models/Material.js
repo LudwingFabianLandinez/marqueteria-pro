@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 /**
  * MODELO DE MATERIALES - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.4 - BLINDAJE DE CATEGORÍAS
- * Define la estructura de las láminas y perfiles del inventario.
+ * Versión: 12.2.5 - BLINDAJE DE CATEGORÍAS & SINCRONIZACIÓN DE COSTOS
+ * Objetivo: Asegurar que el campo 'costo_m2' sea accesible para el motor de cálculo.
  */
 const MaterialSchema = new mongoose.Schema({
     nombre: { 
@@ -11,7 +11,6 @@ const MaterialSchema = new mongoose.Schema({
         required: true, 
         trim: true 
     },
-    // Categoría blindada: Acepta las originales + 'General' y 'Otros'
     categoria: { 
         type: String, 
         required: true,
@@ -24,7 +23,7 @@ const MaterialSchema = new mongoose.Schema({
             'Tela', 
             'Chapilla',
             'Moldura',
-            'General', // <--- Nueva categoría permitida
+            'General', 
             'Otros'
         ],
         default: 'Otros'
@@ -34,7 +33,6 @@ const MaterialSchema = new mongoose.Schema({
         enum: ['m2', 'ml'], 
         default: 'm2' 
     },
-    // Dimensiones físicas
     ancho_lamina_cm: { 
         type: Number, 
         required: true,
@@ -45,7 +43,7 @@ const MaterialSchema = new mongoose.Schema({
         required: true,
         default: 0
     }, 
-    // Costos y Precios
+    // Costos y Precios originales
     precio_total_lamina: { 
         type: Number, 
         required: true,
@@ -55,27 +53,27 @@ const MaterialSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    // Precio de venta sugerido
+    // 🛡️ GANCHO DE SEGURIDAD: Campo duplicado para compatibilidad con el servidor
+    costo_m2: {
+        type: Number,
+        default: 0
+    },
     precio_venta_sugerido: {
         type: Number,
         default: 0
     },
-    // Gestión de existencias
     stock_actual: { 
         type: Number, 
         default: 0 
     }, 
     stock_minimo: { 
         type: Number, 
-        default: 2 // Alerta visual en el dashboard
+        default: 2 
     },
     area_por_lamina_m2: { 
         type: Number,
         default: 0
     },
-    /**
-     * Referencia al modelo único Provider.
-     */
     proveedor: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Provider' 
@@ -90,10 +88,10 @@ const MaterialSchema = new mongoose.Schema({
 
 /**
  * MIDDLEWARE PRE-SAVE:
- * Realiza cálculos técnicos automáticos antes de guardar.
+ * Mantiene sincronizado 'costo_m2' con 'precio_m2_costo' automáticamente.
  */
 MaterialSchema.pre('save', function(next) {
-    // Caso de materiales por área (Vidrios, Foams, etc)
+    // Cálculo de área
     if (this.tipo === 'm2') {
         const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
         this.area_por_lamina_m2 = areaCalculada;
@@ -102,20 +100,19 @@ MaterialSchema.pre('save', function(next) {
             this.precio_m2_costo = Math.round(this.precio_total_lamina / areaCalculada);
         }
     } 
-    // Caso de materiales por metro lineal (Marcos, Molduras)
     else if (this.tipo === 'ml') {
         if (this.largo_lamina_cm > 0) {
             this.precio_m2_costo = Math.round(this.precio_total_lamina / (this.largo_lamina_cm / 100));
         }
     }
+
+    // 🔥 SINCRONIZACIÓN CRÍTICA:
+    // Aseguramos que 'costo_m2' siempre tenga el valor de 'precio_m2_costo'
+    this.costo_m2 = this.precio_m2_costo;
     
     if (this.stock_actual < 0) this.stock_actual = 0;
 
     next();
 });
 
-/**
- * EXPORTACIÓN CORREGIDA PARA SERVERLESS:
- * Mantenemos la lógica de Singleton con el nombre de colección 'materiales'.
- */
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');

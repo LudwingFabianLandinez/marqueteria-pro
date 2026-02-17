@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 12.3.2 (CIRUGÍA FINAL)
- * Objetivo: Ejecución garantizada, blindaje de datos y compatibilidad total con Frontend.
+ * Módulo de Servidor (Netlify Function) - Versión 12.3.3 (ESTABILIZACIÓN DE COSTOS)
+ * Objetivo: Mapeo explícito de costos para eliminar el error de $0 en el Frontend.
  */
 
 const express = require('express');
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v12.3.2 registrados exitosamente");
+    console.log("📦 Modelos v12.3.3 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     }
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v12.3.2] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v12.3.3] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -69,31 +69,39 @@ try {
     // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
         try {
-            const materiales = await Material.find({ estado: { $ne: 'Inactivo' } });
+            const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
             const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
 
+            // Mapeo preventivo: Aseguramos que cada objeto lleve el campo 'costo_m2' 
+            // sin importar cómo esté guardado en la base de datos.
+            const materialesMapeados = materiales.map(m => ({
+                ...m,
+                costo_m2: m.costo_m2 || m.precio_costo_m2 || m.precio || m.costo || 0,
+                id: m._id // Aseguramos compatibilidad de ID
+            }));
+
             const data = {
-                vidrios: materiales.filter(m => {
+                vidrios: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre);
                     const c = normalizar(m.categoria);
                     return n.includes('vidrio') || n.includes('espejo') || c.includes('vidrio');
                 }),
-                respaldos: materiales.filter(m => {
+                respaldos: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre);
                     return n.includes('mdf') || n.includes('respaldo') || n.includes('triplex') || n.includes('celtex');
                 }),
-                marcos: materiales.filter(m => {
+                marcos: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre);
                     const c = normalizar(m.categoria);
                     return c.includes('marco') || n.includes('marco') || n.includes('moldura') || n.includes('madera');
                 }),
-                paspartu: materiales.filter(m => {
+                paspartu: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre);
                     return n.includes('paspartu') || n.includes('passepartout') || n.includes('cartulina');
                 }),
-                foam: materiales.filter(m => normalizar(m.nombre).includes('foam')),
-                tela: materiales.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
-                chapilla: materiales.filter(m => normalizar(m.nombre).includes('chapilla'))
+                foam: materialesMapeados.filter(m => normalizar(m.nombre).includes('foam')),
+                tela: materialesMapeados.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
+                chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla'))
             };
 
             res.json({ success: true, count: materiales.length, data });
@@ -103,11 +111,10 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN (VERSION CON CIRUGÍA DE VARIABLES) ---
+    // --- 🧮 MOTOR DE CÁLCULO DE COTIZACIÓN ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
-
             const materialesDB = await Material.find({ _id: { $in: materialesIds } });
             
             const area_m2 = (ancho * largo) / 10000;
@@ -115,7 +122,6 @@ try {
             let detallesItems = [];
 
             materialesDB.forEach(mat => {
-                // MAPEO ROBUSTO: Blindamos la captura del costo m2 sin importar el nombre del campo en la DB
                 const costoM2 = mat.costo_m2 || mat.precio_costo_m2 || mat.precio || mat.costo || 0;
                 const costoProporcional = area_m2 * costoM2;
                 
@@ -129,18 +135,15 @@ try {
                 });
             });
 
-            // 🎯 APLICACIÓN DE REGLA DE NEGOCIO: (Costo de materiales * 3)
-            const valorMaterialesFinal = costoBaseTotalMateriales * 3;
+            // 🎯 REGLA: Costo base real de materiales
+            const valorMaterialesBase = costoBaseTotalMateriales;
             const valorManoObraFinal = parseFloat(manoObra || 0);
-            const totalGeneral = valorMaterialesFinal + valorManoObraFinal;
 
-            // RESPUESTA AJUSTADA (CIRUGÍA): Aplanamos el objeto para asegurar que el Frontend encuentre los valores
             const respuestaPlana = {
                 success: true,
                 data: {
-                    valor_materiales: valorMaterialesFinal,
+                    valor_materiales: valorMaterialesBase, // Enviamos el costo base (el x3 se hace en quotes.js para evitar doble cobro)
                     valor_mano_obra: valorManoObraFinal,
-                    total: Math.round(totalGeneral),
                     area: area_m2,
                     detalles: {
                         medidas: `${ancho} x ${largo} cm`,
@@ -169,7 +172,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '12.3.2', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '12.3.3', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
