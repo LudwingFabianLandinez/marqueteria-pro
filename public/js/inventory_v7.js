@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.6 - CONSOLIDACIÓN FINAL + INTEGRACIÓN DE FLUJO DE VENTA
+ * Versión: 13.3.6 - CONSOLIDACIÓN FINAL + FIX HISTORIAL VISUAL
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1 / v12.8.5
  */
 
@@ -11,15 +11,63 @@ let datosCotizacionActual = null; // Para manejo de facturación
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.1.6 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.6 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
+    
+    // Gancho de detección: si estamos en history.html, carga las ventas
+    if (window.location.pathname.includes('history.html')) {
+        cargarHistorialVentas();
+    }
 });
 
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('active');
+}
+
+// --- SECCIÓN HISTORIAL (ELIMINA [object Object] y $0) ---
+
+async function cargarHistorialVentas() {
+    const cuerpoTabla = document.getElementById('lista-ventas');
+    if (!cuerpoTabla) return;
+
+    try {
+        const res = await fetch('/api/invoices');
+        const ventas = await res.json();
+        
+        const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+        if (Array.isArray(ventas) && ventas.length > 0) {
+            cuerpoTabla.innerHTML = ventas.map(venta => {
+                // Limpieza de datos recibidos del server v13.3.6
+                const nombreCliente = (typeof venta.cliente === 'string') 
+                    ? venta.cliente 
+                    : (venta.clienteNombre || "Cliente General");
+
+                const totalVenta = venta.total || venta.totalVenta || 0;
+                const orden = venta.numeroOrden || venta.numeroFactura || "S/N";
+                const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
+
+                return `
+                    <tr>
+                        <td>${fecha}</td>
+                        <td style="font-weight: bold; color: #1e293b;">${orden}</td>
+                        <td>${nombreCliente}</td>
+                        <td class="text-success" style="font-weight: bold;">
+                            ${formateador.format(totalVenta)}
+                        </td>
+                        <td><span class="badge bg-success" style="background:#10b981; color:white; padding:4px 8px; border-radius:12px; font-size:0.7rem;">Completado</span></td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            cuerpoTabla.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">No hay ventas registradas.</td></tr>';
+        }
+    } catch (error) {
+        console.error("❌ Error cargando historial:", error);
+    }
 }
 
 // --- SECCIÓN PROVEEDORES ---
@@ -196,10 +244,9 @@ function renderTable(materiales) {
     });
 }
 
-// --- FACTURACIÓN Y CONEXIÓN API (GANCHO DE SALIDA DEL BUCLE) ---
+// --- FACTURACIÓN Y CONEXIÓN API ---
 
 async function facturarVenta() {
-    // Recuperar datos si la variable global se limpió al cambiar de pestaña
     if (!datosCotizacionActual) {
         const backup = localStorage.getItem('ultima_cotizacion');
         if (backup) datosCotizacionActual = JSON.parse(backup);
@@ -216,9 +263,8 @@ async function facturarVenta() {
     const btnVenta = document.getElementById('btnFinalizarVenta');
     const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
     
-    // Adaptación para que el servidor reciba los campos correctos para descontar stock
     const facturaData = {
-        clienteNombre: nombre, // Adaptado para server.js
+        clienteNombre: nombre, 
         clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
         total: datosCotizacionActual.precioSugeridoCliente,
         abono: abono,
@@ -271,7 +317,6 @@ async function facturarVenta() {
 // --- EVENTOS Y CONFIGURACIÓN ---
 
 function configurarEventos() {
-    // Gancho para el botón de facturar si existe en la vista
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
