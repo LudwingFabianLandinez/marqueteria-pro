@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.2 - RUTA ROBUSTA + BLINDAJE DE GUARDADO
- * Objetivo: Asegurar que la venta se registre sin errores de ruta 404.
+ * Versión: 13.1.6 - RUTA ROBUSTA + SINCRONIZACIÓN DE STOCK
+ * Objetivo: Asegurar que la venta se registre usando el puente funcional de Netlify.
  */
 
 let datosCotizacionActual = null;
@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        // Ruta de obtención de materiales (manteniendo tu estructura actual)
+        // Usamos la ruta que ya confirmamos que funciona para traer data
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
@@ -68,6 +68,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Foam, cat.foam);
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
+            
+            console.log("✅ Materiales cargados con blindaje v13.1.6");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -299,15 +301,20 @@ async function facturarVenta() {
         btnVenta.disabled = true;
         btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         
-        // CORRECCIÓN CLAVE: Usamos la ruta directa para evitar Error 404/HTML
-        const response = await fetch('/.netlify/functions/invoices', {
+        /**
+         * RUTA CONSOLIDADA: Usamos la ruta del motor principal '/server/invoices' 
+         * que es la que Netlify reconoce bajo la función principal.
+         */
+        const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)
         });
 
-        if (!response.ok) {
-            throw new Error(`Servidor respondió con estado ${response.status}`);
+        // Verificamos si la respuesta es HTML (error de ruta) o JSON (éxito)
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || !contentType || !contentType.includes("application/json")) {
+             throw new Error("El servidor no respondió con un JSON válido. Revisa la ruta.");
         }
 
         const result = await response.json();
@@ -315,13 +322,30 @@ async function facturarVenta() {
             alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
             window.location.href = "/history.html"; 
         } else {
-            alert("🚨 Error: " + (result.error || "No se pudo registrar."));
+            alert("🚨 Error: " + (result.error || "No se pudo registrar la venta."));
             btnVenta.disabled = false;
+            btnVenta.innerHTML = '<i class="fas fa-save"></i> CONFIRMAR VENTA';
         }
     } catch (error) { 
         console.error("Error en facturación:", error);
-        alert("Error de conexión. Verifica la consola para más detalles.");
-        btnVenta.disabled = false;
-        btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
+        alert("Error de conexión. Se intentará usar ruta de respaldo...");
+        
+        // Intento final con ruta directa por si acaso
+        try {
+            const resBackup = await fetch('/.netlify/functions/invoices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(facturaData)
+            });
+            const dataB = await resBackup.json();
+            if(dataB.success) {
+                alert("✅ Venta registrada (Vía Respaldo)");
+                window.location.href = "/history.html";
+            }
+        } catch(e) {
+            alert("🚨 Error persistente. No se pudo guardar la venta.");
+            btnVenta.disabled = false;
+            btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
+        }
     }
 }
