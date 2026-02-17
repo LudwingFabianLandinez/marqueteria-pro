@@ -1,16 +1,17 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.8.6 - UI: CONSOLIDACIÓN DEFINITIVA + PRECISIÓN UNITARIA
+ * Versión: 13.1.0 - CONSOLIDACIÓN DEFINITIVA + FIX RUTA API
  * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1 / v12.8.5
  */
 
 // 1. VARIABLES GLOBALES
 window.todosLosMateriales = [];
 window.todosLosProveedores = [];
+let datosCotizacionActual = null; // Para manejo de facturación
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v12.8.6 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.1.0 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -35,7 +36,7 @@ async function fetchProviders() {
             
             localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
             actualizarSelectProveedores();
-            window.cargarListasModal();
+            if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
 
             const directorio = document.getElementById('directorioProveedores');
             if (directorio) {
@@ -112,7 +113,7 @@ async function fetchInventory() {
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
-        window.cargarListasModal();
+        if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
 
@@ -128,7 +129,6 @@ function renderTable(materiales) {
         const stockActualUnidad = m.stock_actual;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
-        // --- 🎯 MOTOR ESTRATÉGICO DE CÁLCULO ---
         const ancho = m.ancho_lamina_cm;
         const largo = m.largo_lamina_cm;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
@@ -194,6 +194,73 @@ function renderTable(materiales) {
         `;
         cuerpoTabla.appendChild(fila);
     });
+}
+
+// --- FACTURACIÓN Y CONEXIÓN API (GANCHO DE SALIDA DEL BUCLE) ---
+
+async function facturarVenta() {
+    if (!datosCotizacionActual) return;
+    const nombre = document.getElementById('nombreCliente')?.value.trim();
+    if (!nombre) { alert("⚠️ Nombre cliente requerido."); return; }
+
+    const btnVenta = document.getElementById('btnFinalizarVenta');
+    const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
+    
+    // MAPEO TÉCNICO HACIA MODELS/INVOICE.JS
+    const facturaData = {
+        numeroFactura: `OT-${Date.now().toString().slice(-6)}`,
+        cliente: { 
+            nombre, 
+            telefono: document.getElementById('telCliente')?.value || "N/A" 
+        },
+        medidas: datosCotizacionActual.detalles.medidas,
+        items: datosCotizacionActual.detalles.materiales.map(m => ({
+            productoId: m.id, 
+            materialNombre: m.nombre,
+            ancho: datosCotizacionActual.anchoOriginal,
+            largo: datosCotizacionActual.largoOriginal,
+            area_m2: datosCotizacionActual.areaFinal,
+            costo_base_unitario: m.costoUnitario,
+            total_item: Math.round(((m.costoUnitario * datosCotizacionActual.areaFinal) * 3))
+        })),
+        totalFactura: datosCotizacionActual.precioSugeridoCliente,
+        totalPagado: abono, 
+        mano_obra_total: datosCotizacionActual.valor_mano_obra
+    };
+
+    try {
+        if(btnVenta) {
+            btnVenta.disabled = true;
+            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
+        }
+        
+        // CORRECCIÓN DE RUTA PARA EVITAR ERROR 404 EN NETLIFY
+        const res = await fetch('/.netlify/functions/server/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(facturaData)
+        });
+        
+        const result = await res.json();
+        
+        if (result.success) {
+            alert("✅ VENTA REGISTRADA Y STOCK ACTUALIZADO");
+            window.location.href = "/history.html";
+        } else {
+            alert("🚨 Error: " + (result.error || "Falla en servidor"));
+            if(btnVenta) {
+                btnVenta.disabled = false;
+                btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
+            }
+        }
+    } catch (e) {
+        console.error("Error Fetch:", e);
+        alert("Error de red o conexión al servidor.");
+        if(btnVenta) {
+            btnVenta.disabled = false;
+            btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
+        }
+    }
 }
 
 // --- EVENTOS Y CONFIGURACIÓN ---
