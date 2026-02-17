@@ -27,47 +27,66 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- SECCIÓN HISTORIAL (ELIMINA [object Object] y $0) ---
+// --- SECCIÓN HISTORIAL (ACTUALIZADA: SALDO, ESTADO Y ACCIONES) ---
 
 async function cargarHistorialVentas() {
     const cuerpoTabla = document.getElementById('lista-ventas');
     if (!cuerpoTabla) return;
 
     try {
-        // FIX: Ahora usamos el puente de api.js para asegurar la ruta correcta en Netlify
+        // FIX: Usamos el puente de api.js para asegurar la ruta correcta en Netlify
         const res = await window.API.getInvoices();
         const ventas = res.success ? res.data : (Array.isArray(res) ? res : []);
         
-        const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+        const formateador = new Intl.NumberFormat('es-CO', { 
+            style: 'currency', 
+            currency: 'COP', 
+            maximumFractionDigits: 0 
+        });
 
         if (Array.isArray(ventas) && ventas.length > 0) {
             cuerpoTabla.innerHTML = ventas.map(venta => {
-                // Limpieza de datos recibidos del server v13.3.6
+                // Limpieza de datos recibidos del server
                 const nombreCliente = (typeof venta.cliente === 'string') 
                     ? venta.cliente 
                     : (venta.clienteNombre || "Cliente General");
 
                 const totalVenta = venta.total || venta.totalVenta || 0;
+                const saldo = venta.saldo !== undefined ? venta.saldo : (totalVenta - (venta.abono || 0));
                 const orden = venta.numeroOrden || venta.numeroFactura || venta.ot || "S/N";
                 const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
+                const estado = venta.estado || "Completado";
 
                 return `
                     <tr>
                         <td>${fecha}</td>
                         <td style="font-weight: bold; color: #1e293b;">${orden}</td>
                         <td>${nombreCliente}</td>
-                        <td class="text-success" style="font-weight: bold;">
+                        <td style="font-weight: bold;">
                             ${formateador.format(totalVenta)}
                         </td>
-                        <td><span class="badge bg-success" style="background:#10b981; color:white; padding:4px 8px; border-radius:12px; font-size:0.7rem;">Completado</span></td>
+                        <td class="text-danger" style="font-weight: bold;">
+                            ${formateador.format(saldo)}
+                        </td>
+                        <td>
+                            <span class="badge" style="background:#10b981; color:white; padding:4px 8px; border-radius:12px; font-size:0.7rem;">
+                                ${estado}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn-table-action" onclick="window.verDetalleVenta('${venta._id || venta.id}')" title="Ver Detalle">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
         } else {
-            cuerpoTabla.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">No hay ventas registradas.</td></tr>';
+            cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#94a3b8;">No hay ventas registradas.</td></tr>';
         }
     } catch (error) {
         console.error("❌ Error cargando historial:", error);
+        cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Error de conexión con el servidor.</td></tr>';
     }
 }
 
@@ -286,7 +305,6 @@ async function facturarVenta() {
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
         }
         
-        // Usamos window.API.saveInvoice si existe para mantener el blindaje
         const res = await window.API.saveInvoice(facturaData);
         
         if (res.success) {
