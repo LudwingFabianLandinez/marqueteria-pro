@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.4 - RASTREADOR DE PRECIOS INFALIBLE
- * Objetivo: Asegurar que el dataset 'costo' se llene correctamente desde el servidor.
+ * Versión: 13.0.5 - CONSOLIDACIÓN DE DATOS DE VENTA
+ * Objetivo: Asegurar el envío de 'cantidad' y 'materialId' para evitar errores de validación.
  */
 
 let datosCotizacionActual = null;
@@ -52,7 +52,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.style = color;
 
                     // 🛠️ RASTREADOR UNIVERSAL: 
-                    // Busca el costo en costo_m2 (inyectado por server) o precio_m2_costo (modelo)
                     const precioDetectado = m.costo_m2 || m.precio_m2_costo || 0;
                     
                     option.dataset.costo = precioDetectado;
@@ -136,7 +135,6 @@ async function procesarCotizacion() {
         const result = await response.json();
         let dataFinal;
 
-        // Motor de respaldo: Si el servidor falla, calculamos localmente con el dataset blindado
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
         } else {
@@ -151,12 +149,11 @@ async function procesarCotizacion() {
                 area: areaM2,
                 detalles: {
                     medidas: `${ancho} x ${largo} cm`,
-                    materiales: materialesSeleccionados.map(m => m.nombre)
+                    materiales: materialesSeleccionados // Guardamos el objeto completo aquí para el descuento de stock
                 }
             };
         }
 
-        // 🎯 FÓRMULA: (Costo x 3) + Mano de Obra
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         dataFinal.anchoOriginal = ancho;
@@ -303,13 +300,19 @@ async function facturarVenta() {
 
     const facturaData = {
         cliente: { nombre, telefono: document.getElementById('telCliente').value || "N/A" },
-        items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
-            materialNombre: (typeof m === 'object' && m !== null) ? m.nombre : m, 
-            ancho: datosCotizacionActual.anchoOriginal,
-            largo: datosCotizacionActual.largoOriginal,
-            area_m2: datosCotizacionActual.area,
-            total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
-        })), 
+        // 🔥 MAPEADO CORREGIDO: Inyectamos materialId y cantidad para el blindaje de stock
+        items: (datosCotizacionActual.detalles?.materiales || []).map(m => {
+            const esObjeto = (typeof m === 'object' && m !== null);
+            return {
+                materialId: esObjeto ? (m.id || m._id) : null,
+                materialNombre: esObjeto ? m.nombre : m, 
+                ancho: datosCotizacionActual.anchoOriginal,
+                largo: datosCotizacionActual.largoOriginal,
+                area_m2: datosCotizacionActual.area,
+                cantidad: datosCotizacionActual.area, // <--- GANCHO CRÍTICO: Requerido por Transaction
+                total_item: Math.round((datosCotizacionActual.valor_materiales || 0) * 3 / (datosCotizacionActual.detalles?.materiales?.length || 1))
+            };
+        }), 
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         abonoInicial: abono,   
         manoObraTotal: datosCotizacionActual.valor_mano_obra || 0,
@@ -330,11 +333,14 @@ async function facturarVenta() {
             alert(`✅ VENTA EXITOSA\nOrden N°: ${result.data.numeroFactura}`);
             window.location.href = "/history.html"; 
         } else {
-            alert("🚨 Error: " + (result.error || "No se pudo registrar."));
+            alert("🚨 Error: " + (result.error || "No se pudo registrar la venta."));
             btnVenta.disabled = false;
+            btnVenta.innerHTML = '<i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK';
         }
     } catch (error) { 
-        alert("Error de conexión.");
+        console.error("Error en facturación:", error);
+        alert("Error de conexión con el servidor.");
         btnVenta.disabled = false;
+        btnVenta.innerHTML = '<i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK';
     }
 }
