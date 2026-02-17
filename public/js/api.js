@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.2.9 (SINCRO TOTAL SCHEMA)
- * Ajustado para cumplir con Transaccion.js y asegurar cálculo Área x Cantidad.
+ * Módulo de conexión API - Versión 12.3.0 (NETLIFY OPTIMIZED)
+ * Intervención Quirúrgica: Asegura rutas de Historial y Dashboard.
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -9,6 +9,7 @@ const API_BASE = '/.netlify/functions/server';
 window.API = {
     url: API_BASE,
 
+    // Motor de procesamiento de respuestas (Blindado)
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -23,11 +24,13 @@ window.API = {
         }
         if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
+            // Normalización: Si es un Array directo, lo envolvemos en success: true
             return Array.isArray(data) ? { success: true, data: data } : data;
         }
         return { success: true };
     },
 
+    // --- SECCIÓN PROVEEDORES ---
     getProviders: async function() {
         try {
             const response = await fetch(`${window.API.url}/providers`);
@@ -57,6 +60,7 @@ window.API = {
         } catch (err) { throw err; }
     },
 
+    // --- SECCIÓN INVENTARIO ---
     getInventory: async function() {
         try {
             const response = await fetch(`${window.API.url}/inventory`);
@@ -82,9 +86,7 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    /** * REGISTRO DE COMPRA - REESTRUCTURADO V12.2.9
-     * Sincronizado con Transaccion.js (Model) y FIX de Medidas Totales
-     */
+    // --- REGISTRO DE COMPRA (Mantiene lógica v12.2.9) ---
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Sincronizando Compra con Medidas Totales...");
         
@@ -113,7 +115,6 @@ window.API = {
                 },
                 body: JSON.stringify(payload)
             });
-
             return await window.API._safeParse(response);
         } catch (err) {
             console.error("❌ Error Crítico en Compra:", err.message);
@@ -124,7 +125,6 @@ window.API = {
     adjustStock: async function(data) {
         try {
             if (!data.tipo) data.tipo = "AJUSTE_MAS"; 
-            
             const response = await fetch(`${window.API.url}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -144,38 +144,53 @@ window.API = {
     getHistory: async function(id = null) {
         try {
             const url = id ? `${window.API.url}/inventory/history/${id}` : `${window.API.url}/inventory/history`;
-            return await window.API._safeParse(await fetch(url));
+            const response = await fetch(url);
+            return await window.API._safeParse(response);
         } catch (err) { return { success: true, data: [] }; }
     },
 
+    // --- SECCIÓN VENTAS Y ESTADÍSTICAS (AJUSTE CRÍTICO PARA NETLIFY) ---
     getDashboardStats: async function() {
         try {
-            return await window.API._safeParse(await fetch(`${window.API.url}/stats`));
-        } catch (err) { return { success: true, data: { totalVentas: 0 } }; }
+            const response = await fetch(`${window.API.url}/stats`);
+            return await window.API._safeParse(response);
+        } catch (err) { 
+            console.error("Error stats:", err);
+            return { success: false, data: { totalVentas: 0 }, error: err.message }; 
+        }
     },
 
     getInvoices: async function() { 
-        try { return await window.API._safeParse(await fetch(`${window.API.url}/invoices`)); } 
-        catch(e) { return { success: true, data: [] }; } 
+        try { 
+            const response = await fetch(`${window.API.url}/invoices`);
+            return await window.API._safeParse(response); 
+        } 
+        catch(e) { 
+            console.error("Error invoices:", e);
+            return { success: false, data: [], error: e.message }; 
+        } 
     },
 
     saveInvoice: async function(d) { 
         try { 
-            const r = await fetch(`${window.API.url}/invoices`, {
+            const response = await fetch(`${window.API.url}/invoices`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json' 
+                },
                 body: JSON.stringify(d)
             }); 
-            return await window.API._safeParse(r); 
+            return await window.API._safeParse(response); 
         } catch(e) { return { success: false, message: e.message }; } 
     }
 };
 
-// COMPATIBILIDAD DE MÉTODOS
+// COMPATIBILIDAD DE MÉTODOS (Respetada al 100%)
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v12.2.9 - Blindaje y Sincronización Total Activa.");
+console.log("🛡️ API v12.3.0 - Sincronización Netlify y Blindaje Activo.");

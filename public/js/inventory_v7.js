@@ -1,23 +1,24 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.6 - CONSOLIDACIÓN FINAL + FIX HISTORIAL VISUAL
- * Respetando estructura visual y blindaje de datos v12.1.7 / v12.6.1 / v12.8.5
+ * Versión: 13.3.7 - CONSOLIDACIÓN QUIRÚRGICA HISTORIAL
+ * Mantiene intacta la lógica de Inventario, Proveedores y Compras.
+ * Fix: Renderizado de 7 columnas en Historial y detección de ruta.
  */
 
 // 1. VARIABLES GLOBALES
 window.todosLosMateriales = [];
 window.todosLosProveedores = [];
-let datosCotizacionActual = null; // Para manejo de facturación
+let datosCotizacionActual = null; 
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.6 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.7 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
     
-    // Gancho de detección: si estamos en history.html, carga las ventas
-    if (window.location.pathname.includes('history.html')) {
+    // Ajuste quirúrgico: Detección flexible de la página de historial
+    if (window.location.pathname.includes('history')) {
         cargarHistorialVentas();
     }
 });
@@ -27,14 +28,19 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- SECCIÓN HISTORIAL (ACTUALIZADA: SALDO, ESTADO Y ACCIONES) ---
+// --- SECCIÓN HISTORIAL (INTERVENCIÓN QUIRÚRGICA PARA EVITAR TABLA EN BLANCO) ---
 
 async function cargarHistorialVentas() {
     const cuerpoTabla = document.getElementById('lista-ventas');
-    if (!cuerpoTabla) return;
+    if (!cuerpoTabla) {
+        console.warn("⚠️ Elemento 'lista-ventas' no encontrado en esta página.");
+        return;
+    }
+
+    // Estado de carga visual
+    cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando historial...</td></tr>';
 
     try {
-        // FIX: Usamos el puente de api.js para asegurar la ruta correcta en Netlify
         const res = await window.API.getInvoices();
         const ventas = res.success ? res.data : (Array.isArray(res) ? res : []);
         
@@ -46,15 +52,17 @@ async function cargarHistorialVentas() {
 
         if (Array.isArray(ventas) && ventas.length > 0) {
             cuerpoTabla.innerHTML = ventas.map(venta => {
-                // Limpieza de datos recibidos del server
-                const nombreCliente = (typeof venta.cliente === 'string') 
-                    ? venta.cliente 
-                    : (venta.clienteNombre || "Cliente General");
-
-                const totalVenta = venta.total || venta.totalVenta || 0;
-                const saldo = venta.saldo !== undefined ? venta.saldo : (totalVenta - (venta.abono || 0));
-                const orden = venta.numeroOrden || venta.numeroFactura || venta.ot || "S/N";
+                // Extracción segura de datos para las 7 columnas
                 const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
+                const orden = venta.numeroOrden || venta.ot || venta.numeroFactura || "S/N";
+                
+                // Evita el error [object Object] en el nombre del cliente
+                const nombreCliente = (typeof venta.clienteNombre === 'string') ? venta.clienteNombre : 
+                                     (typeof venta.cliente === 'string' ? venta.cliente : "Cliente General");
+
+                const totalVenta = Number(venta.total || venta.totalVenta || 0);
+                const abono = Number(venta.abono || 0);
+                const saldo = venta.saldo !== undefined ? Number(venta.saldo) : (totalVenta - abono);
                 const estado = venta.estado || "Completado";
 
                 return `
@@ -62,12 +70,8 @@ async function cargarHistorialVentas() {
                         <td>${fecha}</td>
                         <td style="font-weight: bold; color: #1e293b;">${orden}</td>
                         <td>${nombreCliente}</td>
-                        <td style="font-weight: bold;">
-                            ${formateador.format(totalVenta)}
-                        </td>
-                        <td class="text-danger" style="font-weight: bold;">
-                            ${formateador.format(saldo)}
-                        </td>
+                        <td style="font-weight: bold;">${formateador.format(totalVenta)}</td>
+                        <td class="text-danger" style="font-weight: bold;">${formateador.format(saldo)}</td>
                         <td>
                             <span class="badge" style="background:#10b981; color:white; padding:4px 8px; border-radius:12px; font-size:0.7rem;">
                                 ${estado}
@@ -78,19 +82,18 @@ async function cargarHistorialVentas() {
                                 <i class="fas fa-eye"></i>
                             </button>
                         </td>
-                    </tr>
-                `;
+                    </tr>`;
             }).join('');
         } else {
-            cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#94a3b8;">No hay ventas registradas.</td></tr>';
+            cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#94a3b8;">No se encontraron órdenes registradas.</td></tr>';
         }
     } catch (error) {
-        console.error("❌ Error cargando historial:", error);
-        cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Error de conexión con el servidor.</td></tr>';
+        console.error("❌ Error en cargarHistorialVentas:", error);
+        cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#ef4444; padding:20px;">Error de comunicación con el servidor.</td></tr>';
     }
 }
 
-// --- SECCIÓN PROVEEDORES ---
+// --- SECCIÓN PROVEEDORES (RESPETADA AL 100%) ---
 
 async function fetchProviders() {
     try {
@@ -154,7 +157,7 @@ window.guardarProveedor = async function(event) {
     } catch (error) { alert("❌ Error de conexión"); }
 };
 
-// --- SECCIÓN INVENTARIO ---
+// --- SECCIÓN INVENTARIO (RESPETADA AL 100%) ---
 
 async function fetchInventory() {
     try {
@@ -264,7 +267,7 @@ function renderTable(materiales) {
     });
 }
 
-// --- FACTURACIÓN Y CONEXIÓN API ---
+// --- FACTURACIÓN Y CONEXIÓN API (RESPETADA AL 100%) ---
 
 async function facturarVenta() {
     if (!datosCotizacionActual) {
@@ -444,7 +447,7 @@ function configurarEventos() {
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 }
 
-// --- UTILIDADES DE UI ---
+// --- UTILIDADES DE UI (SIN CAMBIOS) ---
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
