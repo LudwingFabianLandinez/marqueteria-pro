@@ -1,6 +1,6 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.0.2 - Parche de Costos de Inventario & Blindaje Estructural
+ * Versión: 13.0.3 - Rastreador Universal de Precios & Estabilidad Estructural
  * Objetivo: Carga automática, cálculo real (Costo x 3 + MO) y estabilidad total.
  */
 
@@ -53,8 +53,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // 🛠️ AJUSTE DE CAMPO: Buscamos 'costo_m2' que es el nombre en tu Inventario
-                    const precioDetectado = m.costo_m2 || m.precio_m2 || m.precio_costo || m.precio_unitario || m.precio || 0;
+                    // 🛠️ RASTREADOR UNIVERSAL: Busca el precio en cualquier campo posible enviado por el servidor
+                    const precioDetectado = m.costo_m2 || m.precio_m2 || m.precio_costo || m.precio_unitario || m.precio || m.valor || m.costo || 0;
                     
                     option.dataset.costo = precioDetectado;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
@@ -135,10 +135,11 @@ async function procesarCotizacion() {
         const result = await response.json();
         let dataFinal;
 
+        // Decidimos usar el motor local si el servidor devuelve 0 para asegurar el cálculo
         if (result.success && result.data && result.data.valor_materiales > 0) {
             dataFinal = result.data;
         } else {
-            console.warn("⚠️ Servidor inconsistente o costo 0. Usando motor local.");
+            console.warn("⚠️ Servidor inconsistente o costo 0. Usando motor local con dataset.");
             const areaM2 = (ancho * largo) / 10000;
             let costoBaseLocal = 0;
             
@@ -157,6 +158,7 @@ async function procesarCotizacion() {
             };
         }
 
+        // 🎯 FÓRMULA UNIVERSAL: (Costo Base x 3) + Mano de Obra
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         
