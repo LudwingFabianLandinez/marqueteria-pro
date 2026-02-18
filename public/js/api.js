@@ -1,11 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.29 (BLINDAJE TOTAL)
- * Intervención Quirúrgica: Restablece acceso a Proveedores y sincroniza Motor de Compras.
- * Mantiene intacto el blindaje, la estructura original y la ruta de supervivencia.
+ * Módulo de conexión API - Versión 13.3.30 (BLINDAJE DE ACERO)
+ * Intervención Quirúrgica: Rutas inyectadas directamente para eliminar el error 'undefined'.
+ * Mantiene intacto el blindaje, la estructura original y la lógica de compras v13.3.29.
  */
 
-// RUTA GLOBAL FIJA - Blindaje contra errores 'undefined'
+// RUTA GLOBAL FIJA - Mantenida para compatibilidad
 const API_BASE = '/.netlify/functions/server'; 
 
 window.API = {
@@ -32,10 +32,11 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES (RESTABLECIDA CON RUTA FIJA) ---
+    // --- SECCIÓN PROVEEDORES (RESTABLECIDA CON INYECCIÓN DIRECTA) ---
     getProviders: async function() {
         try {
-            const response = await fetch(`${API_BASE}/providers`);
+            // Inyección directa de ruta para anular cualquier error 'undefined'
+            const response = await fetch('/.netlify/functions/server/providers');
             const res = await window.API._safeParse(response);
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
@@ -53,7 +54,7 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            const response = await fetch(`${API_BASE}/providers`, {
+            const response = await fetch('/.netlify/functions/server/providers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
@@ -65,7 +66,7 @@ window.API = {
     // --- SECCIÓN INVENTARIO ---
     getInventory: async function() {
         try {
-            const response = await fetch(`${API_BASE}/inventory`);
+            const response = await fetch('/.netlify/functions/server/inventory');
             return await window.API._safeParse(response);
         } catch (err) { 
             const localInv = localStorage.getItem('inventory');
@@ -76,7 +77,7 @@ window.API = {
     saveMaterial: async function(materialData) {
         try {
             const isEdit = materialData.id && materialData.id !== "";
-            const url = isEdit ? `${API_BASE}/inventory/${materialData.id}` : `${API_BASE}/inventory`;
+            const url = isEdit ? `/.netlify/functions/server/inventory/${materialData.id}` : `/.netlify/functions/server/inventory`;
             const method = isEdit ? 'PUT' : 'POST';
 
             const response = await fetch(url, {
@@ -105,7 +106,7 @@ window.API = {
         };
 
         try {
-            const response = await fetch(`${API_BASE}/inventory/purchase`, {
+            const response = await fetch('/.netlify/functions/server/inventory/purchase', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -123,7 +124,7 @@ window.API = {
     adjustStock: async function(data) {
         try {
             if (!data.tipo) data.tipo = "AJUSTE_MAS"; 
-            const response = await fetch(`${API_BASE}/inventory/adjust`, {
+            const response = await fetch('/.netlify/functions/server/inventory/adjust', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -134,14 +135,14 @@ window.API = {
 
     deleteMaterial: async function(id) {
         try {
-            const response = await fetch(`${API_BASE}/inventory/${id}`, { method: 'DELETE' });
+            const response = await fetch(`/.netlify/functions/server/inventory/${id}`, { method: 'DELETE' });
             return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     getHistory: async function(id = null) {
         try {
-            const url = id ? `${API_BASE}/inventory/history/${id}` : `${API_BASE}/inventory/history`;
+            const url = id ? `/.netlify/functions/server/inventory/history/${id}` : `/.netlify/functions/server/inventory/history`;
             const response = await fetch(url);
             return await window.API._safeParse(response);
         } catch (err) { return { success: true, data: [] }; }
@@ -150,7 +151,7 @@ window.API = {
     // --- SECCIÓN VENTAS Y ESTADÍSTICAS ---
     getDashboardStats: async function() {
         try {
-            const response = await fetch(`${API_BASE}/stats`);
+            const response = await fetch('/.netlify/functions/server/stats');
             return await window.API._safeParse(response);
         } catch (err) { 
             console.error("Error stats:", err);
@@ -160,7 +161,7 @@ window.API = {
 
     getInvoices: async function() { 
         try { 
-            const response = await fetch(`${API_BASE}/invoices`);
+            const response = await fetch('/.netlify/functions/server/invoices');
             return await window.API._safeParse(response); 
         } 
         catch(e) { 
@@ -170,7 +171,7 @@ window.API = {
 
     saveInvoice: async function(d) { 
         try { 
-            const response = await fetch(`${API_BASE}/invoices`, {
+            const response = await fetch('/.netlify/functions/server/invoices', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -191,4 +192,4 @@ window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 window.API.updateStock = window.API.adjustStock;
 
-console.log("🛡️ API v13.3.29 - Blindaje de Rutas y Estabilidad Confirmada.");
+console.log("🛡️ API v13.3.30 - Blindaje Directo y Estabilidad de Compras.");
