@@ -2,24 +2,30 @@
   publish = "public"
   functions = "netlify/functions"
 
-# --- REGLAS DE REDIRECCIÓN PARA ROMPER EL BUCLE 404 ---
+# --- REGLAS DE REDIRECCIÓN ---
 
-# 1. Regla para compatibilidad con rutas /api/ (la que configuramos en inventory_v7.js)
-# Añadimos 'force = true' para asegurar que siempre use la función y no busque carpetas físicas
+# Regla para que history.html encuentre los datos a través del server consolidado
+[[redirects]]
+  from = "/api/invoices"
+  to = "/.netlify/functions/server/invoices"
+  status = 200
+  force = true
+
+# Tu regla actual para inventory_v7.js
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 2. Regla de respaldo para el servidor Express
+# Regla de respaldo para el servidor Express
 [[redirects]]
   from = "/.netlify/functions/server/*"
   to = "/.netlify/functions/server"
   status = 200
   force = true
 
-# 3. Manejo de SPA (Single Page Application) para rutas de frontend
+# Manejo de SPA
 [[redirects]]
   from = "/*"
   to = "/index.html"

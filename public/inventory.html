@@ -105,12 +105,19 @@
             const errorMsg = document.getElementById('errorMessage');
             
             try {
-                // RUTA CORREGIDA: Usamos ruta absoluta para que Netlify siempre la encuentre
-                const response = await fetch('/.netlify/functions/invoices');
+                /** * AJUSTE CLAVE: Se usa '/api/invoices' para que coincida con la 
+                 * redirección configurada en netlify.toml y evitar el error de JSON
+                 */
+                const response = await fetch('/api/invoices');
                 
-                // Si la respuesta no es un JSON válido o falla
                 if (!response.ok) {
                     throw new Error(`Servidor respondió con status: ${response.status}`);
+                }
+
+                // Verificamos que sea JSON antes de procesar
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    throw new Error("La respuesta del servidor no es un JSON válido.");
                 }
 
                 const resultado = await response.json();
@@ -126,12 +133,13 @@
                 noData.style.display = 'none';
                 tableBody.innerHTML = '';
 
+                // Ordenar por fecha (más reciente primero)
                 ventas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
                 ventas.forEach(venta => {
                     const row = document.createElement('tr');
                     
-                    // Blindaje de datos según tu estructura
+                    // Blindaje de datos respetando tu lógica original
                     const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : '---';
                     const cliente = (venta.clienteNombre || venta.cliente?.nombre || 'Consumidor Final').toUpperCase();
                     const total = Number(venta.totalFactura || venta.total || 0);
@@ -153,8 +161,7 @@
             } catch (error) {
                 console.error("❌ Error en fetch:", error);
                 noData.style.display = 'block';
-                // Mensaje amigable pero técnico para depurar
-                errorMsg.innerText = "Error al conectar con el servidor. Revisa tu conexión.";
+                errorMsg.innerText = `Error: ${error.message}`;
             }
         }
 
