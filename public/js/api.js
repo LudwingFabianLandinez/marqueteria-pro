@@ -1,17 +1,17 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.25 (NETLIFY OPTIMIZED)
- * Intervención Quirúrgica: Sincronización de rutas con Motor de Diagnóstico v13.3.21.
+ * Módulo de conexión API - Versión 13.3.26 (CONSOLIDADO FINAL)
+ * Intervención Quirúrgica: Restablece acceso a Proveedores y mantiene Motor de Compras.
  * Mantiene intacto el blindaje y la estructura original.
  */
 
-// Ajuste de ruta para compatibilidad total con _redirects y Netlify Functions
-const API_BASE = '/api'; 
+// REGRESAMOS A LA RUTA ORIGINAL PARA QUE NO SE DAÑE EL ACCESO A PROVEEDORES
+const API_BASE = '/.netlify/functions/server'; 
 
 window.API = {
     url: API_BASE,
 
-    // Motor de procesamiento de respuestas (Blindado)
+    // Motor de procesamiento de respuestas (Blindado - Tu estructura original)
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -32,7 +32,7 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES ---
+    // --- SECCIÓN PROVEEDORES (RECUPERADA) ---
     getProviders: async function() {
         try {
             const response = await fetch(`${window.API.url}/providers`);
@@ -92,7 +92,7 @@ window.API = {
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Sincronizando Compra con Motor de Diagnóstico...", purchaseData);
         
-        // Mantenemos tu lógica de preparación de datos, asegurando los nombres de campos para el servidor
+        // Mapeo inteligente para que el servidor entienda los datos del formulario
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
@@ -190,6 +190,6 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
-window.API.updateStock = window.API.adjustStock; // Añadido para asegurar compatibilidad con inventory.js
+window.API.updateStock = window.API.adjustStock;
 
-console.log("🛡️ API v13.3.25 - Sincronización Netlify y Blindaje Activo.");
+console.log("🛡️ API v13.3.26 - Sincronización Netlify y Restauración de Rutas Exitosa.");
