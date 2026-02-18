@@ -218,26 +218,28 @@
         let facturaSeleccionadaId = null;
         const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-        // --- CARGA INICIAL (Ruta Netlify Blindada) ---
+        // --- CARGA INICIAL (Ruta /api/ corregida) ---
         async function cargarFacturas() {
             try {
-                const response = await fetch('/.netlify/functions/invoices');
+                // Se usa /api/invoices que es la que responde exitosamente
+                const response = await fetch('/api/invoices?v=' + Date.now());
                 if (!response.ok) throw new Error("Error en servidor");
                 
                 const result = await response.json();
-                if (result.success) {
-                    facturasCargadas = result.data;
-                    facturasFiltradas = [...facturasCargadas];
-                    renderTable(facturasFiltradas);
-                }
+                
+                // Normalización: si result es array o viene en .data
+                facturasCargadas = Array.isArray(result) ? result : (result.data || []);
+                facturasFiltradas = [...facturasCargadas];
+                renderTable(facturasFiltradas);
+                
             } catch (error) { 
                 console.error("Error al cargar facturas:", error);
                 document.getElementById('noData').style.display = 'block';
-                document.getElementById('noData').innerHTML = `<p style="color:red;">Error al conectar con el servidor. Revisa tu conexión.</p>`;
+                document.getElementById('noData').innerHTML = `<p style="color:red;">Error al conectar con el servidor.</p>`;
             }
         }
 
-        // --- RENDERIZADO DE TABLA ---
+        // --- RENDERIZADO DE TABLA (Blindado con campos reales de tu DB) ---
         function renderTable(data) {
             const tabla = document.getElementById('tablaFacturas');
             const noData = document.getElementById('noData');
@@ -250,21 +252,22 @@
             
             noData.style.display = 'none';
             tabla.innerHTML = data.map(inv => {
-                const total = Number(inv.totalFactura || inv.total) || 0;
-                const pagado = Number(inv.totalPagado || inv.abono || 0);
-                const saldo = total - pagado;
+                // Cálculo de valores basado en tu captura de pantalla exitosa
+                const total = Number(inv.totalFactura || inv.total || 0);
+                const saldo = Number(inv.saldoPendiente || inv.saldo || 0);
+                const pagado = total - saldo;
                 
                 let badgeClass = saldo <= 0 ? 'badge-pagado' : (pagado > 0 ? 'badge-abonado' : 'badge-pendiente');
                 let estadoTexto = saldo <= 0 ? 'Pagado' : (pagado > 0 ? 'Abonado' : 'Pendiente');
 
-                // Formateo de OT
                 const numOT = inv.numeroFactura || inv.ot || "N/A";
+                const nombreCliente = (inv.clienteNombre || (typeof inv.cliente === 'string' ? inv.cliente : inv.cliente?.nombre) || 'CLIENTE GENÉRICO').toUpperCase();
 
                 return `
                     <tr>
-                        <td style="color: #64748b;">${new Date(inv.fecha).toLocaleDateString()}</td>
+                        <td style="color: #64748b;">${inv.fecha ? new Date(inv.fecha).toLocaleDateString() : '---'}</td>
                         <td style="font-weight:800; color: var(--primary-blue);">${numOT}</td>
-                        <td style="font-weight:600;">${(inv.cliente?.nombre || inv.clienteNombre || 'CLIENTE GENÉRICO').toUpperCase()}</td>
+                        <td style="font-weight:600;">${nombreCliente}</td>
                         <td style="font-weight:600;">${formatter.format(total)}</td>
                         <td style="color:${saldo > 0 ? 'var(--danger-red)' : 'var(--success-green)'}; font-weight:800;">
                             ${formatter.format(saldo)}
@@ -287,9 +290,9 @@
             const hasta = document.getElementById('fechaHasta').value;
 
             facturasFiltradas = facturasCargadas.filter(inv => {
-                const fechaInv = inv.fecha.split('T')[0];
+                const fechaInv = inv.fecha ? inv.fecha.split('T')[0] : '';
                 const numOT = (inv.numeroFactura || inv.ot || "").toLowerCase();
-                const nomCli = (inv.cliente?.nombre || inv.clienteNombre || "").toLowerCase();
+                const nomCli = (inv.clienteNombre || (typeof inv.cliente === 'string' ? inv.cliente : inv.cliente?.nombre) || "").toLowerCase();
                 
                 const cumpleBusqueda = numOT.includes(term) || nomCli.includes(term);
                 const cumpleDesde = desde ? fechaInv >= desde : true;
@@ -313,24 +316,27 @@
         async function verDetalle(id) {
             facturaSeleccionadaId = id;
             try {
-                const res = await fetch(`/.netlify/functions/invoices/${id}`);
+                const res = await fetch(`/api/invoices/${id}`);
                 const result = await res.json();
-                if (result.success) {
-                    const inv = result.data;
-                    const total = Number(inv.totalFactura || inv.total) || 0;
-                    const pagado = Number(inv.totalPagado || inv.abono || 0);
-                    const saldo = total - pagado;
+                
+                // Si la respuesta es directa o con .data
+                const inv = result.data || result;
+                
+                const total = Number(inv.totalFactura || inv.total || 0);
+                const saldo = Number(inv.saldoPendiente || inv.saldo || 0);
+                const pagado = total - saldo;
 
-                    document.getElementById('detNumeroFactura').innerText = `Orden ${inv.numeroFactura || inv.ot}`;
-                    document.getElementById('detInfoCliente').innerHTML = `
-                        <strong>Cliente:</strong> ${(inv.cliente?.nombre || inv.clienteNombre || 'N/A').toUpperCase()}<br>
-                        <strong>Tel:</strong> ${inv.cliente?.telefono || 'Sin teléfono'}`;
-                    document.getElementById('detTotalVenta').innerText = formatter.format(total);
-                    document.getElementById('detTotalPagado').innerText = formatter.format(pagado);
-                    document.getElementById('detSaldoPendiente').innerText = formatter.format(saldo);
-                    document.getElementById('zonaAbono').style.display = saldo <= 0 ? 'none' : 'block';
-                    document.getElementById('modalDetalle').style.display = 'block';
-                }
+                document.getElementById('detNumeroFactura').innerText = `Orden ${inv.numeroFactura || inv.ot}`;
+                document.getElementById('detInfoCliente').innerHTML = `
+                    <strong>Cliente:</strong> ${(inv.clienteNombre || inv.cliente?.nombre || 'N/A').toUpperCase()}<br>
+                    <strong>Tel:</strong> ${inv.clienteTelefono || inv.cliente?.telefono || 'Sin teléfono'}`;
+                
+                document.getElementById('detTotalVenta').innerText = formatter.format(total);
+                document.getElementById('detTotalPagado').innerText = formatter.format(pagado);
+                document.getElementById('detSaldoPendiente').innerText = formatter.format(saldo);
+                document.getElementById('zonaAbono').style.display = saldo <= 0 ? 'none' : 'block';
+                document.getElementById('modalDetalle').style.display = 'block';
+                
             } catch (error) { alert("Error al obtener detalles"); }
         }
 
@@ -339,14 +345,14 @@
             if(!monto || monto <= 0) return alert("Ingrese un monto válido.");
             
             try {
-                const res = await fetch(`/.netlify/functions/invoices/${facturaSeleccionadaId}`, {
+                const res = await fetch(`/api/invoices/${facturaSeleccionadaId}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ montoAbono: monto })
                 });
                 
                 const result = await res.json();
-                if(result.success) {
+                if(result.success || !result.error) {
                     cerrarModal();
                     document.getElementById('montoNuevoAbono').value = '';
                     await cargarFacturas();
@@ -361,9 +367,9 @@
         async function eliminarFactura(id, num) {
             if (confirm(`¿Está seguro de anular la orden ${num}?`)) {
                 try {
-                    const res = await fetch(`/.netlify/functions/invoices/${id}`, { method: 'DELETE' });
+                    const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
                     const result = await res.json();
-                    if (result.success) {
+                    if (result.success || !result.error) {
                         alert("Orden anulada con éxito.");
                         cargarFacturas();
                     }
@@ -374,25 +380,25 @@
         // --- REPORTES Y EXCEL ---
         function generarReporteDiario() {
             const hoyStr = new Date().toLocaleDateString();
-            const hoyFiltradas = facturasCargadas.filter(f => new Date(f.fecha).toLocaleDateString() === hoyStr);
+            const hoyFiltradas = facturasCargadas.filter(f => f.fecha && new Date(f.fecha).toLocaleDateString() === hoyStr);
 
             if (hoyFiltradas.length === 0) return alert("Hoy no hay movimientos registrados.");
 
-            let totalV = 0, totalP = 0;
-            let html = `<table class="report-table"><thead><tr><th>Orden</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>`;
+            let totalV = 0, totalS = 0;
+            let html = `<table class="report-table"><thead><tr><th>Orden</th><th>Cliente</th><th>Total</th><th>Recaudado</th><th>Saldo</th></tr></thead><tbody>`;
             
             hoyFiltradas.forEach(item => {
-                const t = Number(item.totalFactura || item.total) || 0;
-                const p = Number(item.totalPagado || item.abono || 0);
-                const s = t - p;
-                totalV += t; totalP += p;
-                html += `<tr><td><b>${item.numeroFactura || item.ot}</b></td><td>${(item.cliente?.nombre || item.clienteNombre || 'N/A').toUpperCase()}</td><td>${formatter.format(t)}</td><td style="color:green;">${formatter.format(p)}</td><td style="color:red;">${formatter.format(s)}</td></tr>`;
+                const t = Number(item.totalFactura || item.total || 0);
+                const s = Number(item.saldoPendiente || item.saldo || 0);
+                const r = t - s;
+                totalV += t; totalS += s;
+                html += `<tr><td><b>${item.numeroFactura || item.ot}</b></td><td>${(item.clienteNombre || item.cliente?.nombre || 'N/A').toUpperCase()}</td><td>${formatter.format(t)}</td><td style="color:green;">${formatter.format(r)}</td><td style="color:red;">${formatter.format(s)}</td></tr>`;
             });
 
             html += `</tbody></table><div class="report-summary-box">
                 <div class="summary-card"><span>Ventas Hoy</span><strong>${formatter.format(totalV)}</strong></div>
-                <div class="summary-card"><span>Recaudo</span><strong>${formatter.format(totalP)}</strong></div>
-                <div class="summary-card"><span>Por Cobrar</span><strong>${formatter.format(totalV - totalP)}</strong></div>
+                <div class="summary-card"><span>Recaudo Hoy</span><strong>${formatter.format(totalV - totalS)}</strong></div>
+                <div class="summary-card"><span>Por Cobrar</span><strong>${formatter.format(totalS)}</strong></div>
             </div>`;
 
             document.getElementById('reportContent').innerHTML = html;
@@ -401,14 +407,18 @@
 
         function exportarExcel() {
             if (facturasFiltradas.length === 0) return alert("No hay datos para exportar.");
-            const datosExcel = facturasFiltradas.map(f => ({
-                Fecha: new Date(f.fecha).toLocaleDateString(),
-                OT: f.numeroFactura || f.ot,
-                Cliente: (f.cliente?.nombre || f.clienteNombre || 'N/A').toUpperCase(),
-                'Total Factura': Number(f.totalFactura || f.total) || 0,
-                'Total Abonado': Number(f.totalPagado || f.abono || 0),
-                'Saldo': (Number(f.totalFactura || f.total) || 0) - (Number(f.totalPagado || f.abono || 0))
-            }));
+            const datosExcel = facturasFiltradas.map(f => {
+                const t = Number(f.totalFactura || f.total || 0);
+                const s = Number(f.saldoPendiente || f.saldo || 0);
+                return {
+                    Fecha: f.fecha ? new Date(f.fecha).toLocaleDateString() : 'N/A',
+                    OT: f.numeroFactura || f.ot,
+                    Cliente: (f.clienteNombre || f.cliente?.nombre || 'N/A').toUpperCase(),
+                    'Total Factura': t,
+                    'Recaudado': t - s,
+                    'Saldo Pendiente': s
+                };
+            });
             const ws = XLSX.utils.json_to_sheet(datosExcel);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Ventas");
