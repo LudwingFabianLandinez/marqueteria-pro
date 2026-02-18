@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.11 (CONSOLIDADA)
- * Objetivo: Asegurar visualización de historial y eliminar 404 en Compras/Inventario.
- * Blindaje: Inyección directa de rutas críticas manteniendo lógica de negocio intacta.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.12 (CONSOLIDADA)
+ * Objetivo: Asegurar visualización de historial y corregir suma de stock en compras.
+ * Blindaje: Inyección directa de rutas críticas y uso de $inc atómico para inventario.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.11 registrados exitosamente");
+    console.log("📦 Modelos v13.3.12 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.11] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.12] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -267,7 +267,7 @@ try {
         }
     });
 
-    // --- 📦 GESTIÓN DIRECTA DE INVENTARIO Y COMPRAS (GANCHO ANTI-404) ---
+    // --- 📦 GESTIÓN DIRECTA DE INVENTARIO Y COMPRAS (GANCHO ANTI-404 + $INC) ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -281,22 +281,35 @@ try {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
             
-            // Lógica de cálculo: (Largo * Ancho / 10000) * Cantidad
-            const areaPorUnidad = (parseFloat(largo || 0) * parseFloat(ancho || 0)) / 10000;
-            const areaTotalIngreso = areaPorUnidad * parseFloat(cantidad || 0);
+            // 1. Limpieza y validación de datos
+            const cant = parseFloat(cantidad) || 0;
+            const lg = parseFloat(largo) || 0;
+            const an = parseFloat(ancho) || 0;
+            const vUnit = parseFloat(valorUnitario) || 0;
 
+            // 2. Cálculo de área: (Largo * Ancho / 10000) * Cantidad
+            const areaPorUnidad = (lg * an) / 10000;
+            const areaTotalIngreso = areaPorUnidad * cant;
+
+            // 3. Actualización Atómica mediante $inc (Suma directa en DB)
             const material = await Material.findByIdAndUpdate(
                 materialId,
                 { 
                     $inc: { stock_actual: areaTotalIngreso },
                     $set: { 
-                        ultimo_costo: parseFloat(valorUnitario),
+                        ultimo_costo: vUnit,
                         fecha_ultima_compra: new Date(),
                         proveedor_principal: proveedorId
                     }
                 },
-                { new: true }
+                { new: true, runValidators: true }
             );
+
+            if (!material) {
+                return res.status(404).json({ success: false, error: "Material no encontrado" });
+            }
+
+            console.log(`✅ Stock Sumado: +${areaTotalIngreso.toFixed(4)} m2 en ${material.nombre}`);
 
             res.json({ 
                 success: true, 
@@ -318,7 +331,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.11', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.12', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
