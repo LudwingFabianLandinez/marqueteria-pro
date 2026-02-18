@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.10 (CONSOLIDADA)
- * Objetivo: Asegurar visualización correcta en historial sin tocar la lógica de negocio ni el contador.
- * Blindaje: Inyección directa de rutas críticas para evitar errores 404 en el despliegue de Netlify.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.11 (CONSOLIDADA)
+ * Objetivo: Asegurar visualización de historial y eliminar 404 en Compras/Inventario.
+ * Blindaje: Inyección directa de rutas críticas manteniendo lógica de negocio intacta.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.10 registrados exitosamente");
+    console.log("📦 Modelos v13.3.11 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.10] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.11] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -75,7 +75,7 @@ const router = express.Router();
 try {
     const Material = mongoose.model('Material'); 
     const Invoice = mongoose.model('Invoice');
-    const Provider = mongoose.model('Provider'); // Cargado para rutas directas
+    const Provider = mongoose.model('Provider');
 
     // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
@@ -247,7 +247,7 @@ try {
         }
     });
 
-    // --- 🚀 GESTIÓN DIRECTA DE PROVEEDORES (BLINDAJE ANTI-404) ---
+    // --- 🚀 GESTIÓN DIRECTA DE PROVEEDORES ---
     router.get('/providers', async (req, res) => {
         try {
             const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
@@ -267,7 +267,50 @@ try {
         }
     });
 
-    // --- VINCULACIÓN DE RUTAS RESTANTES ---
+    // --- 📦 GESTIÓN DIRECTA DE INVENTARIO Y COMPRAS (GANCHO ANTI-404) ---
+    router.get('/inventory', async (req, res) => {
+        try {
+            const materiales = await Material.find().sort({ nombre: 1 }).lean();
+            res.json(materiales);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.post('/inventory/purchase', async (req, res) => {
+        try {
+            const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
+            
+            // Lógica de cálculo: (Largo * Ancho / 10000) * Cantidad
+            const areaPorUnidad = (parseFloat(largo || 0) * parseFloat(ancho || 0)) / 10000;
+            const areaTotalIngreso = areaPorUnidad * parseFloat(cantidad || 0);
+
+            const material = await Material.findByIdAndUpdate(
+                materialId,
+                { 
+                    $inc: { stock_actual: areaTotalIngreso },
+                    $set: { 
+                        ultimo_costo: parseFloat(valorUnitario),
+                        fecha_ultima_compra: new Date(),
+                        proveedor_principal: proveedorId
+                    }
+                },
+                { new: true }
+            );
+
+            res.json({ 
+                success: true, 
+                message: "Stock actualizado correctamente", 
+                data: material,
+                ingreso_m2: areaTotalIngreso
+            });
+        } catch (error) {
+            console.error("🚨 Error en ingreso de compra:", error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // --- VINCULACIÓN DE RUTAS RESTANTES (Respaldo) ---
     router.use('/inventory', require('./routes/inventoryRoutes'));
     router.use('/purchases', require('./routes/inventoryRoutes'));
     
@@ -275,7 +318,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.10', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.11', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
