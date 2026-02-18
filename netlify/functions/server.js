@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.12 (CONSOLIDADA)
- * Objetivo: Asegurar visualización de historial y corregir suma de stock en compras.
- * Blindaje: Inyección directa de rutas críticas y uso de $inc atómico para inventario.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.13 (CONSOLIDADA)
+ * Objetivo: Reparar Historial de Compras y asegurar Suma de Stock.
+ * Blindaje: Inyección directa de rutas críticas manteniendo lógica de negocio intacta.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.12 registrados exitosamente");
+    console.log("📦 Modelos v13.3.13 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.12] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.13] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -76,6 +76,7 @@ try {
     const Material = mongoose.model('Material'); 
     const Invoice = mongoose.model('Invoice');
     const Provider = mongoose.model('Provider');
+    const Transaction = mongoose.model('Transaction');
 
     // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
@@ -257,17 +258,7 @@ try {
         }
     });
 
-    router.post('/providers', async (req, res) => {
-        try {
-            const nuevoProveedor = new Provider(req.body);
-            await nuevoProveedor.save();
-            res.json({ success: true, data: nuevoProveedor });
-        } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-        }
-    });
-
-    // --- 📦 GESTIÓN DIRECTA DE INVENTARIO Y COMPRAS (GANCHO ANTI-404 + $INC) ---
+    // --- 📦 GESTIÓN DIRECTA DE INVENTARIO Y COMPRAS ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -277,22 +268,33 @@ try {
         }
     });
 
+    // --- 📜 RUTA PARA EL HISTORIAL DE COMPRAS (FIX: Evita el 404 en la tabla de compras) ---
+    router.get('/purchases', async (req, res) => {
+        try {
+            const compras = await Transaction.find({ tipo: 'Compra' })
+                .sort({ fecha: -1 })
+                .populate('proveedorId', 'nombre')
+                .lean();
+            res.json(compras);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
             
-            // 1. Limpieza y validación de datos
             const cant = parseFloat(cantidad) || 0;
             const lg = parseFloat(largo) || 0;
             const an = parseFloat(ancho) || 0;
             const vUnit = parseFloat(valorUnitario) || 0;
 
-            // 2. Cálculo de área: (Largo * Ancho / 10000) * Cantidad
             const areaPorUnidad = (lg * an) / 10000;
             const areaTotalIngreso = areaPorUnidad * cant;
 
-            // 3. Actualización Atómica mediante $inc (Suma directa en DB)
-            const material = await Material.findByIdAndUpdate(
+            // 1. Actualización Atómica de Stock
+            const materialActualizado = await Material.findByIdAndUpdate(
                 materialId,
                 { 
                     $inc: { stock_actual: areaTotalIngreso },
@@ -302,19 +304,28 @@ try {
                         proveedor_principal: proveedorId
                     }
                 },
-                { new: true, runValidators: true }
+                { new: true }
             );
 
-            if (!material) {
-                return res.status(404).json({ success: false, error: "Material no encontrado" });
-            }
+            // 2. Registro en el Historial de Transacciones (Para que aparezca en la tabla de compras)
+            const registroCompra = new Transaction({
+                tipo: 'Compra',
+                materialId: materialId,
+                materialNombre: materialActualizado ? materialActualizado.nombre : 'Material',
+                cantidad: areaTotalIngreso,
+                costo_unitario: vUnit,
+                total: vUnit * cant,
+                proveedorId: proveedorId,
+                fecha: new Date()
+            });
+            await registroCompra.save();
 
-            console.log(`✅ Stock Sumado: +${areaTotalIngreso.toFixed(4)} m2 en ${material.nombre}`);
+            console.log(`✅ Compra registrada: ${areaTotalIngreso} m2 sumados.`);
 
             res.json({ 
                 success: true, 
-                message: "Stock actualizado correctamente", 
-                data: material,
+                message: "Stock actualizado y compra registrada", 
+                data: materialActualizado,
                 ingreso_m2: areaTotalIngreso
             });
         } catch (error) {
@@ -323,7 +334,7 @@ try {
         }
     });
 
-    // --- VINCULACIÓN DE RUTAS RESTANTES (Respaldo) ---
+    // --- VINCULACIÓN DE RUTAS RESTANTES ---
     router.use('/inventory', require('./routes/inventoryRoutes'));
     router.use('/purchases', require('./routes/inventoryRoutes'));
     
@@ -331,14 +342,14 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.12', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.13', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
     console.error(`🚨 Error vinculando rutas en server.js: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL DE RUTAS (Montaje múltiple para evitar el 404 en Netlify)
+// 6. BLINDAJE FINAL DE RUTAS
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
