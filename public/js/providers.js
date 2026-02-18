@@ -1,10 +1,11 @@
 /**
  * LÓGICA DE PROVEEDORES - MARQUETERÍA PRO
- * Conecta el formulario HTML y los botones de consulta con la base de datos.
+ * Versión Consolidada: Sincronización Total con Backend
+ * Mantiene estructura visual y blindaje original.
  */
 
-// Definición segura de la URL de la API
-const BASE_URL_API = (window.API && window.API.url) ? window.API.url : '/api';
+// Definición segura de la URL de la API - Ajustada para Netlify/Local
+const BASE_URL_API = (window.API && window.API.url) ? window.API.url : '/.netlify/functions/server';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE REGISTRO ---
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
+                // Endpoint corregido para coincidir con el servidor
                 const response = await fetch(`${BASE_URL_API}/providers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -63,12 +65,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LÓGICA DE CONSULTA (Vinculación por ID) ---
+    // --- LÓGICA DE CONSULTA ---
     const btnConsultar = document.getElementById('btnConsultarProv');
     
     if (btnConsultar) {
         btnConsultar.addEventListener('click', async (e) => {
-            e.preventDefault(); // Evitar cualquier recarga accidental
+            e.preventDefault();
             console.log("🖱️ Clic detectado en btnConsultarProv: Consultando...");
             await window.cargarTablaProveedores();
         });
@@ -77,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /**
  * Función GLOBAL para cargar y renderizar la tabla de proveedores
- * Se asigna a window para que dashboard.js pueda verla.
  */
 window.cargarTablaProveedores = async function() {
     const tablaBody = document.getElementById('lista-proveedores-body');
@@ -91,15 +92,15 @@ window.cargarTablaProveedores = async function() {
     try {
         const result = await obtenerProveedores();
         
-        // Verificamos result.success o si result es un array directamente (depende de tu API)
-        const proveedores = result.success ? result.data : result;
+        // Blindaje de datos: Maneja tanto result.data como result directo (array)
+        const proveedores = result.success ? result.data : (Array.isArray(result) ? result : []);
 
         if (proveedores && proveedores.length > 0) {
-            tablaBody.innerHTML = ''; // Limpiar mensaje de carga
+            tablaBody.innerHTML = ''; 
             proveedores.forEach(prov => {
                 const fila = `
                     <tr>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${prov.nombre}</strong></td>
+                        <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${prov.nombre.toUpperCase()}</strong></td>
                         <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.nit || 'N/A'}</td>
                         <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.contacto || 'N/A'}</td>
                         <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.telefono}</td>
@@ -128,13 +129,21 @@ window.cargarTablaProveedores = async function() {
  */
 async function obtenerProveedores() {
     try {
+        // Se asegura el uso de la ruta completa de Netlify
         const url = `${BASE_URL_API}/providers?t=${Date.now()}`;
         console.log("📡 Petición a:", url);
         const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            // Si el servidor responde con HTML (error 404), lanzamos error de ruta
+            if (errorText.includes('<!DOCTYPE html>')) throw new Error("Ruta API no encontrada (404)");
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         return await response.json();
     } catch (error) {
         console.error("🚨 Error obteniendo proveedores:", error);
         return { success: false, data: [] };
     }
-}   
+}
