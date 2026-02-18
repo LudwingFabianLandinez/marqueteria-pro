@@ -27,7 +27,6 @@
 
         .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
 
-        /* Estilos para los botones superiores según tu imagen */
         .btn-excel { background-color: #1d8348; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-reporte { background-color: #5d5fef; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
 
@@ -93,7 +92,7 @@
             </table>
             
             <div id="noData" class="empty-state" style="display: none;">
-                <p style="color: #ef4444; font-weight: bold;" id="errorMessage">Error al conectar con el servidor. Revisa tu conexión.</p>
+                <p id="errorMessage" style="font-weight: bold;"></p>
             </div>
         </div>
     </main>
@@ -103,18 +102,16 @@
             const tableBody = document.getElementById('historyBody');
             const noData = document.getElementById('noData');
             const errorMsg = document.getElementById('errorMessage');
+            const ventasTable = document.getElementById('ventasTable');
             
             try {
-                /** * AJUSTE CLAVE: Se usa '/api/invoices' para que coincida con la 
-                 * redirección configurada en netlify.toml y evitar el error de JSON
-                 */
-                const response = await fetch('/api/invoices');
+                // AJUSTE: URL absoluta con parámetro anti-caché para forzar datos nuevos
+                const response = await fetch('/api/invoices?v=' + Date.now());
                 
                 if (!response.ok) {
                     throw new Error(`Servidor respondió con status: ${response.status}`);
                 }
 
-                // Verificamos que sea JSON antes de procesar
                 const contentType = response.headers.get("content-type");
                 if (!contentType || !contentType.includes("application/json")) {
                     throw new Error("La respuesta del servidor no es un JSON válido.");
@@ -123,14 +120,18 @@
                 const resultado = await response.json();
                 const ventas = resultado.success ? resultado.data : [];
                 
+                // Validación extra para base de datos vacía
                 if (!ventas || ventas.length === 0) {
                     noData.style.display = 'block';
+                    ventasTable.style.display = 'none';
                     errorMsg.innerText = "No hay órdenes registradas aún.";
                     errorMsg.style.color = "#95a5a6";
                     return;
                 }
 
+                // Si hay datos, mostramos la tabla
                 noData.style.display = 'none';
+                ventasTable.style.display = 'table';
                 tableBody.innerHTML = '';
 
                 // Ordenar por fecha (más reciente primero)
@@ -161,7 +162,9 @@
             } catch (error) {
                 console.error("❌ Error en fetch:", error);
                 noData.style.display = 'block';
-                errorMsg.innerText = `Error: ${error.message}`;
+                ventasTable.style.display = 'none';
+                errorMsg.innerText = "Error al conectar con el servidor. Revisa tu conexión.";
+                errorMsg.style.color = "#ef4444";
             }
         }
 
