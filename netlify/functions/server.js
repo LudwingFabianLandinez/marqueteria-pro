@@ -1,7 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.14 (CONSOLIDADA)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.15 (CONSOLIDADA)
  * Objetivo: Reparar Historial de Compras y asegurar Suma de Stock sin errores de validación.
+ * Refuerzo: Retorno de datos frescos para forzar actualización en el Inventario.
  * Blindaje: Inyección directa de rutas críticas manteniendo lógica de negocio intacta.
  */
 
@@ -20,7 +21,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.14 registrados exitosamente");
+    console.log("📦 Modelos v13.3.15 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -48,7 +49,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.14] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.15] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -288,7 +289,7 @@ try {
             const vUnit = parseFloat(valorUnitario) || 0;
             const areaTotalIngreso = (lg * an / 10000) * cant;
 
-            // 1. Actualización Atómica de Stock
+            // 1. Actualización Atómica de Stock (REFUERZO: Usamos { new: true } para obtener el stock ya sumado)
             const materialActualizado = await Material.findByIdAndUpdate(
                 materialId,
                 { 
@@ -299,7 +300,7 @@ try {
                         proveedor_principal: proveedorId
                     }
                 },
-                { new: true }
+                { new: true, runValidators: false }
             );
 
             // 2. Registro en Historial (CORRECCIÓN QUIRÚRGICA: save sin validación)
@@ -314,12 +315,13 @@ try {
                 fecha: new Date()
             });
 
-            // Usamos validateBeforeSave: false para evitar el error 500 del enum 'tipo'
             await registroCompra.save({ validateBeforeSave: false });
 
+            // 3. RESPUESTA REFORZADA: Enviamos el nuevo stock explícitamente para el Frontend
             res.json({ 
                 success: true, 
                 message: "Stock actualizado y compra registrada", 
+                nuevoStock: materialActualizado ? materialActualizado.stock_actual : 0,
                 data: materialActualizado,
                 ingreso_m2: areaTotalIngreso
             });
@@ -337,7 +339,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.14', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.15', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
