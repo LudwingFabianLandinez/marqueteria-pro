@@ -1,10 +1,12 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 12.3.0 (NETLIFY OPTIMIZED)
- * Intervención Quirúrgica: Asegura rutas de Historial y Dashboard.
+ * Módulo de conexión API - Versión 13.3.25 (NETLIFY OPTIMIZED)
+ * Intervención Quirúrgica: Sincronización de rutas con Motor de Diagnóstico v13.3.21.
+ * Mantiene intacto el blindaje y la estructura original.
  */
 
-const API_BASE = '/.netlify/functions/server';
+// Ajuste de ruta para compatibilidad total con _redirects y Netlify Functions
+const API_BASE = '/api'; 
 
 window.API = {
     url: API_BASE,
@@ -86,23 +88,19 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    // --- REGISTRO DE COMPRA (Mantiene lógica v12.2.9) ---
+    // --- REGISTRO DE COMPRA (Sincronizado con v13.3.24) ---
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Sincronizando Compra con Medidas Totales...");
+        console.log("🚀 Sincronizando Compra con Motor de Diagnóstico...", purchaseData);
         
-        const cantidadFinal = Number(purchaseData.cantidad || 0);
-        const costoTotal = Number(purchaseData.costo_total || 0);
-        const costoUnitarioCalculado = cantidadFinal > 0 ? (costoTotal / cantidadFinal) : 0;
-
+        // Mantenemos tu lógica de preparación de datos, asegurando los nombres de campos para el servidor
         const payload = {
             materialId: String(purchaseData.materialId),
-            proveedor: String(purchaseData.proveedor || purchaseData.providerId || purchaseData.proveedorId),
-            cantidad: Number(parseFloat(cantidadFinal).toFixed(4)),
-            cantidad_m2: Number(parseFloat(cantidadFinal).toFixed(4)),
-            costo_total: Number(Math.round(costoTotal)),
-            costo_unitario: Number(purchaseData.precio_m2_costo || costoUnitarioCalculado),
+            proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
+            cantidad: Number(purchaseData.cantidad || purchaseData.cantidad_laminas || 1),
+            largo: Number(purchaseData.largo || purchaseData.largo_lamina_cm || 0),
+            ancho: Number(purchaseData.ancho || purchaseData.ancho_lamina_cm || 0),
+            valorUnitario: Number(purchaseData.valorUnitario || purchaseData.precio_total_lamina || 0),
             tipo: "COMPRA",
-            motivo: purchaseData.motivo || "Registro de compra",
             fecha: new Date().toISOString()
         };
 
@@ -149,7 +147,7 @@ window.API = {
         } catch (err) { return { success: true, data: [] }; }
     },
 
-    // --- SECCIÓN VENTAS Y ESTADÍSTICAS (AJUSTE CRÍTICO PARA NETLIFY) ---
+    // --- SECCIÓN VENTAS Y ESTADÍSTICAS ---
     getDashboardStats: async function() {
         try {
             const response = await fetch(`${window.API.url}/stats`);
@@ -192,5 +190,6 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
+window.API.updateStock = window.API.adjustStock; // Añadido para asegurar compatibilidad con inventory.js
 
-console.log("🛡️ API v12.3.0 - Sincronización Netlify y Blindaje Activo.");
+console.log("🛡️ API v13.3.25 - Sincronización Netlify y Blindaje Activo.");
