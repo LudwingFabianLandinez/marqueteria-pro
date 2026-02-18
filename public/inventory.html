@@ -27,86 +27,90 @@
 
         .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
 
+        /* Estilos para los botones superiores según tu imagen */
+        .btn-excel { background-color: #1d8348; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-reporte { background-color: #5d5fef; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+        .filter-bar { background: #f8fafc; padding: 20px; border-radius: 12px; display: flex; gap: 15px; align-items: center; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        .filter-bar input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background-color: #3498db; color: white; border-radius: 5px; }
+        th { background-color: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
 
-        .price-tag { color: #27ae60; font-weight: bold; }
-        .date-tag { color: #7f8c8d; font-size: 0.9em; }
+        .price-tag { color: #2c3e50; font-weight: bold; }
+        .date-tag { color: #64748b; font-size: 0.9em; }
         
         .empty-state { text-align: center; padding: 50px; color: #95a5a6; }
-        .empty-state i { font-size: 3rem; margin-bottom: 15px; display: block; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; background: #e8f5e9; color: #2e7d32; font-weight: 600; }
 
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            background: #e8f5e9;
-            color: #2e7d32;
-            font-weight: 600;
-        }
-
-        @media print {
-            .sidebar { display: none; }
-            .main-content { margin: 0; padding: 20px; }
-        }
+        @media print { .sidebar { display: none; } .main-content { margin: 0; padding: 20px; } }
     </style>
 </head>
 <body>
 
     <aside class="sidebar">
-        <div class="logo"><h1>MARQUETERÍA</h1></div>
+        <div class="logo"><h1>LA CHICA MORALES</h1></div>
         <nav class="menu">
             <a href="index.html" class="menu-item">🏠 Inicio</a>
             <a href="dashboard.html" class="menu-item">📦 Inventario</a>
             <a href="quotes.html" class="menu-item">💰 Nueva Cotización</a>
-            <a href="history.html" class="menu-item active">📜 Historial de Ventas</a>
+            <a href="history.html" class="menu-item active">📜 Historial de Órdenes</a>
         </nav>
     </aside>
 
     <main class="main-content">
         <div class="history-container">
             <div class="header-flex">
-                <h2><i class="fas fa-history"></i> Historial de Ventas Realizadas</h2>
-                <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; background: white;">
-                    <i class="fas fa-print"></i> Imprimir Reporte
-                </button>
+                <h2 style="color: #1e3a8a;">Historial de Órdenes</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-excel">EXCEL</button>
+                    <button class="btn-reporte">REPORTE HOY</button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <input type="text" placeholder="Buscar por OT o cliente..." style="flex-grow: 1;">
+                <span>Desde:</span> <input type="date">
+                <span>Hasta:</span> <input type="date">
+                <button style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 6px;">Filtrar</button>
+                <button style="background: #94a3b8; color: white; border: none; padding: 10px 20px; border-radius: 6px;">Limpiar</button>
             </div>
             
             <table id="ventasTable">
                 <thead>
                     <tr>
-                        <th>Fecha</th>
-                        <th>Cliente / Detalle</th>
-                        <th>Dimensiones</th>
-                        <th>Total Venta</th>
-                        <th>Estado</th>
+                        <th>FECHA</th>
+                        <th>N° ORDEN</th>
+                        <th>CLIENTE</th>
+                        <th>TOTAL</th>
+                        <th>SALDO</th>
+                        <th>ESTADO</th>
+                        <th>ACCIONES</th>
                     </tr>
                 </thead>
                 <tbody id="historyBody"></tbody>
             </table>
             
             <div id="noData" class="empty-state" style="display: none;">
-                <i class="fas fa-folder-open"></i>
-                <p>No hay ventas registradas en el historial aún.</p>
+                <p style="color: #ef4444; font-weight: bold;" id="errorMessage">Error al conectar con el servidor. Revisa tu conexión.</p>
             </div>
         </div>
     </main>
 
     <script>
-        // Función de carga con detección inteligente de ruta
         async function cargarHistorial() {
             const tableBody = document.getElementById('historyBody');
             const noData = document.getElementById('noData');
-            const ventasTable = document.getElementById('ventasTable');
+            const errorMsg = document.getElementById('errorMessage');
             
             try {
-                // Buscamos la función en la raíz, sin importar si el HTML está en /public o /
+                // RUTA CORREGIDA: Usamos ruta absoluta para que Netlify siempre la encuentre
                 const response = await fetch('/.netlify/functions/invoices');
                 
-                // Si la respuesta no es OK (ej. un 404), lanzamos error para evitar el fallo del JSON
+                // Si la respuesta no es un JSON válido o falla
                 if (!response.ok) {
-                    throw new Error(`Error en el servidor (${response.status})`);
+                    throw new Error(`Servidor respondió con status: ${response.status}`);
                 }
 
                 const resultado = await response.json();
@@ -114,44 +118,43 @@
                 
                 if (!ventas || ventas.length === 0) {
                     noData.style.display = 'block';
-                    ventasTable.style.display = 'none';
+                    errorMsg.innerText = "No hay órdenes registradas aún.";
+                    errorMsg.style.color = "#95a5a6";
                     return;
                 }
 
                 noData.style.display = 'none';
-                ventasTable.style.display = 'table';
                 tableBody.innerHTML = '';
 
-                // Ordenar por fecha (más reciente primero)
                 ventas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
                 ventas.forEach(venta => {
                     const row = document.createElement('tr');
                     
-                    // --- MANTENIENDO TU BLINDAJE DE DATOS ORIGINAL ---
-                    const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : 'S/F';
-                    const cliente = (venta.cliente?.nombre || venta.clienteNombre || 'Consumidor Final').toUpperCase();
+                    // Blindaje de datos según tu estructura
+                    const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : '---';
+                    const cliente = (venta.clienteNombre || venta.cliente?.nombre || 'Consumidor Final').toUpperCase();
                     const total = Number(venta.totalFactura || venta.total || 0);
-                    const dimensiones = (venta.ancho && venta.largo) ? `${venta.ancho} x ${venta.largo} cm` : 'Ver detalle';
+                    const saldo = Number(venta.saldo || 0);
+                    const ot = venta.numeroFactura || venta.ot || 'S/N';
 
                     row.innerHTML = `
                         <td class="date-tag">${fechaFmt}</td>
-                        <td>
-                            <div style="font-weight: bold; color: #2c3e50;">${cliente}</div>
-                            <div style="font-size: 0.75rem; color: #94a3b8;">OT: ${venta.numeroFactura || venta.ot || 'N/A'}</div>
-                        </td>
-                        <td>${dimensiones}</td>
+                        <td style="font-weight: bold;">${ot}</td>
+                        <td>${cliente}</td>
                         <td class="price-tag">$ ${total.toLocaleString('es-CO')}</td>
+                        <td style="color: ${saldo > 0 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">$ ${saldo.toLocaleString('es-CO')}</td>
                         <td><span class="status-badge">Completado</span></td>
+                        <td><button style="border:none; background:none; color:#3b82f6; cursor:pointer;"><i class="fas fa-eye"></i></button></td>
                     `;
                     tableBody.appendChild(row);
                 });
 
             } catch (error) {
-                console.error("❌ Error detallado:", error);
-                tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">
-                    Error al cargar datos: ${error.message}
-                </td></tr>`;
+                console.error("❌ Error en fetch:", error);
+                noData.style.display = 'block';
+                // Mensaje amigable pero técnico para depurar
+                errorMsg.innerText = "Error al conectar con el servidor. Revisa tu conexión.";
             }
         }
 
