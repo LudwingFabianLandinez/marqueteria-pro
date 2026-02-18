@@ -4,28 +4,21 @@
 
 # --- REGLAS DE REDIRECCIÓN ---
 
-# Regla para que history.html encuentre los datos a través del server consolidado
+# Prioridad 1: Ruta específica para facturas
 [[redirects]]
   from = "/api/invoices"
   to = "/.netlify/functions/server/invoices"
   status = 200
   force = true
 
-# Tu regla actual para inventory_v7.js
+# Prioridad 2: Comodín para el resto de la API (Inventory, etc)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# Regla de respaldo para el servidor Express
-[[redirects]]
-  from = "/.netlify/functions/server/*"
-  to = "/.netlify/functions/server"
-  status = 200
-  force = true
-
-# Manejo de SPA
+# Manejo de SPA (Dejar al final)
 [[redirects]]
   from = "/*"
   to = "/index.html"

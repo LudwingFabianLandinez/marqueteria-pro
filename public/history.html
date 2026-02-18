@@ -221,21 +221,25 @@
         // --- CARGA INICIAL (Ruta /api/ corregida) ---
         async function cargarFacturas() {
             try {
-                // Se usa /api/invoices que es la que responde exitosamente
+                // Se usa /api/invoices con cache busting
                 const response = await fetch('/api/invoices?v=' + Date.now());
                 if (!response.ok) throw new Error("Error en servidor");
                 
                 const result = await response.json();
                 
-                // Normalización: si result es array o viene en .data
+                // Blindaje de datos: Normalización si viene como array o dentro de .data
                 facturasCargadas = Array.isArray(result) ? result : (result.data || []);
+                
+                // Ordenar por fecha (más reciente primero) por defecto
+                facturasCargadas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+                
                 facturasFiltradas = [...facturasCargadas];
                 renderTable(facturasFiltradas);
                 
             } catch (error) { 
                 console.error("Error al cargar facturas:", error);
                 document.getElementById('noData').style.display = 'block';
-                document.getElementById('noData').innerHTML = `<p style="color:red;">Error al conectar con el servidor.</p>`;
+                document.getElementById('noData').innerHTML = `<p style="color:var(--danger-red); font-weight:bold;">Error al conectar con el servidor. Reintente en unos momentos.</p>`;
             }
         }
 
@@ -252,7 +256,7 @@
             
             noData.style.display = 'none';
             tabla.innerHTML = data.map(inv => {
-                // Cálculo de valores basado en tu captura de pantalla exitosa
+                // Cálculo de valores basado en el blindaje de campos
                 const total = Number(inv.totalFactura || inv.total || 0);
                 const saldo = Number(inv.saldoPendiente || inv.saldo || 0);
                 const pagado = total - saldo;
@@ -319,7 +323,7 @@
                 const res = await fetch(`/api/invoices/${id}`);
                 const result = await res.json();
                 
-                // Si la respuesta es directa o con .data
+                // Blindaje en detalle
                 const inv = result.data || result;
                 
                 const total = Number(inv.totalFactura || inv.total || 0);
@@ -334,15 +338,17 @@
                 document.getElementById('detTotalVenta').innerText = formatter.format(total);
                 document.getElementById('detTotalPagado').innerText = formatter.format(pagado);
                 document.getElementById('detSaldoPendiente').innerText = formatter.format(saldo);
+                
+                // Solo mostrar zona de abono si hay saldo pendiente
                 document.getElementById('zonaAbono').style.display = saldo <= 0 ? 'none' : 'block';
                 document.getElementById('modalDetalle').style.display = 'block';
                 
-            } catch (error) { alert("Error al obtener detalles"); }
+            } catch (error) { alert("Error al obtener detalles de la orden."); }
         }
 
         async function procesarPago() {
             const monto = parseFloat(document.getElementById('montoNuevoAbono').value);
-            if(!monto || monto <= 0) return alert("Ingrese un monto válido.");
+            if(!monto || monto <= 0) return alert("Ingrese un monto válido de abono.");
             
             try {
                 const res = await fetch(`/api/invoices/${facturaSeleccionadaId}`, {
@@ -358,14 +364,14 @@
                     await cargarFacturas();
                     alert("Abono registrado con éxito.");
                 } else {
-                    alert("Error: " + result.error);
+                    alert("Error: " + (result.error || "No se pudo procesar el pago"));
                 }
-            } catch (error) { alert("Error al procesar pago"); }
+            } catch (error) { alert("Error de conexión al procesar pago."); }
         }
 
         // --- ELIMINAR / ANULAR ---
         async function eliminarFactura(id, num) {
-            if (confirm(`¿Está seguro de anular la orden ${num}?`)) {
+            if (confirm(`¿Está seguro de anular permanentemente la orden ${num}? Esta acción no se puede deshacer.`)) {
                 try {
                     const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
                     const result = await res.json();
@@ -373,7 +379,7 @@
                         alert("Orden anulada con éxito.");
                         cargarFacturas();
                     }
-                } catch (error) { alert("Error al eliminar la orden"); }
+                } catch (error) { alert("Error al intentar eliminar la orden."); }
             }
         }
 
@@ -382,7 +388,7 @@
             const hoyStr = new Date().toLocaleDateString();
             const hoyFiltradas = facturasCargadas.filter(f => f.fecha && new Date(f.fecha).toLocaleDateString() === hoyStr);
 
-            if (hoyFiltradas.length === 0) return alert("Hoy no hay movimientos registrados.");
+            if (hoyFiltradas.length === 0) return alert("No hay movimientos registrados con la fecha de hoy.");
 
             let totalV = 0, totalS = 0;
             let html = `<table class="report-table"><thead><tr><th>Orden</th><th>Cliente</th><th>Total</th><th>Recaudado</th><th>Saldo</th></tr></thead><tbody>`;
@@ -406,7 +412,7 @@
         }
 
         function exportarExcel() {
-            if (facturasFiltradas.length === 0) return alert("No hay datos para exportar.");
+            if (facturasFiltradas.length === 0) return alert("No hay datos mostrados para exportar.");
             const datosExcel = facturasFiltradas.map(f => {
                 const t = Number(f.totalFactura || f.total || 0);
                 const s = Number(f.saldoPendiente || f.saldo || 0);
@@ -425,12 +431,20 @@
             XLSX.writeFile(wb, `Reporte_Morales_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
 
-        function cerrarModal() { document.getElementById('modalDetalle').style.display = 'none'; }
+        function cerrarModal() { 
+            document.getElementById('modalDetalle').style.display = 'none'; 
+        }
 
-        // Event Listeners
+        // --- EVENT LISTENERS ---
         document.getElementById('searchInput').addEventListener('input', aplicarFiltros);
         document.addEventListener('DOMContentLoaded', cargarFacturas);
-        window.onclick = (e) => { if(e.target.className === 'modal') e.target.style.display = 'none'; }
+        
+        // Cerrar modales al hacer clic fuera
+        window.onclick = (e) => { 
+            if(e.target.className === 'modal') {
+                e.target.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>
