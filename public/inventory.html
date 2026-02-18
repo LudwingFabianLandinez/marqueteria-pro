@@ -105,23 +105,19 @@
             const ventasTable = document.getElementById('ventasTable');
             
             try {
-                // AJUSTE: URL absoluta con parámetro anti-caché para forzar datos nuevos
+                // AJUSTE: URL con parámetro anti-caché para forzar descarga limpia
                 const response = await fetch('/api/invoices?v=' + Date.now());
                 
                 if (!response.ok) {
                     throw new Error(`Servidor respondió con status: ${response.status}`);
                 }
 
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new Error("La respuesta del servidor no es un JSON válido.");
-                }
-
-                const resultado = await response.json();
-                const ventas = resultado.success ? resultado.data : [];
+                const jsonResponse = await response.json();
                 
-                // Validación extra para base de datos vacía
-                if (!ventas || ventas.length === 0) {
+                // AJUSTE DE FORMATO: Si es un arreglo directo lo usamos, si no, buscamos .data
+                const ventas = Array.isArray(jsonResponse) ? jsonResponse : (jsonResponse.data || []);
+                
+                if (ventas.length === 0) {
                     noData.style.display = 'block';
                     ventasTable.style.display = 'none';
                     errorMsg.innerText = "No hay órdenes registradas aún.";
@@ -129,7 +125,7 @@
                     return;
                 }
 
-                // Si hay datos, mostramos la tabla
+                // Si hay datos, activamos la vista de tabla
                 noData.style.display = 'none';
                 ventasTable.style.display = 'table';
                 tableBody.innerHTML = '';
@@ -140,11 +136,16 @@
                 ventas.forEach(venta => {
                     const row = document.createElement('tr');
                     
-                    // Blindaje de datos respetando tu lógica original
+                    // --- BLINDAJE DE DATOS SEGÚN TU JSON REAL ---
                     const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : '---';
-                    const cliente = (venta.clienteNombre || venta.cliente?.nombre || 'Consumidor Final').toUpperCase();
+                    
+                    // Manejo de cliente (si viene como objeto o string)
+                    const clienteRaw = venta.clienteNombre || (typeof venta.cliente === 'string' ? venta.cliente : venta.cliente?.nombre);
+                    const cliente = (clienteRaw || 'Consumidor Final').toUpperCase();
+                    
+                    // Manejo de montos (usando los nombres de tu captura)
                     const total = Number(venta.totalFactura || venta.total || 0);
-                    const saldo = Number(venta.saldo || 0);
+                    const saldo = Number(venta.saldoPendiente || venta.saldo || 0);
                     const ot = venta.numeroFactura || venta.ot || 'S/N';
 
                     row.innerHTML = `
@@ -153,8 +154,12 @@
                         <td>${cliente}</td>
                         <td class="price-tag">$ ${total.toLocaleString('es-CO')}</td>
                         <td style="color: ${saldo > 0 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">$ ${saldo.toLocaleString('es-CO')}</td>
-                        <td><span class="status-badge">Completado</span></td>
-                        <td><button style="border:none; background:none; color:#3b82f6; cursor:pointer;"><i class="fas fa-eye"></i></button></td>
+                        <td><span class="status-badge">${venta.estado || 'Completado'}</span></td>
+                        <td>
+                            <button style="border:none; background:none; color:#3b82f6; cursor:pointer;" title="Ver Detalle">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
                     `;
                     tableBody.appendChild(row);
                 });
