@@ -1,8 +1,9 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.8 - CONSOLIDACIÓN TOTAL INTEGRADA
+ * Versión: 13.3.24 - CONSOLIDACIÓN TOTAL INTEGRADA (DIAGNÓSTICO DASHBOARD)
  * Mantiene intacta la lógica de Inventario, Proveedores y Compras.
- * Incluye: Ganchos de Ajuste de Stock, Historial de 7 columnas y Blindaje de Datos.
+ * Objetivo: Sincronizar el envío de Compras con el blindaje del servidor v13.3.21.
+ * Blindaje: Estructura visual y lógica de negocio 100% preservada.
  */
 
 // 1. VARIABLES GLOBALES
@@ -12,12 +13,11 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.8 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.24 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
     
-    // Ajuste quirúrgico: Detección flexible de la página de historial
     if (window.location.pathname.includes('history')) {
         cargarHistorialVentas();
     }
@@ -379,11 +379,13 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // Nueva Compra
+    // --- NUEVA COMPRA (INTERVENCIÓN QUIRÚRGICA v13.3.24) ---
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
             e.preventDefault();
+            console.log("🛒 Procesando Nueva Compra...");
+            
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) btn.disabled = true;
 
@@ -401,11 +403,7 @@ function configurarEventos() {
                 return;
             }
 
-            const areaUnaLamina = (largo * ancho) / 10000;
-            const totalStockM2AAgregar = areaUnaLamina * cant;
-            const costoTotalCompra = valorUnitarioLamina * cant;
-            const precioM2Calculado = areaUnaLamina > 0 ? (valorUnitarioLamina / areaUnaLamina) : 0;
-
+            // Manejo de Creación Automática de Material si es nuevo
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
@@ -423,7 +421,7 @@ function configurarEventos() {
                     });
                     if (resMat.success) {
                         materialId = resMat.data._id || resMat.data.id;
-                    } else { throw new Error("Error al crear el material base"); }
+                    } else { throw new Error("No se pudo crear el material base"); }
                 } catch (err) {
                     alert("❌ Error: " + err.message);
                     if(btn) btn.disabled = false;
@@ -431,32 +429,37 @@ function configurarEventos() {
                 }
             }
 
-            const objetoCompra = {
+            // SINCRONIZACIÓN CON EL SERVIDOR BLINDADO
+            // Enviamos los nombres exactos que espera el router.post('/inventory/purchase')
+            const objetoCompraSincronizado = {
                 materialId: materialId,
                 proveedorId: providerId,
-                ancho_lamina_cm: ancho,
-                largo_lamina_cm: largo,
-                cantidad_laminas: cant,
-                cantidad: totalStockM2AAgregar, 
-                precio_total_lamina: valorUnitarioLamina, 
-                precio_m2_costo: precioM2Calculado,
-                costo_total: costoTotalCompra,
-                tipo_material: 'm2'
+                cantidad: cant,            // Cantidad de láminas/unidades
+                largo: largo,              // Para calcular m2 en el servidor
+                ancho: ancho,              // Para calcular m2 en el servidor
+                valorUnitario: valorUnitarioLamina
             };
 
+            console.log("📤 Enviando al servidor:", objetoCompraSincronizado);
+
             try {
-                const res = await window.API.registerPurchase(objetoCompra);
+                // Usamos registerPurchase que ya está mapeado en tu window.API
+                const res = await window.API.registerPurchase(objetoCompraSincronizado);
+                
                 if (res.success) { 
+                    alert(`✅ Compra exitosa. Nuevo Stock: ${res.nuevoStock.toFixed(2)} m2`);
                     window.cerrarModales(); 
-                    await fetchInventory(); 
                     e.target.reset(); 
-                    alert(`✅ Compra exitosa: ${cant} láminas agregadas.`);
+                    await fetchInventory(); 
                 } else {
-                    alert("❌ Error: " + (res.message || "Error de validación"));
+                    alert("❌ Error: " + (res.error || res.message || "Falla en el registro"));
                 }
             } catch (err) { 
-                alert("❌ Error de comunicación."); 
-            } finally { if(btn) btn.disabled = false; }
+                console.error("🚨 Error de conexión en compra:", err);
+                alert("❌ Error de comunicación con el servidor."); 
+            } finally { 
+                if(btn) btn.disabled = false; 
+            }
         });
     }
 
