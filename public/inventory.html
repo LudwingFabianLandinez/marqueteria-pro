@@ -94,15 +94,21 @@
     </main>
 
     <script>
-        // Lógica de conexión directa (sustituye a api.js para evitar fallos de carga)
+        // Función de carga con detección inteligente de ruta
         async function cargarHistorial() {
             const tableBody = document.getElementById('historyBody');
             const noData = document.getElementById('noData');
             const ventasTable = document.getElementById('ventasTable');
             
             try {
-                // Llamada directa a la función de Netlify
+                // Buscamos la función en la raíz, sin importar si el HTML está en /public o /
                 const response = await fetch('/.netlify/functions/invoices');
+                
+                // Si la respuesta no es OK (ej. un 404), lanzamos error para evitar el fallo del JSON
+                if (!response.ok) {
+                    throw new Error(`Error en el servidor (${response.status})`);
+                }
+
                 const resultado = await response.json();
                 const ventas = resultado.success ? resultado.data : [];
                 
@@ -122,12 +128,10 @@
                 ventas.forEach(venta => {
                     const row = document.createElement('tr');
                     
-                    // Blindaje de datos (soporta múltiples formatos de nombre de campo)
+                    // --- MANTENIENDO TU BLINDAJE DE DATOS ORIGINAL ---
                     const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : 'S/F';
                     const cliente = (venta.cliente?.nombre || venta.clienteNombre || 'Consumidor Final').toUpperCase();
                     const total = Number(venta.totalFactura || venta.total || 0);
-                    
-                    // Si es una cotización convertida o venta directa
                     const dimensiones = (venta.ancho && venta.largo) ? `${venta.ancho} x ${venta.largo} cm` : 'Ver detalle';
 
                     row.innerHTML = `
@@ -144,8 +148,10 @@
                 });
 
             } catch (error) {
-                console.error("❌ Error cargando historial:", error);
-                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">Error al conectar con el servidor.</td></tr>';
+                console.error("❌ Error detallado:", error);
+                tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">
+                    Error al cargar datos: ${error.message}
+                </td></tr>`;
             }
         }
 
