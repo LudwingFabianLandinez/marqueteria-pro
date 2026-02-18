@@ -1,9 +1,13 @@
-# 1. API - Prioridad absoluta para funciones
-/api/quotes/materials   /.netlify/functions/server/quotes/materials  200
-/api/quotes             /.netlify/functions/server/quotes            200
-/api/invoices           /.netlify/functions/server/invoices          200
-/api/invoices/* /.netlify/functions/server/invoices/:splat    200
+# 1. API - Prioridad absoluta para funciones (Sincronización Total)
+/api/quotes/materials    /.netlify/functions/server/quotes/materials  200
+/api/quotes              /.netlify/functions/server/quotes            200
+
+# 🛡️ GANCHOS DE FACTURACIÓN (Importante para eliminar OTs)
+/api/invoices            /.netlify/functions/server/invoices          200
+/api/invoices/* /.netlify/functions/server/invoices/:splat   200
+
+# CAPTURA GENERAL (Blindaje para cualquier otra ruta de API)
 /api/* /.netlify/functions/server/:splat            200
 
-# 2. SPA - Soporte para navegación
-/* /dashboard.html                              200
+# 2. SPA - Soporte para navegación y recarga de página
+/* /index.html                                   200

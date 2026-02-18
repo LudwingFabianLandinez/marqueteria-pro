@@ -45,9 +45,11 @@ const normalizarDatosMaterial = (req, res, next) => {
 router.get('/', (req, res, next) => {
     const fn = inventoryController.getMaterials || inventoryController.getInventory || inventoryController.getAll;
     if (typeof fn === 'function') return fn(req, res, next);
+    
     // Si no es inventario, buscamos si es una petición de facturas (Invoices)
     const fnInvoice = invoiceController.getInvoices || invoiceController.getAll;
     if (typeof fnInvoice === 'function') return fnInvoice(req, res, next);
+    
     res.status(500).json({ success: false, error: "Función de lectura no definida en controlador" });
 });
 
@@ -117,17 +119,21 @@ router.get('/history/:id', (req, res, next) => {
  * Aquí sumamos la lógica para eliminar tanto Materiales como Facturas (OT)
  */
 router.delete('/:id', (req, res, next) => {
-    // 1. Intentamos con el controlador de Facturas (Para la OT-00015)
-    if (invoiceController && (invoiceController.deleteInvoice || invoiceController.eliminarFactura)) {
-        const fnInvoice = invoiceController.deleteInvoice || invoiceController.eliminarFactura;
+    // 1. Intentamos primero con el controlador de Facturas (Para solucionar OT-00015)
+    const fnInvoice = invoiceController.deleteInvoice || invoiceController.eliminarFactura;
+    
+    // 2. Usamos tu código original de inventario como respaldo
+    const fnInv = inventoryController.deleteMaterial || inventoryController.removeMaterial;
+
+    // Si la ruta viene del historial de ventas, el controlador de facturas debería tener prioridad
+    if (typeof fnInvoice === 'function') {
+        // Ejecutamos la función y manejamos si no encuentra la factura para pasar al inventario
         return fnInvoice(req, res, next);
+    } else if (typeof fnInv === 'function') {
+        return fnInv(req, res, next);
     }
     
-    // 2. Si no, usamos tu código original de inventario
-    const fnInv = inventoryController.deleteMaterial || inventoryController.removeMaterial;
-    if (typeof fnInv === 'function') return fnInv(req, res, next);
-    
-    res.status(500).json({ success: false, error: "Función de eliminación no definida" });
+    res.status(500).json({ success: false, error: "Función de eliminación no definida en controladores" });
 });
 
 module.exports = router;
