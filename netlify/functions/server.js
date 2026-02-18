@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.19 (CONSOLIDADA)
- * Objetivo: Blindar la suma de stock contra errores de validación del historial.
- * Refuerzo: Independencia de procesos y salto de validaciones en transacciones.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.21 (DIAGNÓSTICO)
+ * Objetivo: Rastrear por qué la suma de stock no se refleja en la DB.
+ * Refuerzo: Logs de inspección profunda y validación de ObjectId.
  * Blindaje: Estructura visual y lógica de negocio 100% preservada.
  */
 
@@ -21,7 +21,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.19 registrados exitosamente");
+    console.log("📦 Modelos v13.3.21 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -47,7 +47,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.19] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.21] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -277,18 +277,28 @@ try {
         }
     });
 
-    // --- 📦 COMPRAS (VERSIÓN BLINDADA 13.3.19) ---
+    // --- 📦 COMPRAS (VERSIÓN DIAGNÓSTICO 13.3.21) ---
     router.post('/inventory/purchase', async (req, res) => {
+        console.log("📥 [DIAGNÓSTICO] Recibiendo datos de compra:", JSON.stringify(req.body));
+        
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
             
+            // Verificación técnica de ID antes de operar
+            if (!materialId || !mongoose.Types.ObjectId.isValid(materialId)) {
+                console.error("❌ [ERROR] ID de material ausente o inválido:", materialId);
+                return res.status(400).json({ success: false, error: "ID de material inválido" });
+            }
+
             const cant = parseFloat(cantidad) || 0;
             const lg = parseFloat(largo) || 0;
             const an = parseFloat(ancho) || 0;
             const vUnit = parseFloat(valorUnitario) || 0;
             const areaTotalIngreso = (lg * an / 10000) * cant;
 
-            // 1. PASO PRIORITARIO: Actualización de Stock (Blindada con updateOne para evitar bloqueos)
+            console.log(`🔄 [OPERACIÓN] Intentando sumar ${areaTotalIngreso} m2 al ID: ${materialId}`);
+
+            // 1. PASO PRIORITARIO: Actualización de Stock (Uso de findByIdAndUpdate para retorno de data)
             const materialActualizado = await Material.findByIdAndUpdate(
                 materialId,
                 { 
@@ -299,18 +309,20 @@ try {
                         proveedor_principal: proveedorId
                     }
                 },
-                { new: true, runValidators: false } // runValidators: false es clave aquí
+                { new: true, runValidators: false }
             );
 
             if (!materialActualizado) {
-                return res.status(404).json({ success: false, error: "Material no encontrado" });
+                console.error("❌ [DB] Material no encontrado en Atlas. ID consultado:", materialId);
+                return res.status(404).json({ success: false, error: "El material no existe en la base de datos" });
             }
 
-            // 2. PASO SECUNDARIO: Historial Independiente
-            // Se envuelve en try/catch para que si falla el historial, la respuesta al usuario sea exitosa.
+            console.log("✅ [ÉXITO] Stock actualizado. Nuevo valor:", materialActualizado.stock_actual);
+
+            // 2. PASO SECUNDARIO: Historial con Log de Error
             try {
                 const registroCompra = new Transaction({
-                    tipo: 'IN', // Cambiamos 'Compra' por 'IN' para saltar el error de validación
+                    tipo: 'IN',
                     materialId: materialId,
                     materialNombre: materialActualizado.nombre,
                     cantidad: areaTotalIngreso,
@@ -319,24 +331,21 @@ try {
                     proveedorId: proveedorId,
                     fecha: new Date()
                 });
-
-                // Forzamos el guardado ignorando errores de validación
                 await registroCompra.save({ validateBeforeSave: false });
+                console.log("📜 [LOG] Historial registrado");
             } catch (hError) {
-                console.warn("⚠️ Advertencia: Error en historial (Stock sumado con éxito):", hError.message);
+                console.warn("⚠️ [AVISO] Falló registro de historial, pero el stock se sumó:", hError.message);
             }
 
-            // 3. RESPUESTA EXITOSA GARANTIZADA
             res.json({ 
                 success: true, 
-                message: "Stock actualizado y compra procesada", 
+                message: "Stock actualizado correctamente", 
                 nuevoStock: materialActualizado.stock_actual,
-                data: materialActualizado,
                 ingreso_m2: areaTotalIngreso
             });
 
         } catch (error) {
-            console.error("🚨 Error crítico en ingreso de compra:", error);
+            console.error("🚨 [CRÍTICO] Error en ruta purchase:", error.message);
             res.status(500).json({ success: false, error: error.message });
         }
     });
@@ -349,7 +358,7 @@ try {
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.19', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.21', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
