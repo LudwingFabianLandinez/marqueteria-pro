@@ -13,13 +13,14 @@ const TransactionSchema = new mongoose.Schema({
     /**
      * AJUSTE QUIRÚRGICO: Expandimos el enum para aceptar variaciones 
      * comunes y evitar el Error 500 de validación.
+     * Se incluye 'IN' y 'OUT' para total compatibilidad con el servidor v13.3.19.
      */
     tipo: { 
         type: String, 
         enum: [
-            'COMPRA', 'compra', 'PURCHASE', 'purchase', // Variaciones de ingreso
+            'COMPRA', 'compra', 'PURCHASE', 'purchase', 'IN', 'in', // Variaciones de ingreso
             'AJUSTE_MAS', 'AJUSTE_MENOS', 
-            'VENTA', 'venta', 'SALE', 'sale'           // Variaciones de salida
+            'VENTA', 'venta', 'SALE', 'sale', 'OUT', 'out'         // Variaciones de salida
         ], 
         required: true 
     },
@@ -70,11 +71,15 @@ TransactionSchema.pre('save', function(next) {
         this.cantidad_m2 = this.cantidad;
     }
 
-    // Normalización: Si llega 'compra', lo guarda como 'COMPRA'
+    // Normalización: Si llega 'compra' o 'IN', lo guarda como 'COMPRA'
     if (this.tipo) {
         const t = this.tipo.toLowerCase();
-        if (t === 'compra' || t === 'purchase') this.tipo = 'COMPRA';
-        if (t === 'venta' || t === 'sale') this.tipo = 'VENTA';
+        if (t === 'compra' || t === 'purchase' || t === 'in') {
+            this.tipo = 'COMPRA';
+        }
+        if (t === 'venta' || t === 'sale' || t === 'out') {
+            this.tipo = 'VENTA';
+        }
     }
     
     next();
