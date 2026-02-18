@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.26 (CONSOLIDADO FINAL)
- * Intervención Quirúrgica: Restablece acceso a Proveedores y mantiene Motor de Compras.
- * Mantiene intacto el blindaje y la estructura original.
+ * Módulo de conexión API - Versión 13.3.27 (ESTABILIDAD Y COMPRAS)
+ * Intervención Quirúrgica: Restablece acceso a Proveedores y sincroniza Motor de Compras.
+ * Mantiene intacto el blindaje, la estructura original y la ruta de supervivencia.
  */
 
 // REGRESAMOS A LA RUTA ORIGINAL PARA QUE NO SE DAÑE EL ACCESO A PROVEEDORES
@@ -32,11 +32,11 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES (RECUPERADA) ---
+    // --- SECCIÓN PROVEEDORES (RESTABLECIDA) ---
     getProviders: async function() {
         try {
-            const response = await fetch(`${window.API.url}/providers`);
-            const res = await window.API._safeParse(response);
+            const response = await fetch(`${this.url}/providers`);
+            const res = await this._safeParse(response);
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
                     ...p,
@@ -53,20 +53,20 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            const response = await fetch(`${window.API.url}/providers`, {
+            const response = await fetch(`${this.url}/providers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
             });
-            return await window.API._safeParse(response);
+            return await this._safeParse(response);
         } catch (err) { throw err; }
     },
 
     // --- SECCIÓN INVENTARIO ---
     getInventory: async function() {
         try {
-            const response = await fetch(`${window.API.url}/inventory`);
-            return await window.API._safeParse(response);
+            const response = await fetch(`${this.url}/inventory`);
+            return await this._safeParse(response);
         } catch (err) { 
             const localInv = localStorage.getItem('inventory');
             return { success: true, data: localInv ? JSON.parse(localInv) : [], local: true }; 
@@ -76,7 +76,7 @@ window.API = {
     saveMaterial: async function(materialData) {
         try {
             const isEdit = materialData.id && materialData.id !== "";
-            const url = isEdit ? `${window.API.url}/inventory/${materialData.id}` : `${window.API.url}/inventory`;
+            const url = isEdit ? `${this.url}/inventory/${materialData.id}` : `${this.url}/inventory`;
             const method = isEdit ? 'PUT' : 'POST';
 
             const response = await fetch(url, {
@@ -84,7 +84,7 @@ window.API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(materialData)
             });
-            return await window.API._safeParse(response);
+            return await this._safeParse(response);
         } catch (err) { throw err; }
     },
 
@@ -92,7 +92,7 @@ window.API = {
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Sincronizando Compra con Motor de Diagnóstico...", purchaseData);
         
-        // Mapeo inteligente para que el servidor entienda los datos del formulario
+        // Mapeo inteligente para que el servidor entienda los datos del formulario sin romper nada
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
@@ -105,7 +105,7 @@ window.API = {
         };
 
         try {
-            const response = await fetch(`${window.API.url}/inventory/purchase`, {
+            const response = await fetch(`${this.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ window.API = {
                 },
                 body: JSON.stringify(payload)
             });
-            return await window.API._safeParse(response);
+            return await this._safeParse(response);
         } catch (err) {
             console.error("❌ Error Crítico en Compra:", err.message);
             throw err;
@@ -123,35 +123,35 @@ window.API = {
     adjustStock: async function(data) {
         try {
             if (!data.tipo) data.tipo = "AJUSTE_MAS"; 
-            const response = await fetch(`${window.API.url}/inventory/adjust`, {
+            const response = await fetch(`${this.url}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            return await window.API._safeParse(response);
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     deleteMaterial: async function(id) {
         try {
-            const response = await fetch(`${window.API.url}/inventory/${id}`, { method: 'DELETE' });
-            return await window.API._safeParse(response);
+            const response = await fetch(`${this.url}/inventory/${id}`, { method: 'DELETE' });
+            return await this._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     getHistory: async function(id = null) {
         try {
-            const url = id ? `${window.API.url}/inventory/history/${id}` : `${window.API.url}/inventory/history`;
+            const url = id ? `${this.url}/inventory/history/${id}` : `${this.url}/inventory/history`;
             const response = await fetch(url);
-            return await window.API._safeParse(response);
+            return await this._safeParse(response);
         } catch (err) { return { success: true, data: [] }; }
     },
 
     // --- SECCIÓN VENTAS Y ESTADÍSTICAS ---
     getDashboardStats: async function() {
         try {
-            const response = await fetch(`${window.API.url}/stats`);
-            return await window.API._safeParse(response);
+            const response = await fetch(`${this.url}/stats`);
+            return await this._safeParse(response);
         } catch (err) { 
             console.error("Error stats:", err);
             return { success: false, data: { totalVentas: 0 }, error: err.message }; 
@@ -160,8 +160,8 @@ window.API = {
 
     getInvoices: async function() { 
         try { 
-            const response = await fetch(`${window.API.url}/invoices`);
-            return await window.API._safeParse(response); 
+            const response = await fetch(`${this.url}/invoices`);
+            return await this._safeParse(response); 
         } 
         catch(e) { 
             console.error("Error invoices:", e);
@@ -171,7 +171,7 @@ window.API = {
 
     saveInvoice: async function(d) { 
         try { 
-            const response = await fetch(`${window.API.url}/invoices`, {
+            const response = await fetch(`${this.url}/invoices`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ window.API = {
                 },
                 body: JSON.stringify(d)
             }); 
-            return await window.API._safeParse(response); 
+            return await this._safeParse(response); 
         } catch(e) { return { success: false, message: e.message }; } 
     }
 };
@@ -192,4 +192,4 @@ window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 window.API.updateStock = window.API.adjustStock;
 
-console.log("🛡️ API v13.3.26 - Sincronización Netlify y Restauración de Rutas Exitosa.");
+console.log("🛡️ API v13.3.27 - Sincronización Netlify y Blindaje Activo.");
