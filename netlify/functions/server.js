@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.9 (CONSOLIDADA)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.10 (CONSOLIDADA)
  * Objetivo: Asegurar visualización correcta en historial sin tocar la lógica de negocio ni el contador.
- * Blindaje: Ajuste en el montaje de rutas para evitar 404 en sub-rutas de Netlify.
+ * Blindaje: Inyección directa de rutas críticas para evitar errores 404 en el despliegue de Netlify.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.9 registrados exitosamente");
+    console.log("📦 Modelos v13.3.10 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.9] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.10] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -75,6 +75,7 @@ const router = express.Router();
 try {
     const Material = mongoose.model('Material'); 
     const Invoice = mongoose.model('Invoice');
+    const Provider = mongoose.model('Provider'); // Cargado para rutas directas
 
     // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
@@ -246,16 +247,35 @@ try {
         }
     });
 
+    // --- 🚀 GESTIÓN DIRECTA DE PROVEEDORES (BLINDAJE ANTI-404) ---
+    router.get('/providers', async (req, res) => {
+        try {
+            const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
+            res.json(proveedores);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.post('/providers', async (req, res) => {
+        try {
+            const nuevoProveedor = new Provider(req.body);
+            await nuevoProveedor.save();
+            res.json({ success: true, data: nuevoProveedor });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     // --- VINCULACIÓN DE RUTAS RESTANTES ---
     router.use('/inventory', require('./routes/inventoryRoutes'));
-    router.use('/providers', require('./routes/providerRoutes'));
     router.use('/purchases', require('./routes/inventoryRoutes'));
     
     try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
     try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
 
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.9', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.10', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
@@ -263,7 +283,7 @@ try {
 }
 
 // 6. BLINDAJE FINAL DE RUTAS (Montaje múltiple para evitar el 404 en Netlify)
-app.use('/.netlify/functions/server', router); // <--- Clave para Netlify
+app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
 
