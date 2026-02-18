@@ -1,15 +1,17 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Rutas de Inventario - Versión 12.2.5 (SINCRO TOTAL & BLINDAJE)
+ * Rutas de Inventario e Invoices - Versión 12.2.5 (SINCRO TOTAL & BLINDAJE)
  */
 
 const express = require('express');
 const router = express.Router();
 
 /**
- * IMPORTACIÓN DEL CONTROLADOR
+ * IMPORTACIÓN DE CONTROLADORES
+ * Mantenemos tu inventoryController y sumamos invoiceController para las OT
  */
 const inventoryController = require('../controllers/inventoryController');
+const invoiceController = require('../controllers/invoiceController');
 
 /**
  * 🛡️ MIDDLEWARE QUIRÚRGICO DE NORMALIZACIÓN
@@ -36,19 +38,21 @@ const normalizarDatosMaterial = (req, res, next) => {
 };
 
 /**
- * 📋 RUTAS DE INVENTARIO PRINCIPAL
+ * 📋 RUTAS DE INVENTARIO PRINCIPAL (Tu código intacto)
  */
 
 // 1. Obtener lista completa de materiales
 router.get('/', (req, res, next) => {
     const fn = inventoryController.getMaterials || inventoryController.getInventory || inventoryController.getAll;
     if (typeof fn === 'function') return fn(req, res, next);
+    // Si no es inventario, buscamos si es una petición de facturas (Invoices)
+    const fnInvoice = invoiceController.getInvoices || invoiceController.getAll;
+    if (typeof fnInvoice === 'function') return fnInvoice(req, res, next);
     res.status(500).json({ success: false, error: "Función de lectura no definida en controlador" });
 });
 
 /**
  * 🚀 GUARDADO / CREACIÓN (Punto crítico para el botón "Guardar")
- * Aplicamos el normalizador para evitar errores de validación de Mongoose.
  */
 router.post('/', normalizarDatosMaterial, (req, res, next) => {
     const fn = inventoryController.saveMaterial || inventoryController.createMaterial || inventoryController.addMaterial;
@@ -108,7 +112,22 @@ router.get('/history/:id', (req, res, next) => {
     res.json({ success: true, data: [] });
 });
 
-// 7. Eliminar material
-router.delete('/:id', inventoryController.deleteMaterial);
+/**
+ * 🗑️ GESTIÓN DE ELIMINACIÓN (GANCHOS CONSOLIDADOS)
+ * Aquí sumamos la lógica para eliminar tanto Materiales como Facturas (OT)
+ */
+router.delete('/:id', (req, res, next) => {
+    // 1. Intentamos con el controlador de Facturas (Para la OT-00015)
+    if (invoiceController && (invoiceController.deleteInvoice || invoiceController.eliminarFactura)) {
+        const fnInvoice = invoiceController.deleteInvoice || invoiceController.eliminarFactura;
+        return fnInvoice(req, res, next);
+    }
+    
+    // 2. Si no, usamos tu código original de inventario
+    const fnInv = inventoryController.deleteMaterial || inventoryController.removeMaterial;
+    if (typeof fnInv === 'function') return fnInv(req, res, next);
+    
+    res.status(500).json({ success: false, error: "Función de eliminación no definida" });
+});
 
 module.exports = router;
