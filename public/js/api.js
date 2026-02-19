@@ -1,12 +1,12 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.33 (SINCRONIZACIÓN TOML)
- * Intervención: Ajuste de ruta base a '/api' para coincidir con redirects de netlify.toml.
+ * Módulo de conexión API - Versión 13.3.34 (RECONEXIÓN INTELIGENTE)
+ * Intervención: Fallback automático para rutas Netlify si /api devuelve 404.
  * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
  */
 
-// Ruta base sincronizada con las reglas de redirección de tu netlify.toml
 const API_BASE = '/api';
+const API_DIRECT = '/.netlify/functions/server';
 
 window.API = {
     url: API_BASE,
@@ -31,10 +31,16 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES (Sincronizada con /api/providers) ---
+    // --- SECCIÓN PROVEEDORES (Con Salto Inteligente) ---
     getProviders: async function() {
         try {
-            const response = await fetch(`${API_BASE}/providers`);
+            let response = await fetch(`${API_BASE}/providers`);
+            
+            if (response.status === 404) {
+                console.log("🔄 Reintentando proveedores por ruta directa...");
+                response = await fetch(`${API_DIRECT}/providers`);
+            }
+
             const res = await window.API._safeParse(response);
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
@@ -53,11 +59,19 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            const response = await fetch(`${API_BASE}/providers`, {
+            let response = await fetch(`${API_BASE}/providers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
             });
+
+            if (response.status === 404) {
+                response = await fetch(`${API_DIRECT}/providers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(providerData)
+                });
+            }
             return await window.API._safeParse(response);
         } catch (err) { throw err; }
     },
@@ -65,7 +79,8 @@ window.API = {
     // --- SECCIÓN INVENTARIO ---
     getInventory: async function() {
         try {
-            const response = await fetch(`${API_BASE}/inventory`);
+            let response = await fetch(`${API_BASE}/inventory`);
+            if (response.status === 404) response = await fetch(`${API_DIRECT}/inventory`);
             return await window.API._safeParse(response);
         } catch (err) { 
             const localInv = localStorage.getItem('inventory');
@@ -76,17 +91,26 @@ window.API = {
     saveMaterial: async function(materialData) {
         try {
             const isEdit = materialData.id && materialData.id !== "";
-            const targetUrl = isEdit ? `${API_BASE}/inventory/${materialData.id}` : `${API_BASE}/inventory`;
-            const response = await fetch(targetUrl, {
+            const path = isEdit ? `/inventory/${materialData.id}` : `/inventory`;
+            
+            let response = await fetch(`${API_BASE}${path}`, {
                 method: isEdit ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(materialData)
             });
+
+            if (response.status === 404) {
+                response = await fetch(`${API_DIRECT}${path}`, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(materialData)
+                });
+            }
             return await window.API._safeParse(response);
         } catch (err) { throw err; }
     },
 
-    // --- REGISTRO DE COMPRA (Blindaje de datos intacto) ---
+    // --- REGISTRO DE COMPRA (Blindaje de datos intacto al 100%) ---
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Sincronizando Compra con API...", purchaseData);
         
@@ -102,11 +126,19 @@ window.API = {
         };
 
         try {
-            const response = await fetch(`${API_BASE}/inventory/purchase`, {
+            let response = await fetch(`${API_BASE}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload)
             });
+
+            if (response.status === 404) {
+                response = await fetch(`${API_DIRECT}/inventory/purchase`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
             return await window.API._safeParse(response);
         } catch (err) {
             console.error("❌ Error en Compra:", err.message);
@@ -116,44 +148,61 @@ window.API = {
 
     adjustStock: async function(data) {
         try {
-            const response = await fetch(`${API_BASE}/inventory/adjust`, {
+            let response = await fetch(`${API_BASE}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
+            if (response.status === 404) {
+                response = await fetch(`${API_DIRECT}/inventory/adjust`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            }
             return await window.API._safeParse(response);
         } catch (err) { return { success: false, error: err.message }; }
     },
 
     getHistory: async function(id = null) {
         try {
-            const targetUrl = id ? `${API_BASE}/inventory/history/${id}` : `${API_BASE}/inventory/history`;
-            const response = await fetch(targetUrl);
+            const path = id ? `/inventory/history/${id}` : `/inventory/history`;
+            let response = await fetch(`${API_BASE}${path}`);
+            if (response.status === 404) response = await fetch(`${API_DIRECT}${path}`);
             return await window.API._safeParse(response);
         } catch (err) { return { success: true, data: [] }; }
     },
 
     getDashboardStats: async function() {
         try {
-            const response = await fetch(`${API_BASE}/stats`);
+            let response = await fetch(`${API_BASE}/stats`);
+            if (response.status === 404) response = await fetch(`${API_DIRECT}/stats`);
             return await window.API._safeParse(response);
         } catch (err) { return { success: false, data: { totalVentas: 0 } }; }
     },
 
     getInvoices: async function() { 
         try { 
-            const response = await fetch(`${API_BASE}/invoices`);
+            let response = await fetch(`${API_BASE}/invoices`);
+            if (response.status === 404) response = await fetch(`${API_DIRECT}/invoices`);
             return await window.API._safeParse(response); 
         } catch(e) { return { success: false, data: [] }; } 
     },
 
     saveInvoice: async function(d) { 
         try { 
-            const response = await fetch(`${API_BASE}/invoices`, {
+            let response = await fetch(`${API_BASE}/invoices`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
-            }); 
+            });
+            if (response.status === 404) {
+                response = await fetch(`${API_DIRECT}/invoices`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(d)
+                });
+            }
             return await window.API._safeParse(response); 
         } catch(e) { return { success: false, message: e.message }; } 
     }
@@ -167,4 +216,4 @@ window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 window.API.updateStock = window.API.adjustStock;
 
-console.log("🛡️ API v13.3.33 - Sincronizada con netlify.toml con éxito.");
+console.log("🛡️ API v13.3.34 - Reconexión Inteligente y Blindaje Activo.");
