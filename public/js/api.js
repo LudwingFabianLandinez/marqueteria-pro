@@ -1,11 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.35 (SALIDA DEL BUCLE)
- * Intervención: Motor de búsqueda de ruta activa (Triple vía).
+ * Módulo de conexión API - Versión 13.3.36 (TÚNEL CONSOLIDADO)
+ * Intervención: Optimización de motor de búsqueda y sincronización con carpeta 'public'.
  * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
  */
 
-// Definimos las rutas posibles para romper el error 404 de Netlify
+// Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml)
 const API_ROUTES = [
     '/api',
     '/.netlify/functions/server',
@@ -33,11 +33,11 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES (Motor de búsqueda activa) ---
+    // --- SECCIÓN PROVEEDORES ---
     getProviders: async function() {
         for (const base of API_ROUTES) {
             try {
-                console.log(`🔍 Intentando conectar proveedores en: ${base}`);
+                console.log(`🔍 Buscando proveedores en: ${base}`);
                 const response = await fetch(`${base}/providers`);
                 
                 if (response.status !== 404) {
@@ -49,12 +49,11 @@ window.API = {
                             _id: p._id || p.id || "ID_TEMP"
                         }));
                     }
-                    console.log(`✅ Conexión exitosa vía: ${base}`);
+                    console.log(`✅ Conectado vía: ${base}`);
                     return res;
                 }
             } catch (err) { continue; }
         }
-        // Contingencia local si todo falla
         const localData = localStorage.getItem('providers');
         return { success: true, data: localData ? JSON.parse(localData) : [], local: true };
     },
@@ -70,7 +69,7 @@ window.API = {
                 if (response.status !== 404) return await window.API._safeParse(response);
             } catch (e) { }
         }
-        throw new Error("No se pudo establecer conexión con el servidor.");
+        throw new Error("No se pudo conectar con el servidor.");
     },
 
     // --- SECCIÓN INVENTARIO ---
@@ -125,7 +124,7 @@ window.API = {
                 if (response.status !== 404) return await window.API._safeParse(response);
             } catch (e) { }
         }
-        throw new Error("Error al registrar la compra en el servidor.");
+        throw new Error("Error al registrar la compra.");
     },
 
     // --- SECCIÓN ESTADÍSTICAS Y FACTURAS ---
@@ -171,4 +170,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v13.3.35 - Motor de búsqueda de rutas activado.");
+console.log("🛡️ API v13.3.36 - Blindaje y Sincronización Total.");
