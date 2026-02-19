@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.45 (REPARACIÓN QUIRÚRGICA)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.48 (CONSOLIDACIÓN FINAL)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
  */
 
@@ -19,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.45 registrados exitosamente");
+    console.log("📦 Modelos v13.3.48 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -42,7 +42,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.45] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.48] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -190,7 +190,7 @@ try {
         }
     });
 
-    // --- INVENTARIO Y COMPRAS (CÁLCULO M2 RESPETADO) ---
+    // --- INVENTARIO Y COMPRAS ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -229,13 +229,12 @@ app.use('/', router);
 
 const handler = serverless(app);
 
-// EXPORT FINAL CON GANCHO DE RESCATE
+// EXPORT FINAL CON GANCHO DE RESCATE (REPARACIÓN 404)
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
     try {
         await connect();
-        // Este es el ajuste clave: Netlify a veces envía la ruta completa en event.path
-        // Forzamos a que el router interno siempre encuentre la ruta base
+        // Gancho de reparación para Netlify Functions
         if (event.path.includes('.netlify/functions/server')) {
             event.path = event.path.replace('/.netlify/functions/server', '');
         }

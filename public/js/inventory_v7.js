@@ -429,23 +429,19 @@ function configurarEventos() {
                 }
             }
 
-            // SINCRONIZACIÓN CON EL SERVIDOR BLINDADO
-            // Enviamos los nombres exactos que espera el router.post('/inventory/purchase')
             const objetoCompraSincronizado = {
                 materialId: materialId,
                 proveedorId: providerId,
-                cantidad: cant,            // Cantidad de láminas/unidades
-                largo: largo,              // Para calcular m2 en el servidor
-                ancho: ancho,              // Para calcular m2 en el servidor
+                cantidad: cant,
+                largo: largo,
+                ancho: ancho,
                 valorUnitario: valorUnitarioLamina
             };
 
             console.log("📤 Enviando al servidor:", objetoCompraSincronizado);
 
             try {
-                // Usamos registerPurchase que ya está mapeado en tu window.API
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
-                
                 if (res.success) { 
                     alert(`✅ Compra exitosa. Nuevo Stock: ${res.nuevoStock.toFixed(2)} m2`);
                     window.cerrarModales(); 
