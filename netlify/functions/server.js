@@ -272,7 +272,7 @@ try {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL (Aquí está el secreto del éxito)
+// 6. BLINDAJE FINAL
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
