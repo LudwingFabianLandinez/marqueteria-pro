@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.24 - CONSOLIDACIÓN TOTAL INTEGRADA (DIAGNÓSTICO DASHBOARD)
- * Mantiene intacta la lógica de Inventario, Proveedores y Compras.
- * Objetivo: Sincronizar el envío de Compras con el blindaje del servidor v13.3.21.
+ * Versión: 13.3.56 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
+ * Mantiene intacta la lógica de Inventario, Proveedores y Historial.
+ * Objetivo: Sincronizar el envío de Compras con el blindaje del servidor v13.3.53.
  * Blindaje: Estructura visual y lógica de negocio 100% preservada.
  */
 
@@ -13,7 +13,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.24 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.56 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -28,7 +28,7 @@ window.toggleMenu = function() {
     if (sidebar) sidebar.classList.toggle('active');
 }
 
-// --- SECCIÓN HISTORIAL (INTERVENCIÓN QUIRÚRGICA) ---
+// --- SECCIÓN HISTORIAL (PRESERVADO) ---
 
 async function cargarHistorialVentas() {
     const cuerpoTabla = document.getElementById('lista-ventas');
@@ -55,7 +55,7 @@ async function cargarHistorialVentas() {
                 const orden = venta.numeroOrden || venta.ot || venta.numeroFactura || "S/N";
                 
                 const nombreCliente = (typeof venta.clienteNombre === 'string') ? venta.clienteNombre : 
-                                     (typeof venta.cliente === 'string' ? venta.cliente : "Cliente General");
+                                    (typeof venta.cliente === 'string' ? venta.cliente : "Cliente General");
 
                 const totalVenta = Number(venta.total || venta.totalVenta || 0);
                 const abono = Number(venta.abono || 0);
@@ -90,7 +90,7 @@ async function cargarHistorialVentas() {
     }
 }
 
-// --- SECCIÓN PROVEEDORES ---
+// --- SECCIÓN PROVEEDORES (PRESERVADO) ---
 
 async function fetchProviders() {
     try {
@@ -154,7 +154,7 @@ window.guardarProveedor = async function(event) {
     } catch (error) { alert("❌ Error de conexión"); }
 };
 
-// --- SECCIÓN INVENTARIO ---
+// --- SECCIÓN INVENTARIO (PRESERVADO) ---
 
 async function fetchInventory() {
     try {
@@ -264,7 +264,7 @@ function renderTable(materiales) {
     });
 }
 
-// --- FACTURACIÓN Y CONEXIÓN API ---
+// --- FACTURACIÓN (PRESERVADO) ---
 
 async function facturarVenta() {
     if (!datosCotizacionActual) {
@@ -304,9 +304,7 @@ async function facturarVenta() {
             btnVenta.disabled = true;
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
         }
-        
         const res = await window.API.saveInvoice(facturaData);
-        
         if (res.success) {
             alert("✅ VENTA REGISTRADA: " + (res.ot || "Éxito"));
             localStorage.removeItem('ultima_cotizacion');
@@ -334,7 +332,6 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
-    // Guardar/Editar Material
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -357,15 +354,12 @@ function configurarEventos() {
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
-    // Ajuste Directo de Stock
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('adjustId').value;
         const nuevaCantidad = parseFloat(document.getElementById('adjustCantidad').value);
         const nuevoMinimo = parseFloat(document.getElementById('adjustReorden').value);
-
         if (isNaN(nuevaCantidad)) return alert("Cantidad no válida");
-
         try {
             const res = await window.API.updateStock(id, { 
                 stock_actual: nuevaCantidad, 
@@ -379,7 +373,7 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // --- NUEVA COMPRA (INTERVENCIÓN QUIRÚRGICA v13.3.24) ---
+    // --- NUEVA COMPRA (INTERVENCIÓN QUIRÚRGICA v13.3.56) ---
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -387,27 +381,30 @@ function configurarEventos() {
             console.log("🛒 Procesando Nueva Compra...");
             
             const btn = e.target.querySelector('button[type="submit"]');
-            if(btn) btn.disabled = true;
+            if(btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            }
 
             let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
             const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
-            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 1; 
+            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0; 
             const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
             
-            if(!materialId || !providerId) {
-                alert("⚠️ Selecciona material y proveedor");
-                if(btn) btn.disabled = false;
+            if(!materialId || !providerId || cant <= 0) {
+                alert("⚠️ Verifica material, proveedor y cantidad mayor a cero");
+                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                 return;
             }
 
-            // Manejo de Creación Automática de Material si es nuevo
+            // Manejo de Creación Automática de Material
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
-                    if(btn) btn.disabled = false;
+                    if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                     return;
                 }
                 try {
@@ -424,26 +421,26 @@ function configurarEventos() {
                     } else { throw new Error("No se pudo crear el material base"); }
                 } catch (err) {
                     alert("❌ Error: " + err.message);
-                    if(btn) btn.disabled = false;
+                    if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                     return;
                 }
             }
 
+            // BLINDAJE: Construcción del objeto según servidor v13.3.53
             const objetoCompraSincronizado = {
                 materialId: materialId,
                 proveedorId: providerId,
                 cantidad: cant,
                 largo: largo,
                 ancho: ancho,
-                valorUnitario: valorUnitarioLamina
+                valorUnitario: valorUnitarioLamina,
+                totalM2: ((largo / 100) * (ancho / 100) * cant).toFixed(2)
             };
-
-            console.log("📤 Enviando al servidor:", objetoCompraSincronizado);
 
             try {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 if (res.success) { 
-                    alert(`✅ Compra exitosa. Nuevo Stock: ${res.nuevoStock.toFixed(2)} m2`);
+                    alert(`✅ Compra exitosa. Nuevo Stock: ${Number(res.nuevoStock).toFixed(2)} m2`);
                     window.cerrarModales(); 
                     e.target.reset(); 
                     await fetchInventory(); 
@@ -454,7 +451,7 @@ function configurarEventos() {
                 console.error("🚨 Error de conexión en compra:", err);
                 alert("❌ Error de comunicación con el servidor."); 
             } finally { 
-                if(btn) btn.disabled = false; 
+                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
         });
     }
@@ -467,7 +464,7 @@ function configurarEventos() {
     document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
 }
 
-// --- UTILIDADES DE UI ---
+// --- UTILIDADES DE UI (PRESERVADO) ---
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
