@@ -313,8 +313,9 @@
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js"></script>
 <script>
-    // 🛡️ CONFIGURACIÓN DE RUTA PARA EVITAR EL ERROR 404 EN NETLIFY
-    window.API_URL = "/.netlify/functions/server"; 
+    // 🛡️ USA EL TÚNEL MAESTRO DEFINIDO EN EL NETLIFY.TOML
+    // Al usar "/api", Netlify lo redirige automáticamente a la función server.js
+    window.API_URL = "/api"; 
 
     document.addEventListener('DOMContentLoaded', () => {
         // Ejecutamos la carga inicial del blindaje v7
