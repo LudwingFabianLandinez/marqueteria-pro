@@ -1,13 +1,12 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.31 (ESTABILIDAD ABSOLUTA)
- * Intervención: Eliminación de error 404 mediante normalización de rutas Netlify.
- * Mantiene intacto el blindaje de compras y el diseño del dashboard.
+ * Módulo de conexión API - Versión 13.3.32 (ESTABILIDAD ABSOLUTA + RUTA EMERGENCIA)
+ * Intervención: Se implementa fallback de rutas para eliminar error 404 persistente.
+ * Mantiene intacto el blindaje de compras, el diseño y tu estructura original.
  */
 
-// Intentamos detectar la ruta base de forma dinámica para evitar el 404
 const getBaseURL = () => {
-    // Si estamos en Netlify, esta es la ruta estándar
+    // Intentamos la ruta estándar de Netlify
     return '/.netlify/functions/server';
 };
 
@@ -34,11 +33,18 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES (CORREGIDA PARA EVITAR 404) ---
+    // --- SECCIÓN PROVEEDORES (CORREGIDA CON RUTA DE EMERGENCIA) ---
     getProviders: async function() {
         try {
-            // Usamos la ruta completa y limpia
-            const response = await fetch(`${window.API.url}/providers`);
+            // Intento A: Ruta Estándar
+            let response = await fetch(`${window.API.url}/providers`);
+            
+            // Si da 404, ejecutamos Plan B: Ruta Directa
+            if (response.status === 404) {
+                console.log("🔄 Reintentando por ruta alterna...");
+                response = await fetch('/providers');
+            }
+
             const res = await window.API._safeParse(response);
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
@@ -69,7 +75,9 @@ window.API = {
     // --- SECCIÓN INVENTARIO ---
     getInventory: async function() {
         try {
-            const response = await fetch(`${window.API.url}/inventory`);
+            let response = await fetch(`${window.API.url}/inventory`);
+            if (response.status === 404) response = await fetch('/inventory');
+            
             return await window.API._safeParse(response);
         } catch (err) { 
             const localInv = localStorage.getItem('inventory');
@@ -90,7 +98,7 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    // --- REGISTRO DE COMPRA (Blindaje de datos intacto) ---
+    // --- REGISTRO DE COMPRA (Blindaje de datos intacto - Sincronizado) ---
     registerPurchase: async function(purchaseData) {
         console.log("🚀 Sincronizando Compra...", purchaseData);
         
@@ -106,11 +114,20 @@ window.API = {
         };
 
         try {
-            const response = await fetch(`${window.API.url}/inventory/purchase`, {
+            let response = await fetch(`${window.API.url}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload)
             });
+
+            if (response.status === 404) {
+                response = await fetch('/inventory/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+
             return await window.API._safeParse(response);
         } catch (err) {
             console.error("❌ Error en Compra:", err.message);
@@ -171,4 +188,4 @@ window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 window.API.updateStock = window.API.adjustStock;
 
-console.log("🛡️ API v13.3.31 - Diagnóstico de Rutas Activo.");
+console.log("🛡️ API v13.3.32 - Ruta de Emergencia y Blindaje Activo.");
