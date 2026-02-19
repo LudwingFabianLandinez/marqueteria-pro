@@ -1,7 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.44 (CONSOLIDADO FINAL + MULTI-RUTA)
- * Objetivo: Romper el error 404 mediante búsqueda cíclica y blindaje de Arrays.
+ * Módulo de conexión API - Versión 13.3.52 (REPARACIÓN DE CONTEXTO)
+ * Blindaje: Estructura visual, búsqueda cíclica y lógica de m2 100% INTACTA.
+ * Reparación: Error "this._request is not a function" mediante referencia absoluta.
  */
 
 const API_ROUTES = [
@@ -12,7 +13,7 @@ const API_ROUTES = [
 ];
 
 window.API = {
-    // MOTOR DE PROCESAMIENTO SEGURO
+    // 1. MOTOR DE PROCESAMIENTO SEGURO
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -30,13 +31,12 @@ window.API = {
             const rawData = await response.json();
             let cleanData = [];
             
-            // Blindaje contra errores de .map() - Respetando tu estructura visual
+            // Blindaje contra errores de .map()
             if (Array.isArray(rawData)) {
                 cleanData = rawData;
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
             } else if (rawData && typeof rawData === 'object') {
-                // Si es un objeto de stats o factura única, se retorna para su procesamiento
                 return { success: true, data: rawData };
             }
             return { success: true, data: cleanData };
@@ -44,7 +44,7 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // LÓGICA DE BÚSQUEDA MULTI-RUTA (Evita el 404 persistente)
+    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA (Evita el 404 persistente)
     async _request(path, options = {}) {
         for (const base of API_ROUTES) {
             try {
@@ -52,9 +52,9 @@ window.API = {
                 console.log(`📡 Intentando: ${url}`);
                 const response = await fetch(url, options);
                 
-                // Si la ruta responde (aunque sea error de lógica, pero no 404), procesamos
                 if (response.status !== 404) {
-                    return await this._safeParse(response);
+                    // Usamos window.API para asegurar acceso al método aunque se pierda el contexto
+                    return await window.API._safeParse(response);
                 }
             } catch (err) {
                 console.warn(`⚠️ Falló intento en ${base}:`, err.message);
@@ -62,7 +62,7 @@ window.API = {
             }
         }
 
-        // Fallback a LocalStorage si todo falla (Modo Rescate para no dañar la vista)
+        // Fallback a LocalStorage (Modo Rescate)
         const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
         if (storageKey) {
             const local = localStorage.getItem(storageKey);
@@ -71,13 +71,13 @@ window.API = {
         throw new Error("No se pudo establecer conexión con ninguna ruta del servidor.");
     },
 
-    // --- MÉTODOS DE NEGOCIO (Respetando tu lógica actual) ---
-    getProviders: function() { return this._request('/providers'); },
-    getInventory: function() { return this._request('/inventory'); },
-    getInvoices: function() { return this._request('/invoices'); },
+    // 3. MÉTODOS DE NEGOCIO (Respetando lógica actual con referencia absoluta)
+    getProviders: function() { return window.API._request('/providers'); },
+    getInventory: function() { return window.API._request('/inventory'); },
+    getInvoices: function() { return window.API._request('/invoices'); },
 
     saveProvider: function(data) {
-        return this._request('/providers', {
+        return window.API._request('/providers', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -87,7 +87,7 @@ window.API = {
     saveMaterial: function(data) {
         const id = data.id || data._id;
         const path = id ? `/inventory/${id}` : '/inventory';
-        return this._request(path, {
+        return window.API._request(path, {
             method: id ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -103,27 +103,27 @@ window.API = {
             ancho: Number(purchaseData.ancho || 0),
             valorUnitario: Number(purchaseData.valorUnitario || 0)
         };
-        return this._request('/inventory/purchase', {
+        return window.API._request('/inventory/purchase', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
     },
 
-    deleteMaterial: function(id) { return this._request(`/inventory/${id}`, { method: 'DELETE' }); },
+    deleteMaterial: function(id) { return window.API._request(`/inventory/${id}`, { method: 'DELETE' }); },
     
     updateStock: function(id, data) {
-        return this._request(`/inventory/${id}`, {
+        return window.API._request(`/inventory/${id}`, {
             method: 'PUT', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
     },
 
-    getHistory: function(id) { return this._request(`/inventory/history/${id}`); },
+    getHistory: function(id) { return window.API._request(`/inventory/history/${id}`); },
     
     saveInvoice: function(data) {
-        return this._request('/invoices', {
+        return window.API._request('/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -137,4 +137,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.44 - Blindaje Multirruta Activo.");
+console.log("🛡️ API v13.3.52 - Blindaje de Contexto y Multirruta Activo.");
