@@ -1,6 +1,6 @@
 /**
  * LÓGICA DE PROVEEDORES - MARQUETERÍA PRO
- * Versión Consolidada: Sincronización Total con Backend
+ * Versión Consolidada: Sincronización Total con Backend (Diseño Cards)
  * Mantiene estructura visual y blindaje original.
  */
 
@@ -37,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // Endpoint corregido para coincidir con el servidor v13.3.53
                 const response = await fetch(`${BASE_URL_API}/providers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -49,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.success || response.ok) {
                     alert("✅ Proveedor guardado correctamente.");
                     supplierForm.reset();
-                    // Ejecutamos la carga automática de la tabla tras guardar
+                    // Ejecutamos la carga automática tras guardar
                     await window.cargarTablaProveedores();
                 } else {
                     alert("❌ Error: " + (result.error || "No se pudo guardar"));
@@ -82,49 +81,71 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Función GLOBAL para cargar y renderizar la tabla de proveedores
+ * Función GLOBAL para cargar y renderizar el DIRECTORIO de proveedores (Cards)
  */
 window.cargarTablaProveedores = async function() {
-    const tablaBody = document.getElementById('lista-proveedores-body');
-    if (!tablaBody) {
-        console.warn("⚠️ No se encontró el elemento 'lista-proveedores-body' en el DOM.");
+    // 1. Buscamos el contenedor del Directorio (Panel oscuro a la derecha)
+    // Se usa el ID si existe, o el selector de clase del contenedor de fondo oscuro
+    const directorioContainer = document.getElementById('lista-proveedores-body') || 
+                                 document.querySelector('.bg-slate-800.p-4') ||
+                                 document.querySelector('aside .bg-slate-800');
+
+    if (!directorioContainer) {
+        console.warn("⚠️ No se encontró el contenedor del Directorio en el DOM.");
         return;
     }
 
-    tablaBody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-sync fa-spin"></i> Conectando con Atlas...</td></tr>';
+    // Guardamos el título para no borrarlo
+    const tituloHtml = '<h3 class="text-white font-bold mb-4 flex items-center"><i class="fas fa-address-book mr-2"></i> DIRECTORIO</h3>';
+    directorioContainer.innerHTML = tituloHtml + '<div class="text-white text-xs p-2"><i class="fas fa-sync fa-spin"></i> Sincronizando con Atlas...</div>';
 
     try {
         const result = await obtenerProveedores();
         
-        // Blindaje de datos: Maneja tanto result.data como result directo (array)
+        // Blindaje de datos
         const proveedores = (result && result.success) ? result.data : (Array.isArray(result) ? result : []);
 
+        // Limpiamos el mensaje de carga, mantenemos el título
+        directorioContainer.innerHTML = tituloHtml;
+
         if (proveedores && proveedores.length > 0) {
-            tablaBody.innerHTML = ''; 
             proveedores.forEach(prov => {
-                const fila = `
-                    <tr>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${prov.nombre.toUpperCase()}</strong></td>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.nit || 'N/A'}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.contacto || 'N/A'}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.telefono}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${prov.categoria}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">
-                            <button class="btn-edit-action" title="Editar" onclick="alert('Función editar próximamente')">
+                // Creamos la "Card" blanca respetando tu diseño visual
+                const card = `
+                    <div class="bg-white rounded-lg p-3 mb-3 shadow-md border-l-4 border-blue-600 transition-all hover:shadow-lg">
+                        <div class="flex justify-between items-start">
+                            <h4 class="text-blue-900 font-bold uppercase text-[11px] leading-tight mb-1">${prov.nombre}</h4>
+                            <button onclick="alert('Próximamente')" class="text-gray-400 hover:text-blue-600 text-[10px]">
                                 <i class="fas fa-edit"></i>
                             </button>
-                        </td>
-                    </tr>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] text-gray-600 flex items-center">
+                                <i class="fas fa-id-card w-4 text-blue-400"></i> NIT: ${prov.nit || 'N/A'}
+                            </p>
+                            <p class="text-[10px] text-gray-600 flex items-center">
+                                <i class="fas fa-phone w-4 text-blue-400"></i> ${prov.telefono}
+                            </p>
+                            <p class="text-[10px] text-gray-600 flex items-center">
+                                <i class="fas fa-user w-4 text-blue-400"></i> ${prov.contacto || 'N/A'}
+                            </p>
+                        </div>
+                        <div class="mt-2 pt-1 border-t border-gray-100">
+                            <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider">
+                                ${prov.categoria.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
                 `;
-                tablaBody.appendChild(document.createRange().createContextualFragment(fila));
+                directorioContainer.insertAdjacentHTML('beforeend', card);
             });
-            console.log("✅ Tabla de proveedores actualizada con éxito.");
+            console.log("✅ Directorio actualizado con éxito.");
         } else {
-            tablaBody.innerHTML = '<tr><td colspan="6" class="text-center">No hay proveedores registrados en la base de datos.</td></tr>';
+            directorioContainer.insertAdjacentHTML('beforeend', '<p class="text-gray-400 text-xs p-2 italic">No hay proveedores registrados.</p>');
         }
     } catch (error) {
-        console.error("🚨 Error al renderizar tabla:", error);
-        tablaBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error de conexión con el servidor.</td></tr>';
+        console.error("🚨 Error al renderizar directorio:", error);
+        directorioContainer.insertAdjacentHTML('beforeend', '<p class="text-red-400 text-xs p-2">Error de conexión.</p>');
     }
 };
 
@@ -133,20 +154,18 @@ window.cargarTablaProveedores = async function() {
  */
 async function obtenerProveedores() {
     try {
-        // Se asegura el uso de la ruta completa de Netlify con timestamp para evitar caché
         const url = `${BASE_URL_API}/providers?t=${Date.now()}`;
-        console.log("📡 Petición a:", url);
         const response = await fetch(url);
         
         if (!response.ok) {
             const errorText = await response.text();
-            if (errorText.includes('<!DOCTYPE html>')) throw new Error("Ruta API no encontrada (404)");
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (errorText.includes('<!DOCTYPE html>')) throw new Error("404");
+            throw new Error(`Status: ${response.status}`);
         }
         
         return await response.json();
     } catch (error) {
-        console.error("🚨 Error obteniendo proveedores:", error);
+        console.error("🚨 Error fetch:", error);
         return { success: false, data: [] };
     }
 }
