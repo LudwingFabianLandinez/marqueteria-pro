@@ -311,10 +311,13 @@
 </div>
 
 <script src="js/api.js"></script>
-<script src="inventory_v7.js"></script>
+<script src="js/inventory_v7.js"></script>
 <script>
-    // INICIALIZACIÓN AL CARGAR
+    // 🛡️ CONFIGURACIÓN DE RUTA PARA EVITAR EL ERROR 404 EN NETLIFY
+    window.API_URL = "/.netlify/functions/server"; 
+
     document.addEventListener('DOMContentLoaded', () => {
+        // Ejecutamos la carga inicial del blindaje v7
         if (window.loadInventory) window.loadInventory();
         if (window.loadProviders) window.loadProviders();
     });
@@ -339,7 +342,6 @@
         if(!modal) return;
         modal.style.display = 'block';
         
-        // Obtener datos actuales del estado global o localStorage
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
         
