@@ -1,11 +1,12 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
 # Archivo de Configuración de Despliegue - Versión 13.3.43
+# Intervención: Sincronización con la ruta física netlify/functions detectada.
 
 [build]
   # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
-  # Carpeta donde Netlify buscará el backend
-  functions = "functions"
+  # CORRECCIÓN DE RUTA: Netlify debe buscar dentro de la carpeta netlify/functions
+  functions = "netlify/functions"
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
 
