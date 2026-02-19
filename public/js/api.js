@@ -5,12 +5,11 @@
  * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
  */
 
-// Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml y servidores locales)
+// Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml)
 const API_ROUTES = [
-    '',                             // Ancla de ruta raíz (para redirecciones internas)
-    '/api',                         // Ruta estándar de backend
-    '/.netlify/functions/server',   // Túnel para Netlify
-    '/functions/server'             // Túnel alternativo
+    '/api',                         // Puente principal blindado
+    '/functions/server',            // Respaldo de función directa
+    '/.netlify/functions/server'    // Ruta interna de Netlify
 ];
 
 window.API = {
@@ -32,9 +31,6 @@ window.API = {
             const rawData = await response.json();
             
             // --- BLINDAJE CRÍTICO CONTRA EL ERROR .MAP() ---
-            // Si rawData es un array, devolvemos formato estándar.
-            // Si rawData tiene una propiedad 'data' que es array, la usamos.
-            // Si no, devolvemos un array vacío para que el frontend no se rompa.
             let cleanData = [];
             if (Array.isArray(rawData)) {
                 cleanData = rawData;
@@ -45,7 +41,6 @@ window.API = {
             return { success: true, data: cleanData };
         }
         
-        // Retorno por defecto seguro
         return { success: true, data: [] };
     },
 
@@ -53,7 +48,7 @@ window.API = {
     getProviders: async function() {
         for (const base of API_ROUTES) {
             try {
-                console.log(`🔍 Buscando proveedores en: ${base || '(root)'}`);
+                console.log(`🔍 Buscando proveedores en: ${base}`);
                 const response = await fetch(`${base}/providers`);
                 
                 if (response.status !== 404) {
@@ -65,7 +60,7 @@ window.API = {
                             _id: p._id || p.id || "ID_TEMP"
                         }));
                     }
-                    console.log(`✅ Conectado vía: ${base || 'root'}`);
+                    console.log(`✅ Conectado vía: ${base}`);
                     return res;
                 }
             } catch (err) { continue; }
@@ -219,11 +214,11 @@ window.API = {
     }
 };
 
-// COMPATIBILIDAD (Tu estructura intacta para evitar errores de referencia)
+// COMPATIBILIDAD
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v13.3.40 - Blindaje, Sincronización y Garantía de Datos.");
+console.log("🛡️ API v13.3.40 - Blindaje y Sincronización Atlas Activa.");
