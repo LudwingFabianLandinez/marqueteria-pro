@@ -2,10 +2,10 @@
   "name": "marqueteria-pro",
   "version": "1.0.0",
   "description": "Sistema de gestión para marquetería - La Chica Morales",
-  "main": "functions/server.js",
+  "main": "netlify/functions/server.js",
   "scripts": {
-    "start": "node functions/server.js",
-    "dev": "nodemon functions/server.js",
+    "start": "node netlify/functions/server.js",
+    "dev": "nodemon netlify/functions/server.js",
     "build": "npm install"
   },
   "keywords": [
