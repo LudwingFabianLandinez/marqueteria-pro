@@ -1,26 +1,37 @@
+# SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+# Archivo de Configuración de Despliegue - Versión 13.3.43
+
 [build]
-  # Carpeta donde están tus archivos HTML, CSS y JS front-end
+  # Carpeta donde están tus archivos HTML, CSS y JS front-end (Mantenido)
   publish = "public"
-  # Carpeta donde Netlify buscará el backend
+  # Carpeta donde Netlify buscará el backend (Mantenido)
   functions = "netlify/functions"
 
-# --- REGLAS DE REDIRECCIÓN ---
+# --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
 
-# Prioridad 1: Ruta específica para facturas
+# 1. Puente Directo para la Función
+# Esto asegura que si el sistema llama a /.netlify/functions/server, Netlify no se pierda.
+[[redirects]]
+  from = "/.netlify/functions/server/*"
+  to = "/.netlify/functions/server/:splat"
+  status = 200
+  force = true
+
+# 2. Ruta específica para facturas (Tu regla original respetada)
 [[redirects]]
   from = "/api/invoices"
   to = "/.netlify/functions/server/invoices"
   status = 200
   force = true
 
-# Prioridad 2: Comodín para el resto de la API (Inventory, Providers, etc)
+# 3. Comodín General de API (Tu regla original respetada)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# Manejo de SPA (Mantiene las rutas navegables)
+# 4. Manejo de SPA (Mantiene las rutas navegables - Tu regla original respetada)
 [[redirects]]
   from = "/*"
   to = "/index.html"

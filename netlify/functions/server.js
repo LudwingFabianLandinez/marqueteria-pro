@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.42 (CONSOLIDADO FINAL - REPARADO)
- * Objetivo: Mantener blindaje v13.3.41, asegurar persistencia y ELIMINAR 404.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.43 (CONSOLIDADO - ROMPE CICLO 404)
+ * Objetivo: Mantener blindaje v13.3.42, asegurar persistencia y FORZAR conexión.
  * Blindaje: Estructura de rutas y lógica de m2 intacta.
  */
 
@@ -20,7 +20,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.42 registrados exitosamente");
+    console.log("📦 Modelos v13.3.43 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -32,10 +32,10 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (Blindaje de Conexión Total - ELIMINA EL CIRCULO VICIOSO)
+// 3. NORMALIZACIÓN DE URL (GANCHO MAESTRO - REPARACIÓN 404)
 app.use((req, res, next) => {
     const basePrefix = '/.netlify/functions/server';
-    // Limpieza agresiva de prefijos para que las rutas internas coincidan siempre
+    // Esta es la "llave" que rompe el círculo vicioso limpiando cualquier prefijo residual
     if (req.url.startsWith(basePrefix)) req.url = req.url.replace(basePrefix, '');
     if (req.url.startsWith('/.netlify/functions')) req.url = req.url.replace('/.netlify/functions', '');
     if (req.url.startsWith('/api/')) req.url = req.url.replace('/api', '');
@@ -43,7 +43,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
     
-    console.log(`📡 [v13.3.42] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.43] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -268,14 +268,14 @@ try {
 
     // --- 🏁 SALUD DEL SISTEMA ---
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.42-FIXED', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.43-FINAL-REPAIR', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL (Triple Mapeo para asegurar que Netlify responda SIEMPRE)
+// 6. BLINDAJE FINAL (Triple Mapeo Absoluto)
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
