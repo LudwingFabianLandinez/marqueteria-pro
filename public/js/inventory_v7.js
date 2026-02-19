@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.56 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
+ * Versión: 13.3.57 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
  * Mantiene intacta la lógica de Inventario, Proveedores y Historial.
- * Objetivo: Sincronizar el envío de Compras con el blindaje del servidor v13.3.53.
+ * Objetivo: Corregir error NaN en alertas de compra y sincronizar con servidor v13.3.53.
  * Blindaje: Estructura visual y lógica de negocio 100% preservada.
  */
 
@@ -13,7 +13,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.56 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.57 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -373,7 +373,7 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // --- NUEVA COMPRA (INTERVENCIÓN QUIRÚRGICA v13.3.56) ---
+    // --- NUEVA COMPRA (FIX NaN v13.3.57) ---
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -400,7 +400,6 @@ function configurarEventos() {
                 return;
             }
 
-            // Manejo de Creación Automática de Material
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
@@ -426,7 +425,6 @@ function configurarEventos() {
                 }
             }
 
-            // BLINDAJE: Construcción del objeto según servidor v13.3.53
             const objetoCompraSincronizado = {
                 materialId: materialId,
                 proveedorId: providerId,
@@ -440,7 +438,12 @@ function configurarEventos() {
             try {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 if (res.success) { 
-                    alert(`✅ Compra exitosa. Nuevo Stock: ${Number(res.nuevoStock).toFixed(2)} m2`);
+                    // BLINDAJE ANTI-NaN: Intentamos obtener el stock de varias fuentes posibles en la respuesta
+                    const stockFinal = res.nuevoStock || 
+                                     (res.updatedMaterial && res.updatedMaterial.stock_actual) || 
+                                     (res.data && res.data.stock_actual) || 0;
+
+                    alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} m2`);
                     window.cerrarModales(); 
                     e.target.reset(); 
                     await fetchInventory(); 
