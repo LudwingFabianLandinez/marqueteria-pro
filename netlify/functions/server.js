@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.40 (CONSOLIDADO FINAL)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.40 (CONSOLIDADO FINAL - REPARADO)
  * Objetivo: Mantener blindaje v13.3.39 y asegurar persistencia de proveedores/clientes.
  * Blindaje: Estructura de rutas y lógica de m2 intacta.
  */
@@ -178,7 +178,7 @@ try {
         }
     });
 
-    // --- 🚀 PROVEEDORES (Tu código + ganchos de escritura) ---
+    // --- 🚀 PROVEEDORES ---
     router.get('/providers', async (req, res) => {
         try {
             const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
@@ -198,7 +198,7 @@ try {
         }
     });
 
-    // --- 👥 CLIENTES (Asegurando compatibilidad con facturación) ---
+    // --- 👥 CLIENTES ---
     router.get('/clients', async (req, res) => {
         try {
             const clientes = await Client.find().sort({ nombre: 1 }).lean();
@@ -218,7 +218,7 @@ try {
         }
     });
 
-    // --- 📦 INVENTARIO Y COMPRAS (Blindaje v13.3.21) ---
+    // --- 📦 INVENTARIO Y COMPRAS ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -229,7 +229,6 @@ try {
     });
 
     router.post('/inventory/purchase', async (req, res) => {
-        console.log("📥 [DIAGNÓSTICO] Recibiendo datos de compra:", JSON.stringify(req.body));
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
             if (!materialId || !mongoose.Types.ObjectId.isValid(materialId)) return res.status(400).json({ success: false, error: "ID inválido" });
@@ -254,14 +253,9 @@ try {
         }
     });
 
-    // --- VINCULACIÓN FINAL ---
-    router.use('/inventory', require('./routes/inventoryRoutes'));
-    router.use('/purchases', require('./routes/inventoryRoutes'));
-    try { router.use('/clients', require('./routes/clientRoutes')); } catch(e){}
-    try { router.use('/quotes', require('./routes/quoteRoutes')); } catch(e){}
-
+    // --- 🏁 VINCULACIÓN FINAL LIMPIA (Sin requiere externos conflictivos) ---
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.40', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.40-RESTORED', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
