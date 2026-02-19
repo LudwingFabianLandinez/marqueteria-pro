@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.53 (CONSOLIDADO FINAL)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.60 (BLINDAJE DE CONSECUTIVO)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Se añade ruta POST /providers para persistencia real en Atlas.
+ * Reparación: Filtro preventivo para retomar secuencia OT-00018 ignorando IDs basura.
  */
 
 const express = require('express');
@@ -13,14 +13,14 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 
-// 1. CARGA DIRECTA DE MODELOS (Garantía de Registro)
+// 1. CARGA DIRECTA DE MODELOS
 const Client = require('./models/Client');
 const Provider = require('./models/Provider');
 const Material = require('./models/Material'); 
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.53 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.60 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -29,7 +29,7 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (REPARACIÓN CRÍTICA 404)
+// 3. NORMALIZACIÓN DE URL
 app.use((req, res, next) => {
     const basePrefixes = ['/.netlify/functions/server', '/.netlify/functions', '/api'];
     basePrefixes.forEach(p => {
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.53] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.60] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -60,7 +60,7 @@ const connect = async () => {
     }
 };
 
-// 5. DEFINICIÓN DE RUTAS - TU LÓGICA DE NEGOCIO INTACTA
+// 5. DEFINICIÓN DE RUTAS
 const router = express.Router();
 
 try {
@@ -122,7 +122,7 @@ try {
         }
     });
 
-    // --- GESTIÓN DE FACTURAS ---
+    // --- GESTIÓN DE FACTURAS (CON REPARACIÓN DE CONSECUTIVO) ---
     router.get('/invoices', async (req, res) => {
         try {
             const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
@@ -141,14 +141,24 @@ try {
         try {
             const facturaData = req.body;
             const facturasParaConteo = await Invoice.find({}, 'numeroFactura numeroOrden').lean();
+            
             let maxNumero = 0;
             facturasParaConteo.forEach(doc => {
                 const idTexto = doc.numeroFactura || doc.numeroOrden || "";
                 if (idTexto.startsWith('OT-')) {
-                    const num = parseInt(idTexto.split('-').pop());
-                    if (!isNaN(num) && num > maxNumero) maxNumero = num;
+                    const partes = idTexto.split('-');
+                    const num = parseInt(partes[partes.length - 1]);
+                    
+                    // --- GANCHO DE BLINDAJE (v13.3.60) ---
+                    // Si el número es mayor a 100,000 lo ignoramos porque es un error de formato largo
+                    if (!isNaN(num) && num < 100000 && num > maxNumero) {
+                        maxNumero = num;
+                    }
                 }
             });
+
+            // Si por alguna razón el conteo falló o quedó en 0, nos aseguramos que empiece en 17 para que la siguiente sea 18
+            if (maxNumero === 0) maxNumero = 17; 
 
             const otConsecutivo = `OT-${String(maxNumero + 1).padStart(5, '0')}`;
             facturaData.numeroFactura = otConsecutivo;
@@ -171,7 +181,7 @@ try {
         }
     });
 
-    // --- PROVEEDORES (LECTURA Y GUARDADO) ---
+    // --- PROVEEDORES ---
     router.get('/providers', async (req, res) => {
         try {
             const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
@@ -230,7 +240,6 @@ app.use('/', router);
 
 const handler = serverless(app);
 
-// EXPORT FINAL CON GANCHO DE RESCATE
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
     try {

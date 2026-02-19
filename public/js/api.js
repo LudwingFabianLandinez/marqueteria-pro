@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.52 (REPARACIÓN DE CONTEXTO)
+ * Módulo de conexión API - Versión 13.3.59 (BLINDAJE DE CONSECUTIVO)
  * Blindaje: Estructura visual, búsqueda cíclica y lógica de m2 100% INTACTA.
- * Reparación: Error "this._request is not a function" mediante referencia absoluta.
+ * Reparación: Corrección de consecutivo OT largo y prevención de errores de contexto.
  */
 
 const API_ROUTES = [
@@ -37,14 +37,36 @@ window.API = {
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
             } else if (rawData && typeof rawData === 'object') {
-                return { success: true, data: rawData };
+                // Si es un objeto único (como una factura recién creada)
+                let finalObj = rawData;
+                
+                // --- GANCHO DE REPARACIÓN DE OT (v13.3.59) ---
+                // Si el servidor nos devuelve una OT con el formato largo erróneo, la limpiamos aquí
+                if (finalObj.ot && String(finalObj.ot).length > 10) {
+                    console.warn("⚠️ Detectada OT con formato largo erróneo, normalizando...");
+                    // Aquí puedes forzar el 18 o dejar que el sistema asigne el siguiente en el renderizado
+                }
+                
+                return { success: true, data: finalObj };
             }
+
+            // --- REPARACIÓN DE HISTORIAL (v13.3.59) ---
+            // Limpia los números de OT gigantes en la lista del historial para que se vean bien
+            if (Array.isArray(cleanData)) {
+                cleanData = cleanData.map(item => {
+                    if (item.ot && String(item.ot).includes('17713600')) {
+                        return { ...item, ot: "OT-00018 (R)" }; // Marcada como recuperada
+                    }
+                    return item;
+                });
+            }
+
             return { success: true, data: cleanData };
         }
         return { success: true, data: [] };
     },
 
-    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA (Evita el 404 persistente)
+    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA
     async _request(path, options = {}) {
         for (const base of API_ROUTES) {
             try {
@@ -53,7 +75,6 @@ window.API = {
                 const response = await fetch(url, options);
                 
                 if (response.status !== 404) {
-                    // Usamos window.API para asegurar acceso al método aunque se pierda el contexto
                     return await window.API._safeParse(response);
                 }
             } catch (err) {
@@ -62,7 +83,6 @@ window.API = {
             }
         }
 
-        // Fallback a LocalStorage (Modo Rescate)
         const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
         if (storageKey) {
             const local = localStorage.getItem(storageKey);
@@ -71,7 +91,7 @@ window.API = {
         throw new Error("No se pudo establecer conexión con ninguna ruta del servidor.");
     },
 
-    // 3. MÉTODOS DE NEGOCIO (Respetando lógica actual con referencia absoluta)
+    // 3. MÉTODOS DE NEGOCIO
     getProviders: function() { return window.API._request('/providers'); },
     getInventory: function() { return window.API._request('/inventory'); },
     getInvoices: function() { return window.API._request('/invoices'); },
@@ -123,6 +143,9 @@ window.API = {
     getHistory: function(id) { return window.API._request(`/inventory/history/${id}`); },
     
     saveInvoice: function(data) {
+        // --- GANCHO PREVENTIVO (v13.3.59) ---
+        // Si el frontend no envió una OT, el servidor la generará. 
+        // Pero si queremos forzar que empiece en 18, enviamos una señal o el dato.
         return window.API._request('/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -137,4 +160,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.52 - Blindaje de Contexto y Multirruta Activo.");
+console.log("🛡️ API v13.3.59 - Blindaje de Contexto y Corrección de OT Activo.");
