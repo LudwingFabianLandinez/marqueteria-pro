@@ -3,12 +3,14 @@
 # Corrección: Eliminación de prefijo reservado en redirecciones según log de Netlify.
 
 [build]
+  # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
+  # Carpeta donde Netlify buscará el backend
   functions = "netlify/functions"
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404 Actualizado) ---
 
-# 1. Puente para la Función (Corregido para evitar error de sintaxis)
+# 1. Puente para la Función (Corregido: 'from' no debe empezar con /.netlify)
 [[redirects]]
   from = "/functions/server/*"
   to = "/.netlify/functions/server/:splat"
@@ -34,3 +36,4 @@
   from = "/*"
   to = "/index.html"
   status = 200
+  
