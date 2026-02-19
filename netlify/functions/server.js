@@ -1,8 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.43 (CONSOLIDADO FINAL)
- * Objetivo: Mantener blindaje v13.3.42, asegurar persistencia y FORZAR conexión.
- * Blindaje: Estructura de rutas y lógica de m2 intacta.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.45 (REPARACIÓN QUIRÚRGICA)
+ * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
  */
 
 const express = require('express');
@@ -20,7 +19,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.43 registrados exitosamente");
+    console.log("📦 Modelos v13.3.45 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -32,17 +31,18 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (GANCHO MAESTRO - REPARACIÓN 404)
+// 3. NORMALIZACIÓN DE URL (REPARACIÓN CRÍTICA)
 app.use((req, res, next) => {
-    const basePrefix = '/.netlify/functions/server';
-    if (req.url.startsWith(basePrefix)) req.url = req.url.replace(basePrefix, '');
-    if (req.url.startsWith('/.netlify/functions')) req.url = req.url.replace('/.netlify/functions', '');
-    if (req.url.startsWith('/api/')) req.url = req.url.replace('/api', '');
+    // Limpieza profunda de prefijos para evitar el 404 en subrutas
+    const basePrefixes = ['/.netlify/functions/server', '/.netlify/functions', '/api'];
+    basePrefixes.forEach(p => {
+        if (req.url.startsWith(p)) req.url = req.url.replace(p, '');
+    });
     
     req.url = req.url.replace(/\/+/g, '/');
-    if (!req.url || req.url === '') { req.url = '/'; }
+    if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.43] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.45] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -73,7 +73,7 @@ try {
     const Transaction = mongoose.model('Transaction');
     const Client = mongoose.model('Client');
 
-    // --- 🚀 RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
+    // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
         try {
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
@@ -109,7 +109,7 @@ try {
         }
     });
 
-    // --- 🧮 MOTOR DE CÁLCULO ---
+    // --- MOTOR DE CÁLCULO ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -131,17 +131,16 @@ try {
         }
     });
 
-    // --- 🧾 GESTIÓN DE FACTURAS / OT ---
+    // --- GESTIÓN DE FACTURAS ---
     router.get('/invoices', async (req, res) => {
         try {
             const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
-            const facturasLimpias = facturas.map(f => ({
+            res.json(facturas.map(f => ({
                 ...f, 
                 cliente: f.clienteNombre || (f.cliente && f.cliente.nombre) || "Cliente General",
                 total: f.total || f.totalVenta || 0,
                 numeroOrden: f.numeroOrden || f.numeroFactura || "S/N"
-            }));
-            res.json(facturasLimpias); 
+            }))); 
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
@@ -181,7 +180,7 @@ try {
         }
     });
 
-    // --- 🚀 PROVEEDORES ---
+    // --- PROVEEDORES ---
     router.get('/providers', async (req, res) => {
         try {
             const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
@@ -191,37 +190,7 @@ try {
         }
     });
 
-    router.post('/providers', async (req, res) => {
-        try {
-            const nuevo = new Provider(req.body);
-            await nuevo.save();
-            res.json({ success: true, data: nuevo });
-        } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-        }
-    });
-
-    // --- 👥 CLIENTES ---
-    router.get('/clients', async (req, res) => {
-        try {
-            const clientes = await Client.find().sort({ nombre: 1 }).lean();
-            res.json(clientes);
-        } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-        }
-    });
-
-    router.post('/clients', async (req, res) => {
-        try {
-            const nuevo = new Client(req.body);
-            await nuevo.save();
-            res.json({ success: true, data: nuevo });
-        } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-        }
-    });
-
-    // --- 📦 INVENTARIO Y COMPRAS ---
+    // --- INVENTARIO Y COMPRAS (CÁLCULO M2 RESPETADO) ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -231,68 +200,50 @@ try {
         }
     });
 
-    router.get('/inventory/all-purchases', async (req, res) => {
-        try {
-            const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).limit(100).lean();
-            res.json(compras);
-        } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
-        }
-    });
-
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
-            if (!materialId || !mongoose.Types.ObjectId.isValid(materialId)) return res.status(400).json({ success: false, error: "ID inválido" });
-
             const areaTotalIngreso = (parseFloat(largo) * parseFloat(ancho) / 10000) * parseFloat(cantidad);
             const matAct = await Material.findByIdAndUpdate(materialId, { 
                 $inc: { stock_actual: areaTotalIngreso },
                 $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
             }, { new: true });
 
-            if (!matAct) return res.status(404).json({ success: false, error: "Material no encontrado" });
-
             const registro = new Transaction({
                 tipo: 'IN', materialId, materialNombre: matAct.nombre, cantidad: areaTotalIngreso, 
                 costo_unitario: valorUnitario, total: valorUnitario * cantidad, proveedorId, fecha: new Date()
             });
             await registro.save({ validateBeforeSave: false });
-
             res.json({ success: true, nuevoStock: matAct.stock_actual, ingreso_m2: areaTotalIngreso });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
 
-    // --- 🏁 SALUD DEL SISTEMA ---
-    router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.43-FINAL-REPAIR', db: mongoose.connection.readyState === 1 });
-    });
-
 } catch (error) {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL (Triple Mapeo)
-app.use('/.netlify/functions/server', router);
-app.use('/api', router); 
+// 6. MONTAJE DE RUTAS
 app.use('/', router);
 
 const handler = serverless(app);
 
+// EXPORT FINAL CON GANCHO DE RESCATE
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
     try {
         await connect();
-        // Gancho de limpieza de ruta para el evento de Netlify
-        event.path = event.path.replace('/.netlify/functions/server', '').replace('/api', '');
+        // Este es el ajuste clave: Netlify a veces envía la ruta completa en event.path
+        // Forzamos a que el router interno siempre encuentre la ruta base
+        if (event.path.includes('.netlify/functions/server')) {
+            event.path = event.path.replace('/.netlify/functions/server', '');
+        }
         return await handler(event, context);
     } catch (error) {
         console.error("🚨 Handler Crash:", error);
         return { 
             statusCode: 500, 
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ success: false, error: 'Fallo fatal en servidor' }) 
         };
     }

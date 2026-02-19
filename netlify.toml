@@ -1,14 +1,22 @@
+# SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+# Configuración de Despliegue - Consolidación Final
+
 [build]
+  # Carpeta donde están tus archivos HTML, CSS y JS (Frontend)
   publish = "public"
+  # Carpeta donde Netlify busca el backend (server.js)
   functions = "netlify/functions"
 
-# Este es el puente que conecta tu JS con tu servidor
+# --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
+
+# 1. Túnel Maestro: Conecta /api/* con tu función server.js
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
+# 2. Manejo de SPA: Evita errores al recargar páginas internas del dashboard
 [[redirects]]
   from = "/*"
   to = "/index.html"

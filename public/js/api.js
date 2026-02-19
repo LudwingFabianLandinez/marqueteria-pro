@@ -29,13 +29,14 @@ window.API = {
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
             let cleanData = [];
-            // Blindaje contra errores de .map()
+            
+            // Blindaje contra errores de .map() - Respetando tu estructura visual
             if (Array.isArray(rawData)) {
                 cleanData = rawData;
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
             } else if (rawData && typeof rawData === 'object') {
-                // Si es un objeto de stats, lo pasamos tal cual pero dentro de data
+                // Si es un objeto de stats o factura única, se retorna para su procesamiento
                 return { success: true, data: rawData };
             }
             return { success: true, data: cleanData };
@@ -51,6 +52,7 @@ window.API = {
                 console.log(`📡 Intentando: ${url}`);
                 const response = await fetch(url, options);
                 
+                // Si la ruta responde (aunque sea error de lógica, pero no 404), procesamos
                 if (response.status !== 404) {
                     return await this._safeParse(response);
                 }
@@ -59,7 +61,8 @@ window.API = {
                 continue; 
             }
         }
-        // Fallback a LocalStorage si todo falla (Modo Rescate)
+
+        // Fallback a LocalStorage si todo falla (Modo Rescate para no dañar la vista)
         const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
         if (storageKey) {
             const local = localStorage.getItem(storageKey);
@@ -68,7 +71,7 @@ window.API = {
         throw new Error("No se pudo establecer conexión con ninguna ruta del servidor.");
     },
 
-    // --- MÉTODOS DE NEGOCIO ---
+    // --- MÉTODOS DE NEGOCIO (Respetando tu lógica actual) ---
     getProviders: function() { return this._request('/providers'); },
     getInventory: function() { return this._request('/inventory'); },
     getInvoices: function() { return this._request('/invoices'); },
@@ -110,7 +113,6 @@ window.API = {
     deleteMaterial: function(id) { return this._request(`/inventory/${id}`, { method: 'DELETE' }); },
     
     updateStock: function(id, data) {
-        // Soporta tanto PATCH como PUT según tu server.js
         return this._request(`/inventory/${id}`, {
             method: 'PUT', 
             headers: { 'Content-Type': 'application/json' },
@@ -119,6 +121,7 @@ window.API = {
     },
 
     getHistory: function(id) { return this._request(`/inventory/history/${id}`); },
+    
     saveInvoice: function(data) {
         return this._request('/invoices', {
             method: 'POST',
@@ -128,7 +131,7 @@ window.API = {
     }
 };
 
-// --- COMPATIBILIDAD TOTAL ---
+// --- GANCHOS DE COMPATIBILIDAD TOTAL ---
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
