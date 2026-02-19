@@ -286,6 +286,8 @@ module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
     try {
         await connect();
+        // Hook de normalización de evento para Netlify
+        event.path = event.path.replace('/.netlify/functions/server', '').replace('/api', '');
         return await handler(event, context);
     } catch (error) {
         console.error("🚨 Handler Crash:", error);
