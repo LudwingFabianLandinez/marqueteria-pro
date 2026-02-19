@@ -1,39 +1,38 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Archivo de Configuración de Despliegue - Versión 13.3.44
-# Corrección: Eliminación de prefijo reservado en redirecciones según log de Netlify.
+# Archivo de Configuración de Despliegue - Versión 13.3.45
+# Estado: Consolidación Quirúrgica Anti-404
 
 [build]
-  # Carpeta donde están tus archivos HTML, CSS y JS front-end
+  # Carpeta de archivos estáticos (Frontend)
   publish = "public"
-  # Carpeta donde Netlify buscará el backend
+  # Carpeta donde reside tu server.js (Backend)
   functions = "netlify/functions"
 
-# --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404 Actualizado) ---
+# --- REGLAS DE REDIRECCIÓN (Blindaje Total) ---
 
-# 1. Puente para la Función (Corregido: 'from' no debe empezar con /.netlify)
+# 1. Puente de compatibilidad para el conector multirruta
 [[redirects]]
   from = "/functions/server/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 2. Ruta específica para facturas (Respetado)
+# 2. Ruta prioritaria para facturación
 [[redirects]]
   from = "/api/invoices"
   to = "/.netlify/functions/server/invoices"
   status = 200
   force = true
 
-# 3. Comodín General de API (Respetado)
+# 3. Túnel Maestro para Inventario, Proveedores y Compras
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 4. Manejo de SPA (Mantiene las rutas navegables)
+# 4. Soporte para Navegación SPA (Evita error al recargar historial/dashboard)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  
