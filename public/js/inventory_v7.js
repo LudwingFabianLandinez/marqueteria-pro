@@ -1,9 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.57 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
- * Mantiene intacta la lógica de Inventario, Proveedores y Historial.
- * Objetivo: Corregir error NaN en alertas de compra y sincronizar con servidor v13.3.53.
- * Blindaje: Estructura visual y lógica de negocio 100% preservada.
+ * Versión: 13.3.58 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
+ * * CAMBIOS v13.3.58:
+ * 1. Blindaje "Nivel Diamante" en respuesta de stock (evita 0.00 y NaN).
+ * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
+ * 3. Preserva lógica de Historial, Proveedores y Facturación original.
  */
 
 // 1. VARIABLES GLOBALES
@@ -13,7 +14,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.57 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.58 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -373,7 +374,7 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // --- NUEVA COMPRA (FIX NaN v13.3.57) ---
+    // --- NUEVA COMPRA (BLINDAJE v13.3.58) ---
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -437,16 +438,29 @@ function configurarEventos() {
 
             try {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
+                console.log("📥 Respuesta servidor:", res);
+
                 if (res.success) { 
-                    // BLINDAJE ANTI-NaN: Intentamos obtener el stock de varias fuentes posibles en la respuesta
-                    const stockFinal = res.nuevoStock || 
-                                     (res.updatedMaterial && res.updatedMaterial.stock_actual) || 
-                                     (res.data && res.data.stock_actual) || 0;
+                    // BLINDAJE DINÁMICO: Rastreamos el stock en todas las propiedades posibles del JSON
+                    let stockFinal = 0;
+                    
+                    if (res.nuevoStock !== undefined) {
+                        stockFinal = res.nuevoStock;
+                    } else if (res.data && res.data.stock_actual !== undefined) {
+                        stockFinal = res.data.stock_actual;
+                    } else if (res.updatedMaterial && res.updatedMaterial.stock_actual !== undefined) {
+                        stockFinal = res.updatedMaterial.stock_actual;
+                    } else {
+                        // Si el JSON no lo trae, lo buscamos en la lista local antes de refrescar
+                        const materialLocal = window.todosLosMateriales.find(m => m.id === materialId);
+                        stockFinal = materialLocal ? materialLocal.stock_actual : 0;
+                    }
 
                     alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} m2`);
+                    
                     window.cerrarModales(); 
                     e.target.reset(); 
-                    await fetchInventory(); 
+                    await fetchInventory(); // Refresca la tabla blanca con datos reales de la DB
                 } else {
                     alert("❌ Error: " + (res.error || res.message || "Falla en el registro"));
                 }
