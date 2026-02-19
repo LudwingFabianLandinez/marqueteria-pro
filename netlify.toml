@@ -1,18 +1,16 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Archivo de Configuración de Despliegue - Versión 13.3.43
-# Intervención: Sincronización con la ruta física netlify/functions detectada.
+# Archivo de Configuración de Despliegue - Versión 13.3.44
+# Corrección: Eliminación de prefijo reservado en redirecciones según log de Netlify.
 
 [build]
-  # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
-  # CORRECCIÓN DE RUTA: Netlify debe buscar dentro de la carpeta netlify/functions
   functions = "netlify/functions"
 
-# --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
+# --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404 Actualizado) ---
 
-# 1. Puente Directo para la Función
+# 1. Puente para la Función (Corregido para evitar error de sintaxis)
 [[redirects]]
-  from = "/.netlify/functions/server/*"
+  from = "/functions/server/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
