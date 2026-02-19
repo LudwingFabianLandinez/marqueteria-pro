@@ -1,37 +1,21 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Archivo de Configuración de Despliegue - Versión 13.3.45
-# Estado: Consolidación Quirúrgica Anti-404
+# Archivo de Configuración - Versión 13.3.46 (Ajuste de Ruta Física)
 
 [build]
-  # Carpeta de archivos estáticos (Frontend)
   publish = "public"
-  # Carpeta donde reside tu server.js (Backend)
+  # Apuntamos a la carpeta exacta que veo en tu captura de VS Code
   functions = "netlify/functions"
 
-# --- REGLAS DE REDIRECCIÓN (Blindaje Total) ---
+[functions]
+  # Forzamos que Netlify trate a server.js como una función individual
+  node_bundler = "esbuild"
 
-# 1. Puente de compatibilidad para el conector multirruta
-[[redirects]]
-  from = "/functions/server/*"
-  to = "/.netlify/functions/server/:splat"
-  status = 200
-  force = true
-
-# 2. Ruta prioritaria para facturación
-[[redirects]]
-  from = "/api/invoices"
-  to = "/.netlify/functions/server/invoices"
-  status = 200
-  force = true
-
-# 3. Túnel Maestro para Inventario, Proveedores y Compras
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 4. Soporte para Navegación SPA (Evita error al recargar historial/dashboard)
 [[redirects]]
   from = "/*"
   to = "/index.html"
