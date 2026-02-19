@@ -1,5 +1,7 @@
 [build]
+  # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
+  # Carpeta donde Netlify buscará el backend
   functions = "netlify/functions"
 
 # --- REGLAS DE REDIRECCIÓN ---
@@ -11,14 +13,14 @@
   status = 200
   force = true
 
-# Prioridad 2: Comodín para el resto de la API (Inventory, etc)
+# Prioridad 2: Comodín para el resto de la API (Inventory, Providers, etc)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# Manejo de SPA (Dejar al final)
+# Manejo de SPA (Mantiene las rutas navegables)
 [[redirects]]
   from = "/*"
   to = "/index.html"
