@@ -34,7 +34,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 3. NORMALIZACIÓN DE URL (GANCHO MAESTRO - REPARACIÓN 404)
 app.use((req, res, next) => {
-    // Limpieza agresiva: eliminamos cualquier rastro de prefijos de Netlify o API
     const basePrefix = '/.netlify/functions/server';
     if (req.url.startsWith(basePrefix)) req.url = req.url.replace(basePrefix, '');
     if (req.url.startsWith('/.netlify/functions')) req.url = req.url.replace('/.netlify/functions', '');
@@ -275,7 +274,7 @@ try {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL (Triple Mapeo para forzar respuesta de Netlify)
+// 6. BLINDAJE FINAL (Triple Mapeo)
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
@@ -286,7 +285,7 @@ module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
     try {
         await connect();
-        // Hook de normalización de evento para Netlify
+        // Gancho de limpieza de ruta para el evento de Netlify
         event.path = event.path.replace('/.netlify/functions/server', '').replace('/api', '');
         return await handler(event, context);
     } catch (error) {

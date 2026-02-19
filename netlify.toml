@@ -2,36 +2,35 @@
 # Archivo de Configuración de Despliegue - Versión 13.3.43
 
 [build]
-  # Carpeta donde están tus archivos HTML, CSS y JS front-end (Mantenido)
+  # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
-  # Carpeta donde Netlify buscará el backend (Mantenido)
+  # Carpeta donde Netlify buscará el backend
   functions = "netlify/functions"
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
 
 # 1. Puente Directo para la Función
-# Esto asegura que si el sistema llama a /.netlify/functions/server, Netlify no se pierda.
 [[redirects]]
   from = "/.netlify/functions/server/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 2. Ruta específica para facturas (Tu regla original respetada)
+# 2. Ruta específica para facturas (Respetado)
 [[redirects]]
   from = "/api/invoices"
   to = "/.netlify/functions/server/invoices"
   status = 200
   force = true
 
-# 3. Comodín General de API (Tu regla original respetada)
+# 3. Comodín General de API (Respetado)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 4. Manejo de SPA (Mantiene las rutas navegables - Tu regla original respetada)
+# 4. Manejo de SPA (Mantiene las rutas navegables)
 [[redirects]]
   from = "/*"
   to = "/index.html"
