@@ -1,15 +1,8 @@
-# SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Archivo de Configuración - Versión 13.3.46 (Ajuste de Ruta Física)
-
 [build]
   publish = "public"
-  # Apuntamos a la carpeta exacta que veo en tu captura de VS Code
   functions = "netlify/functions"
 
-[functions]
-  # Forzamos que Netlify trate a server.js como una función individual
-  node_bundler = "esbuild"
-
+# Este es el puente que conecta tu JS con tu servidor
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
