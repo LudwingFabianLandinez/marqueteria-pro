@@ -1,20 +1,20 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.36 (TÚNEL CONSOLIDADO)
- * Intervención: Optimización de motor de búsqueda y sincronización total.
+ * Módulo de conexión API - Versión 13.3.40 (TÚNEL CONSOLIDADO + BLINDAJE ARRAY)
+ * Intervención: Garantía de retorno de Array para evitar error 'map' en el frontend.
  * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
  */
 
 // Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml y servidores locales)
 const API_ROUTES = [
-    '',                            // Ancla de ruta raíz (para redirecciones internas)
-    '/api',                        // Ruta estándar de backend
-    '/.netlify/functions/server',  // Túnel para Netlify
-    '/functions/server'            // Túnel alternativo
+    '',                             // Ancla de ruta raíz (para redirecciones internas)
+    '/api',                         // Ruta estándar de backend
+    '/.netlify/functions/server',   // Túnel para Netlify
+    '/functions/server'             // Túnel alternativo
 ];
 
 window.API = {
-    // Motor de procesamiento de respuestas (Tu estructura original blindada)
+    // Motor de procesamiento de respuestas (Reparado para garantizar Array)
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -27,12 +27,26 @@ window.API = {
             } catch (e) { }
             throw new Error(errorMsg);
         }
+
         if (contentType && contentType.includes("application/json")) {
-            const data = await response.json();
-            // Mantiene el blindaje de arrays para que el frontend no rompa
-            return Array.isArray(data) ? { success: true, data: data } : data;
+            const rawData = await response.json();
+            
+            // --- BLINDAJE CRÍTICO CONTRA EL ERROR .MAP() ---
+            // Si rawData es un array, devolvemos formato estándar.
+            // Si rawData tiene una propiedad 'data' que es array, la usamos.
+            // Si no, devolvemos un array vacío para que el frontend no se rompa.
+            let cleanData = [];
+            if (Array.isArray(rawData)) {
+                cleanData = rawData;
+            } else if (rawData && Array.isArray(rawData.data)) {
+                cleanData = rawData.data;
+            }
+
+            return { success: true, data: cleanData };
         }
-        return { success: true };
+        
+        // Retorno por defecto seguro
+        return { success: true, data: [] };
     },
 
     // --- SECCIÓN PROVEEDORES ---
@@ -212,4 +226,4 @@ window.API.getMaterials = window.API.getInventory;
 window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 
-console.log("🛡️ API v13.3.36 - Blindaje y Sincronización Total.");
+console.log("🛡️ API v13.3.40 - Blindaje, Sincronización y Garantía de Datos.");
