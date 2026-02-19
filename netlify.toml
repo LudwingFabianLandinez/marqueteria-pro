@@ -1,11 +1,10 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
 # Archivo de Configuración de Despliegue - Versión 13.3.43
-# Mantiene intacto el blindaje original y corrige la detección de funciones.
 
 [build]
   # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
-  # Carpeta donde Netlify buscará el backend (Ajustado a raíz según estructura actual)
+  # Carpeta donde Netlify buscará el backend
   functions = "functions"
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
