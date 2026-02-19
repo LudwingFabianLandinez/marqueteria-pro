@@ -1,15 +1,16 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Módulo de conexión API - Versión 13.3.36 (TÚNEL CONSOLIDADO)
- * Intervención: Optimización de motor de búsqueda y sincronización con carpeta 'public'.
+ * Intervención: Optimización de motor de búsqueda y sincronización total.
  * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
  */
 
-// Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml)
+// Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml y servidores locales)
 const API_ROUTES = [
-    '/api',
-    '/.netlify/functions/server',
-    '/functions/server'
+    '',                            // Ancla de ruta raíz (para redirecciones internas)
+    '/api',                        // Ruta estándar de backend
+    '/.netlify/functions/server',  // Túnel para Netlify
+    '/functions/server'            // Túnel alternativo
 ];
 
 window.API = {
@@ -28,6 +29,7 @@ window.API = {
         }
         if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
+            // Mantiene el blindaje de arrays para que el frontend no rompa
             return Array.isArray(data) ? { success: true, data: data } : data;
         }
         return { success: true };
@@ -37,7 +39,7 @@ window.API = {
     getProviders: async function() {
         for (const base of API_ROUTES) {
             try {
-                console.log(`🔍 Buscando proveedores en: ${base}`);
+                console.log(`🔍 Buscando proveedores en: ${base || '(root)'}`);
                 const response = await fetch(`${base}/providers`);
                 
                 if (response.status !== 404) {
@@ -49,7 +51,7 @@ window.API = {
                             _id: p._id || p.id || "ID_TEMP"
                         }));
                     }
-                    console.log(`✅ Conectado vía: ${base}`);
+                    console.log(`✅ Conectado vía: ${base || 'root'}`);
                     return res;
                 }
             } catch (err) { continue; }
@@ -69,7 +71,7 @@ window.API = {
                 if (response.status !== 404) return await window.API._safeParse(response);
             } catch (e) { }
         }
-        throw new Error("No se pudo conectar con el servidor.");
+        throw new Error("No se pudo conectar con el servidor para guardar el proveedor.");
     },
 
     // --- SECCIÓN INVENTARIO ---
@@ -85,8 +87,9 @@ window.API = {
     },
 
     saveMaterial: async function(materialData) {
-        const isEdit = materialData.id && materialData.id !== "";
-        const path = isEdit ? `/inventory/${materialData.id}` : `/inventory`;
+        const id = materialData.id || materialData._id;
+        const isEdit = id && id !== "";
+        const path = isEdit ? `/inventory/${id}` : `/inventory`;
         
         for (const base of API_ROUTES) {
             try {
@@ -106,10 +109,10 @@ window.API = {
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
-            cantidad: Number(purchaseData.cantidad || purchaseData.cantidad_laminas || 1),
-            largo: Number(purchaseData.largo || purchaseData.largo_lamina_cm || 0),
-            ancho: Number(purchaseData.ancho || purchaseData.ancho_lamina_cm || 0),
-            valorUnitario: Number(purchaseData.valorUnitario || purchaseData.precio_total_lamina || 0),
+            cantidad: Number(purchaseData.cantidad || 1),
+            largo: Number(purchaseData.largo || 0),
+            ancho: Number(purchaseData.ancho || 0),
+            valorUnitario: Number(purchaseData.valorUnitario || 0),
             tipo: "COMPRA",
             fecha: new Date().toISOString()
         };
@@ -124,7 +127,7 @@ window.API = {
                 if (response.status !== 404) return await window.API._safeParse(response);
             } catch (e) { }
         }
-        throw new Error("Error al registrar la compra.");
+        throw new Error("Error al registrar la compra en el servidor.");
     },
 
     // --- SECCIÓN ESTADÍSTICAS Y FACTURAS ---
@@ -148,22 +151,61 @@ window.API = {
         return { success: false, data: [] }; 
     },
 
-    saveInvoice: async function(d) { 
+    saveInvoice: async function(invoiceData) { 
         for (const base of API_ROUTES) {
             try {
                 const response = await fetch(`${base}/invoices`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(d)
+                    body: JSON.stringify(invoiceData)
                 });
                 if (response.status !== 404) return await window.API._safeParse(response);
             } catch (e) { }
         }
         throw new Error("Error al guardar la factura.");
+    },
+
+    // --- ELIMINAR MATERIAL ---
+    deleteMaterial: async function(id) {
+        for (const base of API_ROUTES) {
+            try {
+                const response = await fetch(`${base}/inventory/${id}`, {
+                    method: 'DELETE'
+                });
+                if (response.status !== 404) return await window.API._safeParse(response);
+            } catch (e) { }
+        }
+        throw new Error("No se pudo eliminar el material.");
+    },
+
+    // --- ACTUALIZAR STOCK (AJUSTE DIRECTO) ---
+    updateStock: async function(id, data) {
+        for (const base of API_ROUTES) {
+            try {
+                const response = await fetch(`${base}/inventory/${id}/stock`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (response.status !== 404) return await window.API._safeParse(response);
+            } catch (e) { }
+        }
+        throw new Error("No se pudo actualizar el stock.");
+    },
+
+    // --- HISTORIAL ---
+    getHistory: async function(id) {
+        for (const base of API_ROUTES) {
+            try {
+                const response = await fetch(`${base}/inventory/${id}/history`);
+                if (response.status !== 404) return await window.API._safeParse(response);
+            } catch (e) { }
+        }
+        return { success: false, data: [] };
     }
 };
 
-// COMPATIBILIDAD (Tu estructura intacta)
+// COMPATIBILIDAD (Tu estructura intacta para evitar errores de referencia)
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
