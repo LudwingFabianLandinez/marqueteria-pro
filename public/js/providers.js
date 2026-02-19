@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // Endpoint corregido para coincidir con el servidor
+                // Endpoint corregido para coincidir con el servidor v13.3.53
                 const response = await fetch(`${BASE_URL_API}/providers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -49,7 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.success || response.ok) {
                     alert("✅ Proveedor guardado correctamente.");
                     supplierForm.reset();
-                    window.location.href = 'dashboard.html';
+                    // Ejecutamos la carga automática de la tabla tras guardar
+                    await window.cargarTablaProveedores();
                 } else {
                     alert("❌ Error: " + (result.error || "No se pudo guardar"));
                 }
@@ -75,6 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
             await window.cargarTablaProveedores();
         });
     }
+    
+    // Carga inicial automática al entrar a la sección
+    window.cargarTablaProveedores();
 });
 
 /**
@@ -93,7 +97,7 @@ window.cargarTablaProveedores = async function() {
         const result = await obtenerProveedores();
         
         // Blindaje de datos: Maneja tanto result.data como result directo (array)
-        const proveedores = result.success ? result.data : (Array.isArray(result) ? result : []);
+        const proveedores = (result && result.success) ? result.data : (Array.isArray(result) ? result : []);
 
         if (proveedores && proveedores.length > 0) {
             tablaBody.innerHTML = ''; 
@@ -112,7 +116,7 @@ window.cargarTablaProveedores = async function() {
                         </td>
                     </tr>
                 `;
-                tablaBody.innerHTML += fila;
+                tablaBody.appendChild(document.createRange().createContextualFragment(fila));
             });
             console.log("✅ Tabla de proveedores actualizada con éxito.");
         } else {
@@ -129,14 +133,13 @@ window.cargarTablaProveedores = async function() {
  */
 async function obtenerProveedores() {
     try {
-        // Se asegura el uso de la ruta completa de Netlify
+        // Se asegura el uso de la ruta completa de Netlify con timestamp para evitar caché
         const url = `${BASE_URL_API}/providers?t=${Date.now()}`;
         console.log("📡 Petición a:", url);
         const response = await fetch(url);
         
         if (!response.ok) {
             const errorText = await response.text();
-            // Si el servidor responde con HTML (error 404), lanzamos error de ruta
             if (errorText.includes('<!DOCTYPE html>')) throw new Error("Ruta API no encontrada (404)");
             throw new Error(`HTTP error! status: ${response.status}`);
         }
