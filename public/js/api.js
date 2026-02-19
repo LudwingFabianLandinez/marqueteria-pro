@@ -1,19 +1,17 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.32 (ESTABILIDAD ABSOLUTA + RUTA EMERGENCIA)
- * Intervención: Se implementa fallback de rutas para eliminar error 404 persistente.
- * Mantiene intacto el blindaje de compras, el diseño y tu estructura original.
+ * Módulo de conexión API - Versión 13.3.33 (SINCRONIZACIÓN TOML)
+ * Intervención: Ajuste de ruta base a '/api' para coincidir con redirects de netlify.toml.
+ * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
  */
 
-const getBaseURL = () => {
-    // Intentamos la ruta estándar de Netlify
-    return '/.netlify/functions/server';
-};
+// Ruta base sincronizada con las reglas de redirección de tu netlify.toml
+const API_BASE = '/api';
 
 window.API = {
-    url: getBaseURL(),
+    url: API_BASE,
 
-    // Motor de procesamiento de respuestas (Tu estructura original blindada)
+    // Motor de procesamiento de respuestas (Blindado y original)
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -33,18 +31,10 @@ window.API = {
         return { success: true };
     },
 
-    // --- SECCIÓN PROVEEDORES (CORREGIDA CON RUTA DE EMERGENCIA) ---
+    // --- SECCIÓN PROVEEDORES (Sincronizada con /api/providers) ---
     getProviders: async function() {
         try {
-            // Intento A: Ruta Estándar
-            let response = await fetch(`${window.API.url}/providers`);
-            
-            // Si da 404, ejecutamos Plan B: Ruta Directa
-            if (response.status === 404) {
-                console.log("🔄 Reintentando por ruta alterna...");
-                response = await fetch('/providers');
-            }
-
+            const response = await fetch(`${API_BASE}/providers`);
             const res = await window.API._safeParse(response);
             if (res.success && Array.isArray(res.data)) {
                 res.data = res.data.map(p => ({
@@ -63,7 +53,7 @@ window.API = {
 
     saveProvider: async function(providerData) {
         try {
-            const response = await fetch(`${window.API.url}/providers`, {
+            const response = await fetch(`${API_BASE}/providers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(providerData)
@@ -75,9 +65,7 @@ window.API = {
     // --- SECCIÓN INVENTARIO ---
     getInventory: async function() {
         try {
-            let response = await fetch(`${window.API.url}/inventory`);
-            if (response.status === 404) response = await fetch('/inventory');
-            
+            const response = await fetch(`${API_BASE}/inventory`);
             return await window.API._safeParse(response);
         } catch (err) { 
             const localInv = localStorage.getItem('inventory');
@@ -88,7 +76,7 @@ window.API = {
     saveMaterial: async function(materialData) {
         try {
             const isEdit = materialData.id && materialData.id !== "";
-            const targetUrl = isEdit ? `${window.API.url}/inventory/${materialData.id}` : `${window.API.url}/inventory`;
+            const targetUrl = isEdit ? `${API_BASE}/inventory/${materialData.id}` : `${API_BASE}/inventory`;
             const response = await fetch(targetUrl, {
                 method: isEdit ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -98,9 +86,9 @@ window.API = {
         } catch (err) { throw err; }
     },
 
-    // --- REGISTRO DE COMPRA (Blindaje de datos intacto - Sincronizado) ---
+    // --- REGISTRO DE COMPRA (Blindaje de datos intacto) ---
     registerPurchase: async function(purchaseData) {
-        console.log("🚀 Sincronizando Compra...", purchaseData);
+        console.log("🚀 Sincronizando Compra con API...", purchaseData);
         
         const payload = {
             materialId: String(purchaseData.materialId),
@@ -114,20 +102,11 @@ window.API = {
         };
 
         try {
-            let response = await fetch(`${window.API.url}/inventory/purchase`, {
+            const response = await fetch(`${API_BASE}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
-            if (response.status === 404) {
-                response = await fetch('/inventory/purchase', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            }
-
             return await window.API._safeParse(response);
         } catch (err) {
             console.error("❌ Error en Compra:", err.message);
@@ -137,7 +116,7 @@ window.API = {
 
     adjustStock: async function(data) {
         try {
-            const response = await fetch(`${window.API.url}/inventory/adjust`, {
+            const response = await fetch(`${API_BASE}/inventory/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -148,7 +127,7 @@ window.API = {
 
     getHistory: async function(id = null) {
         try {
-            const targetUrl = id ? `${window.API.url}/inventory/history/${id}` : `${window.API.url}/inventory/history`;
+            const targetUrl = id ? `${API_BASE}/inventory/history/${id}` : `${API_BASE}/inventory/history`;
             const response = await fetch(targetUrl);
             return await window.API._safeParse(response);
         } catch (err) { return { success: true, data: [] }; }
@@ -156,21 +135,21 @@ window.API = {
 
     getDashboardStats: async function() {
         try {
-            const response = await fetch(`${window.API.url}/stats`);
+            const response = await fetch(`${API_BASE}/stats`);
             return await window.API._safeParse(response);
         } catch (err) { return { success: false, data: { totalVentas: 0 } }; }
     },
 
     getInvoices: async function() { 
         try { 
-            const response = await fetch(`${window.API.url}/invoices`);
+            const response = await fetch(`${API_BASE}/invoices`);
             return await window.API._safeParse(response); 
         } catch(e) { return { success: false, data: [] }; } 
     },
 
     saveInvoice: async function(d) { 
         try { 
-            const response = await fetch(`${window.API.url}/invoices`, {
+            const response = await fetch(`${API_BASE}/invoices`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
@@ -188,4 +167,4 @@ window.API.getStats = window.API.getDashboardStats;
 window.API.savePurchase = window.API.registerPurchase; 
 window.API.updateStock = window.API.adjustStock;
 
-console.log("🛡️ API v13.3.32 - Ruta de Emergencia y Blindaje Activo.");
+console.log("🛡️ API v13.3.33 - Sincronizada con netlify.toml con éxito.");
