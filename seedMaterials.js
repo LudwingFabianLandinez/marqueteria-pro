@@ -1,10 +1,13 @@
 /**
  * Script para cargar materiales iniciales en MONGODB LOCAL (Compass)
+ * Versión Consolidada - Ajuste de Ruta para estructura Netlify
  */
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-// Mantenemos la ruta de tu estructura actual de carpetas
-const Material = require('./functions/models/Material');
+
+// CORRECCIÓN DE RUTA: Sincronizada con tu estructura real de carpetas
+// Antes: ./functions/models/Material -> Ahora: ./netlify/functions/models/Material
+const Material = require('./netlify/functions/models/Material');
 
 // Carga las variables del archivo .env
 dotenv.config();
