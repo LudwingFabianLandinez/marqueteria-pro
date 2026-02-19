@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.43 (CONSOLIDADO - ROMPE CICLO 404)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.43 (CONSOLIDADO FINAL)
  * Objetivo: Mantener blindaje v13.3.42, asegurar persistencia y FORZAR conexión.
  * Blindaje: Estructura de rutas y lógica de m2 intacta.
  */
@@ -34,8 +34,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 3. NORMALIZACIÓN DE URL (GANCHO MAESTRO - REPARACIÓN 404)
 app.use((req, res, next) => {
+    // Limpieza agresiva: eliminamos cualquier rastro de prefijos de Netlify o API
     const basePrefix = '/.netlify/functions/server';
-    // Esta es la "llave" que rompe el círculo vicioso limpiando cualquier prefijo residual
     if (req.url.startsWith(basePrefix)) req.url = req.url.replace(basePrefix, '');
     if (req.url.startsWith('/.netlify/functions')) req.url = req.url.replace('/.netlify/functions', '');
     if (req.url.startsWith('/api/')) req.url = req.url.replace('/api', '');
@@ -275,7 +275,7 @@ try {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL (Triple Mapeo Absoluto)
+// 6. BLINDAJE FINAL (Triple Mapeo para forzar respuesta de Netlify)
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
