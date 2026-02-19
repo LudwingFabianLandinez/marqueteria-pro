@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.51 (REPARACIÓN DE SCHEMAS)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.53 (CONSOLIDADO FINAL)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Mejora: Importación directa de modelos para garantizar el registro en Runtime.
+ * Reparación: Se añade ruta POST /providers para persistencia real en Atlas.
  */
 
 const express = require('express');
@@ -14,14 +14,13 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 
 // 1. CARGA DIRECTA DE MODELOS (Garantía de Registro)
-// Importamos los archivos directamente para que Mongoose registre los esquemas antes de usarlos
 const Client = require('./models/Client');
 const Provider = require('./models/Provider');
 const Material = require('./models/Material'); 
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.51 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.53 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -40,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.51] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.53] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -172,11 +171,21 @@ try {
         }
     });
 
-    // --- PROVEEDORES ---
+    // --- PROVEEDORES (LECTURA Y GUARDADO) ---
     router.get('/providers', async (req, res) => {
         try {
             const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
             res.json(proveedores);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.post('/providers', async (req, res) => {
+        try {
+            const nuevoProveedor = new Provider(req.body);
+            await nuevoProveedor.save();
+            res.json({ success: true, message: "Proveedor guardado exitosamente", data: nuevoProveedor });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
