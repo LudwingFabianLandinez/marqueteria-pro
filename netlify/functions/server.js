@@ -1,7 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.48 (CONSOLIDACIÓN FINAL)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.50 (CONSOLIDACIÓN FINAL)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
+ * Reparación: Registro preventivo de Schemas para evitar Error 500/Client.
  */
 
 const express = require('express');
@@ -12,14 +13,15 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 
-// 1. CARGA DE MODELOS (Singleton) - RESPETADO AL 100%
+// 1. CARGA DE MODELOS (Singleton) - REGISTRO PREVENTIVO PARA EVITAR "Schema hasn't been registered"
 try {
+    // Importamos explícitamente todos los modelos en orden
+    require('./models/Client');
     require('./models/Provider');
     require('./models/Material'); 
     require('./models/Invoice'); 
     require('./models/Transaction'); 
-    require('./models/Client');
-    console.log("📦 Modelos v13.3.48 registrados exitosamente");
+    console.log("📦 Modelos v13.3.50 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -33,7 +35,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 3. NORMALIZACIÓN DE URL (REPARACIÓN CRÍTICA)
 app.use((req, res, next) => {
-    // Limpieza profunda de prefijos para evitar el 404 en subrutas
     const basePrefixes = ['/.netlify/functions/server', '/.netlify/functions', '/api'];
     basePrefixes.forEach(p => {
         if (req.url.startsWith(p)) req.url = req.url.replace(p, '');
@@ -42,11 +43,11 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.48] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.50] ${req.method} -> ${req.url}`);
     next();
 });
 
-// 4. GESTIÓN DE CONEXIÓN DB - RESPETADO AL 100%
+// 4. GESTIÓN DE CONEXIÓN DB
 let isConnected = false;
 const connect = async () => {
     if (isConnected && mongoose.connection.readyState === 1) return;
@@ -63,7 +64,7 @@ const connect = async () => {
     }
 };
 
-// 5. DEFINICIÓN DE RUTAS - TU LÓGICA DE NEGOCIO INTACTA
+// 5. DEFINICIÓN DE RUTAS - LÓGICA DE NEGOCIO INTACTA
 const router = express.Router();
 
 try {
@@ -229,12 +230,11 @@ app.use('/', router);
 
 const handler = serverless(app);
 
-// EXPORT FINAL CON GANCHO DE RESCATE (REPARACIÓN 404)
+// EXPORT FINAL CON GANCHO DE RESCATE
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
     try {
         await connect();
-        // Gancho de reparación para Netlify Functions
         if (event.path.includes('.netlify/functions/server')) {
             event.path = event.path.replace('/.netlify/functions/server', '');
         }
