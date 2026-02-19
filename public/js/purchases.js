@@ -1,6 +1,8 @@
 /**
- * LÓGICA PARA EL HISTORIAL DE COMPRAS
+ * LÓGICA PARA EL HISTORIAL DE COMPRAS - v13.3.61
  * Marquetería La Chica Morales
+ * Blindaje: Estructura visual y lógica de búsqueda 100% INTACTA.
+ * Ajuste: Compatibilidad con mapeo de objetos materialId y proveedorId.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -22,7 +24,7 @@ async function fetchPurchases() {
         const response = await fetch(`/api/inventory/all-purchases?t=${Date.now()}`); 
         const result = await response.json();
 
-        // LOG DE DEPURACIÓN: Si la tabla está vacía, mira este mensaje en tu consola (F12)
+        // LOG DE DEPURACIÓN
         console.log("🔍 Respuesta del servidor:", result);
 
         if (result.success && result.data && result.data.length > 0) {
@@ -66,9 +68,10 @@ function renderPurchasesTable(compras) {
             ? new Date(c.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
             : '--/--/----';
 
-        // Verificación de seguridad para evitar errores de renderizado si el objeto no cargó bien
-        const nombreMaterial = c.materialId?.nombre || c.motivo || 'Material no especificado';
-        const nombreProveedor = c.proveedorId?.nombre || 'Proveedor General';
+        // --- GANCHO QUIRÚRGICO DE COMPATIBILIDAD ---
+        // Extrae el nombre si materialId/proveedorId vienen como objetos del servidor
+        const nombreMaterial = (c.materialId && typeof c.materialId === 'object') ? c.materialId.nombre : (c.motivo || 'Material');
+        const nombreProveedor = (c.proveedorId && typeof c.proveedorId === 'object') ? c.proveedorId.nombre : 'Proveedor General';
 
         return `
             <tr style="border-bottom: 1px solid #f1f5f9;">
@@ -82,7 +85,7 @@ function renderPurchasesTable(compras) {
                     </span>
                 </td>
                 <td style="padding: 15px; text-align: center; font-weight: 700; color: #334155;">
-                    ${c.cantidad_m2 ? c.cantidad_m2.toFixed(2) : '0.00'} m²
+                    ${c.cantidad_m2 ? parseFloat(c.cantidad_m2).toFixed(2) : '0.00'} m²
                 </td>
                 <td style="padding: 15px; text-align: right; font-weight: 800; color: #059669;">
                     ${formatter.format(c.costo_total || 0)}
@@ -109,7 +112,6 @@ function actualizarResumen(compras) {
     if (materialEl) materialEl.innerText = `${totalM2.toFixed(2)} m²`;
     
     if (ultimaCompraEl && compras.length > 0) {
-        // Obtenemos la fecha de la transacción más reciente [cite: 2026-02-05]
         const ultimaFecha = new Date(compras[0].fecha).toLocaleDateString('es-ES');
         ultimaCompraEl.innerText = ultimaFecha;
     }

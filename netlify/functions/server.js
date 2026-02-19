@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.60 (BLINDAJE DE CONSECUTIVO)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.61 (CIRUGÍA: REPORTE COMPRAS)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Filtro preventivo para retomar secuencia OT-00018 ignorando IDs basura.
+ * Reparación: Gancho para historial de compras consolidado.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.60 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.61 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.60] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.61] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -149,15 +149,12 @@ try {
                     const partes = idTexto.split('-');
                     const num = parseInt(partes[partes.length - 1]);
                     
-                    // --- GANCHO DE BLINDAJE (v13.3.60) ---
-                    // Si el número es mayor a 100,000 lo ignoramos porque es un error de formato largo
                     if (!isNaN(num) && num < 100000 && num > maxNumero) {
                         maxNumero = num;
                     }
                 }
             });
 
-            // Si por alguna razón el conteo falló o quedó en 0, nos aseguramos que empiece en 17 para que la siguiente sea 18
             if (maxNumero === 0) maxNumero = 17; 
 
             const otConsecutivo = `OT-${String(maxNumero + 1).padStart(5, '0')}`;
@@ -201,11 +198,35 @@ try {
         }
     });
 
-    // --- INVENTARIO Y COMPRAS ---
+    // --- INVENTARIO Y COMPRAS (CIRUGÍA v13.3.61) ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
             res.json(materiales);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // NUEVO GANCHO: Historial completo para el reporte
+    router.get('/inventory/all-purchases', async (req, res) => {
+        try {
+            const compras = await Transaction.find({ tipo: 'IN' })
+                .populate('materialId', 'nombre')
+                .populate('proveedorId', 'nombre')
+                .sort({ fecha: -1 })
+                .lean();
+            
+            const dataMapeada = compras.map(c => ({
+                fecha: c.fecha,
+                materialId: c.materialId,
+                proveedorId: c.proveedorId,
+                cantidad_m2: c.cantidad,
+                costo_total: c.total,
+                motivo: c.materialNombre
+            }));
+
+            res.json({ success: true, data: dataMapeada });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
