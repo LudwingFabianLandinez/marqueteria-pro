@@ -1,20 +1,18 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.40 (TÚNEL CONSOLIDADO + BLINDAJE ARRAY)
- * Intervención: Garantía de retorno de Array para evitar error 'map' en el frontend.
- * Mantiene intacto el blindaje de compras, la estructura original y el diseño.
+ * Módulo de conexión API - Versión 13.3.44 (CONSOLIDADO FINAL + MULTI-RUTA)
+ * Objetivo: Romper el error 404 mediante búsqueda cíclica y blindaje de Arrays.
  */
 
-// Rutas candidatas para romper el error 404 (Sincronizadas con netlify.toml y servidores locales)
 const API_ROUTES = [
-    '',                             // Ancla de ruta raíz (para redirecciones internas)
-    '/api',                         // Ruta estándar de backend
-    '/.netlify/functions/server',   // Túnel para Netlify
-    '/functions/server'             // Túnel alternativo
+    '/api',                         // Ruta preferencial (vía Netlify Redirects)
+    '/.netlify/functions/server',   // Ruta directa a la función
+    '',                             // Ruta raíz
+    '/functions/server'             // Ruta alternativa
 ];
 
 window.API = {
-    // Motor de procesamiento de respuestas (Reparado para garantizar Array)
+    // MOTOR DE PROCESAMIENTO SEGURO
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -30,200 +28,110 @@ window.API = {
 
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
-            
-            // --- BLINDAJE CRÍTICO CONTRA EL ERROR .MAP() ---
-            // Si rawData es un array, devolvemos formato estándar.
-            // Si rawData tiene una propiedad 'data' que es array, la usamos.
-            // Si no, devolvemos un array vacío para que el frontend no se rompa.
             let cleanData = [];
+            // Blindaje contra errores de .map()
             if (Array.isArray(rawData)) {
                 cleanData = rawData;
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
+            } else if (rawData && typeof rawData === 'object') {
+                // Si es un objeto de stats, lo pasamos tal cual pero dentro de data
+                return { success: true, data: rawData };
             }
-
             return { success: true, data: cleanData };
         }
-        
-        // Retorno por defecto seguro
         return { success: true, data: [] };
     },
 
-    // --- SECCIÓN PROVEEDORES ---
-    getProviders: async function() {
+    // LÓGICA DE BÚSQUEDA MULTI-RUTA (Evita el 404 persistente)
+    async _request(path, options = {}) {
         for (const base of API_ROUTES) {
             try {
-                console.log(`🔍 Buscando proveedores en: ${base || '(root)'}`);
-                const response = await fetch(`${base}/providers`);
+                const url = `${base}${path}`.replace(/\/+/g, '/');
+                console.log(`📡 Intentando: ${url}`);
+                const response = await fetch(url, options);
                 
                 if (response.status !== 404) {
-                    const res = await window.API._safeParse(response);
-                    if (res.success && Array.isArray(res.data)) {
-                        res.data = res.data.map(p => ({
-                            ...p,
-                            nombre: p.nombre || p.name || "PROVEEDOR SIN NOMBRE",
-                            _id: p._id || p.id || "ID_TEMP"
-                        }));
-                    }
-                    console.log(`✅ Conectado vía: ${base || 'root'}`);
-                    return res;
+                    return await this._safeParse(response);
                 }
-            } catch (err) { continue; }
+            } catch (err) {
+                console.warn(`⚠️ Falló intento en ${base}:`, err.message);
+                continue; 
+            }
         }
-        const localData = localStorage.getItem('providers');
-        return { success: true, data: localData ? JSON.parse(localData) : [], local: true };
+        // Fallback a LocalStorage si todo falla (Modo Rescate)
+        const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
+        if (storageKey) {
+            const local = localStorage.getItem(storageKey);
+            return { success: true, data: local ? JSON.parse(local) : [], local: true };
+        }
+        throw new Error("No se pudo establecer conexión con ninguna ruta del servidor.");
     },
 
-    saveProvider: async function(providerData) {
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/providers`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(providerData)
-                });
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        throw new Error("No se pudo conectar con el servidor para guardar el proveedor.");
+    // --- MÉTODOS DE NEGOCIO ---
+    getProviders: function() { return this._request('/providers'); },
+    getInventory: function() { return this._request('/inventory'); },
+    getInvoices: function() { return this._request('/invoices'); },
+
+    saveProvider: function(data) {
+        return this._request('/providers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
     },
 
-    // --- SECCIÓN INVENTARIO ---
-    getInventory: async function() {
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/inventory`);
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        const localInv = localStorage.getItem('inventory');
-        return { success: true, data: localInv ? JSON.parse(localInv) : [], local: true };
+    saveMaterial: function(data) {
+        const id = data.id || data._id;
+        const path = id ? `/inventory/${id}` : '/inventory';
+        return this._request(path, {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
     },
 
-    saveMaterial: async function(materialData) {
-        const id = materialData.id || materialData._id;
-        const isEdit = id && id !== "";
-        const path = isEdit ? `/inventory/${id}` : `/inventory`;
-        
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}${path}`, {
-                    method: isEdit ? 'PUT' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(materialData)
-                });
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        throw new Error("Error al guardar material.");
-    },
-
-    // --- REGISTRO DE COMPRA (Blindaje de datos 100% respetado) ---
-    registerPurchase: async function(purchaseData) {
+    registerPurchase: function(purchaseData) {
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
             cantidad: Number(purchaseData.cantidad || 1),
             largo: Number(purchaseData.largo || 0),
             ancho: Number(purchaseData.ancho || 0),
-            valorUnitario: Number(purchaseData.valorUnitario || 0),
-            tipo: "COMPRA",
-            fecha: new Date().toISOString()
+            valorUnitario: Number(purchaseData.valorUnitario || 0)
         };
-
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/inventory/purchase`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        throw new Error("Error al registrar la compra en el servidor.");
+        return this._request('/inventory/purchase', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
     },
 
-    // --- SECCIÓN ESTADÍSTICAS Y FACTURAS ---
-    getDashboardStats: async function() {
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/stats`);
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        return { success: false, data: { totalVentas: 0 } };
+    deleteMaterial: function(id) { return this._request(`/inventory/${id}`, { method: 'DELETE' }); },
+    
+    updateStock: function(id, data) {
+        // Soporta tanto PATCH como PUT según tu server.js
+        return this._request(`/inventory/${id}`, {
+            method: 'PUT', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
     },
 
-    getInvoices: async function() { 
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/invoices`);
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        return { success: false, data: [] }; 
-    },
-
-    saveInvoice: async function(invoiceData) { 
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/invoices`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(invoiceData)
-                });
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        throw new Error("Error al guardar la factura.");
-    },
-
-    // --- ELIMINAR MATERIAL ---
-    deleteMaterial: async function(id) {
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/inventory/${id}`, {
-                    method: 'DELETE'
-                });
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        throw new Error("No se pudo eliminar el material.");
-    },
-
-    // --- ACTUALIZAR STOCK (AJUSTE DIRECTO) ---
-    updateStock: async function(id, data) {
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/inventory/${id}/stock`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        throw new Error("No se pudo actualizar el stock.");
-    },
-
-    // --- HISTORIAL ---
-    getHistory: async function(id) {
-        for (const base of API_ROUTES) {
-            try {
-                const response = await fetch(`${base}/inventory/${id}/history`);
-                if (response.status !== 404) return await window.API._safeParse(response);
-            } catch (e) { }
-        }
-        return { success: false, data: [] };
+    getHistory: function(id) { return this._request(`/inventory/history/${id}`); },
+    saveInvoice: function(data) {
+        return this._request('/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
     }
 };
 
-// COMPATIBILIDAD (Tu estructura intacta para evitar errores de referencia)
+// --- COMPATIBILIDAD TOTAL ---
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
-window.API.getStats = window.API.getDashboardStats;
-window.API.savePurchase = window.API.registerPurchase; 
+window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.40 - Blindaje, Sincronización y Garantía de Datos.");
+console.log("🛡️ API v13.3.44 - Blindaje Multirruta Activo.");
