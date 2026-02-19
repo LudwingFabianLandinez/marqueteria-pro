@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.50 (CONSOLIDACIÓN FINAL)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.51 (REPARACIÓN DE SCHEMAS)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Registro preventivo de Schemas para evitar Error 500/Client.
+ * Mejora: Importación directa de modelos para garantizar el registro en Runtime.
  */
 
 const express = require('express');
@@ -13,18 +13,15 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 
-// 1. CARGA DE MODELOS (Singleton) - REGISTRO PREVENTIVO PARA EVITAR "Schema hasn't been registered"
-try {
-    // Importamos explícitamente todos los modelos en orden
-    require('./models/Client');
-    require('./models/Provider');
-    require('./models/Material'); 
-    require('./models/Invoice'); 
-    require('./models/Transaction'); 
-    console.log("📦 Modelos v13.3.50 registrados exitosamente");
-} catch (err) {
-    console.error("🚨 Error inicializando modelos:", err.message);
-}
+// 1. CARGA DIRECTA DE MODELOS (Garantía de Registro)
+// Importamos los archivos directamente para que Mongoose registre los esquemas antes de usarlos
+const Client = require('./models/Client');
+const Provider = require('./models/Provider');
+const Material = require('./models/Material'); 
+const Invoice = require('./models/Invoice'); 
+const Transaction = require('./models/Transaction');
+
+console.log("📦 Modelos v13.3.51 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -33,7 +30,7 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (REPARACIÓN CRÍTICA)
+// 3. NORMALIZACIÓN DE URL (REPARACIÓN CRÍTICA 404)
 app.use((req, res, next) => {
     const basePrefixes = ['/.netlify/functions/server', '/.netlify/functions', '/api'];
     basePrefixes.forEach(p => {
@@ -43,7 +40,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.50] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.51] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -64,16 +61,10 @@ const connect = async () => {
     }
 };
 
-// 5. DEFINICIÓN DE RUTAS - LÓGICA DE NEGOCIO INTACTA
+// 5. DEFINICIÓN DE RUTAS - TU LÓGICA DE NEGOCIO INTACTA
 const router = express.Router();
 
 try {
-    const Material = mongoose.model('Material'); 
-    const Invoice = mongoose.model('Invoice');
-    const Provider = mongoose.model('Provider');
-    const Transaction = mongoose.model('Transaction');
-    const Client = mongoose.model('Client');
-
     // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
     router.get('/quotes/materials', async (req, res) => {
         try {
