@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.40 (CONSOLIDADO FINAL - REPARADO)
- * Objetivo: Mantener blindaje v13.3.39 y asegurar persistencia de proveedores/clientes.
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.41 (CONSOLIDADO FINAL - REFORZADO)
+ * Objetivo: Mantener blindaje v13.3.39, asegurar persistencia y REPARAR CONEXIÓN 404.
  * Blindaje: Estructura de rutas y lógica de m2 intacta.
  */
 
@@ -20,7 +20,7 @@ try {
     require('./models/Invoice'); 
     require('./models/Transaction'); 
     require('./models/Client');
-    console.log("📦 Modelos v13.3.40 registrados exitosamente");
+    console.log("📦 Modelos v13.3.41 registrados exitosamente");
 } catch (err) {
     console.error("🚨 Error inicializando modelos:", err.message);
 }
@@ -32,14 +32,18 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. NORMALIZACIÓN DE URL (Blindaje Original Preservado)
+// 3. NORMALIZACIÓN DE URL (Blindaje de Conexión Reforzado)
 app.use((req, res, next) => {
     const basePrefix = '/.netlify/functions/server';
+    // Limpieza profunda de prefijos para evitar 404 en Netlify
     if (req.url.startsWith(basePrefix)) req.url = req.url.replace(basePrefix, '');
+    if (req.url.startsWith('/.netlify/functions')) req.url = req.url.replace('/.netlify/functions', '');
     if (req.url.startsWith('/api/')) req.url = req.url.replace('/api', '');
+    
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') { req.url = '/'; }
-    console.log(`📡 [v13.3.40] ${req.method} -> ${req.url}`);
+    
+    console.log(`📡 [v13.3.41] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -228,7 +232,6 @@ try {
         }
     });
 
-    // RUTA ESPECÍFICA PARA EVITAR 404 EN HISTORIAL DE COMPRAS
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
             const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).limit(100).lean();
@@ -265,14 +268,14 @@ try {
 
     // --- 🏁 VINCULACIÓN FINAL LIMPIA ---
     router.get('/health', (req, res) => {
-        res.json({ status: 'OK', version: '13.3.40-RESTORED', db: mongoose.connection.readyState === 1 });
+        res.json({ status: 'OK', version: '13.3.41-REINFORCED', db: mongoose.connection.readyState === 1 });
     });
 
 } catch (error) {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL
+// 6. BLINDAJE FINAL (Mapeo redundante para asegurar conexión)
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
