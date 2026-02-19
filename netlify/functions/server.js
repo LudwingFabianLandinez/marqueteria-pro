@@ -228,6 +228,16 @@ try {
         }
     });
 
+    // Nueva ruta para el historial de compras (Evita el 404 en /api/inventory/all-purchases)
+    router.get('/inventory/all-purchases', async (req, res) => {
+        try {
+            const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).limit(100).lean();
+            res.json(compras);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
@@ -262,7 +272,7 @@ try {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL
+// 6. BLINDAJE FINAL (Aquí se asegura que Netlify encuentre las rutas)
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
