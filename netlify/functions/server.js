@@ -228,7 +228,7 @@ try {
         }
     });
 
-    // Nueva ruta para el historial de compras (Evita el 404 en /api/inventory/all-purchases)
+    // RUTA ESPECÍFICA PARA EVITAR 404 EN HISTORIAL DE COMPRAS
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
             const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).limit(100).lean();
@@ -263,7 +263,7 @@ try {
         }
     });
 
-    // --- 🏁 VINCULACIÓN FINAL LIMPIA (Sin requiere externos conflictivos) ---
+    // --- 🏁 VINCULACIÓN FINAL LIMPIA ---
     router.get('/health', (req, res) => {
         res.json({ status: 'OK', version: '13.3.40-RESTORED', db: mongoose.connection.readyState === 1 });
     });
@@ -272,7 +272,7 @@ try {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// 6. BLINDAJE FINAL (Aquí se asegura que Netlify encuentre las rutas)
+// 6. BLINDAJE FINAL (Aquí está el secreto del éxito)
 app.use('/.netlify/functions/server', router);
 app.use('/api', router); 
 app.use('/', router);
