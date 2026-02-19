@@ -2,7 +2,8 @@
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Versión: 13.3.58 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
  * * CAMBIOS v13.3.58:
- * 1. Blindaje "Nivel Diamante" en respuesta de stock (evita 0.00 y NaN).
+ * 1. Blindaje "Nivel Diamante" en respuesta de stock: Calcula el nuevo stock sumando 
+ * el ingreso actual al stock previo si el servidor no lo devuelve mapeado.
  * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
  * 3. Preserva lógica de Historial, Proveedores y Facturación original.
  */
@@ -374,7 +375,7 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // --- NUEVA COMPRA (BLINDAJE v13.3.58) ---
+    // --- NUEVA COMPRA (BLINDAJE v13.3.58 - CON CÁLCULO DINÁMICO) ---
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -400,6 +401,11 @@ function configurarEventos() {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                 return;
             }
+
+            // Identificar material actual para cálculo preventivo de stock
+            const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
+            const stockBaseParaCalculo = materialPrevio ? parseFloat(materialPrevio.stock_actual) : 0;
+            const ingresoM2Calculado = (largo / 100) * (ancho / 100) * cant;
 
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -433,7 +439,7 @@ function configurarEventos() {
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                totalM2: ((largo / 100) * (ancho / 100) * cant).toFixed(2)
+                totalM2: ingresoM2Calculado.toFixed(2)
             };
 
             try {
@@ -441,7 +447,7 @@ function configurarEventos() {
                 console.log("📥 Respuesta servidor:", res);
 
                 if (res.success) { 
-                    // BLINDAJE DINÁMICO: Rastreamos el stock en todas las propiedades posibles del JSON
+                    // BLINDAJE DINÁMICO: Prioriza respuesta del servidor, pero si falla, usa el cálculo local (stock previo + nuevo ingreso)
                     let stockFinal = 0;
                     
                     if (res.nuevoStock !== undefined) {
@@ -451,9 +457,8 @@ function configurarEventos() {
                     } else if (res.updatedMaterial && res.updatedMaterial.stock_actual !== undefined) {
                         stockFinal = res.updatedMaterial.stock_actual;
                     } else {
-                        // Si el JSON no lo trae, lo buscamos en la lista local antes de refrescar
-                        const materialLocal = window.todosLosMateriales.find(m => m.id === materialId);
-                        stockFinal = materialLocal ? materialLocal.stock_actual : 0;
+                        // REFUERZO: Si el servidor no envió el número, lo calculamos nosotros sumando el ingreso
+                        stockFinal = stockBaseParaCalculo + ingresoM2Calculado;
                     }
 
                     alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} m2`);
