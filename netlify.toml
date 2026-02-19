@@ -5,7 +5,7 @@
   # Carpeta donde están tus archivos HTML, CSS y JS front-end
   publish = "public"
   # Carpeta donde Netlify buscará el backend
-  functions = "netlify/functions"
+  functions = "functions"
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
 
