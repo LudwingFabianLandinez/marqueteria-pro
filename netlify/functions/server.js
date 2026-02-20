@@ -227,7 +227,7 @@ try {
 
                 // Sintonía de campos para lectura
                 let cant = parseFloat(c.cantidad || c.cantidad_m2 || 0);
-                let tot = parseFloat(c.total || c.costo_total || 0);
+                let tot = parseFloat(c.costo_total || c.total || 0);
 
                 if (cant === 0 && matData) {
                     cant = 1.0; 
@@ -262,16 +262,17 @@ try {
             }, { new: true });
 
             // GRABACIÓN CON DOBLE ETIQUETA PARA COMPATIBILIDAD TOTAL
+            // Sintonizamos 'cantidad' con 'cantidad_m2' y 'total' con 'costo_total'
             const registro = new Transaction({
                 tipo: 'IN',
                 materialId,
                 materialNombre: matAct.nombre,
                 proveedorId,
                 cantidad: areaTotalIngreso,     // Etiqueta estándar
-                cantidad_m2: areaTotalIngreso,  // Etiqueta de respaldo
+                cantidad_m2: areaTotalIngreso,  // Etiqueta de respaldo para reporte
                 costo_unitario: valorUnitario,
-                total: valorTotalCalculado,     // Etiqueta estándar
-                costo_total: valorTotalCalculado, // Etiqueta de respaldo
+                total: valorTotalCalculado,       // Etiqueta estándar
+                costo_total: valorTotalCalculado, // Etiqueta de respaldo para reporte
                 fecha: new Date()
             });
 
