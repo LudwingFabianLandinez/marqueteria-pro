@@ -1,11 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.58 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
- * * CAMBIOS v13.3.58:
- * 1. Blindaje "Nivel Diamante" en respuesta de stock: Calcula el nuevo stock sumando 
- * el ingreso actual al stock previo si el servidor no lo devuelve mapeado.
+ * Versión: 13.3.62 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
+ * * CAMBIOS v13.3.62:
+ * 1. REPARACIÓN DIRECTORIO: Se fuerza la recarga y mapeo visual de proveedores tras guardar.
  * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
- * 3. Preserva lógica de Historial, Proveedores y Facturación original.
+ * 3. Blindaje "Nivel Diamante" en respuesta de stock preservado.
  */
 
 // 1. VARIABLES GLOBALES
@@ -15,7 +14,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.58 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.62 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -92,7 +91,7 @@ async function cargarHistorialVentas() {
     }
 }
 
-// --- SECCIÓN PROVEEDORES (PRESERVADO) ---
+// --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.62) ---
 
 async function fetchProviders() {
     try {
@@ -105,12 +104,14 @@ async function fetchProviders() {
                 .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
             
             localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
+            
+            // Sincronización de selects
             actualizarSelectProveedores();
             if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
 
+            // RENDERIZADO DEL DIRECTORIO (GANCHO CRÍTICO)
             const directorio = document.getElementById('directorioProveedores');
             if (directorio) {
-                directorio.innerHTML = ''; 
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
                 } else {
@@ -133,6 +134,12 @@ async function fetchProviders() {
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
+    
+    // Gancho visual de carga
+    const btnGuardar = event.submitter || document.querySelector('#provForm button[type="submit"]');
+    const originalText = btnGuardar ? btnGuardar.innerHTML : 'GUARDAR';
+    if(btnGuardar) { btnGuardar.disabled = true; btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
     const payload = {
         nombre: document.getElementById('provNombre')?.value.trim() || "",
         nit: document.getElementById('provNit')?.value.trim() || "",
@@ -142,18 +149,30 @@ window.guardarProveedor = async function(event) {
         direccion: document.getElementById('provDireccion')?.value.trim() || "",
         categoria: document.getElementById('provCategoria')?.value || "General"
     };
-    if (!payload.nombre) return alert("El nombre es obligatorio");
+
+    if (!payload.nombre) {
+        if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
+        return alert("El nombre es obligatorio");
+    }
+
     try {
         const res = await window.API.saveProvider(payload);
         if (res.success) {
-            alert("✅ Proveedor guardado");
+            alert("✅ Proveedor guardado correctamente");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
+            
+            // RE-SINCRONIZACIÓN FORZADA
             await fetchProviders(); 
         } else {
             alert("❌ Error: " + (res.message || "No se pudo guardar"));
         }
-    } catch (error) { alert("❌ Error de conexión"); }
+    } catch (error) { 
+        console.error("Error al guardar proveedor:", error);
+        alert("❌ Error de conexión al guardar proveedor"); 
+    } finally {
+        if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
+    }
 };
 
 // --- SECCIÓN INVENTARIO (PRESERVADO) ---
@@ -375,7 +394,6 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // --- NUEVA COMPRA (BLINDAJE v13.3.58 - CON CÁLCULO DINÁMICO) ---
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
@@ -402,7 +420,6 @@ function configurarEventos() {
                 return;
             }
 
-            // Identificar material actual para cálculo preventivo de stock
             const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
             const stockBaseParaCalculo = materialPrevio ? parseFloat(materialPrevio.stock_actual) : 0;
             const ingresoM2Calculado = (largo / 100) * (ancho / 100) * cant;
@@ -444,28 +461,16 @@ function configurarEventos() {
 
             try {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
-                console.log("📥 Respuesta servidor:", res);
-
                 if (res.success) { 
-                    // BLINDAJE DINÁMICO: Prioriza respuesta del servidor, pero si falla, usa el cálculo local (stock previo + nuevo ingreso)
                     let stockFinal = 0;
-                    
-                    if (res.nuevoStock !== undefined) {
-                        stockFinal = res.nuevoStock;
-                    } else if (res.data && res.data.stock_actual !== undefined) {
-                        stockFinal = res.data.stock_actual;
-                    } else if (res.updatedMaterial && res.updatedMaterial.stock_actual !== undefined) {
-                        stockFinal = res.updatedMaterial.stock_actual;
-                    } else {
-                        // REFUERZO: Si el servidor no envió el número, lo calculamos nosotros sumando el ingreso
-                        stockFinal = stockBaseParaCalculo + ingresoM2Calculado;
-                    }
+                    if (res.nuevoStock !== undefined) stockFinal = res.nuevoStock;
+                    else if (res.data && res.data.stock_actual !== undefined) stockFinal = res.data.stock_actual;
+                    else stockFinal = stockBaseParaCalculo + ingresoM2Calculado;
 
                     alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} m2`);
-                    
                     window.cerrarModales(); 
                     e.target.reset(); 
-                    await fetchInventory(); // Refresca la tabla blanca con datos reales de la DB
+                    await fetchInventory(); 
                 } else {
                     alert("❌ Error: " + (res.error || res.message || "Falla en el registro"));
                 }
@@ -483,7 +488,12 @@ function configurarEventos() {
         renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
-    document.getElementById('provForm')?.addEventListener('submit', window.guardarProveedor);
+    // GANCHO DE ORO: Guardar proveedor usa la función global corregida
+    const provForm = document.getElementById('provForm');
+    if(provForm) {
+        provForm.removeEventListener('submit', window.guardarProveedor);
+        provForm.addEventListener('submit', window.guardarProveedor);
+    }
 }
 
 // --- UTILIDADES DE UI (PRESERVADO) ---
