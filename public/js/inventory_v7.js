@@ -1,11 +1,12 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.62 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
- * * CAMBIOS v13.3.62:
+ * Versión: 13.3.63 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
+ * * CAMBIOS v13.3.63:
  * 1. REPARACIÓN DIRECTORIO: Se fuerza la recarga y mapeo visual de proveedores tras guardar.
  * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
  * 3. Blindaje "Nivel Diamante" en respuesta de stock preservado.
  * 4. Limpieza de contenedor (innerHTML = '') y Bust de Caché (?t=timestamp).
+ * 5. Sincronización automática de listas desplegables al detectar nuevos datos.
  */
 
 // 1. VARIABLES GLOBALES
@@ -15,7 +16,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.62 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.63 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -92,15 +93,13 @@ async function cargarHistorialVentas() {
     }
 }
 
-// --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.62) ---
+// --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.63) ---
 
 async function fetchProviders() {
-    // 1. Limpieza de contenedor y preparación visual
     const directorio = document.getElementById('directorioProveedores');
     if (directorio) directorio.innerHTML = '<div style="text-align:center; padding:10px;"><i class="fas fa-sync fa-spin"></i></div>';
 
     try {
-        // 2. Bust de Caché: Petición con parámetro de tiempo para forzar frescura
         const timestamp = Date.now();
         const resultado = await window.API.getProviders(`?t=${timestamp}`);
         
@@ -117,9 +116,8 @@ async function fetchProviders() {
             actualizarSelectProveedores();
             if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
 
-            // RENDERIZADO DEL DIRECTORIO (LIMPIEZA Y RECONSTRUCCIÓN)
             if (directorio) {
-                directorio.innerHTML = ''; // Limpieza "Fuerza Bruta"
+                directorio.innerHTML = ''; 
                 
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
@@ -172,8 +170,6 @@ window.guardarProveedor = async function(event) {
             alert("✅ Proveedor guardado correctamente");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
-            
-            // RE-SINCRONIZACIÓN FORZADA E INMEDIATA
             await fetchProviders(); 
         } else {
             alert("❌ Error: " + (res.message || "No se pudo guardar"));
@@ -497,7 +493,6 @@ function configurarEventos() {
         renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
-    // GANCHO DE ORO: Vincular el envío del formulario a la función global
     const provForm = document.getElementById('provForm');
     if(provForm) {
         provForm.onsubmit = window.guardarProveedor;

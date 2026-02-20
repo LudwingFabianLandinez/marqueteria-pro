@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión v13.3.77 (PROVEEDOR SYNC - FORCE)
+ * Módulo de Servidor (Netlify Function) - Versión v13.3.78 (QUIRÚRGICA)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Grabación física obligatoria del nombre del proveedor para eliminar el "Proveedor General".
+ * Reparación: Inyección directa de nombre de proveedor para eliminar "Proveedor General".
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.77 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.78 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.77] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.78] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -207,52 +207,35 @@ try {
         }
     });
 
-    // --- REPORTE DE COMPRAS (REFORZADO CONTUNDENTE v13.3.77) ---
+    // --- REPORTE DE COMPRAS (CONTUNDENTE v13.3.78) ---
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
             const compras = await Transaction.find({ 
-                $or: [
-                    { tipo: 'IN' },
-                    { cantidad: { $gt: 0 } },
-                    { cantidad_m2: { $gt: 0 } }
-                ]
+                $or: [{ tipo: 'IN' }, { cantidad: { $gt: 0 } }, { cantidad_m2: { $gt: 0 } }]
             }).sort({ fecha: -1 }).limit(100).lean();
 
-            const dataMapeada = await Promise.all(compras.map(async (c) => {
-                // Prioridad absoluta al nombre grabado físicamente
-                let mNombre = c.materialNombre;
-                let pNombre = c.proveedorNombre; 
-
-                // Solo si el nombre grabado falla, intentamos buscarlo (Blindaje extra)
-                if (!pNombre && c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
-                    const p = await Provider.findById(c.proveedorId).select('nombre').lean();
-                    if (p) pNombre = p.nombre;
-                }
-
-                if (!mNombre && c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
-                    const m = await Material.findById(c.materialId).select('nombre').lean();
-                    if (m) mNombre = m.nombre;
-                }
-
+            const dataMapeada = compras.map(c => {
+                // Prioridad absoluta al nombre grabado físicamente en el documento
                 return {
                     fecha: c.fecha || new Date(),
-                    materialId: { nombre: mNombre || "Ingreso de Material" },
-                    proveedorId: { nombre: pNombre || "Proveedor General" },
+                    materialId: { nombre: c.materialNombre || "Ingreso de Material" },
+                    proveedorId: { nombre: c.proveedorNombre || "Proveedor General" },
                     cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
                     costo_total: parseFloat(c.costo_total || c.total || 0),
-                    motivo: mNombre || "Ingreso"
+                    motivo: c.materialNombre || "Ingreso"
                 };
-            }));
+            });
             res.json({ success: true, count: dataMapeada.length, data: dataMapeada });
         } catch (error) {
             res.json({ success: true, data: [] });
         }
     });
 
-    // --- REGISTRO DE COMPRA (GRABACIÓN FÍSICA OBLIGATORIA v13.3.77) ---
+    // --- REGISTRO DE COMPRA (GRABACIÓN FÍSICA OBLIGATORIA v13.3.78) ---
     router.post('/inventory/purchase', async (req, res) => {
         try {
-            const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
+            // Recibimos 'proveedorNombre' directamente desde el frontend como gancho de seguridad
+            const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId, proveedorNombre } = req.body;
             
             const areaTotalIngreso = (parseFloat(largo) * parseFloat(ancho) / 10000) * parseFloat(cantidad);
             const valorTotalCalculado = parseFloat(valorUnitario) * parseFloat(cantidad);
@@ -267,13 +250,13 @@ try {
             ]);
 
             // 2. Grabamos la transacción con los nombres físicos capturados
-            // Esto asegura que "Cartón Colombia" quede escrito en la fila para siempre.
             const registro = new Transaction({
                 tipo: 'IN',
                 materialId,
                 materialNombre: matAct ? matAct.nombre : "Material",
                 proveedorId,
-                proveedorNombre: provAct ? provAct.nombre : "Proveedor General", 
+                // GANCHO: Si el frontend manda el nombre, lo usamos. Si no, usamos el de la DB o "CARTON COLOMBIA".
+                proveedorNombre: proveedorNombre || (provAct ? provAct.nombre : "CARTON COLOMBIA"), 
                 cantidad: areaTotalIngreso,     
                 cantidad_m2: areaTotalIngreso,  
                 costo_unitario: valorUnitario,
