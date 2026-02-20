@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.73 (SINCRONIZACIÓN TOTAL COMPRAS)
+ * Módulo de Servidor (Netlify Function) - Versión v13.3.74 (SOLUCIÓN DEFINITIVA HISTORIAL)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Unificación de campos de grabación para asegurar visibilidad en el historial.
+ * Reparación: Unificación de campos de grabación y recuperación de nombres para visibilidad total.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.73 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.74 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.73] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.74] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -207,35 +207,33 @@ try {
         }
     });
 
-    // --- REPORTE DE COMPRAS (LECTURA ROBUSTA v13.3.73) ---
+    // --- REPORTE DE COMPRAS (LECTURA ROBUSTA v13.3.74) ---
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
             const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).lean();
             const dataMapeada = await Promise.all(compras.map(async (c) => {
-                let mNombre = c.materialNombre || "Material Desconocido";
+                let mNombre = c.materialNombre;
                 let pNombre = "Proveedor General";
-                let matData = null;
 
-                if (c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
-                    matData = await Material.findById(c.materialId).select('nombre costo_m2 precio_m2_costo').lean();
-                    if (matData) mNombre = matData.nombre;
+                // Recuperación de nombre si no está en la transacción
+                if (!mNombre && c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
+                    const m = await Material.findById(c.materialId).select('nombre').lean();
+                    if (m) mNombre = m.nombre;
                 }
+                
+                if (!mNombre) mNombre = "Material Desconocido";
+
                 if (c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
                     const p = await Provider.findById(c.proveedorId).select('nombre').lean();
                     if (p) pNombre = p.nombre;
                 }
 
-                // Sintonía de campos para lectura
+                // Sintonía de campos para lectura (Respaldo total)
                 let cant = parseFloat(c.cantidad || c.cantidad_m2 || 0);
                 let tot = parseFloat(c.costo_total || c.total || 0);
 
-                if (cant === 0 && matData) {
-                    cant = 1.0; 
-                    tot = matData.costo_m2 || matData.precio_m2_costo || 0;
-                }
-
                 return {
-                    fecha: c.fecha,
+                    fecha: c.fecha || new Date(),
                     materialId: { nombre: mNombre },
                     proveedorId: { nombre: pNombre },
                     cantidad_m2: cant.toFixed(2),
@@ -249,10 +247,12 @@ try {
         }
     });
 
-    // --- REGISTRO DE COMPRA (GRABACIÓN CORREGIDA v13.3.73) ---
+    // --- REGISTRO DE COMPRA (GRABACIÓN CORREGIDA v13.3.74) ---
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
+            
+            // Lógica de m2 exacta
             const areaTotalIngreso = (parseFloat(largo) * parseFloat(ancho) / 10000) * parseFloat(cantidad);
             const valorTotalCalculado = parseFloat(valorUnitario) * parseFloat(cantidad);
 
@@ -268,11 +268,11 @@ try {
                 materialId,
                 materialNombre: matAct.nombre,
                 proveedorId,
-                cantidad: areaTotalIngreso,     // Etiqueta estándar
-                cantidad_m2: areaTotalIngreso,  // Etiqueta de respaldo para reporte
+                cantidad: areaTotalIngreso,     // Campo Estándar
+                cantidad_m2: areaTotalIngreso,  // Campo Reporte
                 costo_unitario: valorUnitario,
-                total: valorTotalCalculado,       // Etiqueta estándar
-                costo_total: valorTotalCalculado, // Etiqueta de respaldo para reporte
+                total: valorTotalCalculado,       // Campo Estándar
+                costo_total: valorTotalCalculado, // Campo Reporte
                 fecha: new Date()
             });
 
