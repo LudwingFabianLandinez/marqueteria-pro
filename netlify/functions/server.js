@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.61 (CIRUGÍA: REPORTE COMPRAS)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.68 (CIRUGÍA: REPORTE COMPRAS)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Gancho para historial de compras consolidado.
+ * Reparación: Gancho robusto para historial de compras consolidado (Evita Error 500).
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.61 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.68 vinculados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.61] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.68] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -64,7 +64,7 @@ const connect = async () => {
 const router = express.Router();
 
 try {
-    // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS ---
+    // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS (MANTENIDA AL 100%) ---
     router.get('/quotes/materials', async (req, res) => {
         try {
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
@@ -122,7 +122,7 @@ try {
         }
     });
 
-    // --- GESTIÓN DE FACTURAS (CON REPARACIÓN DE CONSECUTIVO) ---
+    // --- GESTIÓN DE FACTURAS (CONSECUTIVO BLINDADO) ---
     router.get('/invoices', async (req, res) => {
         try {
             const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
@@ -148,7 +148,6 @@ try {
                 if (idTexto.startsWith('OT-')) {
                     const partes = idTexto.split('-');
                     const num = parseInt(partes[partes.length - 1]);
-                    
                     if (!isNaN(num) && num < 100000 && num > maxNumero) {
                         maxNumero = num;
                     }
@@ -198,7 +197,7 @@ try {
         }
     });
 
-    // --- INVENTARIO Y COMPRAS (CIRUGÍA v13.3.61) ---
+    // --- INVENTARIO Y COMPRAS (CIRUGÍA REPARADA) ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -208,7 +207,7 @@ try {
         }
     });
 
-    // NUEVO GANCHO: Historial completo para el reporte
+    // GANCHO MEJORADO: Reporte de compras blindado contra datos huérfanos
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
             const compras = await Transaction.find({ tipo: 'IN' })
@@ -217,18 +216,21 @@ try {
                 .sort({ fecha: -1 })
                 .lean();
             
+            // CIRUGÍA: Si materialId o proveedorId son null (porque se borraron), 
+            // evitamos que el frontend falle devolviendo un objeto seguro.
             const dataMapeada = compras.map(c => ({
                 fecha: c.fecha,
-                materialId: c.materialId,
-                proveedorId: c.proveedorId,
-                cantidad_m2: c.cantidad,
-                costo_total: c.total,
+                materialId: c.materialId || { nombre: c.materialNombre || 'Material' },
+                proveedorId: c.proveedorId || { nombre: 'Proveedor General' },
+                cantidad_m2: c.cantidad || 0,
+                costo_total: c.total || 0,
                 motivo: c.materialNombre
             }));
 
             res.json({ success: true, data: dataMapeada });
         } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
+            console.error("🚨 Error en all-purchases:", error.message);
+            res.status(500).json({ success: false, error: "Error al generar reporte de compras" });
         }
     });
 
