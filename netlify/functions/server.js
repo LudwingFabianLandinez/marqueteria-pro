@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión v13.3.77 (PROVEEDOR SYNC)
+ * Módulo de Servidor (Netlify Function) - Versión v13.3.77 (PROVEEDOR SYNC - FORCE)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Grabación y recuperación de nombre real de proveedor para visibilidad total.
+ * Reparación: Grabación física obligatoria del nombre del proveedor para eliminar el "Proveedor General".
  */
 
 const express = require('express');
@@ -207,7 +207,7 @@ try {
         }
     });
 
-    // --- REPORTE DE COMPRAS (LECTURA CON SINCRONIZACIÓN DE NOMBRES v13.3.77) ---
+    // --- REPORTE DE COMPRAS (REFORZADO CONTUNDENTE v13.3.77) ---
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
             const compras = await Transaction.find({ 
@@ -219,19 +219,19 @@ try {
             }).sort({ fecha: -1 }).limit(100).lean();
 
             const dataMapeada = await Promise.all(compras.map(async (c) => {
+                // Prioridad absoluta al nombre grabado físicamente
                 let mNombre = c.materialNombre;
-                let pNombre = c.proveedorNombre; // Intentar usar el nombre guardado directamente
+                let pNombre = c.proveedorNombre; 
 
-                // Si no hay nombre de material grabado, buscarlo
-                if (!mNombre && c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
-                    const m = await Material.findById(c.materialId).select('nombre').lean();
-                    if (m) mNombre = m.nombre;
-                }
-                
-                // Si no hay nombre de proveedor grabado, buscarlo por el ID
+                // Solo si el nombre grabado falla, intentamos buscarlo (Blindaje extra)
                 if (!pNombre && c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
                     const p = await Provider.findById(c.proveedorId).select('nombre').lean();
                     if (p) pNombre = p.nombre;
+                }
+
+                if (!mNombre && c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
+                    const m = await Material.findById(c.materialId).select('nombre').lean();
+                    if (m) mNombre = m.nombre;
                 }
 
                 return {
@@ -249,7 +249,7 @@ try {
         }
     });
 
-    // --- REGISTRO DE COMPRA (GRABACIÓN CON NOMBRES EXPLÍCITOS v13.3.77) ---
+    // --- REGISTRO DE COMPRA (GRABACIÓN FÍSICA OBLIGATORIA v13.3.77) ---
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
@@ -257,26 +257,23 @@ try {
             const areaTotalIngreso = (parseFloat(largo) * parseFloat(ancho) / 10000) * parseFloat(cantidad);
             const valorTotalCalculado = parseFloat(valorUnitario) * parseFloat(cantidad);
 
-            // 1. Buscamos y actualizamos el material
-            const matAct = await Material.findByIdAndUpdate(materialId, { 
-                $inc: { stock_actual: areaTotalIngreso },
-                $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
-            }, { new: true }).lean();
+            // 1. Buscamos el material y proveedor ANTES para capturar sus nombres reales
+            const [matAct, provAct] = await Promise.all([
+                Material.findByIdAndUpdate(materialId, { 
+                    $inc: { stock_actual: areaTotalIngreso },
+                    $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
+                }, { new: true }).lean(),
+                Provider.findById(proveedorId).select('nombre').lean()
+            ]);
 
-            // 2. Buscamos el nombre del proveedor para grabarlo físicamente
-            let nombreProv = "Proveedor General";
-            if (proveedorId && mongoose.Types.ObjectId.isValid(proveedorId)) {
-                const prov = await Provider.findById(proveedorId).select('nombre').lean();
-                if (prov) nombreProv = prov.nombre;
-            }
-
-            // 3. Grabamos la transacción con todas las etiquetas necesarias
+            // 2. Grabamos la transacción con los nombres físicos capturados
+            // Esto asegura que "Cartón Colombia" quede escrito en la fila para siempre.
             const registro = new Transaction({
                 tipo: 'IN',
                 materialId,
                 materialNombre: matAct ? matAct.nombre : "Material",
                 proveedorId,
-                proveedorNombre: nombreProv, // ¡Gancho clave para visibilidad!
+                proveedorNombre: provAct ? provAct.nombre : "Proveedor General", 
                 cantidad: areaTotalIngreso,     
                 cantidad_m2: areaTotalIngreso,  
                 costo_unitario: valorUnitario,
