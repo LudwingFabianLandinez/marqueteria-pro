@@ -1,15 +1,11 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Configuración de Despliegue - Consolidación Final v13.3.69
+# Configuración de Despliegue - Consolidación Final
 
 [build]
   # Carpeta donde están tus archivos HTML, CSS y JS (Frontend)
   publish = "public"
   # Carpeta donde Netlify busca el backend (server.js)
   functions = "netlify/functions"
-
-[functions]
-  # Asegura que las dependencias del backend se empaqueten correctamente
-  node_bundle = true
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
 
