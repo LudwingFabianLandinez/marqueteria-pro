@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* --- BLOQUE DE FUERZA PARA RODADO --- */
+        /* --- BLOQUE DE FUERZA PARA RODADO (CONSERVADO) --- */
         html, body {
-            overflow: hidden; /* Congela el fondo para que nada rebote */
+            overflow: hidden; 
             width: 100%;
             margin: 0;
             padding: 0;
@@ -75,15 +75,15 @@
         /* COLUMNA IZQUIERDA: GESTIÓN DE SCROLL */
         .content-left {
             display: flex;
-            flex-direction: column; /* Alineación vertical */
+            flex-direction: column; 
             padding: 30px;
             height: 100vh;
             box-sizing: border-box;
         }
 
-        /* 🛡️ CABECERA BLINDADA (Título y Botones quedan quietos) */
+        /* 🛡️ CABECERA BLINDADA */
         .page-header-fixed {
-            flex-shrink: 0; /* Impide que se desplace o achique */
+            flex-shrink: 0;
         }
 
         .page-title {
@@ -100,19 +100,18 @@
             margin-bottom: 25px;
         }
 
-        /* 📦 CONTENEDOR DE LA TABLA (Lo único que se mueve) */
+        /* 📦 CONTENEDOR DE LA TABLA (SCROLL INTERNO) */
         .inventory-card {
             background: white;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Para que el scroll sea interno */
-            flex-grow: 1; /* Ocupa todo el espacio sobrante hacia abajo */
+            overflow: hidden; 
+            flex-grow: 1; 
             border: 1px solid #e2e8f0;
         }
 
-        /* EL MOTOR DEL SCROLL INTERNO */
         .table-scroll-container {
             overflow-y: auto;
             flex-grow: 1;
@@ -123,10 +122,10 @@
             border-collapse: collapse;
         }
 
-        /* 🟦 LA BARRA AZUL FIJA (Header de la tabla) */
+        /* 🟦 LA BARRA AZUL FIJA */
         .inventory-table thead {
             position: sticky;
-            top: 0; /* Se clava al inicio del contenedor blanco */
+            top: 0;
             z-index: 10;
             background: #3182ce;
             color: white;
@@ -238,14 +237,15 @@
                     <table class="inventory-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left;">MATERIAL / CATEGORÍA</th>
+                                <th style="text-align: left; padding-left: 20px;">MATERIAL / CATEGORÍA</th>
                                 <th>MEDIDAS MATERIAL</th>
-                                <th>COSTO M²</th>
+                                <th>COSTO M² / ML</th>
                                 <th>STOCK DISPONIBLE</th>
                                 <th>ACCIONES</th>
                             </tr>
                         </thead>
-                        <tbody id="inventoryTable"></tbody>
+                        <tbody id="inventoryTable">
+                            </tbody>
                     </table>
                 </div>
             </div>
@@ -313,12 +313,9 @@
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js"></script>
 <script>
-    // 🛡️ USA EL TÚNEL MAESTRO DEFINIDO EN EL NETLIFY.TOML
-    // Al usar "/api", Netlify lo redirige automáticamente a la función server.js
     window.API_URL = "/api"; 
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Ejecutamos la carga inicial del blindaje v7
         if (window.loadInventory) window.loadInventory();
         if (window.loadProviders) window.loadProviders();
     });
@@ -343,6 +340,7 @@
         if(!modal) return;
         modal.style.display = 'block';
         
+        // Sincronización con el estado actual de los datos
         const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
         const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
         

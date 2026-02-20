@@ -182,7 +182,7 @@ window.guardarProveedor = async function(event) {
     }
 };
 
-// --- SECCIÓN INVENTARIO (ESTRUCTURA VISUAL PRESERVADA) ---
+// --- SECCIÓN INVENTARIO (ESTRUCTURA VISUAL PRESERVADA CON AJUSTE DE PRECISIÓN) ---
 
 async function fetchInventory() {
     try {
@@ -242,13 +242,16 @@ function renderTable(materiales) {
         let textoStockVisual = "";
         
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
+            // AJUSTE DE PRECISIÓN v13.3.64
             const laminasExactas = stockActualUnidad / areaUnaLaminaM2;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
-            if (sobranteM2 < 0.001) sobranteM2 = 0;
+            
+            // Eliminar ruido de flotantes menores a 1cm2
+            if (sobranteM2 < 0.0001) sobranteM2 = 0;
 
-            let desglose = laminasCompletas > 0 
-                ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)` 
+            let desglose = (laminasCompletas > 0) 
+                ? (sobranteM2 > 0 ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)` : `(${laminasCompletas} unidades)`)
                 : `(${sobranteM2.toFixed(2)} m²)`;
             
             textoStockVisual = `
@@ -360,7 +363,6 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
-    // Hook para detectar selección de "NUEVO MATERIAL"
     document.getElementById('compraMaterial')?.addEventListener('change', (e) => {
         const nuevoContainer = document.getElementById('nuevoMaterialContainer');
         const comboProv = document.getElementById('compraProveedor');
