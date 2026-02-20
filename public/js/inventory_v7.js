@@ -97,7 +97,6 @@ async function cargarHistorialVentas() {
 
 async function fetchProviders() {
     const directorio = document.getElementById('directorioProveedores');
-    // Limpieza inicial para evitar duplicados y mostrar carga
     if (directorio) directorio.innerHTML = '<div style="text-align:center; padding:10px;"><i class="fas fa-sync fa-spin"></i></div>';
 
     try {
@@ -118,7 +117,7 @@ async function fetchProviders() {
             if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
 
             if (directorio) {
-                directorio.innerHTML = ''; // Limpieza final antes de mapear
+                directorio.innerHTML = ''; 
                 
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
@@ -171,7 +170,6 @@ window.guardarProveedor = async function(event) {
             alert("✅ Proveedor guardado correctamente");
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
-            // Ejecuta recarga forzada para actualizar UI y selects
             await fetchProviders(); 
         } else {
             alert("❌ Error: " + (res.message || "No se pudo guardar"));
@@ -580,7 +578,7 @@ function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
     if (select && window.todosLosProveedores.length > 0) {
         select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${p.nombre || 'S/N'}</option>`).join('');
+            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
     }
 }
 
