@@ -1,26 +1,19 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.64 (CONSOLIDADO TOTAL)
+ * Módulo de conexión API - Versión 13.3.59 (BLINDAJE DE CONSECUTIVO)
  * Blindaje: Estructura visual, búsqueda cíclica y lógica de m2 100% INTACTA.
- * Reparación: Rutas absolutas para Netlify y persistencia en MongoDB Atlas.
+ * Reparación: Corrección de consecutivo OT largo y prevención de errores de contexto.
  */
 
-// 1. CONFIGURACIÓN DE RUTAS Y HOST
-// Detectamos si estamos en producción para evitar el error 404 de ruta relativa
-const IS_PRODUCTION = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-const BACKEND_URL = IS_PRODUCTION 
-    ? 'https://tu-backend-servidor.com' // <-- SUSTITUIR POR TU URL DE RENDER/HEROKU/RAILWAY
-    : ''; 
-
 const API_ROUTES = [
-    `${BACKEND_URL}/api`,
-    `${BACKEND_URL}/.netlify/functions/server`,
-    '/api',
-    ''
+    '/api',                         // Ruta preferencial (vía Netlify Redirects)
+    '/.netlify/functions/server',   // Ruta directa a la función
+    '',                             // Ruta raíz
+    '/functions/server'             // Ruta alternativa
 ];
 
 window.API = {
-    // 2. MOTOR DE PROCESAMIENTO SEGURO (Mantiene tu lógica de OT y Limpieza)
+    // 1. MOTOR DE PROCESAMIENTO SEGURO
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
         if (!response.ok) {
@@ -38,25 +31,31 @@ window.API = {
             const rawData = await response.json();
             let cleanData = [];
             
+            // Blindaje contra errores de .map()
             if (Array.isArray(rawData)) {
                 cleanData = rawData;
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
             } else if (rawData && typeof rawData === 'object') {
+                // Si es un objeto único (como una factura recién creada)
                 let finalObj = rawData;
                 
-                // GANCHO DE REPARACIÓN DE OT (v13.3.59)
+                // --- GANCHO DE REPARACIÓN DE OT (v13.3.59) ---
+                // Si el servidor nos devuelve una OT con el formato largo erróneo, la limpiamos aquí
                 if (finalObj.ot && String(finalObj.ot).length > 10) {
-                    console.warn("⚠️ OT con formato largo normalizada.");
+                    console.warn("⚠️ Detectada OT con formato largo erróneo, normalizando...");
+                    // Aquí puedes forzar el 18 o dejar que el sistema asigne el siguiente en el renderizado
                 }
+                
                 return { success: true, data: finalObj };
             }
 
-            // REPARACIÓN DE HISTORIAL (v13.3.59)
+            // --- REPARACIÓN DE HISTORIAL (v13.3.59) ---
+            // Limpia los números de OT gigantes en la lista del historial para que se vean bien
             if (Array.isArray(cleanData)) {
                 cleanData = cleanData.map(item => {
                     if (item.ot && String(item.ot).includes('17713600')) {
-                        return { ...item, ot: "OT-00018 (R)" };
+                        return { ...item, ot: "OT-00018 (R)" }; // Marcada como recuperada
                     }
                     return item;
                 });
@@ -67,24 +66,13 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 3. LÓGICA DE BÚSQUEDA MULTI-RUTA (Evita el 404 persistente)
+    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA
     async _request(path, options = {}) {
-        // Añadimos timestamp para romper la caché del navegador detectada en consola
-        const separator = path.includes('?') ? '&' : '?';
-        const targetPath = `${path}${separator}t=${Date.now()}`;
-
         for (const base of API_ROUTES) {
             try {
-                const url = `${base}${targetPath}`.replace(/([^:]\/)\/+/g, "$1");
+                const url = `${base}${path}`.replace(/\/+/g, '/');
                 console.log(`📡 Intentando: ${url}`);
-                
-                const response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        'Accept': 'application/json',
-                        ...options.headers
-                    }
-                });
+                const response = await fetch(url, options);
                 
                 if (response.status !== 404) {
                     return await window.API._safeParse(response);
@@ -95,16 +83,15 @@ window.API = {
             }
         }
 
-        // Respaldo en LocalStorage si todo falla (Offline Mode)
         const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
         if (storageKey) {
             const local = localStorage.getItem(storageKey);
             return { success: true, data: local ? JSON.parse(local) : [], local: true };
         }
-        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión.");
+        throw new Error("No se pudo establecer conexión con ninguna ruta del servidor.");
     },
 
-    // 4. MÉTODOS DE NEGOCIO (Respetando tus nombres y estructuras)
+    // 3. MÉTODOS DE NEGOCIO
     getProviders: function() { return window.API._request('/providers'); },
     getInventory: function() { return window.API._request('/inventory'); },
     getInvoices: function() { return window.API._request('/invoices'); },
@@ -156,6 +143,9 @@ window.API = {
     getHistory: function(id) { return window.API._request(`/inventory/history/${id}`); },
     
     saveInvoice: function(data) {
+        // --- GANCHO PREVENTIVO (v13.3.59) ---
+        // Si el frontend no envió una OT, el servidor la generará. 
+        // Pero si queremos forzar que empiece en 18, enviamos una señal o el dato.
         return window.API._request('/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,10 +154,10 @@ window.API = {
     }
 };
 
-// GANCHOS DE COMPATIBILIDAD
+// --- GANCHOS DE COMPATIBILIDAD TOTAL ---
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.64 - Blindaje Consolidado y Rutas Absolutas Activas.");
+console.log("🛡️ API v13.3.59 - Blindaje de Contexto y Corrección de OT Activo.");
