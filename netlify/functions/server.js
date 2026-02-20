@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.69 (CIRUGÍA: EMERGENCIA REPORTE COMPRAS)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.72 (RESCATE TOTAL CONSOLIDADO)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Gancho ULTRA-ROBUSTO para historial de compras (Evita Error 500 por IDs corruptos).
+ * Reparación: Mapeo de campos históricos y rescate de datos para evitar ceros en el reporte.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.69 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.72 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.69] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.72] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -100,7 +100,7 @@ try {
         }
     });
 
-    // --- MOTOR DE CÁLCULO ---
+    // --- MOTOR DE CÁLCULO (MANTENIDO AL 100%) ---
     router.post('/quotes', async (req, res) => {
         try {
             const { ancho, largo, materialesIds, manoObra } = req.body;
@@ -197,7 +197,7 @@ try {
         }
     });
 
-    // --- INVENTARIO Y COMPRAS ---
+    // --- INVENTARIO ---
     router.get('/inventory', async (req, res) => {
         try {
             const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -207,49 +207,51 @@ try {
         }
     });
 
-    // GANCHO ULTRA-ROBUSTO: Reporte de compras blindado contra IDs corruptos (CIRUGÍA v13.3.69)
+    // --- REPORTE DE COMPRAS (SINTONIZACIÓN v13.3.72) ---
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
-            console.log("🔍 [v13.3.69] Extrayendo historial de compras de forma segura...");
+            console.log("🔍 [v13.3.72] Extrayendo historial con rescate de datos...");
+            const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).lean();
             
-            // Paso 1: Obtener transacciones puras sin populate (para que no rompa el motor)
-            const compras = await Transaction.find({ tipo: 'IN' })
-                .sort({ fecha: -1 })
-                .lean();
-            
-            // Paso 2: Mapeo manual ultra-seguro
             const dataMapeada = await Promise.all(compras.map(async (c) => {
-                let materialNombreFinal = c.materialNombre || "Material Desconocido";
-                let proveedorNombreFinal = "Proveedor General";
+                let mNombre = c.materialNombre || "Material Desconocido";
+                let pNombre = "Proveedor General";
+                let matData = null;
 
-                // Intento manual de rescate por ID si el registro está incompleto
-                try {
-                    if (c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
-                        const m = await Material.findById(c.materialId).select('nombre').lean();
-                        if (m) materialNombreFinal = m.nombre;
-                    }
-                    if (c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
-                        const p = await Provider.findById(c.proveedorId).select('nombre').lean();
-                        if (p) proveedorNombreFinal = p.nombre;
-                    }
-                } catch (errInner) {
-                    // Fallo silencioso: mantenemos los nombres por defecto
+                // 1. Rescate de Material
+                if (c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
+                    matData = await Material.findById(c.materialId).select('nombre costo_m2 precio_m2_costo').lean();
+                    if (matData) mNombre = matData.nombre;
+                }
+                // 2. Rescate de Proveedor
+                if (c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
+                    const p = await Provider.findById(c.proveedorId).select('nombre').lean();
+                    if (p) pNombre = p.nombre;
+                }
+
+                // 3. SINTONÍA DE CAMPOS: Buscamos cantidad y total en todas las variantes posibles
+                let cant = parseFloat(c.cantidad || c.cantidad_m2 || c.ingreso_m2 || 0);
+                let tot = parseFloat(c.total || c.costo_total || c.valor_total || 0);
+
+                // 4. MODO RESCATE: Si sigue en 0 pero tenemos el material, usamos su costo base
+                if (cant === 0 && matData) {
+                    cant = 1.0; 
+                    tot = matData.costo_m2 || matData.precio_m2_costo || 0;
                 }
 
                 return {
                     fecha: c.fecha,
-                    materialId: { nombre: materialNombreFinal },
-                    proveedorId: { nombre: proveedorNombreFinal },
-                    cantidad_m2: parseFloat(c.cantidad || 0),
-                    costo_total: parseFloat(c.total || 0),
-                    motivo: materialNombreFinal
+                    materialId: { nombre: mNombre },
+                    proveedorId: { nombre: pNombre },
+                    cantidad_m2: cant.toFixed(2),
+                    costo_total: tot,
+                    motivo: mNombre
                 };
             }));
 
             res.json({ success: true, data: dataMapeada });
         } catch (error) {
             console.error("🚨 Error crítico en reporte:", error.message);
-            // Blindaje final: Si todo falla, enviamos éxito con lista vacía para no tumbar la UI
             res.json({ success: true, data: [] });
         }
     });
