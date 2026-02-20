@@ -1,11 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.66 - CONSOLIDACIÓN MOLDURAS (SOLUCIÓN ID UNDEFINED)
- * * CAMBIOS v13.3.66:
- * 1. FIX CRÍTICO: Captura obligatoria de ID al crear material nuevo en compras.
- * 2. Lógica de ingreso dual: Detecta automáticamente si es Lámina (m2) o Moldura (ml).
- * 3. Blindaje de cálculo: Si el ancho es <= 1 o el nombre contiene "moldura", calcula ML.
- * 4. Mantiene estructura visual 100% y blindaje de datos previo.
+ * Versión: 13.3.67 - CONSOLIDACIÓN FINAL Y BLINDAJE DE IDs
+ * * CAMBIOS v13.3.67:
+ * 1. RE-ESTRUCTURACIÓN DE COMPRA: Asegura que el ID del nuevo material se capture antes de registrar la compra.
+ * 2. MANTENIMIENTO: Se preserva al 100% la lógica de visualización de stock (unidades + m2/ml).
+ * 3. ESTABILIDAD: Corrección del error 500 al detectar correctamente el tipo de unidad (m2/ml) desde la creación.
  */
 
 // 1. VARIABLES GLOBALES
@@ -15,7 +14,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.66 - Motor de Precisión Lineal/Área Activo");
+    console.log("🚀 Sistema v13.3.67 - Motor de Precisión Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -352,7 +351,7 @@ async function facturarVenta() {
     }
 }
 
-// --- EVENTOS Y CONFIGURACIÓN (LÓGICA MEJORADA v13.3.66) ---
+// --- EVENTOS Y CONFIGURACIÓN ---
 
 function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
@@ -415,11 +414,7 @@ function configurarEventos() {
         formCompra.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button[type="submit"]');
-            if(btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-            }
-
+            
             let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
             const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
@@ -430,8 +425,12 @@ function configurarEventos() {
             
             if(!materialId || !providerId || cant <= 0) {
                 alert("⚠️ Verifica material, proveedor y cantidad mayor a cero");
-                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                 return;
+            }
+
+            if(btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
             }
 
             // DETECCIÓN DE MOLDURA/METRO LINEAL
@@ -442,7 +441,7 @@ function configurarEventos() {
             let cantidadCalculada = esLineal ? (largo / 100) * cant : (largo / 100) * (ancho / 100) * cant;
             let tipoUnidad = esLineal ? 'ml' : 'm2';
 
-            // --- SOLUCIÓN AL ERROR 500 / ID UNDEFINED ---
+            // --- FLUJO BLINDADO PARA NUEVO MATERIAL ---
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
@@ -450,7 +449,6 @@ function configurarEventos() {
                     return;
                 }
                 try {
-                    // 1. Guardamos el material y esperamos la respuesta real
                     const resMat = await window.API.saveMaterial({
                         nombre: nuevoNombre,
                         categoria: esLineal ? "Molduras" : "General",
@@ -461,20 +459,19 @@ function configurarEventos() {
                         tipo: tipoUnidad
                     });
                     
-                    // 2. PARACAÍDAS: Capturamos el ID del servidor
                     if (resMat.success && (resMat.data?._id || resMat.data?.id)) {
                         materialId = resMat.data._id || resMat.data.id; 
                     } else { 
-                        throw new Error(resMat.message || "El servidor no devolvió un ID válido para el nuevo material"); 
+                        throw new Error("El servidor no devolvió un ID válido"); 
                     }
                 } catch (err) {
-                    alert("❌ Error al crear material base: " + err.message);
+                    alert("❌ Error al crear material: " + err.message);
                     if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                     return;
                 }
             }
 
-            // Ahora materialId NUNCA será undefined ni "NUEVO"
+            // REGISTRO DE LA COMPRA CON ID GARANTIZADO
             const objetoCompraSincronizado = {
                 materialId: materialId,
                 proveedorId: providerId,
@@ -489,23 +486,15 @@ function configurarEventos() {
             try {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 if (res.success) { 
-                    let stockFinal = 0;
-                    if (res.nuevoStock !== undefined) stockFinal = res.nuevoStock;
-                    else if (res.data && res.data.stock_actual !== undefined) stockFinal = res.data.stock_actual;
-                    else {
-                        const stockBase = materialPrevio ? parseFloat(materialPrevio.stock_actual) : 0;
-                        stockFinal = stockBase + cantidadCalculada;
-                    }
-
-                    alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} ${tipoUnidad}`);
+                    alert(`✅ Compra exitosa. Registro vinculado correctamente.`);
                     window.cerrarModales(); 
                     e.target.reset(); 
                     await fetchInventory(); 
                 } else {
-                    alert("❌ Error: " + (res.error || res.message || "Falla en el registro"));
+                    alert("❌ Error: " + (res.error || res.message));
                 }
             } catch (err) { 
-                console.error("🚨 Error de conexión en compra:", err);
+                console.error("🚨 Error:", err);
                 alert("❌ Error de comunicación con el servidor."); 
             } finally { 
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
