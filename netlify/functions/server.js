@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión 13.3.72 (RESCATE TOTAL CONSOLIDADO)
+ * Módulo de Servidor (Netlify Function) - Versión 13.3.73 (SINCRONIZACIÓN TOTAL COMPRAS)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Mapeo de campos históricos y rescate de datos para evitar ceros en el reporte.
+ * Reparación: Unificación de campos de grabación para asegurar visibilidad en el historial.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.72 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.73 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.72] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.73] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -207,33 +207,28 @@ try {
         }
     });
 
-    // --- REPORTE DE COMPRAS (SINTONIZACIÓN v13.3.72) ---
+    // --- REPORTE DE COMPRAS (LECTURA ROBUSTA v13.3.73) ---
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
-            console.log("🔍 [v13.3.72] Extrayendo historial con rescate de datos...");
             const compras = await Transaction.find({ tipo: 'IN' }).sort({ fecha: -1 }).lean();
-            
             const dataMapeada = await Promise.all(compras.map(async (c) => {
                 let mNombre = c.materialNombre || "Material Desconocido";
                 let pNombre = "Proveedor General";
                 let matData = null;
 
-                // 1. Rescate de Material
                 if (c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
                     matData = await Material.findById(c.materialId).select('nombre costo_m2 precio_m2_costo').lean();
                     if (matData) mNombre = matData.nombre;
                 }
-                // 2. Rescate de Proveedor
                 if (c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
                     const p = await Provider.findById(c.proveedorId).select('nombre').lean();
                     if (p) pNombre = p.nombre;
                 }
 
-                // 3. SINTONÍA DE CAMPOS: Buscamos cantidad y total en todas las variantes posibles
-                let cant = parseFloat(c.cantidad || c.cantidad_m2 || c.ingreso_m2 || 0);
-                let tot = parseFloat(c.total || c.costo_total || c.valor_total || 0);
+                // Sintonía de campos para lectura
+                let cant = parseFloat(c.cantidad || c.cantidad_m2 || 0);
+                let tot = parseFloat(c.total || c.costo_total || 0);
 
-                // 4. MODO RESCATE: Si sigue en 0 pero tenemos el material, usamos su costo base
                 if (cant === 0 && matData) {
                     cant = 1.0; 
                     tot = matData.costo_m2 || matData.precio_m2_costo || 0;
@@ -248,27 +243,38 @@ try {
                     motivo: mNombre
                 };
             }));
-
             res.json({ success: true, data: dataMapeada });
         } catch (error) {
-            console.error("🚨 Error crítico en reporte:", error.message);
             res.json({ success: true, data: [] });
         }
     });
 
+    // --- REGISTRO DE COMPRA (GRABACIÓN CORREGIDA v13.3.73) ---
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
             const areaTotalIngreso = (parseFloat(largo) * parseFloat(ancho) / 10000) * parseFloat(cantidad);
+            const valorTotalCalculado = parseFloat(valorUnitario) * parseFloat(cantidad);
+
             const matAct = await Material.findByIdAndUpdate(materialId, { 
                 $inc: { stock_actual: areaTotalIngreso },
                 $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
             }, { new: true });
 
+            // GRABACIÓN CON DOBLE ETIQUETA PARA COMPATIBILIDAD TOTAL
             const registro = new Transaction({
-                tipo: 'IN', materialId, materialNombre: matAct.nombre, cantidad: areaTotalIngreso, 
-                costo_unitario: valorUnitario, total: valorUnitario * cantidad, proveedorId, fecha: new Date()
+                tipo: 'IN',
+                materialId,
+                materialNombre: matAct.nombre,
+                proveedorId,
+                cantidad: areaTotalIngreso,     // Etiqueta estándar
+                cantidad_m2: areaTotalIngreso,  // Etiqueta de respaldo
+                costo_unitario: valorUnitario,
+                total: valorTotalCalculado,     // Etiqueta estándar
+                costo_total: valorTotalCalculado, // Etiqueta de respaldo
+                fecha: new Date()
             });
+
             await registro.save({ validateBeforeSave: false });
             res.json({ success: true, nuevoStock: matAct.stock_actual, ingreso_m2: areaTotalIngreso });
         } catch (error) {
@@ -294,10 +300,6 @@ module.exports.handler = async (event, context) => {
         }
         return await handler(event, context);
     } catch (error) {
-        console.error("🚨 Handler Crash:", error);
-        return { 
-            statusCode: 500, 
-            body: JSON.stringify({ success: false, error: 'Fallo fatal en servidor' }) 
-        };
+        return { statusCode: 500, body: JSON.stringify({ success: false, error: 'Fallo fatal' }) };
     }
 };
