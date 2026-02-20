@@ -1,10 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.65 - CONSOLIDACIÓN MOLDURAS (METROS LINEALES)
- * * CAMBIOS v13.3.65:
- * 1. Lógica de ingreso dual: Detecta automáticamente si es Lámina (m2) o Moldura (ml).
- * 2. Blindaje de cálculo: Si el ancho es <= 1 o el nombre contiene "moldura", calcula ML.
- * 3. Mantiene estructura visual 100% y blindaje de datos previo.
+ * Versión: 13.3.66 - CONSOLIDACIÓN MOLDURAS (SOLUCIÓN ID UNDEFINED)
+ * * CAMBIOS v13.3.66:
+ * 1. FIX CRÍTICO: Captura obligatoria de ID al crear material nuevo en compras.
+ * 2. Lógica de ingreso dual: Detecta automáticamente si es Lámina (m2) o Moldura (ml).
+ * 3. Blindaje de cálculo: Si el ancho es <= 1 o el nombre contiene "moldura", calcula ML.
+ * 4. Mantiene estructura visual 100% y blindaje de datos previo.
  */
 
 // 1. VARIABLES GLOBALES
@@ -14,7 +15,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.65 - Motor de Precisión Lineal/Área Activo");
+    console.log("🚀 Sistema v13.3.66 - Motor de Precisión Lineal/Área Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -351,7 +352,7 @@ async function facturarVenta() {
     }
 }
 
-// --- EVENTOS Y CONFIGURACIÓN (CON LÓGICA DE MOLDURAS v13.3.65) ---
+// --- EVENTOS Y CONFIGURACIÓN (LÓGICA MEJORADA v13.3.66) ---
 
 function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
@@ -433,26 +434,15 @@ function configurarEventos() {
                 return;
             }
 
-            // AJUSTE v13.3.65: DETECCIÓN DE MOLDURA/METRO LINEAL
+            // DETECCIÓN DE MOLDURA/METRO LINEAL
             const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
             const nombreParaValidar = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || "")).toLowerCase();
-            
-            // Si el nombre contiene "moldura" O el ancho es 0 o 1, lo tratamos como Lineal (ml)
             const esLineal = nombreParaValidar.includes("moldura") || ancho <= 1;
             
-            let cantidadCalculada;
-            let tipoUnidad;
+            let cantidadCalculada = esLineal ? (largo / 100) * cant : (largo / 100) * (ancho / 100) * cant;
+            let tipoUnidad = esLineal ? 'ml' : 'm2';
 
-            if (esLineal) {
-                // Cálculo para Molduras: (Largo en metros * Cantidad de varas)
-                cantidadCalculada = (largo / 100) * cant;
-                tipoUnidad = 'ml';
-            } else {
-                // Cálculo para Láminas: (Largo m * Ancho m * Cantidad)
-                cantidadCalculada = (largo / 100) * (ancho / 100) * cant;
-                tipoUnidad = 'm2';
-            }
-
+            // --- SOLUCIÓN AL ERROR 500 / ID UNDEFINED ---
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
@@ -460,6 +450,7 @@ function configurarEventos() {
                     return;
                 }
                 try {
+                    // 1. Guardamos el material y esperamos la respuesta real
                     const resMat = await window.API.saveMaterial({
                         nombre: nuevoNombre,
                         categoria: esLineal ? "Molduras" : "General",
@@ -467,18 +458,23 @@ function configurarEventos() {
                         ancho_lamina_cm: ancho,
                         largo_lamina_cm: largo,
                         precio_total_lamina: valorUnitarioLamina,
-                        tipo: tipoUnidad // Enviamos el tipo detectado
+                        tipo: tipoUnidad
                     });
-                    if (resMat.success) {
-                        materialId = resMat.data._id || resMat.data.id;
-                    } else { throw new Error("No se pudo crear el material base"); }
+                    
+                    // 2. PARACAÍDAS: Capturamos el ID del servidor
+                    if (resMat.success && (resMat.data?._id || resMat.data?.id)) {
+                        materialId = resMat.data._id || resMat.data.id; 
+                    } else { 
+                        throw new Error(resMat.message || "El servidor no devolvió un ID válido para el nuevo material"); 
+                    }
                 } catch (err) {
-                    alert("❌ Error: " + err.message);
+                    alert("❌ Error al crear material base: " + err.message);
                     if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
                     return;
                 }
             }
 
+            // Ahora materialId NUNCA será undefined ni "NUEVO"
             const objetoCompraSincronizado = {
                 materialId: materialId,
                 proveedorId: providerId,
@@ -486,7 +482,7 @@ function configurarEventos() {
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                totalM2: cantidadCalculada.toFixed(2), // Aquí enviamos los ML si es moldura
+                totalM2: cantidadCalculada.toFixed(2),
                 tipo: tipoUnidad
             };
 
