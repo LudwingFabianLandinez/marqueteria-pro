@@ -1,12 +1,13 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.63 - CONSOLIDACIÓN TOTAL INTEGRADA (COMPRAS & INVENTARIO)
- * * CAMBIOS v13.3.63:
- * 1. REPARACIÓN DIRECTORIO: Se fuerza la recarga y mapeo visual de proveedores tras guardar.
+ * Versión: 13.3.64 - CONSOLIDACIÓN TOTAL INTEGRADA (ESTRUCTURA PRESERVADA)
+ * * CAMBIOS v13.3.64:
+ * 1. REPARACIÓN DIRECTORIO: Recarga y mapeo visual de proveedores tras guardar.
  * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
  * 3. Blindaje "Nivel Diamante" en respuesta de stock preservado.
  * 4. Limpieza de contenedor (innerHTML = '') y Bust de Caché (?t=timestamp).
  * 5. Sincronización automática de listas desplegables al detectar nuevos datos.
+ * 6. Hook reactivo para "NUEVO MATERIAL" en el formulario de compras.
  */
 
 // 1. VARIABLES GLOBALES
@@ -16,7 +17,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.63 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.64 - Motor de Precisión Unitaria Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -93,7 +94,7 @@ async function cargarHistorialVentas() {
     }
 }
 
-// --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.63) ---
+// --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.64) ---
 
 async function fetchProviders() {
     const directorio = document.getElementById('directorioProveedores');
@@ -112,9 +113,8 @@ async function fetchProviders() {
             
             localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
             
-            // Sincronización de selects en toda la app
             actualizarSelectProveedores();
-            if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
+            window.cargarListasModal();
 
             if (directorio) {
                 directorio.innerHTML = ''; 
@@ -182,7 +182,7 @@ window.guardarProveedor = async function(event) {
     }
 };
 
-// --- SECCIÓN INVENTARIO (PRESERVADO) ---
+// --- SECCIÓN INVENTARIO (ESTRUCTURA VISUAL PRESERVADA) ---
 
 async function fetchInventory() {
     try {
@@ -209,7 +209,7 @@ async function fetchInventory() {
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
-        if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
+        window.cargarListasModal();
     } catch (error) { console.error("❌ Error inventario:", error); }
 }
 
@@ -359,6 +359,18 @@ async function facturarVenta() {
 function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
+
+    // Hook para detectar selección de "NUEVO MATERIAL"
+    document.getElementById('compraMaterial')?.addEventListener('change', (e) => {
+        const nuevoContainer = document.getElementById('nuevoMaterialContainer');
+        const comboProv = document.getElementById('compraProveedor');
+        if(e.target.value === "NUEVO") {
+            if(nuevoContainer) nuevoContainer.style.display = 'block';
+            if(comboProv) comboProv.focus();
+        } else {
+            if(nuevoContainer) nuevoContainer.style.display = 'none';
+        }
+    });
 
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -578,7 +590,7 @@ function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
     if (select && window.todosLosProveedores.length > 0) {
         select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
+            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${p.nombre || 'S/N'}</option>`).join('');
     }
 }
 
