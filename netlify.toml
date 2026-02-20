@@ -1,17 +1,19 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Configuración de Despliegue - Consolidación Final v13.3.68
+# Configuración de Despliegue - Consolidación Final v13.3.69
 
 [build]
   # Carpeta donde están tus archivos HTML, CSS y JS (Frontend)
   publish = "public"
-  
   # Carpeta donde Netlify busca el backend (server.js)
   functions = "netlify/functions"
+
+[functions]
+  # Asegura que las dependencias del backend se empaqueten correctamente
+  node_bundle = true
 
 # --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
 
 # 1. Túnel Maestro: Conecta /api/* con tu función server.js
-# Este gancho es vital para que las llamadas de api.js encuentren el motor
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
@@ -19,12 +21,7 @@
   force = true
 
 # 2. Manejo de SPA: Evita errores al recargar páginas internas del dashboard
-# Permite que el diseño de dashboard.html sea persistente al refrescar
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# --- CONFIGURACIÓN DE FUNCIONES ---
-[functions]
-  node_bundle = true
