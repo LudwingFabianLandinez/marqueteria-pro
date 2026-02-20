@@ -5,6 +5,7 @@
  * 1. REPARACIÓN DIRECTORIO: Se fuerza la recarga y mapeo visual de proveedores tras guardar.
  * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
  * 3. Blindaje "Nivel Diamante" en respuesta de stock preservado.
+ * 4. Limpieza de contenedor (innerHTML = '') y Bust de Caché (?t=timestamp).
  */
 
 // 1. VARIABLES GLOBALES
@@ -94,8 +95,15 @@ async function cargarHistorialVentas() {
 // --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.62) ---
 
 async function fetchProviders() {
+    // 1. Limpieza de contenedor y preparación visual
+    const directorio = document.getElementById('directorioProveedores');
+    if (directorio) directorio.innerHTML = '<div style="text-align:center; padding:10px;"><i class="fas fa-sync fa-spin"></i></div>';
+
     try {
-        const resultado = await window.API.getProviders();
+        // 2. Bust de Caché: Petición con parámetro de tiempo para forzar frescura
+        const timestamp = Date.now();
+        const resultado = await window.API.getProviders(`?t=${timestamp}`);
+        
         const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
         
         if (Array.isArray(listaBruta)) {
@@ -109,9 +117,10 @@ async function fetchProviders() {
             actualizarSelectProveedores();
             if(typeof window.cargarListasModal === 'function') window.cargarListasModal();
 
-            // RENDERIZADO DEL DIRECTORIO (GANCHO CRÍTICO)
-            const directorio = document.getElementById('directorioProveedores');
+            // RENDERIZADO DEL DIRECTORIO (LIMPIEZA Y RECONSTRUCCIÓN)
             if (directorio) {
+                directorio.innerHTML = ''; // Limpieza "Fuerza Bruta"
+                
                 if (window.todosLosProveedores.length === 0) {
                     directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
                 } else {
@@ -129,13 +138,15 @@ async function fetchProviders() {
                 }
             }
         }
-    } catch (error) { console.error("❌ Error proveedores:", error); }
+    } catch (error) { 
+        console.error("❌ Error proveedores:", error);
+        if (directorio) directorio.innerHTML = '<p style="color:red; font-size:0.7rem;">Error al cargar lista.</p>';
+    }
 }
 
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
-    // Gancho visual de carga
     const btnGuardar = event.submitter || document.querySelector('#provForm button[type="submit"]');
     const originalText = btnGuardar ? btnGuardar.innerHTML : 'GUARDAR';
     if(btnGuardar) { btnGuardar.disabled = true; btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
@@ -162,7 +173,7 @@ window.guardarProveedor = async function(event) {
             document.getElementById('provForm')?.reset();
             window.cerrarModales();
             
-            // RE-SINCRONIZACIÓN FORZADA
+            // RE-SINCRONIZACIÓN FORZADA E INMEDIATA
             await fetchProviders(); 
         } else {
             alert("❌ Error: " + (res.message || "No se pudo guardar"));
@@ -398,8 +409,6 @@ function configurarEventos() {
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
             e.preventDefault();
-            console.log("🛒 Procesando Nueva Compra...");
-            
             const btn = e.target.querySelector('button[type="submit"]');
             if(btn) {
                 btn.disabled = true;
@@ -488,11 +497,10 @@ function configurarEventos() {
         renderTable(window.todosLosMateriales.filter(m => m.nombre.toLowerCase().includes(termino)));
     });
 
-    // GANCHO DE ORO: Guardar proveedor usa la función global corregida
+    // GANCHO DE ORO: Vincular el envío del formulario a la función global
     const provForm = document.getElementById('provForm');
     if(provForm) {
-        provForm.removeEventListener('submit', window.guardarProveedor);
-        provForm.addEventListener('submit', window.guardarProveedor);
+        provForm.onsubmit = window.guardarProveedor;
     }
 }
 
