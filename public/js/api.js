@@ -1,10 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.66 (SOPORTE MOLDURAS/ML)
- * * CAMBIOS v13.3.66:
+ * Módulo de conexión API - Versión 13.3.67 (SOPORTE MOLDURAS/ML + FIX ID)
+ * * CAMBIOS v13.3.67:
  * 1. Mantiene blindaje de consecutivos de OT (v13.3.59) intacto.
  * 2. GANCHO ML: Inyecta el campo 'tipo' en el registro de compra para molduras.
- * 3. Reparación 404/500: Normalización de IDs y rutas para evitar fallos de ObjectId.
+ * 3. REPARACIÓN CRÍTICA: Extracción profunda de ID para evitar errores 500/undefined.
  * 4. Sincronización con motor de inventario de precisión lineal.
  */
 
@@ -34,14 +34,15 @@ window.API = {
             const rawData = await response.json();
             let cleanData = [];
             
-            // Blindaje contra errores de .map()
+            // Blindaje contra errores de .map() y extracción de objetos
             if (Array.isArray(rawData)) {
                 cleanData = rawData;
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
             } else if (rawData && typeof rawData === 'object') {
-                // Si es un objeto único (como una factura recién creada)
-                let finalObj = rawData;
+                // --- AJUSTE v13.3.67: EXTRACCIÓN DE ID PARA NUEVOS REGISTROS ---
+                // Si el objeto viene envuelto en .data, lo extraemos para que inventory.js lo vea
+                let finalObj = rawData.success && rawData.data ? rawData.data : rawData;
                 
                 // --- GANCHO DE REPARACIÓN DE OT (v13.3.59 - PRESERVADO) ---
                 if (finalObj.ot && String(finalObj.ot).length > 10) {
@@ -163,4 +164,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.66 - Soporte Molduras (ML) y Blindaje OT Activo.");
+console.log("🛡️ API v13.3.67 - Blindaje de Datos y Extracción de IDs Activo.");
