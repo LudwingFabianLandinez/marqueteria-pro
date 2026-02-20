@@ -1,13 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.64 - CONSOLIDACIÓN TOTAL INTEGRADA (ESTRUCTURA PRESERVADA)
- * * CAMBIOS v13.3.64:
- * 1. REPARACIÓN DIRECTORIO: Recarga y mapeo visual de proveedores tras guardar.
- * 2. Mantiene estructura visual 100% (Tabla Blanca, Desglose láminas/sobrante).
- * 3. Blindaje "Nivel Diamante" en respuesta de stock preservado.
- * 4. Limpieza de contenedor (innerHTML = '') y Bust de Caché (?t=timestamp).
- * 5. Sincronización automática de listas desplegables al detectar nuevos datos.
- * 6. Hook reactivo para "NUEVO MATERIAL" en el formulario de compras.
+ * Versión: 13.3.65 - CONSOLIDACIÓN MOLDURAS (METROS LINEALES)
+ * * CAMBIOS v13.3.65:
+ * 1. Lógica de ingreso dual: Detecta automáticamente si es Lámina (m2) o Moldura (ml).
+ * 2. Blindaje de cálculo: Si el ancho es <= 1 o el nombre contiene "moldura", calcula ML.
+ * 3. Mantiene estructura visual 100% y blindaje de datos previo.
  */
 
 // 1. VARIABLES GLOBALES
@@ -17,7 +14,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.64 - Motor de Precisión Unitaria Activo");
+    console.log("🚀 Sistema v13.3.65 - Motor de Precisión Lineal/Área Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -94,7 +91,7 @@ async function cargarHistorialVentas() {
     }
 }
 
-// --- SECCIÓN PROVEEDORES (CORREGIDA v13.3.64) ---
+// --- SECCIÓN PROVEEDORES (PRESERVADO) ---
 
 async function fetchProviders() {
     const directorio = document.getElementById('directorioProveedores');
@@ -182,7 +179,7 @@ window.guardarProveedor = async function(event) {
     }
 };
 
-// --- SECCIÓN INVENTARIO (ESTRUCTURA VISUAL PRESERVADA CON AJUSTE DE PRECISIÓN) ---
+// --- SECCIÓN INVENTARIO (PRESERVADA) ---
 
 async function fetchInventory() {
     try {
@@ -242,12 +239,9 @@ function renderTable(materiales) {
         let textoStockVisual = "";
         
         if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // AJUSTE DE PRECISIÓN v13.3.64
             const laminasExactas = stockActualUnidad / areaUnaLaminaM2;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
-            
-            // Eliminar ruido de flotantes menores a 1cm2
             if (sobranteM2 < 0.0001) sobranteM2 = 0;
 
             let desglose = (laminasCompletas > 0) 
@@ -357,7 +351,7 @@ async function facturarVenta() {
     }
 }
 
-// --- EVENTOS Y CONFIGURACIÓN ---
+// --- EVENTOS Y CONFIGURACIÓN (CON LÓGICA DE MOLDURAS v13.3.65) ---
 
 function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
@@ -439,9 +433,25 @@ function configurarEventos() {
                 return;
             }
 
+            // AJUSTE v13.3.65: DETECCIÓN DE MOLDURA/METRO LINEAL
             const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
-            const stockBaseParaCalculo = materialPrevio ? parseFloat(materialPrevio.stock_actual) : 0;
-            const ingresoM2Calculado = (largo / 100) * (ancho / 100) * cant;
+            const nombreParaValidar = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || "")).toLowerCase();
+            
+            // Si el nombre contiene "moldura" O el ancho es 0 o 1, lo tratamos como Lineal (ml)
+            const esLineal = nombreParaValidar.includes("moldura") || ancho <= 1;
+            
+            let cantidadCalculada;
+            let tipoUnidad;
+
+            if (esLineal) {
+                // Cálculo para Molduras: (Largo en metros * Cantidad de varas)
+                cantidadCalculada = (largo / 100) * cant;
+                tipoUnidad = 'ml';
+            } else {
+                // Cálculo para Láminas: (Largo m * Ancho m * Cantidad)
+                cantidadCalculada = (largo / 100) * (ancho / 100) * cant;
+                tipoUnidad = 'm2';
+            }
 
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
@@ -452,11 +462,12 @@ function configurarEventos() {
                 try {
                     const resMat = await window.API.saveMaterial({
                         nombre: nuevoNombre,
-                        categoria: "General",
+                        categoria: esLineal ? "Molduras" : "General",
                         proveedorId: providerId,
                         ancho_lamina_cm: ancho,
                         largo_lamina_cm: largo,
-                        precio_total_lamina: valorUnitarioLamina 
+                        precio_total_lamina: valorUnitarioLamina,
+                        tipo: tipoUnidad // Enviamos el tipo detectado
                     });
                     if (resMat.success) {
                         materialId = resMat.data._id || resMat.data.id;
@@ -475,7 +486,8 @@ function configurarEventos() {
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                totalM2: ingresoM2Calculado.toFixed(2)
+                totalM2: cantidadCalculada.toFixed(2), // Aquí enviamos los ML si es moldura
+                tipo: tipoUnidad
             };
 
             try {
@@ -484,9 +496,12 @@ function configurarEventos() {
                     let stockFinal = 0;
                     if (res.nuevoStock !== undefined) stockFinal = res.nuevoStock;
                     else if (res.data && res.data.stock_actual !== undefined) stockFinal = res.data.stock_actual;
-                    else stockFinal = stockBaseParaCalculo + ingresoM2Calculado;
+                    else {
+                        const stockBase = materialPrevio ? parseFloat(materialPrevio.stock_actual) : 0;
+                        stockFinal = stockBase + cantidadCalculada;
+                    }
 
-                    alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} m2`);
+                    alert(`✅ Compra exitosa. Nuevo Stock: ${Number(stockFinal).toFixed(2)} ${tipoUnidad}`);
                     window.cerrarModales(); 
                     e.target.reset(); 
                     await fetchInventory(); 
