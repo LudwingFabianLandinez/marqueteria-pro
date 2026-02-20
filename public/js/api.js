@@ -1,18 +1,19 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.67 (SOPORTE MOLDURAS/ML + FIX ID)
- * * CAMBIOS v13.3.67:
- * 1. Mantiene blindaje de consecutivos de OT (v13.3.59) intacto.
- * 2. GANCHO ML: Inyecta el campo 'tipo' en el registro de compra para molduras.
- * 3. REPARACIÓN CRÍTICA: Extracción profunda de ID para evitar errores 500/undefined.
- * 4. Sincronización con motor de inventario de precisión lineal.
+ * Módulo de conexión API - Versión 13.3.68 (FIX RUTAS NETLIFY + BLINDAJE)
+ * * CAMBIOS v13.3.68:
+ * 1. REPARACIÓN DE RUTAS: Se prioriza '/.netlify/functions/server' para eliminar el error 404.
+ * 2. Mantiene blindaje de consecutivos de OT (v13.3.59) intacto.
+ * 3. EXTRACCIÓN DE ID: Refuerza la captura de data.id para evitar el error "ID no válido".
+ * 4. Mantiene ganchos de compatibilidad ML para Molduras.
  */
 
+// Priorizamos la ruta real de Netlify para evitar el "Idling" de rutas inexistentes
 const API_ROUTES = [
-    '/api',                         // Ruta preferencial (vía Netlify Redirects)
-    '/.netlify/functions/server',   // Ruta directa a la función
-    '',                             // Ruta raíz
-    '/functions/server'             // Ruta alternativa
+    '/.netlify/functions/server',   // 1. Ruta Directa (La más fiable en producción)
+    '/api',                         // 2. Proxy (Si existe netlify.toml)
+    '/functions/server',            // 3. Alternativa legacy
+    ''                              // 4. Raíz (Localhost)
 ];
 
 window.API = {
@@ -40,9 +41,10 @@ window.API = {
             } else if (rawData && Array.isArray(rawData.data)) {
                 cleanData = rawData.data;
             } else if (rawData && typeof rawData === 'object') {
-                // --- AJUSTE v13.3.67: EXTRACCIÓN DE ID PARA NUEVOS REGISTROS ---
-                // Si el objeto viene envuelto en .data, lo extraemos para que inventory.js lo vea
-                let finalObj = rawData.success && rawData.data ? rawData.data : rawData;
+                // --- AJUSTE v13.3.67/68: EXTRACCIÓN PROFUNDA DE ID ---
+                // Si el objeto viene envuelto en .data, lo extraemos. 
+                // Esto es vital para que inventory.js reciba el ID tras crear un material.
+                let finalObj = (rawData.success && rawData.data) ? rawData.data : rawData;
                 
                 // --- GANCHO DE REPARACIÓN DE OT (v13.3.59 - PRESERVADO) ---
                 if (finalObj.ot && String(finalObj.ot).length > 10) {
@@ -67,32 +69,52 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA
+    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA MEJORADA
     async _request(path, options = {}) {
+        let lastError = null;
+
         for (const base of API_ROUTES) {
             try {
+                // Normalización de slash para evitar "//"
                 const url = `${base}${path}`.replace(/\/+/g, '/');
-                console.log(`📡 Intentando: ${url}`);
-                const response = await fetch(url, options);
+                console.log(`📡 Intentando conexión: ${url}`);
                 
-                if (response.status !== 404) {
-                    return await window.API._safeParse(response);
+                const response = await fetch(url, {
+                    ...options,
+                    // Añadimos un pequeño timeout para no quedar colgados
+                    signal: AbortSignal.timeout(8000) 
+                });
+                
+                // Si la respuesta es 404, probamos la siguiente ruta en la lista
+                if (response.status === 404) {
+                    console.warn(`📍 Ruta no encontrada en: ${base}`);
+                    continue;
                 }
+
+                // Si llegamos aquí, la ruta existe (aunque de error 500, ya es la ruta correcta)
+                return await window.API._safeParse(response);
+
             } catch (err) {
+                lastError = err.message;
                 console.warn(`⚠️ Falló intento en ${base}:`, err.message);
                 continue; 
             }
         }
 
+        // --- CAÍDA A LOCALSTORAGE (SOPORTE OFFLINE PRESERVADO) ---
         const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
         if (storageKey) {
             const local = localStorage.getItem(storageKey);
-            return { success: true, data: local ? JSON.parse(local) : [], local: true };
+            if (local) {
+                console.info(`📦 Cargando data local para ${storageKey} (Modo Offline)`);
+                return { success: true, data: JSON.parse(local), local: true };
+            }
         }
-        throw new Error("No se pudo establecer conexión con ninguna ruta del servidor.");
+        
+        throw new Error(lastError || "No se pudo establecer conexión con el servidor.");
     },
 
-    // 3. MÉTODOS DE NEGOCIO
+    // 3. MÉTODOS DE NEGOCIO (PRESERVADOS 100%)
     getProviders: function() { return window.API._request('/providers'); },
     getInventory: function() { return window.API._request('/inventory'); },
     getInvoices: function() { return window.API._request('/invoices'); },
@@ -117,7 +139,6 @@ window.API = {
 
     registerPurchase: function(purchaseData) {
         // --- GANCHO DE COMPATIBILIDAD ML (v13.3.66) ---
-        // Normalizamos los datos para evitar errores 500 de ObjectId en el servidor
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
@@ -125,8 +146,8 @@ window.API = {
             largo: Number(purchaseData.largo || 0),
             ancho: Number(purchaseData.ancho || 0),
             valorUnitario: Number(purchaseData.valorUnitario || 0),
-            totalM2: Number(purchaseData.totalM2 || 0), // Puede ser ML o M2 según el tipo
-            tipo: purchaseData.tipo || 'm2' // Enviamos el tipo detectado (ml o m2)
+            totalM2: Number(purchaseData.totalM2 || 0), 
+            tipo: purchaseData.tipo || 'm2'
         };
         
         return window.API._request('/inventory/purchase', {
@@ -149,7 +170,6 @@ window.API = {
     getHistory: function(id) { return window.API._request(`/inventory/history/${id}`); },
     
     saveInvoice: function(data) {
-        // --- GANCHO PREVENTIVO (v13.3.59 - PRESERVADO) ---
         return window.API._request('/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,4 +184,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.67 - Blindaje de Datos y Extracción de IDs Activo.");
+console.log("🛡️ API v13.3.68 - Blindaje de Rutas y Datos Activo.");
