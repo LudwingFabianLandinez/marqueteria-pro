@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión v13.3.76 (FORCE FETCH & HISTORIAL)
+ * Módulo de Servidor (Netlify Function) - Versión v13.3.77 (PROVEEDOR SYNC)
  * Blindaje: Estructura de rutas, modelos y lógica de m2 100% INTACTA.
- * Reparación: Búsqueda multi-criterio en historial para asegurar visibilidad de compras.
+ * Reparación: Grabación y recuperación de nombre real de proveedor para visibilidad total.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.3.76 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.3.77 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.3.76] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.3.77] ${req.method} -> ${req.url}`);
     next();
 });
 
@@ -207,11 +207,9 @@ try {
         }
     });
 
-    // --- REPORTE DE COMPRAS (BÚSQUEDA PERMISIVA v13.3.76) ---
+    // --- REPORTE DE COMPRAS (LECTURA CON SINCRONIZACIÓN DE NOMBRES v13.3.77) ---
     router.get('/inventory/all-purchases', async (req, res) => {
         try {
-            // SOLUCIÓN RADICAL: Buscamos por tipo 'IN' O cualquier registro con cantidad positiva
-            // Esto asegura que si el campo 'tipo' falla, el registro aparezca por su valor numérico.
             const compras = await Transaction.find({ 
                 $or: [
                     { tipo: 'IN' },
@@ -222,30 +220,27 @@ try {
 
             const dataMapeada = await Promise.all(compras.map(async (c) => {
                 let mNombre = c.materialNombre;
-                let pNombre = "Proveedor General";
+                let pNombre = c.proveedorNombre; // Intentar usar el nombre guardado directamente
 
+                // Si no hay nombre de material grabado, buscarlo
                 if (!mNombre && c.materialId && mongoose.Types.ObjectId.isValid(c.materialId)) {
                     const m = await Material.findById(c.materialId).select('nombre').lean();
                     if (m) mNombre = m.nombre;
                 }
                 
-                if (!mNombre) mNombre = "Ingreso de Material";
-
-                if (c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
+                // Si no hay nombre de proveedor grabado, buscarlo por el ID
+                if (!pNombre && c.proveedorId && mongoose.Types.ObjectId.isValid(c.proveedorId)) {
                     const p = await Provider.findById(c.proveedorId).select('nombre').lean();
                     if (p) pNombre = p.nombre;
                 }
 
-                const cant = parseFloat(c.cantidad || c.cantidad_m2 || 0);
-                const tot = parseFloat(c.costo_total || c.total || 0);
-
                 return {
                     fecha: c.fecha || new Date(),
-                    materialId: { nombre: mNombre },
-                    proveedorId: { nombre: pNombre },
-                    cantidad_m2: cant.toFixed(2),
-                    costo_total: tot,
-                    motivo: mNombre
+                    materialId: { nombre: mNombre || "Ingreso de Material" },
+                    proveedorId: { nombre: pNombre || "Proveedor General" },
+                    cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
+                    costo_total: parseFloat(c.costo_total || c.total || 0),
+                    motivo: mNombre || "Ingreso"
                 };
             }));
             res.json({ success: true, count: dataMapeada.length, data: dataMapeada });
@@ -254,7 +249,7 @@ try {
         }
     });
 
-    // --- REGISTRO DE COMPRA (GRABACIÓN REFORZADA v13.3.76) ---
+    // --- REGISTRO DE COMPRA (GRABACIÓN CON NOMBRES EXPLÍCITOS v13.3.77) ---
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId } = req.body;
@@ -262,16 +257,26 @@ try {
             const areaTotalIngreso = (parseFloat(largo) * parseFloat(ancho) / 10000) * parseFloat(cantidad);
             const valorTotalCalculado = parseFloat(valorUnitario) * parseFloat(cantidad);
 
+            // 1. Buscamos y actualizamos el material
             const matAct = await Material.findByIdAndUpdate(materialId, { 
                 $inc: { stock_actual: areaTotalIngreso },
                 $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
-            }, { new: true });
+            }, { new: true }).lean();
 
+            // 2. Buscamos el nombre del proveedor para grabarlo físicamente
+            let nombreProv = "Proveedor General";
+            if (proveedorId && mongoose.Types.ObjectId.isValid(proveedorId)) {
+                const prov = await Provider.findById(proveedorId).select('nombre').lean();
+                if (prov) nombreProv = prov.nombre;
+            }
+
+            // 3. Grabamos la transacción con todas las etiquetas necesarias
             const registro = new Transaction({
                 tipo: 'IN',
                 materialId,
-                materialNombre: matAct.nombre,
+                materialNombre: matAct ? matAct.nombre : "Material",
                 proveedorId,
+                proveedorNombre: nombreProv, // ¡Gancho clave para visibilidad!
                 cantidad: areaTotalIngreso,     
                 cantidad_m2: areaTotalIngreso,  
                 costo_unitario: valorUnitario,
@@ -281,7 +286,7 @@ try {
             });
 
             await registro.save({ validateBeforeSave: false });
-            res.json({ success: true, nuevoStock: matAct.stock_actual, ingreso_m2: areaTotalIngreso });
+            res.json({ success: true, nuevoStock: matAct ? matAct.stock_actual : 0, ingreso_m2: areaTotalIngreso });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
