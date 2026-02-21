@@ -1,15 +1,15 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.80 (SOLUCIÓN MAESTRA DEFINITIVA)
- * * CAMBIOS v13.3.80:
- * 1. HARD-CODED ENDPOINT: URL absoluta directa para saltar fallos de resolución en producción.
- * 2. BYPASS DE REDIRECCIÓN: Elimina el uso de /api para evitar errores 404 del netlify.toml.
- * 3. EXTRACCIÓN NIVEL DIAMANTE: Blindaje total para capturar ID en respuestas del servidor.
+ * Módulo de conexión API - Versión 13.3.85 (TÚNEL DE RESPUESTA FORZADA)
+ * * CAMBIOS v13.3.85:
+ * 1. ENDPOINT ULTRA-DIRECTO: Forzamos la ruta de funciones para bypass de redirecciones.
+ * 2. BYPASS DE CACHÉ: Evita que Netlify entregue un 404 persistente almacenado en el navegador.
+ * 3. EXTRACCIÓN NIVEL DIAMANTE: Captura el ID real del material ignorando el ruido del proxy.
  * 4. Preservación 100% de molduras (ML), OTs históricas y estructura visual.
  */
 
-// URL absoluta de producción (Punto de enlace directo al servidor)
-const PROD_URL = 'https://meek-monstera-23f18d.netlify.app/.netlify/functions/server';
+// Usamos la ruta de función directa para evitar que el netlify.toml interfiera con el retorno de datos
+const API_BASE = '/.netlify/functions/server';
 
 window.API = {
     // 1. MOTOR DE PROCESAMIENTO SEGURO
@@ -29,7 +29,7 @@ window.API = {
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
             
-            // --- AJUSTE v13.3.80: EXTRACCIÓN AGRESIVA DE DATA ---
+            // --- AJUSTE v13.3.85: EXTRACCIÓN DE DATA REFORZADA ---
             let cleanObj = (rawData.success && rawData.data) ? rawData.data : rawData;
 
             // Manejo de Objetos Únicos (Captura de ID para nuevos materiales)
@@ -57,26 +57,29 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.3.80 - SIN INTERMEDIARIOS)
+    // 2. PETICIÓN CON TÚNEL (v13.3.85 - BYPASS DE REDIRECCIÓN)
     async _request(path, options = {}) {
-        // Forzamos la ruta absoluta sin pasar por el router local de Netlify
-        const url = `${PROD_URL}${path}`.replace(/\/+/g, '/').replace(':/', '://');
+        // Generamos la ruta directa a la función
+        const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conexión Maestra v13.3.80: ${url}`);
+            console.log(`🚀 Conexión Túnel v13.3.85: ${url}`);
             const response = await fetch(url, {
                 ...options,
-                mode: 'cors',
-                cache: 'no-cache', // Evita que Netlify devuelva un 404 viejo de la caché
-                signal: AbortSignal.timeout(15000) 
+                headers: {
+                    ...options.headers,
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache', // Vital para evitar el 404 fantasma
+                    'Pragma': 'no-cache'
+                }
             });
 
             return await window.API._safeParse(response);
 
         } catch (err) {
-            console.error(`❌ Fallo crítico en enlace maestro:`, err.message);
+            console.error(`❌ Fallo crítico en túnel:`, err.message);
             
-            // --- CAÍDA A LOCALSTORAGE (BLINDAJE OFFLINE PRESERVADO) ---
+            // --- CAÍDA A LOCALSTORAGE (SOPORTE OFFLINE PRESERVADO) ---
             const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
             if (storageKey) {
                 const local = localStorage.getItem(storageKey);
@@ -159,4 +162,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.80 - Enlace Maestro Activo (Solución Final).");
+console.log("🛡️ API v13.3.85 - Túnel de Respuesta Forzada Activo.");
