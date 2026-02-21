@@ -1,16 +1,16 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.4.25 (VINCULACIÓN POR NOMBRE)
- * * CAMBIOS v13.4.25:
- * 1. VINCULACIÓN AGRESIVA: Si el ID falla (Error 500), vincula compras al material por NOMBRE.
- * 2. REPARACIÓN DE STOCK: Suma todos los ML de la bitácora local al material unificado.
- * 3. Preservación absoluta de blindajes de OTs, diseño visual y lógica de rescate.
+ * Módulo de conexión API - Versión 13.4.30 (REPARACIÓN TOTAL DE STOCK)
+ * * CAMBIOS v13.4.30:
+ * 1. NORMALIZACIÓN ESTRICTA: Limpia espacios extra y caracteres invisibles para forzar la suma de stock.
+ * 2. VINCULACIÓN TOTAL: Cruza bitácora local con inventario usando comparación de nombres "limpios".
+ * 3. Preservación absoluta de blindajes de OTs, diseño visual y lógica de rescate v13.4.25.
  */
 
 const API_BASE = '/.netlify/functions/server';
 
 window.API = {
-    // 1. MOTOR DE PROCESAMIENTO SEGURO (Con Rescate y Blindaje)
+    // 1. MOTOR DE PROCESAMIENTO SEGURO (Mantiene blindaje de OTs y Rescate)
     async _safeParse(response, originalPath) {
         const contentType = response.headers.get("content-type");
         
@@ -53,12 +53,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.4.25 - CON SALVAGUARDA)
+    // 2. PETICIÓN MAESTRA (v13.4.30 - CON NORMALIZACIÓN)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.4.25: ${url}`);
+            console.log(`🚀 Conectando v13.4.30: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -92,29 +92,32 @@ window.API = {
     // 3. MÉTODOS DE NEGOCIO (ESTRUCTURA ORIGINAL 100% PRESERVADA)
     getProviders: function() { return window.API._request('/providers'); },
 
-    // --- MEJORA v13.4.25: UNIFICACIÓN POR NOMBRE Y VINCULACIÓN DE STOCK ---
+    // --- MEJORA v13.4.30: REPARACIÓN MECÁNICA DE STOCK POR NOMBRE LIMPIO ---
     getInventory: async function() { 
         const res = await window.API._request('/inventory');
         const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
         const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
         
+        // Función interna de normalización para evitar errores por espacios invisibles
+        const normalize = (txt) => String(txt || "").trim().toUpperCase().replace(/\s+/g, ' ');
+
         if (localMaterials.length > 0 || res.data.length > 0) {
-            console.log("🧩 Unificando por nombre y vinculando bitácora local...");
+            console.log("🧩 Unificando por nombre normalizado y vinculando stock...");
             
             const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
             const uniqueMap = new Map();
 
             // 1. Cargar datos del servidor al mapa primero
             res.data.forEach(m => {
-                const key = m.nombre.trim().toUpperCase();
+                const key = normalize(m.nombre);
                 uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [String(m.id || m._id)] });
             });
 
-            // 2. Fusionar datos locales por nombre
+            // 2. Fusionar datos locales por nombre normalizado
             localMaterials.forEach(m => {
                 const materialId = String(m.id || m._id);
                 if (!serverIds.has(materialId)) {
-                    const key = m.nombre.trim().toUpperCase();
+                    const key = normalize(m.nombre);
                     if (!uniqueMap.has(key)) {
                         uniqueMap.set(key, { ...m, stock: 0, _allIds: [materialId] });
                     } else {
@@ -123,17 +126,21 @@ window.API = {
                 }
             });
 
-            // 3. Calcular stock final buscando en la bitácora por ID o por NOMBRE (Doble Blindaje)
+            // 3. Calcular stock final (Normalización estricta de v13.4.30)
             const finalData = Array.from(uniqueMap.values()).map(m => {
-                const nombreM = m.nombre.trim().toUpperCase();
+                const nombreNormalM = normalize(m.nombre);
                 
-                const totalComprado = localPurchases
-                    .filter(p => m._allIds.includes(String(p.materialId)) || (p._materialNombre && p._materialNombre === nombreM))
+                const sumaCompras = localPurchases
+                    .filter(p => {
+                        const matchId = m._allIds.includes(String(p.materialId));
+                        const matchNombre = normalize(p._materialNombre) === nombreNormalM;
+                        return matchId || matchNombre;
+                    })
                     .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
                 
                 return { 
                     ...m, 
-                    stock: m.stock + totalComprado,
+                    stock: m.stock + sumaCompras,
                     _id: m._allIds[0] 
                 };
             });
@@ -165,7 +172,7 @@ window.API = {
     },
 
     registerPurchase: async function(purchaseData) {
-        // --- MEJORA v13.4.25: Captura de nombre para vinculación futura ---
+        // Obtenemos el nombre actual para asegurar la vinculación por texto normalizado
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
         const mat = inv.find(m => String(m.id || m._id) === String(purchaseData.materialId));
         
@@ -173,7 +180,7 @@ window.API = {
             ...purchaseData,
             materialId: String(purchaseData.materialId),
             cantidad: Number(purchaseData.cantidad || 1),
-            _materialNombre: mat ? mat.nombre.trim().toUpperCase() : null
+            _materialNombre: mat ? mat.nombre : (purchaseData.nombreMaterial || null)
         };
         
         const res = await window.API._request('/inventory/purchase', { method: 'POST', body: JSON.stringify(payload) });
@@ -200,4 +207,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.4.25 - Vinculación por Nombre Activa.");
+console.log("🛡️ API v13.4.30 - Normalización y Stock Garantizado.");
