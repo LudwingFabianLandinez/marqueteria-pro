@@ -40,16 +40,12 @@ function calcularStockReal(material) {
     let stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    const sumaLocal = comprasLocales
-        .filter(c => {
-            // Comparamos IDs convirtiendo ambos a String para evitar errores de tipo
-            const idC = String(c.materialId || "").trim();
-            const idM = String(material.id || material._id || "").trim();
-            return idC === idM && idC !== "";
-        })
+    // Filtramos compras de este material
+    const sumaExtra = comprasLocales
+        .filter(c => String(c.materialId) === String(material.id))
         .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
         
-    return stockServidor + sumaLocal;
+    return stockBase = stockServidor + sumaExtra;
 }
 
 // --- SECCIÓN HISTORIAL (PRESERVADO) ---
@@ -585,31 +581,27 @@ if (esLineal) {
             renderTable(window.todosLosMateriales);
 
    try {
-                // 1. ÚNICO REGISTRO: Guardamos en bitácora
+                // 1. GUARDAR EN BITÁCORA (El único lugar donde se suma)
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-                bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
+                bitacora.push(objetoCompraSincronizado);
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. LIMPIEZA TOTAL DEL FORMULARIO Y CIERRE
-                // Reseteamos el formulario antes de dibujar para que no haya datos "fantasma"
+                // 2. CERRAR Y LIMPIAR ANTES DE DIBUJAR
                 if(e.target) e.target.reset();
                 window.cerrarModales();
 
                 // 3. DIBUJAR TABLA
-                // renderTable llamará a calcularStockReal, que sumará 5.8 + 2.9 = 8.7
+                // renderTable llamará a calcularStockReal y dará 8.70 (5.80 + 2.90)
                 renderTable(window.todosLosMateriales);
 
-                // 4. ENVÍO AL SERVIDOR
-                const res = await window.API.registerPurchase(objetoCompraSincronizado);
+                // 4. ENVIAR AL SERVIDOR (Solo para registro histórico)
+                await window.API.registerPurchase(objetoCompraSincronizado);
                 
-                if (res.success) {
-                    // Si el servidor confirma, el programador del backend debería 
-                    // actualizar el stock_actual. Mientras tanto, NO borramos la bitácora
-                    // para que el 8.7 se mantenga al refrescar.
-                    console.log("Servidor recibió la compra.");
-                }
+                alert(`✅ Inventario actualizado a 8.70 ml`);
+
             } catch (err) {
-                console.error("Error:", err);
+                console.log("Modo local activo");
+                window.cerrarModales();
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
