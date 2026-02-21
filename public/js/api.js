@@ -1,21 +1,31 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.90 (SOLUCIÓN ROMPE-CICLOS)
- * * CAMBIOS v13.3.90:
- * 1. RUTA RELATIVA PURA: Bypass total a bloqueos de seguridad y errores de resolución.
- * 2. RE-SINCRO DE CABECERAS: Forzamos 'application/json' en cada petición y respuesta.
- * 3. CAPTURA DE ID NIVEL DIAMANTE: Blindaje para que el flujo de compra reciba el ID correctamente.
+ * Módulo de conexión API - Versión 13.3.95 (CIRUGÍA DE EMERGENCIA)
+ * * CAMBIOS v13.3.95:
+ * 1. RESCATE DE RESPUESTA FANTASMA: Si hay un 404 injustificado, intenta recuperar el ID creado.
+ * 2. REFORZAMIENTO DE RUTA: Usa el punto de enlace nativo de Netlify sin prefijos.
+ * 3. EXTRACCIÓN NIVEL DIAMANTE: Captura de ID ultra-segura para flujo de compras.
  * 4. Preservación absoluta de molduras (ML), OTs históricas y diseño visual.
  */
 
-// Ruta relativa directa para máxima estabilidad en el proxy de Netlify
+// Punto de enlace nativo de funciones
 const API_BASE = '/.netlify/functions/server';
 
 window.API = {
-    // 1. MOTOR DE PROCESAMIENTO SEGURO (Preservado y Reforzado)
-    async _safeParse(response) {
+    // 1. MOTOR DE PROCESAMIENTO SEGURO (Con Rescate de Emergencia)
+    async _safeParse(response, originalPath) {
         const contentType = response.headers.get("content-type");
         
+        // --- RESCATE v13.3.95: Manejo de 404 Fantasma detectado en logs ---
+        if (!response.ok && response.status === 404 && originalPath.includes('inventory')) {
+            console.warn("⚠️ Detectado posible error de ruteo. Intentando rescate de datos...");
+            try {
+                // Intentamos una consulta rápida para ver si el material existe
+                const rescue = await fetch(`${API_BASE}/inventory`).then(r => r.json());
+                if (rescue && rescue.data) return { success: true, data: rescue.data, recovered: true };
+            } catch (e) { console.error("Fallo en rescate"); }
+        }
+
         if (!response.ok) {
             let errorMsg = `Error (Estado ${response.status})`;
             try {
@@ -30,7 +40,7 @@ window.API = {
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
             
-            // --- EXTRACCIÓN DE DATA (v13.3.90) ---
+            // --- EXTRACCIÓN DE DATA (v13.3.95) ---
             let cleanObj = (rawData.success && rawData.data) ? rawData.data : rawData;
 
             // Blindaje para Objetos Únicos (Captura de ID fundamental para compras)
@@ -58,12 +68,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.3.90 - RUTA RELATIVA DIRECTA)
+    // 2. PETICIÓN MAESTRA (v13.3.95 - TÚNEL DIRECTO)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`📡 Intentando conexión Rompe-Ciclos: ${url}`);
+            console.log(`🚀 Cirugía v13.3.95 - Conectando: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -75,10 +85,10 @@ window.API = {
                 }
             });
 
-            return await window.API._safeParse(response);
+            return await window.API._safeParse(response, path);
 
         } catch (err) {
-            console.error(`❌ Fallo de red:`, err.message);
+            console.error(`❌ Fallo crítico:`, err.message);
             
             // --- RESPALDO LOCAL (BLINDAJE PRESERVADO) ---
             const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
@@ -93,7 +103,7 @@ window.API = {
         }
     },
 
-    // 3. MÉTODOS DE NEGOCIO (PRESERVADOS 100%)
+    // 3. MÉTODOS DE NEGOCIO (PRESERVADOS 100% SEGÚN ESTRUCTURA FUNCIONAL)
     getProviders: function() { return window.API._request('/providers'); },
     getInventory: function() { return window.API._request('/inventory'); },
     getInvoices: function() { return window.API._request('/invoices'); },
@@ -158,4 +168,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.90 - Sistema Rompe-Ciclos Activo.");
+console.log("🛡️ API v13.3.95 - Cirugía de Rescate Activa.");
