@@ -1,10 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.98 (ESTABILIDAD TOTAL)
- * * CAMBIOS v13.3.98:
- * 1. MOTOR DE RESCATE ACTIVO: Si hay 404 injustificado, intenta recuperar datos del inventario.
- * 2. BLINDAJE ANTI-BLOQUEO: Si falla la red, devuelve [] en lugar de undefined para no romper el dashboard.
- * 3. EXTRACCIÓN NIVEL DIAMANTE: Captura de ID ultra-segura para el flujo de compras y registros.
+ * Módulo de conexión API - Versión 13.3.99 (BLINDAJE TOTAL Y RECONEXIÓN)
+ * * CAMBIOS v13.3.99:
+ * 1. MOTOR DE RESCATE REFORZADO: Si hay 404 injustificado, intenta recuperar datos del inventario.
+ * 2. BLINDAJE ANTI-BLOQUEO: Si falla la red, devuelve [] para que el dashboard no se congele.
+ * 3. EXTRACCIÓN NIVEL DIAMANTE: Captura de ID ultra-segura para compras y registros.
  * 4. Preservación absoluta de molduras (ML), OTs históricas y diseño visual.
  */
 
@@ -16,7 +16,7 @@ window.API = {
     async _safeParse(response, originalPath) {
         const contentType = response.headers.get("content-type");
         
-        // --- RESCATE v13.3.98: Manejo de 404 Fantasma ---
+        // --- RESCATE v13.3.99: Manejo de 404 Fantasma detectado en logs ---
         if (!response.ok && response.status === 404 && originalPath.includes('inventory')) {
             console.warn("⚠️ Detectado posible error de ruteo. Intentando rescate de motor...");
             try {
@@ -67,12 +67,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.3.98 - RUTA LIMPIA)
+    // 2. PETICIÓN MAESTRA (v13.3.99 - RUTA LIMPIA)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.3.98: ${url}`);
+            console.log(`🚀 Conectando v13.3.99: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -89,7 +89,7 @@ window.API = {
         } catch (err) {
             console.error(`❌ Fallo en enlace:`, err.message);
             
-            // --- BLINDAJE MOTOR NO CARGADO (v13.3.98) ---
+            // --- BLINDAJE MOTOR NO CARGADO (v13.3.99) ---
             const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
             const local = localStorage.getItem(storageKey);
             
@@ -168,4 +168,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.98 - Estabilidad y Rescate Activo.");
+console.log("🛡️ API v13.3.99 - Estabilidad y Rescate Activo.");

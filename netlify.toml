@@ -1,9 +1,9 @@
 # SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Configuración de Despliegue - Consolidación Final
+# Configuración de Despliegue - Versión de Estabilidad v13.3.99
 
 [build]
-  # Carpeta donde están tus archivos HTML, CSS y JS (Frontend)
-  publish = "public"
+  # CAMBIO CLAVE: Si tus archivos están en la raíz, publish debe ser "."
+  publish = "."
   # Carpeta donde Netlify busca el backend (server.js)
   functions = "netlify/functions"
 
@@ -16,7 +16,7 @@
   status = 200
   force = true
 
-# 2. Manejo de SPA: Evita errores al recargar páginas internas del dashboard
+# 2. Manejo de SPA: Evita errores al recargar la página
 [[redirects]]
   from = "/*"
   to = "/index.html"
