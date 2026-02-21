@@ -486,6 +486,7 @@ function configurarEventos() {
 
     // === RECUPERANDO VERSIÓN ESTABLE v13.4.48 ===
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
+    // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async (e) => {
