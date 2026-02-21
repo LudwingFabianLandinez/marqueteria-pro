@@ -37,16 +37,23 @@ window.toggleMenu = function() {
  * Blindaje: No altera el objeto original del servidor, solo el valor visual.
  */
 function calcularStockReal(material) {
-    let stockServidor = Number(material.stock_actual) || 0;
+    // Aseguramos que el stock base sea un número
+    let stockServidor = parseFloat(material.stock_actual) || 0;
     
-    // Buscamos en la memoria del navegador si hay compras que aún no se reflejan
+    // Obtenemos la bitácora de la memoria local
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // Sumamos esas compras al stock del servidor
+    // FILTRADO ROBUSTO: 
+    // Usamos String() para comparar los IDs, así no importa si uno es "123" y el otro es 123.
     const sumaLocal = comprasLocales
-        .filter(c => c.materialId === material.id)
-        .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
+        .filter(c => String(c.materialId) === String(material.id))
+        .reduce((acc, curr) => {
+            // Sumamos el valor calculado (sea ml o m2)
+            const valorASumar = parseFloat(curr.totalM2) || 0;
+            return acc + valorASumar;
+        }, 0);
         
+    // Retornamos la suma exacta (ej: 5.80 + 2.90 = 8.70)
     return stockServidor + sumaLocal;
 }
 
