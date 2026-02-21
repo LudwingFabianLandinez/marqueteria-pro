@@ -440,73 +440,92 @@ function configurarEventos() {
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            const stampTransaccion = Date.now(); // Identificador único temporal
-            
-            let materialId = document.getElementById('compraMaterial')?.value;
-            const providerId = document.getElementById('compraProveedor')?.value; 
-            const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
-            const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
-            const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
-            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0; 
-            const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
-            
-            if(!materialId || !providerId || cant <= 0) {
-                alert("⚠️ Verifica material, proveedor y cantidad mayor a cero");
-                return;
-            }
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const stampTransaccion = Date.now(); 
+    
+    let materialId = document.getElementById('compraMaterial')?.value;
+    const providerId = document.getElementById('compraProveedor')?.value; 
+    const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
+    const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
+    const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
+    const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0; 
+    const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
+    
+    if(!materialId || !providerId || cant <= 0) {
+        alert("⚠️ Verifica material, proveedor y cantidad mayor a cero");
+        return;
+    }
 
-            if(btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-            }
+    if(btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    }
 
-            const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
-            const nombreMaterialActual = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || ""));
-            const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || (ancho <= 1 && ancho > 0);
-            
-            let cantidadCalculada = esLineal ? (largo / 100) * cant : (largo / 100) * (ancho / 100) * cant;
-            let tipoUnidad = esLineal ? 'ml' : 'm2';
+    const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
+    const nombreMaterialActual = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || ""));
+    
+    // --- LÓGICA DE DISTINCIÓN MEJORADA ---
+    // Se considera lineal (ml) si:
+    // 1. El nombre contiene "moldura"
+    // 2. El ancho es menor o igual a 15cm (ajustable según tus molduras)
+    // 3. O si el material ya venía definido como 'ml'
+    const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || 
+                     (ancho > 0 && ancho <= 15) || 
+                     (materialPrevio?.tipo === 'ml');
+    
+    let cantidadCalculada = 0;
+    let tipoUnidad = '';
 
-            if (materialId === "NUEVO") {
-                if (!nuevoNombre) {
-                    alert("⚠️ Escribe el nombre del nuevo material");
-                    if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-                    return;
-                }
-                try {
-                    const resMat = await window.API.saveMaterial({
-                        nombre: nuevoNombre,
-                        categoria: esLineal ? "Molduras" : "General",
-                        proveedorId: providerId,
-                        ancho_lamina_cm: ancho,
-                        largo_lamina_cm: largo,
-                        precio_total_lamina: valorUnitarioLamina,
-                        tipo: tipoUnidad
-                    });
-                    
-                    if (resMat.success && (resMat.data?._id || resMat.data?.id)) {
-                        materialId = resMat.data._id || resMat.data.id; 
-                    }
-                } catch (err) {
-                    console.error("Error al crear material...");
-                }
-            }
+    if (esLineal) {
+        // CÁLCULO PARA MOLDURAS (ML): (Largo cm / 100) * Cantidad
+        cantidadCalculada = (largo / 100) * cant;
+        tipoUnidad = 'ml';
+        console.log(`Calculado como MOLDURA: ${cantidadCalculada.toFixed(2)} ml`);
+    } else {
+        // CÁLCULO PARA OTROS (M2): (Largo cm / 100) * (Ancho cm / 100) * Cantidad
+        cantidadCalculada = (largo / 100) * (ancho / 100) * cant;
+        tipoUnidad = 'm2';
+        console.log(`Calculado como MATERIAL: ${cantidadCalculada.toFixed(2)} m2`);
+    }
 
-            const objetoCompraSincronizado = {
-                materialId: materialId,
-                nombreMaterial: nombreMaterialActual, 
+    if (materialId === "NUEVO") {
+        if (!nuevoNombre) {
+            alert("⚠️ Escribe el nombre del nuevo material");
+            if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+            return;
+        }
+        try {
+            const resMat = await window.API.saveMaterial({
+                nombre: nuevoNombre,
+                categoria: esLineal ? "Molduras" : "General",
                 proveedorId: providerId,
-                cantidad: cant,
-                largo: largo,
-                ancho: ancho,
-                valorUnitario: valorUnitarioLamina,
-                totalM2: cantidadCalculada,
-                tipo: tipoUnidad,
-                tempId: stampTransaccion
-            };
+                ancho_lamina_cm: ancho,
+                largo_lamina_cm: largo,
+                precio_total_lamina: valorUnitarioLamina,
+                tipo: tipoUnidad
+            });
+            
+            if (resMat.success && (resMat.data?._id || resMat.data?.id)) {
+                materialId = resMat.data._id || resMat.data.id; 
+            }
+        } catch (err) {
+            console.error("Error al crear material...");
+        }
+    }
 
+    const objetoCompraSincronizado = {
+        materialId: materialId,
+        nombreMaterial: nombreMaterialActual, 
+        proveedorId: providerId,
+        cantidad: cant,
+        largo: largo,
+        ancho: ancho,
+        valorUnitario: valorUnitarioLamina,
+        totalM2: cantidadCalculada, // Este valor se suma directamente al stock
+        tipo: tipoUnidad,
+        tempId: stampTransaccion
+    };
             // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR)
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
