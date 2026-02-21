@@ -40,12 +40,17 @@ function calcularStockReal(material) {
     let stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // FILTRADO CON CORRECCIÓN DE CAMPO
     const sumaLocal = comprasLocales
-        .filter(c => String(c.materialId) === String(material.id))
+        .filter(c => {
+            // FORZAMOS A STRING PARA QUE "1" SEA IGUAL A 1
+            const idCompra = String(c.materialId).trim();
+            const idMaterial = String(material.id || material._id).trim();
+            return idCompra === idMaterial;
+        })
         .reduce((acc, curr) => {
-            // IMPORTANTE: Usamos totalM2 que es donde guardamos los 2.9 ML
-            return acc + (parseFloat(curr.totalM2) || 0);
+            // USAMOS totalM2 QUE ES DONDE ESTÁ EL 2.9
+            const valor = parseFloat(curr.totalM2) || 0;
+            return acc + valor;
         }, 0);
         
     return stockServidor + sumaLocal;
@@ -551,17 +556,17 @@ if (esLineal) {
     }
 
     const objetoCompraSincronizado = {
-                materialId: materialId,
+                materialId: String(materialId).trim(), // Aseguramos que sea texto limpio
                 nombreMaterial: nombreMaterialActual, 
                 proveedorId: providerId,
-                cantidad: cant, // número de tiras
+                cantidad: cant,
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                totalM2: cantidadCalculada, // AQUÍ VAN LOS 2.9
+                totalM2: cantidadCalculada, // Aquí va el 2.9
                 tempId: stampTransaccion
             };
-            
+
             // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR)
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
