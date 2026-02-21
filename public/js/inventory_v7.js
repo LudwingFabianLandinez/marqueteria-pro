@@ -492,32 +492,27 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = 'GUARDANDO...';
-        }
+        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
             const materialId = document.getElementById('compraMaterial').value;
             const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
-            const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
+            const largo = parseFloat(document.getElementById('compraLargo').value) || 290;
+            const ancho = parseFloat(document.getElementById('compraAncho').value) || 1;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
             let nombreFinal = nombreNuevo;
-            // DETECCIÓN INTELIGENTE DE MOLDURA: Por nombre o por ancho de 1cm
             let esMoldura = nombreFinal.toLowerCase().includes('moldura') || ancho === 1;
 
             if (materialId !== "nuevo" && window.todosLosMateriales) {
                 const encontrado = window.todosLosMateriales.find(m => String(m.id || m._id) === String(materialId));
                 if (encontrado) {
                     nombreFinal = encontrado.nombre;
-                    esMoldura = encontrado.categoria === 'Molduras' || encontrado.unidad_medida === 'ml' || nombreFinal.toLowerCase().includes('moldura');
+                    esMoldura = encontrado.categoria === 'Molduras' || encontrado.unidad_medida === 'ml';
                 }
             }
 
-            // CÁLCULO CORREGIDO: Si es moldura, ignoramos el ancho y usamos 2.9
             const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
             const datosCompra = {
@@ -525,35 +520,50 @@ if (formCompra) {
                 nombreMaterial: nombreFinal,
                 proveedorId: document.getElementById('compraProveedor').value,
                 cantidad: cant,
-                totalM2: totalCalculado, // Valor para el inventario
-                cantidad_m2: totalCalculado, 
+                totalM2: totalCalculado,
+                cantidad_m2: totalCalculado,
                 costo_total: costo * cant,
                 unidad: esMoldura ? 'ml' : 'm2',
                 fecha: new Date().toISOString()
             };
 
-            // 1. Guardar en bitácora (Fundamental para que aparezca en el inventario)
+            // --- TRUCO PARA QUE APAREZCA EN EL INVENTARIO ---
+            if (materialId === "nuevo") {
+                const nuevoMatParaTabla = {
+                    id: "temp_" + Date.now(),
+                    nombre: nombreFinal,
+                    categoria: esMoldura ? "Molduras" : "General",
+                    stock_actual: totalCalculado,
+                    unidad_medida: esMoldura ? "ml" : "m2",
+                    precio_compra: costo
+                };
+                window.todosLosMateriales.push(nuevoMatParaTabla);
+            } else {
+                const idx = window.todosLosMateriales.findIndex(m => String(m.id || m._id) === String(materialId));
+                if (idx !== -1) window.todosLosMateriales[idx].stock_actual += totalCalculado;
+            }
+
+            // 1. Guardar local y redibujar ya
             const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             local.push(datosCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(local));
+            
+            if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
 
-            // 2. Envío al Servidor
+            // 2. Enviar al Servidor
             await window.API.registerPurchase(datosCompra);
 
             alert(`✅ GUARDADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
-            
             if (window.cerrarModales) window.cerrarModales();
-            // Recargamos para que el motor de inventario procese la bitácora nueva
-            window.location.reload(); 
+            
+            // Recarga para consolidar con el servidor
+            setTimeout(() => window.location.reload(), 1500);
 
         } catch (err) {
-            console.error("Fallo:", err);
+            console.error(err);
             alert("Error al guardar");
         } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = 'GUARDAR COMPRA';
-            }
+            if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
     };
 }
