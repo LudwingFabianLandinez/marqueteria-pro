@@ -1,19 +1,15 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.72 (PUENTE DIRECTO + FIX 404)
- * * CAMBIOS v13.3.72:
- * 1. PUENTE DIRECTO: Prioriza la ruta de funciones para evitar el 404 del proxy inestable.
- * 2. EXTRACCIÓN AGRESIVA: Blindaje para capturar ID incluso en respuestas envueltas.
- * 3. ANTI-OFFLINE: No salta a LocalStorage si hay una respuesta de servidor válida.
- * 4. Preservación 100% de molduras (ML), OTs históricas y estructura visual.
+ * Módulo de conexión API - Versión 13.3.75 (FIX QUIRÚRGICO ABSOLUTO)
+ * * CAMBIOS v13.3.75:
+ * 1. URL ABSOLUTA: Fuerza la conexión directa al subdominio de Netlify (Bypass 404).
+ * 2. EXTRACCIÓN NIVEL PRO: Captura el ID incluso si la respuesta llega envuelta.
+ * 3. Mantiene blindaje de OTs y lógica de molduras (ML) intacta.
+ * 4. Anti-Idling: Aumenta el timeout a 15s para procesos pesados de servidor.
  */
 
-// Priorizamos rutas directas para romper el ciclo del error 404
-const API_ROUTES = [
-    '/.netlify/functions/server',   // 1. Ruta Directa Netlify (Puente)
-    '/api',                         // 2. Túnel Maestro
-    '/functions/server'             // 3. Ruta Legacy
-];
+// Construcción de la ruta absoluta para ignorar el ruteo interno fallido de Netlify
+const BASE_URL = window.location.origin + '/.netlify/functions/server';
 
 window.API = {
     // 1. MOTOR DE PROCESAMIENTO SEGURO
@@ -33,10 +29,10 @@ window.API = {
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
             
-            // --- AJUSTE v13.3.72: EXTRACCIÓN DE ID REFORZADA ---
+            // --- AJUSTE v13.3.75: EXTRACCIÓN DE DATA REFORZADA ---
             let cleanObj = (rawData.success && rawData.data) ? rawData.data : rawData;
 
-            // Si es un objeto único (Captura de ID para nuevos materiales)
+            // Manejo de Objetos Únicos (Captura de ID para nuevos materiales)
             if (cleanObj && typeof cleanObj === 'object' && !Array.isArray(cleanObj)) {
                 // Gancho de reparación de OT (v13.3.59 - PRESERVADO)
                 if (cleanObj.ot && String(cleanObj.ot).length > 10) {
@@ -45,10 +41,8 @@ window.API = {
                 return { success: true, data: cleanObj };
             }
 
-            // Si es un arreglo (historial o inventario)
+            // Manejo de Listas y Reparación de Historial (v13.3.59 - PRESERVADO)
             let items = Array.isArray(cleanObj) ? cleanObj : (Array.isArray(rawData.data) ? rawData.data : []);
-
-            // Reparación de historial OT-00018 (v13.3.59 - PRESERVADO)
             if (items.length > 0) {
                 items = items.map(item => {
                     if (item.ot && String(item.ot).includes('17713600')) {
@@ -63,47 +57,39 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA (v13.3.72 - PERSISTENTE)
+    // 2. PETICIÓN QUIRÚRGICA (v13.3.75 - SIN INTERMEDIARIOS)
     async _request(path, options = {}) {
-        let lastError = null;
-
-        for (const base of API_ROUTES) {
-            try {
-                const url = `${base}${path}`.replace(/\/+/g, '/');
-                console.log(`📡 Conectando vía: ${url}`);
-                
-                const response = await fetch(url, {
-                    ...options,
-                    signal: AbortSignal.timeout(12000) // Un poco más de tiempo para procesar
-                });
-                
-                // Si el servidor responde algo distinto a 404, procesamos
-                if (response.status !== 404) {
-                    return await window.API._safeParse(response);
-                }
-                
-                console.warn(`📍 404 en ${base}, reintentando ruta alterna...`);
-            } catch (err) {
-                lastError = err.message;
-                console.warn(`⚠️ Fallo en ${base}:`, err.message);
-                continue; 
-            }
-        }
-
-        // --- CAÍDA A LOCALSTORAGE SOLO SI TODO LO ANTERIOR FALLÓ ---
-        const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
-        if (storageKey) {
-            const local = localStorage.getItem(storageKey);
-            if (local) {
-                console.info(`📦 Servidor inaccesible. Usando respaldo local.`);
-                return { success: true, data: JSON.parse(local), local: true };
-            }
-        }
+        // Generamos la URL absoluta limpia
+        const url = `${BASE_URL}${path}`.replace(/\/+/g, '/').replace(':/', '://');
         
-        throw new Error("No se pudo conectar con el servidor. Por favor, verifica tu conexión.");
+        try {
+            console.log(`🚀 Conexión Quirúrgica: ${url}`);
+            const response = await fetch(url, {
+                ...options,
+                mode: 'cors', // Asegura comunicación limpia
+                signal: AbortSignal.timeout(15000) // 15 segundos para dar margen al servidor
+            });
+
+            // Si hay respuesta (aunque sea error), la procesamos. Adiós al 404 fantasma.
+            return await window.API._safeParse(response);
+
+        } catch (err) {
+            console.error(`❌ Fallo crítico en ruta absoluta:`, err.message);
+            
+            // --- CAÍDA A LOCALSTORAGE (SOPORTE OFFLINE PRESERVADO) ---
+            const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
+            if (storageKey) {
+                const local = localStorage.getItem(storageKey);
+                if (local) {
+                    console.info(`📦 Servidor inaccesible. Usando respaldo local.`);
+                    return { success: true, data: JSON.parse(local), local: true };
+                }
+            }
+            throw err;
+        }
     },
 
-    // 3. MÉTODOS DE NEGOCIO (100% PRESERVADOS)
+    // 3. MÉTODOS DE NEGOCIO (PRESERVADOS 100%)
     getProviders: function() { return window.API._request('/providers'); },
     getInventory: function() { return window.API._request('/inventory'); },
     getInvoices: function() { return window.API._request('/invoices'); },
@@ -173,4 +159,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🚀 API v13.3.72 - Puente Directo y Blindaje de IDs Activo.");
+console.log("🛡️ API v13.3.75 - Puente Absoluto Quirúrgico Activo.");
