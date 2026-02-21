@@ -462,7 +462,7 @@ function configurarEventos() {
 
             const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
             const nombreMaterialActual = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || ""));
-            const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || ancho <= 1;
+            const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || (ancho <= 1 && ancho > 0);
             
             let cantidadCalculada = esLineal ? (largo / 100) * cant : (largo / 100) * (ancho / 100) * cant;
             let tipoUnidad = esLineal ? 'ml' : 'm2';
@@ -500,11 +500,11 @@ function configurarEventos() {
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                totalM2: cantidadCalculada.toFixed(2),
+                totalM2: cantidadCalculada,
                 tipo: tipoUnidad
             };
 
-            // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR 500)
+            // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR)
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
@@ -518,7 +518,6 @@ function configurarEventos() {
                     e.target.reset(); 
                     await fetchInventory(); 
                 } else {
-                    // Si el servidor falla pero la bitácora local ya guardó, avisamos al usuario
                     alert("⚠️ Fallo en servidor, pero la compra se registró localmente.");
                     actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
                     window.cerrarModales();
