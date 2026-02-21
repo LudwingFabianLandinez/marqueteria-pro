@@ -41,19 +41,22 @@ function calcularStockReal(material) {
     let stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // Obtenemos el ID del material de forma limpia
-    const materialIdBuscar = String(material.id || material._id);
+    // Normalizamos el ID del material del servidor
+    const idMaterialTabla = String(material.id || material._id || "");
 
-    const sumaExtra = comprasLocales
-        .filter(c => {
-            // Sacamos el ID de la compra, ya sea que venga como objeto o string
-            const compraId = (c.materialId && typeof c.materialId === 'object') ? c.materialId._id : c.materialId;
-            return String(compraId) === materialIdBuscar;
-        })
-        .reduce((acc, curr) => {
-            // Sumamos totalM2 o cantidad_m2 (donde estén los 2.9 ml)
-            return acc + (parseFloat(curr.totalM2 || curr.cantidad_m2 || 0));
-        }, 0);
+    const sumaExtra = comprasLocales.reduce((acc, compra) => {
+        // Normalizamos el ID guardado en la compra
+        const idEnCompra = (compra.materialId && typeof compra.materialId === 'object') 
+            ? String(compra.materialId._id || compra.materialId.id) 
+            : String(compra.materialId);
+
+        if (idEnCompra === idMaterialTabla) {
+            // Sumamos los 2.9 ml (totalM2 o cantidad_m2)
+            const valorASumar = parseFloat(compra.totalM2 || compra.cantidad_m2 || 0);
+            return acc + valorASumar;
+        }
+        return acc;
+    }, 0);
 
     return stockServidor + sumaExtra;
 }
