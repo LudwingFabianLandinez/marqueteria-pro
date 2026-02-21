@@ -470,24 +470,23 @@ function configurarEventos() {
     // 1. El nombre contiene "moldura"
     // 2. El ancho es menor o igual a 15cm (ajustable según tus molduras)
     // 3. O si el material ya venía definido como 'ml'
-    const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || 
-                     (ancho > 0 && ancho <= 15) || 
-                     (materialPrevio?.tipo === 'ml');
-    
-    let cantidadCalculada = 0;
-    let tipoUnidad = '';
+    // --- NUEVA LÓGICA DE CÁLCULO M2 vs ML ---
+// Es lineal si el nombre dice moldura O si el ancho es de una moldura física (ej. 15cm o menos)
+const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || (ancho > 0 && ancho <= 15);
 
-    if (esLineal) {
-        // CÁLCULO PARA MOLDURAS (ML): (Largo cm / 100) * Cantidad
-        cantidadCalculada = (largo / 100) * cant;
-        tipoUnidad = 'ml';
-        console.log(`Calculado como MOLDURA: ${cantidadCalculada.toFixed(2)} ml`);
-    } else {
-        // CÁLCULO PARA OTROS (M2): (Largo cm / 100) * (Ancho cm / 100) * Cantidad
-        cantidadCalculada = (largo / 100) * (ancho / 100) * cant;
-        tipoUnidad = 'm2';
-        console.log(`Calculado como MATERIAL: ${cantidadCalculada.toFixed(2)} m2`);
-    }
+let cantidadCalculada = 0;
+let tipoUnidad = '';
+
+if (esLineal) {
+    // Si es moldura: solo largo por cantidad (Metros Lineales)
+    cantidadCalculada = (largo / 100) * cant;
+    tipoUnidad = 'ml';
+} else {
+    // Si es otro material: área completa (Metros Cuadrados)
+    cantidadCalculada = (largo / 100) * (ancho / 100) * cant;
+    tipoUnidad = 'm2';
+}
+// ---------------------------------------
 
     if (materialId === "NUEVO") {
         if (!nuevoNombre) {
@@ -522,7 +521,8 @@ function configurarEventos() {
         largo: largo,
         ancho: ancho,
         valorUnitario: valorUnitarioLamina,
-        totalM2: cantidadCalculada, // Este valor se suma directamente al stock
+        totalM2: cantidadCalculada,
+        stock_actual: cantidadCalculada, // Agregamos esto para asegurar la suma
         tipo: tipoUnidad,
         tempId: stampTransaccion
     };
