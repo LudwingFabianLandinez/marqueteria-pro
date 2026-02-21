@@ -37,23 +37,17 @@ window.toggleMenu = function() {
  * Blindaje: No altera el objeto original del servidor, solo el valor visual.
  */
 function calcularStockReal(material) {
-    // Aseguramos que el stock base sea un número
     let stockServidor = parseFloat(material.stock_actual) || 0;
-    
-    // Obtenemos la bitácora de la memoria local
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // FILTRADO ROBUSTO: 
-    // Usamos String() para comparar los IDs, así no importa si uno es "123" y el otro es 123.
+    // FILTRADO CON CORRECCIÓN DE CAMPO
     const sumaLocal = comprasLocales
         .filter(c => String(c.materialId) === String(material.id))
         .reduce((acc, curr) => {
-            // Sumamos el valor calculado (sea ml o m2)
-            const valorASumar = parseFloat(curr.totalM2) || 0;
-            return acc + valorASumar;
+            // IMPORTANTE: Usamos totalM2 que es donde guardamos los 2.9 ML
+            return acc + (parseFloat(curr.totalM2) || 0);
         }, 0);
         
-    // Retornamos la suma exacta (ej: 5.80 + 2.90 = 8.70)
     return stockServidor + sumaLocal;
 }
 
@@ -557,18 +551,17 @@ if (esLineal) {
     }
 
     const objetoCompraSincronizado = {
-        materialId: materialId,
-        nombreMaterial: nombreMaterialActual, 
-        proveedorId: providerId,
-        cantidad: cant,
-        largo: largo,
-        ancho: ancho,
-        valorUnitario: valorUnitarioLamina,
-        totalM2: cantidadCalculada,
-        stock_actual: cantidadCalculada, // Agregamos esto para asegurar la suma
-        tipo: tipoUnidad,
-        tempId: stampTransaccion
-    };
+                materialId: materialId,
+                nombreMaterial: nombreMaterialActual, 
+                proveedorId: providerId,
+                cantidad: cant, // número de tiras
+                largo: largo,
+                ancho: ancho,
+                valorUnitario: valorUnitarioLamina,
+                totalM2: cantidadCalculada, // AQUÍ VAN LOS 2.9
+                tempId: stampTransaccion
+            };
+            
             // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR)
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
