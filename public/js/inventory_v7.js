@@ -550,59 +550,62 @@ if (esLineal) {
         }
     }
 
- // --- OBJETO TODOTERRENO (Suma Inventario + Llena Historial) ---
+ // --- OBJETO TOTALMENTE BLINDADO (PARA STOCK E HISTORIAL) ---
     const objetoCompraSincronizado = {
         materialId: materialId,
-        nombreMaterial: nombreMaterialActual, 
-        materialNombre: nombreMaterialActual, // Para purchases.js
         proveedorId: providerId,
+        nombreMaterial: nombreMaterialActual, 
+        materialNombre: nombreMaterialActual,
+        motivo: nombreMaterialActual, // IMPORTANTE: El servidor a veces usa 'motivo'
         
-        // Datos para el cálculo del Inventario (2.9 ml / m2)
+        // Cantidades para Inventario y Purchases.js
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada, // ESTE es el que suma al stock
-        cantidad_m2: cantidadCalculada, // Duplicado para purchases.js
+        totalM2: cantidadCalculada, 
+        cantidad_m2: cantidadCalculada,
         
-        // Datos de Dinero para el Historial (Evita el $0)
+        // Costos: Enviamos todos los nombres posibles para evitar el $0
         costo_total: valorUnitarioLamina * cant,
         precio_total: valorUnitarioLamina * cant,
+        costo: valorUnitarioLamina * cant,
         
         unidad: esLineal ? 'ml' : 'm2',
+        tipo: esLineal ? 'ml' : 'm2',
         fecha: new Date().toISOString(),
         tempId: stampTransaccion
     };
 
     try {
-        // 1. REGISTRO EN BITÁCORA (Stock OK)
+        // 1. ACTUALIZACIÓN LOCAL (Hace que el stock suba inmediatamente)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. ACTUALIZACIÓN VISUAL INMEDIATA (Inventario OK)
+        // 2. REFRESCO VISUAL DEL INVENTARIO
         if(typeof renderTable === 'function') {
             renderTable(window.todosLosMateriales);
         }
 
-        // 3. ENVÍO AL SERVIDOR (Aquí está el detalle del Historial)
-        // Usamos un nombre de material genérico si por alguna razón falla el principal
-        const datosParaServidor = {
-            ...objetoCompraSincronizado,
-            motivo: nombreMaterialActual // El historial a veces busca "motivo"
-        };
+        // 3. ENVÍO AL SERVIDOR (Para que aparezca en el Historial)
+        // Agregamos un pequeño log para estar seguros de que se envía
+        console.log("📤 Enviando al servidor...", objetoCompraSincronizado);
+        
+        const respuesta = await window.API.registerPurchase(objetoCompraSincronizado);
+        
+        if(respuesta.success) {
+            console.log("✅ Servidor recibió la compra correctamente");
+        }
 
-        const respuesta = await window.API.registerPurchase(datosParaServidor);
-        console.log("✅ Sincronización Servidor:", respuesta);
-
-        // 4. LIMPIEZA Y CIERRE
+        // 4. LIMPIEZA Y CIERRE DE MODAL
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // OPCIONAL: Si estás en la misma página del historial, forzamos recarga
+        // 5. RECARGA DEL HISTORIAL (Si estamos en la misma vista)
         if (typeof fetchPurchases === 'function') fetchPurchases();
 
     } catch (err) {
-        console.error("❌ Error al sincronizar historial:", err);
+        console.error("❌ Error en la cadena de guardado:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
