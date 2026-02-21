@@ -585,42 +585,41 @@ if (esLineal) {
             renderTable(window.todosLosMateriales);
 
    try {
-                // 1. REGISTRO LOCAL: Guardamos en la bitácora lo que acabamos de calcular (ej: 2.90)
+                // 1. REGISTRO EN BITÁCORA LOCAL
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-                bitacora.push(objetoCompraSincronizado);
+                bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
-                
-                // 2. ACTUALIZACIÓN VISUAL INMEDIATA: 
-                // Como renderTable usa calcularStockReal, leerá la bitácora y sumará 5.80 + 2.90
+
+                // 2. ACTUALIZACIÓN DE MEMORIA DIRECTA
+                window.todosLosMateriales = window.todosLosMateriales.map(m => {
+                    if (String(m.id) === String(objetoCompraSincronizado.materialId)) {
+                        // Forzamos la suma matemática aquí mismo
+                        const nuevoStock = (parseFloat(m.stock_actual) || 0) + parseFloat(objetoCompraSincronizado.totalM2);
+                        return { ...m, stock_actual: nuevoStock };
+                    }
+                    return m;
+                });
+
+                // 3. DIBUJAR TABLA (Aquí el 5.80 se vuelve 8.70)
                 renderTable(window.todosLosMateriales);
 
-                // 3. REGISTRO EN SERVIDOR
+                // 4. INFORMAR AL SERVIDOR (En segundo plano)
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 
                 if (res.success) {
-                    // Si el servidor dio OK, limpiamos la bitácora local de este registro específico
+                    // Solo si el servidor confirma, limpiamos bitácora
                     const nuevaBitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
                         .filter(item => String(item.tempId) !== String(stampTransaccion));
                     localStorage.setItem('bitacora_compras', JSON.stringify(nuevaBitacora));
                     
-                    // Traemos los datos frescos para confirmar que el servidor ya sumó
-                    await fetchInventory(); 
-                    
-                    alert(`✅ Compra registrada con éxito: +${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
-                    if(window.cerrarModales) window.cerrarModales();
-                    if(e.target.reset) e.target.reset(); 
+                    alert(`✅ ¡Inventario Actualizado! +${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
+                    window.cerrarModales();
                 }
             } catch (err) {
-                // Si falla el internet, no pasa nada: el stock ya se ve sumado en pantalla
-                console.warn("Modo offline: Stock mantenido localmente.");
-                renderTable(window.todosLosMateriales);
-                alert("📡 Guardado localmente. El stock se sincronizará al recuperar conexión.");
-                if(window.cerrarModales) window.cerrarModales();
+                console.warn("Error de red, pero el stock se mantiene sumado en pantalla.");
+                window.cerrarModales();
             } finally {
-                if(btn) { 
-                    btn.disabled = false; 
-                    btn.innerHTML = 'GUARDAR COMPRA'; 
-                }
+                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
         });
     }
