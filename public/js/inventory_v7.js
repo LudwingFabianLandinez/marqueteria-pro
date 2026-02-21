@@ -550,17 +550,22 @@ if (esLineal) {
         }
     }
 
-    // --- OBJETO DE COMPRA CORREGIDO (CON COSTO Y NOMBRE) ---
+   // --- OBJETO DE COMPRA TOTAL (PARA HISTORIAL Y COSTOS) ---
     const objetoCompraSincronizado = {
         materialId: materialId,
-        nombreMaterial: nombreMaterialActual, // Para que el historial sepa qué es
+        nombreMaterial: nombreMaterialActual, // Evita que salga "Ingreso de Material"
+        materialNombre: nombreMaterialActual, // Backup para historial
         proveedorId: providerId,
         cantidad: cant,
         largo: largo,
         ancho: ancho,
         totalM2: cantidadCalculada, 
-        // CALCULAMOS EL COSTO PARA EL HISTORIAL:
-        costoTotal: valorUnitarioLamina * cant, 
+        
+        // --- CAMPOS DE DINERO (Aseguramos que no salga en $0) ---
+        costoTotal: valorUnitarioLamina * cant,
+        precioTotal: valorUnitarioLamina * cant,
+        valorCompra: valorUnitarioLamina * cant,
+        
         unidad: esLineal ? 'ml' : 'm2',
         fecha: new Date().toISOString(),
         tempId: stampTransaccion
