@@ -584,27 +584,29 @@ if (esLineal) {
             renderTable(window.todosLosMateriales);
 
     try {
-                // 1. Guardamos en bitácora
+                // 1. REGISTRO ÚNICO EN BITÁCORA
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
                 bitacora.push(objetoCompraSincronizado);
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. Limpiamos formulario y cerramos modal
+                // 2. LIMPIEZA TOTAL Y CIERRE
                 if(e.target) e.target.reset();
                 window.cerrarModales();
 
-                // 3. Enviamos al servidor
+                // 3. DIBUJAR TABLA (Una sola vez)
+                // renderTable llamará a calcularStockReal y mostrará exactamente 2.90
+                renderTable(window.todosLosMateriales);
+
+                // 4. INFORMAR AL SERVIDOR (En segundo plano)
                 await window.API.registerPurchase(objetoCompraSincronizado);
                 
-                // 4. Refrescamos todo el inventario (Esto traerá el 5.8 + el 2.9 de la bitácora)
-                await fetchInventory();
-                
-                alert("✅ Inventario actualizado correctamente.");
+                console.log("✅ Compra sincronizada");
 
             } catch (err) {
-                console.error(err);
                 window.cerrarModales();
                 renderTable(window.todosLosMateriales);
+            } finally {
+                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
         });
     }
