@@ -37,7 +37,7 @@ window.toggleMenu = function() {
  * Blindaje: No altera el objeto original del servidor, solo el valor visual.
  */
 function calcularStockReal(material) {
-    let stockServidor = parseFloat(material.stock_actual) || 0;
+    const stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
     // Filtramos compras de este material
@@ -45,7 +45,7 @@ function calcularStockReal(material) {
         .filter(c => String(c.materialId) === String(material.id))
         .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
         
-    return stockBase = stockServidor + sumaExtra;
+    return stockServidor + sumaExtra;
 }
 
 // --- SECCIÓN HISTORIAL (PRESERVADO) ---
@@ -581,30 +581,30 @@ if (esLineal) {
             renderTable(window.todosLosMateriales);
 
    try {
-                // 1. GUARDAR EN BITÁCORA (El único lugar donde se suma)
+                // 1. REGISTRO ÚNICO EN BITÁCORA
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
                 bitacora.push(objetoCompraSincronizado);
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. CERRAR Y LIMPIAR ANTES DE DIBUJAR
+                // 2. CIERRE Y LIMPIEZA (Fundamental para evitar el x3)
                 if(e.target) e.target.reset();
                 window.cerrarModales();
 
                 // 3. DIBUJAR TABLA
-                // renderTable llamará a calcularStockReal y dará 8.70 (5.80 + 2.90)
+                // La tabla usará calcularStockReal y mostrará 8.70 (5.8 + 2.9)
                 renderTable(window.todosLosMateriales);
 
-                // 4. ENVIAR AL SERVIDOR (Solo para registro histórico)
+                // 4. ENVÍO AL SERVIDOR
                 await window.API.registerPurchase(objetoCompraSincronizado);
                 
-                alert(`✅ Inventario actualizado a 8.70 ml`);
+                alert(`✅ Inventario actualizado: 8.70 ml`);
 
             } catch (err) {
-                console.log("Modo local activo");
+                console.log("Guardado en modo local");
                 window.cerrarModales();
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-            }   
+            }  
         });
     }
 
