@@ -5,6 +5,7 @@
  * 1. GANCHO 'calcularStockReal': Suma compras locales al stock del servidor antes de renderizar.
  * 2. PERSISTENCIA DE MOLDURAS: Solución definitiva para que los 2.9 ML aparezcan en pantalla.
  * 3. MANTENIMIENTO: Se preserva al 100% la estructura visual y lógica de m2/ml.
+ * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
  */
 
 // 1. VARIABLES GLOBALES
@@ -441,6 +442,7 @@ function configurarEventos() {
         formCompra.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button[type="submit"]');
+            const stampTransaccion = Date.now(); // Identificador único temporal
             
             let materialId = document.getElementById('compraMaterial')?.value;
             const providerId = document.getElementById('compraProveedor')?.value; 
@@ -501,7 +503,8 @@ function configurarEventos() {
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
                 totalM2: cantidadCalculada,
-                tipo: tipoUnidad
+                tipo: tipoUnidad,
+                tempId: stampTransaccion
             };
 
             // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR)
@@ -513,6 +516,12 @@ function configurarEventos() {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 if (res.success) { 
                     alert(`✅ Compra exitosa.`);
+                    
+                    // LIMPIEZA CRÍTICA: Eliminamos de bitácora porque ya está en el servidor
+                    const bitacoraActualizada = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
+                        .filter(item => item.tempId !== stampTransaccion);
+                    localStorage.setItem('bitacora_compras', JSON.stringify(bitacoraActualizada));
+
                     actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
                     window.cerrarModales(); 
                     e.target.reset(); 
