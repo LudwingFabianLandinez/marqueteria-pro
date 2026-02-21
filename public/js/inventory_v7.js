@@ -574,25 +574,35 @@ if (esLineal) {
     };
 
     try {
-        // 1. REGISTRO EN BITÁCORA (Esto es lo que hace que SUME al inventario)
+        // 1. REGISTRO EN BITÁCORA (Stock OK)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. LIMPIEZA DE INTERFAZ
-        if(e.target) e.target.reset();
-        if(window.cerrarModales) window.cerrarModales();
-
-        // 3. ACTUALIZACIÓN VISUAL (Redibuja la tabla con el nuevo stock)
+        // 2. ACTUALIZACIÓN VISUAL INMEDIATA (Inventario OK)
         if(typeof renderTable === 'function') {
             renderTable(window.todosLosMateriales);
         }
 
-        // 4. SINCRONIZACIÓN CON SERVIDOR (Para el Historial)
-        await window.API.registerPurchase(objetoCompraSincronizado);
-        
+        // 3. ENVÍO AL SERVIDOR (Aquí está el detalle del Historial)
+        // Usamos un nombre de material genérico si por alguna razón falla el principal
+        const datosParaServidor = {
+            ...objetoCompraSincronizado,
+            motivo: nombreMaterialActual // El historial a veces busca "motivo"
+        };
+
+        const respuesta = await window.API.registerPurchase(datosParaServidor);
+        console.log("✅ Sincronización Servidor:", respuesta);
+
+        // 4. LIMPIEZA Y CIERRE
+        if(e.target) e.target.reset();
+        if(window.cerrarModales) window.cerrarModales();
+
+        // OPCIONAL: Si estás en la misma página del historial, forzamos recarga
+        if (typeof fetchPurchases === 'function') fetchPurchases();
+
     } catch (err) {
-        console.error("❌ Error en sincronización:", err);
+        console.error("❌ Error al sincronizar historial:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
