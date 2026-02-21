@@ -1,10 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.4.15 (REPARACIÓN DE STOCK LOCAL)
- * * CAMBIOS v13.4.15:
- * 1. SUMATORIA DE STOCK: getInventory ahora suma compras locales al stock base.
- * 2. VINCULACIÓN TOTAL: Asegura que molduras locales muestren sus ML correctos.
- * 3. Preservación absoluta de blindajes, OTs y diseño visual.
+ * Módulo de conexión API - Versión 13.4.20 (UNIFICACIÓN Y STOCK REAL)
+ * * CAMBIOS v13.4.20:
+ * 1. FUSIÓN DE DUPLICADOS: Si hay varias molduras locales con el mismo nombre, las une en una sola fila.
+ * 2. SUMATORIA INTELIGENTE: Suma todas las compras locales (ML) asociadas al nombre de la moldura.
+ * 3. Preservación absoluta de blindajes de OTs, diseño visual y cálculos ML originales.
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -53,12 +53,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.4.15 - CON SALVAGUARDA)
+    // 2. PETICIÓN MAESTRA (v13.4.20 - CON SALVAGUARDA)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.4.15: ${url}`);
+            console.log(`🚀 Conectando v13.4.20: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -92,23 +92,46 @@ window.API = {
     // 3. MÉTODOS DE NEGOCIO (ESTRUCTURA ORIGINAL 100% PRESERVADA)
     getProviders: function() { return window.API._request('/providers'); },
 
-    // --- MEJORA v13.4.15: LECTURA HÍBRIDA CON SUMATORIA DE STOCK LOCAL ---
+    // --- MEJORA v13.4.20: LECTURA HÍBRIDA CON UNIFICACIÓN POR NOMBRE Y STOCK ---
     getInventory: async function() { 
         const res = await window.API._request('/inventory');
         const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
         const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
         
         if (localMaterials.length > 0) {
-            console.log("🧩 Calculando stock híbrido para molduras locales...");
+            console.log("🧩 Unificando duplicados y calculando stock ML...");
             const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
             
-            const hybridData = localMaterials.filter(m => !serverIds.has(String(m.id || m._id))).map(m => {
-                // Sumar compras locales realizadas a este material específico para corregir el 0.00 ml
+            // Mapa para fusionar por nombre (evita líneas repetidas del mismo material)
+            const uniqueMap = new Map();
+
+            localMaterials.forEach(m => {
+                const materialId = String(m.id || m._id);
+                // Solo procesamos si no está ya en el servidor
+                if (!serverIds.has(materialId)) {
+                    const nombreClave = m.nombre.trim().toUpperCase();
+                    
+                    if (!uniqueMap.has(nombreClave)) {
+                        // Si es la primera vez que vemos este nombre, lo registramos
+                        uniqueMap.set(nombreClave, { ...m, stock: 0, _tempIds: [materialId] });
+                    } else {
+                        // Si ya existe, guardamos el ID para sumar sus compras luego
+                        uniqueMap.get(nombreClave)._tempIds.push(materialId);
+                    }
+                }
+            });
+
+            // Convertimos el mapa a array y calculamos el stock real sumando compras
+            const hybridData = Array.from(uniqueMap.values()).map(m => {
                 const totalComprado = localPurchases
-                    .filter(p => String(p.materialId) === String(m.id || m._id))
+                    .filter(p => m._tempIds.includes(String(p.materialId)))
                     .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
                 
-                return { ...m, stock: Number(m.stock || 0) + totalComprado };
+                return { 
+                    ...m, 
+                    stock: Number(m.stock || 0) + totalComprado,
+                    _id: m._tempIds[0] // Mantenemos el primer ID para referencia
+                };
             });
 
             return { ...res, data: [...res.data, ...hybridData] };
@@ -141,7 +164,7 @@ window.API = {
             const newMaterial = { ...data, id: localId, _id: localId, stock: Number(data.stock || 0) };
             
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            localInv = localInv.filter(m => (m.id || m._id) !== localId);
+            // No filtramos por ID aquí para permitir la unificación en el getInventory
             localInv.push(newMaterial);
             localStorage.setItem('inventory', JSON.stringify(localInv));
             
@@ -166,7 +189,6 @@ window.API = {
             body: JSON.stringify(payload)
         });
 
-        // --- MEJORA v13.4.15: BITÁCORA DE COMPRAS LOCALES PARA REPARAR STOCK ---
         if (res.isOffline || !res.success) {
             console.warn("💾 Registrando compra en bitácora local...");
             let localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
@@ -189,4 +211,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.4.15 - Stock Híbrido Reparado.");
+console.log("🛡️ API v13.4.20 - Unificación y Stock Reparado.");
