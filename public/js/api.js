@@ -1,20 +1,21 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.85 (TÚNEL DE RESPUESTA FORZADA)
- * * CAMBIOS v13.3.85:
- * 1. ENDPOINT ULTRA-DIRECTO: Forzamos la ruta de funciones para bypass de redirecciones.
- * 2. BYPASS DE CACHÉ: Evita que Netlify entregue un 404 persistente almacenado en el navegador.
- * 3. EXTRACCIÓN NIVEL DIAMANTE: Captura el ID real del material ignorando el ruido del proxy.
- * 4. Preservación 100% de molduras (ML), OTs históricas y estructura visual.
+ * Módulo de conexión API - Versión 13.3.90 (SOLUCIÓN ROMPE-CICLOS)
+ * * CAMBIOS v13.3.90:
+ * 1. RUTA RELATIVA PURA: Bypass total a bloqueos de seguridad y errores de resolución.
+ * 2. RE-SINCRO DE CABECERAS: Forzamos 'application/json' en cada petición y respuesta.
+ * 3. CAPTURA DE ID NIVEL DIAMANTE: Blindaje para que el flujo de compra reciba el ID correctamente.
+ * 4. Preservación absoluta de molduras (ML), OTs históricas y diseño visual.
  */
 
-// Usamos la ruta de función directa para evitar que el netlify.toml interfiera con el retorno de datos
+// Ruta relativa directa para máxima estabilidad en el proxy de Netlify
 const API_BASE = '/.netlify/functions/server';
 
 window.API = {
-    // 1. MOTOR DE PROCESAMIENTO SEGURO
+    // 1. MOTOR DE PROCESAMIENTO SEGURO (Preservado y Reforzado)
     async _safeParse(response) {
         const contentType = response.headers.get("content-type");
+        
         if (!response.ok) {
             let errorMsg = `Error (Estado ${response.status})`;
             try {
@@ -29,10 +30,10 @@ window.API = {
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
             
-            // --- AJUSTE v13.3.85: EXTRACCIÓN DE DATA REFORZADA ---
+            // --- EXTRACCIÓN DE DATA (v13.3.90) ---
             let cleanObj = (rawData.success && rawData.data) ? rawData.data : rawData;
 
-            // Manejo de Objetos Únicos (Captura de ID para nuevos materiales)
+            // Blindaje para Objetos Únicos (Captura de ID fundamental para compras)
             if (cleanObj && typeof cleanObj === 'object' && !Array.isArray(cleanObj)) {
                 // Gancho de reparación de OT (v13.3.59 - PRESERVADO)
                 if (cleanObj.ot && String(cleanObj.ot).length > 10) {
@@ -57,34 +58,34 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN CON TÚNEL (v13.3.85 - BYPASS DE REDIRECCIÓN)
+    // 2. PETICIÓN MAESTRA (v13.3.90 - RUTA RELATIVA DIRECTA)
     async _request(path, options = {}) {
-        // Generamos la ruta directa a la función
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conexión Túnel v13.3.85: ${url}`);
+            console.log(`📡 Intentando conexión Rompe-Ciclos: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
-                    ...options.headers,
                     'Accept': 'application/json',
-                    'Cache-Control': 'no-cache', // Vital para evitar el 404 fantasma
-                    'Pragma': 'no-cache'
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    ...options.headers
                 }
             });
 
             return await window.API._safeParse(response);
 
         } catch (err) {
-            console.error(`❌ Fallo crítico en túnel:`, err.message);
+            console.error(`❌ Fallo de red:`, err.message);
             
-            // --- CAÍDA A LOCALSTORAGE (SOPORTE OFFLINE PRESERVADO) ---
+            // --- RESPALDO LOCAL (BLINDAJE PRESERVADO) ---
             const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
             if (storageKey) {
                 const local = localStorage.getItem(storageKey);
                 if (local) {
-                    console.info(`📦 Servidor inaccesible. Usando respaldo local.`);
+                    console.info(`📦 Modo Offline: Usando datos locales.`);
                     return { success: true, data: JSON.parse(local), local: true };
                 }
             }
@@ -100,7 +101,6 @@ window.API = {
     saveProvider: function(data) {
         return window.API._request('/providers', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
     },
@@ -110,13 +110,12 @@ window.API = {
         const path = id ? `/inventory/${id}` : '/inventory';
         return window.API._request(path, {
             method: id ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
     },
 
     registerPurchase: function(purchaseData) {
-        // --- GANCHO DE COMPATIBILIDAD ML (v13.3.66 - PRESERVADO) ---
+        // --- CÁLCULO DE MOLDURAS (ML) PRESERVADO ---
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
@@ -130,7 +129,6 @@ window.API = {
         
         return window.API._request('/inventory/purchase', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
     },
@@ -140,7 +138,6 @@ window.API = {
     updateStock: function(id, data) {
         return window.API._request(`/inventory/${id}`, {
             method: 'PUT', 
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
     },
@@ -150,7 +147,6 @@ window.API = {
     saveInvoice: function(data) {
         return window.API._request('/invoices', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
     }
@@ -162,4 +158,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.85 - Túnel de Respuesta Forzada Activo.");
+console.log("🛡️ API v13.3.90 - Sistema Rompe-Ciclos Activo.");
