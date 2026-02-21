@@ -485,62 +485,73 @@ function configurarEventos() {
     });
 
  // === REEMPLAZO FINAL: COPIAR DESDE AQUÍ ===
-const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
+// === BLOQUE DE COMPRA ACTUALIZADO v13.4.58 ===
+const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
         const btn = e.target.querySelector('button[type="submit"]');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
+            btn.innerHTML = 'GUARDANDO...';
         }
 
         try {
-            const materialId = document.getElementById('compraMaterial')?.value;
-            const providerId = document.getElementById('compraProveedor')?.value;
-            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
-            const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
-            const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
+            // Recolección de datos de los inputs
+            const materialId = document.getElementById('compraMaterialId').value;
+            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+            const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
+            const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
+            const valorUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
+            const providerId = document.getElementById('compraProveedorId').value;
 
-            const m = window.todosLosMateriales.find(mat => String(mat.id) === String(materialId));
-            const nombreMaterialActual = m ? m.nombre : "Material";
+            // Buscamos el material en la lista global para saber si es moldura
+            const index = window.todosLosMateriales.findIndex(mat => String(mat.id || mat._id) === String(materialId));
+            if (index === -1) throw new Error("Material no encontrado");
+
+            const materialEncontrado = window.todosLosMateriales[index];
+            const esLineal = materialEncontrado.categoria === 'Molduras' || materialEncontrado.unidad_medida === 'ml';
             
-            // Lógica de Molduras (ml) vs Otros (m2)
-            const esLineal = nombreMaterialActual.toLowerCase().includes("moldura");
-            const cantidadCalculada = esLineal ? (cant * 2.9) : (cant * (largo / 100) * (parseFloat(document.getElementById('compraAncho')?.value || 0) / 100));
+            // Lógica de cálculo (2.9 para molduras)
+            const cantidadCalculada = esLineal ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
-            const objetoCompraSincronizado = {
+            const objetoCompra = {
                 materialId: materialId,
-                nombreMaterial: nombreMaterialActual,
+                nombreMaterial: materialEncontrado.nombre,
                 proveedorId: providerId,
                 cantidad: cant,
-                totalM2: cantidadCalculada, // Lo que suma al inventario
-                cantidad_m2: cantidadCalculada, // Lo que se ve en el historial
-                costo_total: valorUnitarioLamina * cant,
+                totalM2: cantidadCalculada,
+                cantidad_m2: cantidadCalculada,
+                costo_total: valorUnitario * cant,
                 unidad: esLineal ? 'ml' : 'm2',
                 fecha: new Date().toISOString()
             };
 
-            // 1. Guardar local para stock inmediato
+            // 1. GUARDAR EN BITÁCORA LOCAL
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-            bitacora.push(objetoCompraSincronizado);
+            bitacora.push(objetoCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-            // 2. Actualizar la tabla visualmente
+            // 2. ACTUALIZAR EL STOCK EN MEMORIA (FORZADO PARA VISIBILIDAD)
+            window.todosLosMateriales[index].stock_actual = (parseFloat(window.todosLosMateriales[index].stock_actual) || 0) + cantidadCalculada;
+
+            // 3. REDIBUJAR LA TABLA DE INMEDIATO
             if (typeof renderTable === 'function') {
                 renderTable(window.todosLosMateriales);
             }
 
-            // 3. Enviar al servidor
-            await window.API.registerPurchase(objetoCompraSincronizado);
+            // 4. INFORMAR AL SERVIDOR
+            await window.API.registerPurchase(objetoCompra);
 
+            // 5. CERRAR Y LIMPIAR
+            alert("✅ ¡Compra exitosa! Stock actualizado.");
             if (window.cerrarModales) window.cerrarModales();
             e.target.reset();
-            alert("✅ Compra guardada con éxito");
 
         } catch (err) {
-            console.error("Error:", err);
-            alert("Error al procesar la compra");
+            console.error("❌ Error en el proceso:", err);
+            alert("No se pudo guardar la compra: " + err.message);
         } finally {
             if (btn) {
                 btn.disabled = false;
