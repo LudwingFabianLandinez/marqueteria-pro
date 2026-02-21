@@ -550,62 +550,48 @@ if (esLineal) {
         }
     }
 
-// --- OBJETO UNIFICADO: NO TOCAR LOS NOMBRES DE LAS PROPIEDADES ---
+// --- OBJETO DE EMERGENCIA (Prioridad: Visibilidad en Inventario) ---
     const objetoCompraSincronizado = {
         materialId: materialId,
+        nombreMaterial: nombreMaterialActual, 
         proveedorId: providerId,
-        
-        // Nombres para Inventario e Historial
-        nombreMaterial: nombreMaterialActual,
-        materialNombre: nombreMaterialActual,
-        nombre: nombreMaterialActual, 
-        motivo: nombreMaterialActual, 
-
-        // Datos de medida (Crucial para que NO desaparezcan del inventario)
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada, // Este es el que busca tu inventario para sumar
-        cantidad_m2: cantidadCalculada, // Este es el que busca tu historial
+        totalM2: cantidadCalculada, // Lo que hace que sume 2.9
         
-        // Costos
+        // Campos para el historial (purchases.js)
+        cantidad_m2: cantidadCalculada,
         costo_total: valorUnitarioLamina * cant,
         precio_total: valorUnitarioLamina * cant,
-        costo: valorUnitarioLamina * cant,
         
-        // Categorización (Crucial para que el filtro de la tabla las vea)
-        unidad: esLineal ? 'ml' : 'm2',
-        tipo: esLineal ? 'ml' : 'm2',
-        categoria: esLineal ? "Molduras" : "General", // <--- ESTO evita que desaparezcan
-        
+        // Esto es lo que define si aparece en la tabla o no
+        categoria: esLineal ? "Molduras" : "General",
+        unidad: esLineal ? "ml" : "m2",
         fecha: new Date().toISOString(),
         tempId: stampTransaccion
     };
 
     try {
-        // 1. GUARDAR EN BITÁCORA (Asegura el stock de 2.9 ml)
+        // 1. Guardar en Bitácora
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. FORZAR RENDERIZADO (Para que vuelvan a aparecer en la tabla)
-        if(typeof renderTable === 'function') {
-            // Pasamos los materiales actuales para que el sistema los redibuje con la nueva compra
-            renderTable(window.todosLosMateriales);
-        }
-
-        // 3. LIMPIEZA DE INTERFAZ
+        // 2. Limpieza inmediata
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // 4. ENVÍO AL SERVIDOR (Para el Historial)
+        // 3. Renderizado de tabla (Usando la variable global de materiales)
+        if(typeof renderTable === 'function') {
+            renderTable(window.todosLosMateriales);
+        }
+
+        // 4. Sincronizar con Servidor
         await window.API.registerPurchase(objetoCompraSincronizado);
-        
-        // Si el historial está abierto, pedirle que se actualice
-        if (typeof fetchPurchases === 'function') fetchPurchases();
 
     } catch (err) {
-        console.error("Error crítico:", err);
+        console.error("Error:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
