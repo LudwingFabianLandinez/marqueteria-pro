@@ -477,78 +477,72 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
- // --- VERSIÓN DE EMERGENCIA v13.4.51 ---
-const formCompra = document.getElementById('formNuevaCompra');
+ // === REEMPLAZO FINAL: COPIAR DESDE AQUÍ ===
+const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
 if (formCompra) {
-    // Eliminamos cualquier evento previo para evitar conflictos
-    formCompra.onsubmit = async (e) => {
-        e.preventDefault(); // EVITA QUE LA PÁGINA SE RECARGUE
-        e.stopPropagation();
-
+    formCompra.addEventListener('submit', async (e) => {
+        e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...';
         }
 
         try {
-            // Recolección de datos básica
-            const materialId = document.getElementById('compraMaterialId').value;
-            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const valorUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
-            
-            // Los cálculos que ya tenías
-            const m = window.todosLosMateriales.find(mat => String(mat.id) === String(materialId));
-            const esLineal = m && (m.categoria === 'Molduras' || m.unidad_medida === 'ml');
-            
-            let cantidadFinal = cant;
-            if (esLineal) {
-                // Si es moldura, aplicamos tu lógica de 2.9 ml
-                cantidadFinal = cant * 2.9;
-            }
+            const materialId = document.getElementById('compraMaterial')?.value;
+            const providerId = document.getElementById('compraProveedor')?.value;
+            const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
+            const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
+            const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
 
-            const objetoCompra = {
-                materialId: String(materialId),
-                nombreMaterial: m ? m.nombre : "Material",
+            const m = window.todosLosMateriales.find(mat => String(mat.id) === String(materialId));
+            const nombreMaterialActual = m ? m.nombre : "Material";
+            
+            // Lógica de Molduras (ml) vs Otros (m2)
+            const esLineal = nombreMaterialActual.toLowerCase().includes("moldura");
+            const cantidadCalculada = esLineal ? (cant * 2.9) : (cant * (largo / 100) * (parseFloat(document.getElementById('compraAncho')?.value || 0) / 100));
+
+            const objetoCompraSincronizado = {
+                materialId: materialId,
+                nombreMaterial: nombreMaterialActual,
+                proveedorId: providerId,
                 cantidad: cant,
-                totalM2: cantidadFinal,       // Para el Inventario
-                cantidad_m2: cantidadFinal,   // Para el Historial
-                costo_total: valorUnitario * cant,
-                precio_total: valorUnitario * cant,
+                totalM2: cantidadCalculada, // Lo que suma al inventario
+                cantidad_m2: cantidadCalculada, // Lo que se ve en el historial
+                costo_total: valorUnitarioLamina * cant,
                 unidad: esLineal ? 'ml' : 'm2',
                 fecha: new Date().toISOString()
             };
 
-            // 1. GUARDAR LOCAL (Para que aparezca YA en el inventario)
+            // 1. Guardar local para stock inmediato
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-            bitacora.push(objetoCompra);
+            bitacora.push(objetoCompraSincronizado);
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-            // 2. ACTUALIZAR TABLA
+            // 2. Actualizar la tabla visualmente
             if (typeof renderTable === 'function') {
                 renderTable(window.todosLosMateriales);
             }
 
-            // 3. ENVIAR AL SERVIDOR
-            await window.API.registerPurchase(objetoCompra);
+            // 3. Enviar al servidor
+            await window.API.registerPurchase(objetoCompraSincronizado);
 
-            // 4. ÉXITO: CERRAR Y LIMPIAR
-            alert("✅ Compra guardada con éxito");
             if (window.cerrarModales) window.cerrarModales();
             e.target.reset();
+            alert("✅ Compra guardada con éxito");
 
         } catch (err) {
-            console.error("❌ ERROR CRÍTICO:", err);
-            alert("Error al guardar: " + err.message);
+            console.error("Error:", err);
+            alert("Error al procesar la compra");
         } finally {
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = 'GUARDAR COMPRA';
             }
         }
-    
-}; // Cierra el submit
-} // Cierra el if (formCompra)
+    });
+}
+// === FIN DEL ARCHIVO: NO AGREGAR MÁS LLAVES ===
 
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const termino = e.target.value.toLowerCase();
@@ -560,7 +554,7 @@ if (formCompra) {
         provForm.onsubmit = window.guardarProveedor;
     }
 }
-
+    
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
     let encontrado = false;
