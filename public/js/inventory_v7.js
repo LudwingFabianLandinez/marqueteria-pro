@@ -550,62 +550,62 @@ if (esLineal) {
         }
     }
 
- // --- OBJETO TOTALMENTE BLINDADO (PARA STOCK E HISTORIAL) ---
+// --- OBJETO UNIFICADO: NO TOCAR LOS NOMBRES DE LAS PROPIEDADES ---
     const objetoCompraSincronizado = {
         materialId: materialId,
         proveedorId: providerId,
-        nombreMaterial: nombreMaterialActual, 
-        materialNombre: nombreMaterialActual,
-        motivo: nombreMaterialActual, // IMPORTANTE: El servidor a veces usa 'motivo'
         
-        // Cantidades para Inventario y Purchases.js
+        // Nombres para Inventario e Historial
+        nombreMaterial: nombreMaterialActual,
+        materialNombre: nombreMaterialActual,
+        nombre: nombreMaterialActual, 
+        motivo: nombreMaterialActual, 
+
+        // Datos de medida (Crucial para que NO desaparezcan del inventario)
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada, 
-        cantidad_m2: cantidadCalculada,
+        totalM2: cantidadCalculada, // Este es el que busca tu inventario para sumar
+        cantidad_m2: cantidadCalculada, // Este es el que busca tu historial
         
-        // Costos: Enviamos todos los nombres posibles para evitar el $0
+        // Costos
         costo_total: valorUnitarioLamina * cant,
         precio_total: valorUnitarioLamina * cant,
         costo: valorUnitarioLamina * cant,
         
+        // Categorización (Crucial para que el filtro de la tabla las vea)
         unidad: esLineal ? 'ml' : 'm2',
         tipo: esLineal ? 'ml' : 'm2',
+        categoria: esLineal ? "Molduras" : "General", // <--- ESTO evita que desaparezcan
+        
         fecha: new Date().toISOString(),
         tempId: stampTransaccion
     };
 
     try {
-        // 1. ACTUALIZACIÓN LOCAL (Hace que el stock suba inmediatamente)
+        // 1. GUARDAR EN BITÁCORA (Asegura el stock de 2.9 ml)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. REFRESCO VISUAL DEL INVENTARIO
+        // 2. FORZAR RENDERIZADO (Para que vuelvan a aparecer en la tabla)
         if(typeof renderTable === 'function') {
+            // Pasamos los materiales actuales para que el sistema los redibuje con la nueva compra
             renderTable(window.todosLosMateriales);
         }
 
-        // 3. ENVÍO AL SERVIDOR (Para que aparezca en el Historial)
-        // Agregamos un pequeño log para estar seguros de que se envía
-        console.log("📤 Enviando al servidor...", objetoCompraSincronizado);
-        
-        const respuesta = await window.API.registerPurchase(objetoCompraSincronizado);
-        
-        if(respuesta.success) {
-            console.log("✅ Servidor recibió la compra correctamente");
-        }
-
-        // 4. LIMPIEZA Y CIERRE DE MODAL
+        // 3. LIMPIEZA DE INTERFAZ
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // 5. RECARGA DEL HISTORIAL (Si estamos en la misma vista)
+        // 4. ENVÍO AL SERVIDOR (Para el Historial)
+        await window.API.registerPurchase(objetoCompraSincronizado);
+        
+        // Si el historial está abierto, pedirle que se actualice
         if (typeof fetchPurchases === 'function') fetchPurchases();
 
     } catch (err) {
-        console.error("❌ Error en la cadena de guardado:", err);
+        console.error("Error crítico:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
