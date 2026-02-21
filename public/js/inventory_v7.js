@@ -36,18 +36,21 @@ window.toggleMenu = function() {
  * Calcula el stock sumando lo que dice el servidor + compras locales no sincronizadas
  * Blindaje: No altera el objeto original del servidor, solo el valor visual.
  */
+// PEGA ESTO EN SU LUGAR (Versión v13.4.49) [cite: 784, 792]
 function calcularStockReal(material) {
-    // Aseguramos que el stock que viene del servidor sea un número
     let stockServidor = parseFloat(material.stock_actual) || 0;
-    
-    // Si por alguna razón el servidor manda 0 pero tú sabes que es 5.8, 
-    // es porque el campo se llama diferente. Pero usemos esto por ahora:
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
     const sumaExtra = comprasLocales
-        .filter(c => String(c.materialId) === String(material.id))
-        .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
-        
+        .filter(c => {
+            const cId = (c.materialId && typeof c.materialId === 'object') ? c.materialId._id : c.materialId;
+            return String(cId) === String(material.id);
+        })
+        .reduce((acc, curr) => {
+            // Sumamos tanto totalM2 como cantidad_m2 por seguridad
+            return acc + (parseFloat(curr.totalM2 || curr.cantidad_m2 || 0));
+        }, 0);
+
     return stockServidor + sumaExtra;
 }
 
@@ -479,17 +482,18 @@ function configurarEventos() {
         formCompra.addEventListener('submit', async (e) => {
         e.preventDefault();
         // --- ESTE ES EL BLOQUE QUE DEBES PEGAR ---
+    // --- ESTE ES EL OBJETO CORREGIDO --- [cite: 1187, 1199]
     const objetoCompraSincronizado = {
-        materialId: String(materialId), // FIX: Forzamos texto para que el inventario lo reconozca
+        materialId: String(materialId), 
         nombreMaterial: nombreMaterialActual,
         materialNombre: nombreMaterialActual,
         proveedorId: providerId,
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada,     // FIX: Esto hace que aparezca el 2.9 en inventario
-        cantidad_m2: cantidadCalculada, // FIX: Esto es para el historial
-        costo_total: valorUnitarioLamina * cant, // FIX: Quita el $0 del historial
+        totalM2: cantidadCalculada,     
+        cantidad_m2: cantidadCalculada, 
+        costo_total: valorUnitarioLamina * cant, 
         precio_total: valorUnitarioLamina * cant,
         unidad: esLineal ? 'ml' : 'm2',
         categoria: esLineal ? 'Molduras' : 'General',
@@ -498,20 +502,16 @@ function configurarEventos() {
     };
 
     try {
-        // 1. GUARDAR EN BITÁCORA LOCAL (Suma inmediata al stock)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. REDIBUJAR LA TABLA (Para que la moldura aparezca ya mismo)
         if(typeof renderTable === 'function') {
             renderTable(window.todosLosMateriales);
         }
 
-        // 3. ENVIAR AL SERVIDOR (Para el historial de compras)
         await window.API.registerPurchase(objetoCompraSincronizado);
 
-        // 4. LIMPIEZA
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
@@ -523,7 +523,6 @@ function configurarEventos() {
             btn.innerHTML = 'GUARDAR COMPRA';
         }
     }
-    // --- HASTA AQUÍ TERMINA EL REEMPLAZO ---
     
 }); // Cierra el submit
 } // Cierra el if (formCompra)
