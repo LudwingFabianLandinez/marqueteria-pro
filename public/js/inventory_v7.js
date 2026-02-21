@@ -585,34 +585,31 @@ if (esLineal) {
             renderTable(window.todosLosMateriales);
 
    try {
-                // 1. REGISTRO EN BITÁCORA LOCAL
+                // 1. ÚNICO REGISTRO: Guardamos en bitácora
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
                 bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. LIMPIEZA INMEDIATA DEL FORMULARIO
-                // Esto evita que el sistema "lea" el formulario y la bitácora al tiempo
-                if(e.target) e.target.reset(); 
+                // 2. LIMPIEZA TOTAL DEL FORMULARIO Y CIERRE
+                // Reseteamos el formulario antes de dibujar para que no haya datos "fantasma"
+                if(e.target) e.target.reset();
+                window.cerrarModales();
 
-                // 3. REDIBUJAR TABLA
+                // 3. DIBUJAR TABLA
+                // renderTable llamará a calcularStockReal, que sumará 5.8 + 2.9 = 8.7
                 renderTable(window.todosLosMateriales);
 
-                // 4. INFORMAR AL SERVIDOR
+                // 4. ENVÍO AL SERVIDOR
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 
                 if (res.success) {
-                    // Si el servidor confirma, ahora SÍ borramos de la bitácora 
-                    // para que cuando refresques, el servidor ya tenga el dato
-                    const nuevaBitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
-                        .filter(item => String(item.tempId) !== String(stampTransaccion));
-                    localStorage.setItem('bitacora_compras', JSON.stringify(nuevaBitacora));
-                    
-                    alert(`✅ ¡Inventario en 8.70 ml!`);
-                    window.cerrarModales();
+                    // Si el servidor confirma, el programador del backend debería 
+                    // actualizar el stock_actual. Mientras tanto, NO borramos la bitácora
+                    // para que el 8.7 se mantenga al refrescar.
+                    console.log("Servidor recibió la compra.");
                 }
             } catch (err) {
-                console.warn("Error de red, se mantiene el 8.70 visual.");
-                window.cerrarModales();
+                console.error("Error:", err);
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
