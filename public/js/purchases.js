@@ -1,8 +1,8 @@
 /**
- * LÓGICA PARA EL HISTORIAL DE COMPRAS - v13.3.61
+ * LÓGICA PARA EL HISTORIAL DE COMPRAS - v13.3.62
  * Marquetería La Chica Morales
  * Blindaje: Estructura visual y lógica de búsqueda 100% INTACTA.
- * Ajuste: Compatibilidad con mapeo de objetos materialId y proveedorId.
+ * Ajuste: Compatibilidad con unidades (m2/ml) y alias de costo.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -20,21 +20,15 @@ async function fetchPurchases() {
     if (!tableBody) return;
     
     try {
-        // Agregamos un timestamp para evitar que el navegador cargue datos viejos de la caché
         const response = await fetch(`/api/inventory/all-purchases?t=${Date.now()}`); 
         const result = await response.json();
 
-        // LOG DE DEPURACIÓN
         console.log("🔍 Respuesta del servidor:", result);
 
         if (result.success && result.data && result.data.length > 0) {
-            // Renderizamos la tabla con los datos del servidor
             renderPurchasesTable(result.data);
-            
-            // Actualizamos los indicadores superiores (KPIs)
             actualizarResumen(result.data);
         } else {
-            // Estado vacío
             tableBody.innerHTML = `
                 <tr>
                     <td colspan="5" style="text-align: center; padding: 60px; color: #94a3b8;">
@@ -68,10 +62,22 @@ function renderPurchasesTable(compras) {
             ? new Date(c.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
             : '--/--/----';
 
-        // --- GANCHO QUIRÚRGICO DE COMPATIBILIDAD ---
-        // Extrae el nombre si materialId/proveedorId vienen como objetos del servidor
-        const nombreMaterial = (c.materialId && typeof c.materialId === 'object') ? c.materialId.nombre : (c.motivo || 'Material');
-        const nombreProveedor = (c.proveedorId && typeof c.proveedorId === 'object') ? c.proveedorId.nombre : 'Proveedor General';
+        // --- GANCHO DE COMPATIBILIDAD DE NOMBRE ---
+        const nombreMaterial = (c.materialId && typeof c.materialId === 'object') 
+            ? c.materialId.nombre 
+            : (c.nombreMaterial || c.materialNombre || c.motivo || 'Material');
+        
+        const nombreProveedor = (c.proveedorId && typeof c.proveedorId === 'object') 
+            ? c.proveedorId.nombre 
+            : 'Proveedor General';
+
+        // --- GANCHO DE UNIDADES Y COSTO (M2 vs ML) ---
+        // Buscamos el valor en cantidad_m2 o totalM2 (para el 2.9)
+        const cantidadValor = parseFloat(c.cantidad_m2 || c.totalM2 || 0);
+        const unidadTexto = c.unidad || (c.tipo === 'ml' ? 'ml' : 'm²');
+        
+        // Buscamos el costo en costo_total o costo o precio_total
+        const costoFinal = c.costo_total || c.costo || c.precio_total || 0;
 
         return `
             <tr style="border-bottom: 1px solid #f1f5f9;">
@@ -85,10 +91,10 @@ function renderPurchasesTable(compras) {
                     </span>
                 </td>
                 <td style="padding: 15px; text-align: center; font-weight: 700; color: #334155;">
-                    ${c.cantidad_m2 ? parseFloat(c.cantidad_m2).toFixed(2) : '0.00'} m²
+                    ${cantidadValor.toFixed(2)} ${unidadTexto}
                 </td>
                 <td style="padding: 15px; text-align: right; font-weight: 800; color: #059669;">
-                    ${formatter.format(c.costo_total || 0)}
+                    ${formatter.format(costoFinal)}
                 </td>
             </tr>
         `;
@@ -96,11 +102,11 @@ function renderPurchasesTable(compras) {
 }
 
 /**
- * Actualiza los cuadros de texto superiores con los totales de la compra
+ * Actualiza los cuadros de texto superiores
  */
 function actualizarResumen(compras) {
-    const totalInversion = compras.reduce((sum, c) => sum + (c.costo_total || 0), 0);
-    const totalM2 = compras.reduce((sum, c) => sum + (c.cantidad_m2 || 0), 0);
+    const totalInversion = compras.reduce((sum, c) => sum + (c.costo_total || c.costo || c.precio_total || 0), 0);
+    const totalMaterial = compras.reduce((sum, c) => sum + (parseFloat(c.cantidad_m2 || c.totalM2 || 0)), 0);
     
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     
@@ -109,7 +115,7 @@ function actualizarResumen(compras) {
     const ultimaCompraEl = document.getElementById('ultimaCompraFecha') || document.querySelector('.ultima-compra h2');
 
     if (inversionEl) inversionEl.innerText = formatter.format(totalInversion);
-    if (materialEl) materialEl.innerText = `${totalM2.toFixed(2)} m²`;
+    if (materialEl) materialEl.innerText = `${totalMaterial.toFixed(2)} Und/m²`;
     
     if (ultimaCompraEl && compras.length > 0) {
         const ultimaFecha = new Date(compras[0].fecha).toLocaleDateString('es-ES');
@@ -117,9 +123,6 @@ function actualizarResumen(compras) {
     }
 }
 
-/**
- * Filtrado en tiempo real en la tabla
- */
 function setupSearch() {
     const searchInput = document.getElementById('purchaseSearch') || document.querySelector('input[placeholder*="Buscar"]');
     if (!searchInput) return;
@@ -135,9 +138,6 @@ function setupSearch() {
     });
 }
 
-/**
- * Lógica para el botón "Imprimir Reporte"
- */
 function setupPrintButton() {
     const printBtn = document.getElementById('printReportBtn') || document.querySelector('.btn-imprimir');
     if (printBtn) {
