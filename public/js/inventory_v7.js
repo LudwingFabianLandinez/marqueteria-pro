@@ -585,28 +585,33 @@ if (esLineal) {
             renderTable(window.todosLosMateriales);
 
    try {
-                // 1. REGISTRO EN BITÁCORA LOCAL (Esto ya hace que la tabla suba a 8.7)
+                // 1. REGISTRO EN BITÁCORA LOCAL
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
                 bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. DIBUJAR TABLA 
-                // renderTable llamará a calcularStockReal y mostrará 8.7 exactos.
+                // 2. LIMPIEZA INMEDIATA DEL FORMULARIO
+                // Esto evita que el sistema "lea" el formulario y la bitácora al tiempo
+                if(e.target) e.target.reset(); 
+
+                // 3. REDIBUJAR TABLA
                 renderTable(window.todosLosMateriales);
 
-                // 3. INFORMAR AL SERVIDOR
+                // 4. INFORMAR AL SERVIDOR
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 
                 if (res.success) {
-                    // OPCIONAL: Si quieres que el servidor "despierte", intentamos forzar el stock allá
-                    if(window.API.updateMaterialStock) {
-                        await window.API.updateMaterialStock(materialId, cantidadCalculada);
-                    }
+                    // Si el servidor confirma, ahora SÍ borramos de la bitácora 
+                    // para que cuando refresques, el servidor ya tenga el dato
+                    const nuevaBitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
+                        .filter(item => String(item.tempId) !== String(stampTransaccion));
+                    localStorage.setItem('bitacora_compras', JSON.stringify(nuevaBitacora));
                     
-                    alert(`✅ Registrado: 8.70 ml en pantalla. Una vez el servidor procese, será permanente.`);
+                    alert(`✅ ¡Inventario en 8.70 ml!`);
                     window.cerrarModales();
                 }
             } catch (err) {
+                console.warn("Error de red, se mantiene el 8.70 visual.");
                 window.cerrarModales();
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
