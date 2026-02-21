@@ -537,30 +537,41 @@ if (esLineal) {
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
    try {
-                // REGISTRO LOCAL INMEDIATO (Para que sume en pantalla ya mismo)
+                // 1. REGISTRO LOCAL INMEDIATO
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
                 bitacora.push(objetoCompraSincronizado);
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
                 
-                // Forzamos a la tabla a redibujarse con la nueva suma
+                // --- INYECCIÓN MANUAL PARA ASEGURAR EL CAMBIO ---
+                // Buscamos el material en la lista actual de la pantalla y le sumamos el valor
+                const index = window.todosLosMateriales.findIndex(m => m.id === materialId);
+                if (index !== -1) {
+                    // Sumamos temporalmente para que la tabla lo vea YA
+                    window.todosLosMateriales[index].stock_actual = (parseFloat(window.todosLosMateriales[index].stock_actual) || 0) + cantidadCalculada;
+                }
+                // ------------------------------------------------
+                
+                // Redibujamos la tabla con los datos inyectados
                 renderTable(window.todosLosMateriales);
 
-                // Enviamos al servidor para que guarde permanentemente
+                // 2. ENVIAMOS AL SERVIDOR
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 
                 if (res.success) {
-                    // Si el servidor confirmó, borramos el "temporal" para no sumar doble
+                    // Limpiamos la bitácora local tras el éxito
                     const nuevaBitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
                         .filter(item => item.tempId !== stampTransaccion);
                     localStorage.setItem('bitacora_compras', JSON.stringify(nuevaBitacora));
                     
-                    await fetchInventory(); // Refrescamos datos reales
-                    alert(`✅ Compra registrada. Total: ${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
+                    // Refrescamos con los datos oficiales del servidor
+                    await fetchInventory(); 
+                    
+                    alert(`✅ Sumado con éxito: +${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
                     window.cerrarModales();
                 }
             } catch (err) {
-                console.log("Quedó guardado localmente debido a la conexión.");
-                renderTable(window.todosLosMateriales); // Mantenemos la suma visual
+                console.warn("Modo offline: Stock actualizado visualmente.");
+                renderTable(window.todosLosMateriales);
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
