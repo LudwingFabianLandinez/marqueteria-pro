@@ -485,6 +485,7 @@ function configurarEventos() {
     });
 
     // === RECUPERANDO VERSIÓN ESTABLE v13.4.48 ===
+// === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async (e) => {
@@ -496,7 +497,7 @@ if (formCompra) {
         }
 
         try {
-            // Usamos los IDs originales de tu HTML
+            // IDs EXACTOS DE TU WORD
             const materialId = document.getElementById('compraMaterial').value;
             const providerId = document.getElementById('compraProveedor').value;
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
@@ -505,32 +506,35 @@ if (formCompra) {
             const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto').value) || 0;
 
             const m = window.todosLosMateriales.find(mat => String(mat.id || mat._id) === String(materialId));
-            const esLineal = m && (m.categoria === 'Molduras' || m.unidad_medida === 'ml');
+            if (!m) throw new Error("Material no seleccionado");
+
+            // Definimos el nombre para que no falle el objeto
+            const nombreDelMaterial = m.nombre || "Material";
+            const esLineal = m.categoria === 'Molduras' || (m.unidad_medida === 'ml');
             
-            // EL CÁLCULO QUE YA FUNCIONABA
+            // EL CÁLCULO DE 2.9 ML
             const cantidadCalculada = esLineal ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
             const objetoCompraSincronizado = {
                 materialId: materialId, 
-                nombreMaterial: nombreMaterialActual,
+                nombreMaterial: nombreDelMaterial,
                 proveedorId: providerId,
                 cantidad: cant,
                 largo: largo,
                 ancho: ancho,
-                totalM2: cantidadCalculada, // SAGRADO PARA EL INVENTARIO
+                totalM2: cantidadCalculada, // ESTO ES EL 2.9 ML PARA EL INVENTARIO
                 cantidad_m2: cantidadCalculada, 
                 costo_total: valorUnitarioLamina * cant,
                 unidad: esLineal ? 'ml' : 'm2',
-                fecha: new Date().toISOString(),
-                tempId: Date.now()
+                fecha: new Date().toISOString()
             };
 
-            // 1. Registro en Bitácora (Para stock inmediato)
+            // 1. Bitácora local
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push(objetoCompraSincronizado);
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-            // 2. Renderizado inmediato
+            // 2. Redibujado de tabla
             if(typeof renderTable === 'function') {
                 renderTable(window.todosLosMateriales);
             }
@@ -538,13 +542,14 @@ if (formCompra) {
             // 3. Envío al servidor
             await window.API.registerPurchase(objetoCompraSincronizado);
 
-            // 4. Limpieza y Cierre
-            if(e.target) e.target.reset();
+            // 4. Limpieza
+            alert("✅ Compra guardada: " + cantidadCalculada.toFixed(2));
             if(window.cerrarModales) window.cerrarModales();
-            alert("✅ Compra guardada correctamente");
+            e.target.reset();
 
         } catch (err) {
             console.error("Error:", err);
+            alert("Error: " + err.message);
         } finally {
             if(btn) {
                 btn.disabled = false;
