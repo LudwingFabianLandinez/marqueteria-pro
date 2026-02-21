@@ -582,25 +582,27 @@ if (esLineal) {
     };
 
     try {
-        // 1. REGISTRO EN BITÁCORA LOCAL (Suma el 2.9)
+        // 1. VERIFICACIÓN EN CONSOLA (Mira esto en F12 al darle guardar)
+        console.log("🚀 ENVIANDO ESTA COMPRA:", objetoCompraSincronizado);
+
+        // 2. REGISTRO EN BITÁCORA LOCAL
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. LIMPIEZA DE INTERFAZ
+        // 3. LIMPIEZA DE INTERFAZ
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // 3. ACTUALIZACIÓN VISUAL INMEDIATA
-        if(typeof renderTable === 'function') {
-            renderTable(window.todosLosMateriales);
-        }
+        // 4. ACTUALIZACIÓN VISUAL
+        renderTable(window.todosLosMateriales);
 
-        // 4. INFORMAR AL SERVIDOR
-        await window.API.registerPurchase(objetoCompraSincronizado);
-        
+        // 5. ENVÍO AL SERVIDOR
+        const respuesta = await window.API.registerPurchase(objetoCompraSincronizado);
+        console.log("📡 RESPUESTA DEL SERVIDOR:", respuesta);
+
     } catch (err) {
-        console.error("Error al guardar:", err);
+        console.error("❌ ERROR CRÍTICO AL GUARDAR:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
