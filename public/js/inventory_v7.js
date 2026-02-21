@@ -37,10 +37,13 @@ window.toggleMenu = function() {
  * Blindaje: No altera el objeto original del servidor, solo el valor visual.
  */
 function calcularStockReal(material) {
-    const stockServidor = parseFloat(material.stock_actual) || 0;
+    // Aseguramos que el stock que viene del servidor sea un número
+    let stockServidor = parseFloat(material.stock_actual) || 0;
+    
+    // Si por alguna razón el servidor manda 0 pero tú sabes que es 5.8, 
+    // es porque el campo se llama diferente. Pero usemos esto por ahora:
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // Filtramos compras de este material
     const sumaExtra = comprasLocales
         .filter(c => String(c.materialId) === String(material.id))
         .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
@@ -580,31 +583,29 @@ if (esLineal) {
             // 3. REDIBUJAR TABLA
             renderTable(window.todosLosMateriales);
 
-   try {
-                // 1. REGISTRO ÚNICO EN BITÁCORA
+    try {
+                // 1. Guardamos en bitácora
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
                 bitacora.push(objetoCompraSincronizado);
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. CIERRE Y LIMPIEZA (Fundamental para evitar el x3)
+                // 2. Limpiamos formulario y cerramos modal
                 if(e.target) e.target.reset();
                 window.cerrarModales();
 
-                // 3. DIBUJAR TABLA
-                // La tabla usará calcularStockReal y mostrará 8.70 (5.8 + 2.9)
-                renderTable(window.todosLosMateriales);
-
-                // 4. ENVÍO AL SERVIDOR
+                // 3. Enviamos al servidor
                 await window.API.registerPurchase(objetoCompraSincronizado);
                 
-                alert(`✅ Inventario actualizado: 8.70 ml`);
+                // 4. Refrescamos todo el inventario (Esto traerá el 5.8 + el 2.9 de la bitácora)
+                await fetchInventory();
+                
+                alert("✅ Inventario actualizado correctamente.");
 
             } catch (err) {
-                console.log("Guardado en modo local");
+                console.error(err);
                 window.cerrarModales();
-            } finally {
-                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-            }  
+                renderTable(window.todosLosMateriales);
+            }
         });
     }
 
