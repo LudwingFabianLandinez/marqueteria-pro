@@ -531,35 +531,38 @@ if (esLineal) {
             bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-            try {
-                // 1. Enviamos la compra al servidor
+   try {
+                // 1. Registro visual inmediato (Bitácora)
+                // Esto asegura que si compras 2.9, el sistema sume 5.8 + 2.9 = 8.7 al instante
+                const compraParaBitacora = { ...objetoCompraSincronizado };
+                const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
+                bitacora.push(compraParaBitacora);
+                localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
+                
+                // Refrescamos la tabla inmediatamente para ver el cambio
+                renderTable(window.todosLosMateriales);
+
+                // 2. Enviamos al servidor
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 
                 if (res.success) {
-                    // 2. LIMPIEZA CRÍTICA: Borramos de la memoria local porque ya se guardó en la nube
-                    const bitacoraActualizada = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
+                    // 3. Si el servidor confirma, limpiamos lo temporal
+                    const nuevaBitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
                         .filter(item => item.tempId !== stampTransaccion);
-                    localStorage.setItem('bitacora_compras', JSON.stringify(bitacoraActualizada));
-
-                    // 3. RECARGA TOTAL: Le pedimos al servidor los datos nuevos ya sumados
+                    localStorage.setItem('bitacora_compras', JSON.stringify(nuevaBitacora));
+                    
+                    // Traemos los datos finales del servidor
                     await fetchInventory(); 
                     
-                    alert(`✅ ¡Inventario Actualizado! Se sumaron ${cantidadCalculada.toFixed(2)} ${tipoUnidad}.`);
-                    
-                    window.cerrarModales(); 
-                    e.target.reset(); 
-                } else {
-                    // Si el servidor falla, lo dejamos en la tabla visual para no perder el rastro
-                    alert("⚠️ Error de servidor: Se verá reflejado localmente.");
-                    actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
+                    alert(`✅ Inventario actualizado: +${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
                     window.cerrarModales();
+                    if(formCompra) formCompra.reset();
                 }
-            } catch (err) { 
-                console.error("🚨 Error de conexión:", err);
-                // Si no hay internet, el sistema sigue funcionando localmente
-                actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
-                alert("📡 Modo Offline: El stock se actualizó solo en esta pantalla."); 
-            } finally { 
+            } catch (err) {
+                console.error("Error de red, se mantiene en local:", err);
+                // No borramos la bitácora para que el usuario siga viendo su saldo sumado
+                renderTable(window.todosLosMateriales);
+            } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
         });
