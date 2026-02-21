@@ -550,16 +550,18 @@ if (esLineal) {
         }
     }
 
-    // --- BLOQUE DE GUARDADO FINAL (SIN TRIPLICADOS) ---
+    // --- OBJETO DE COMPRA REFORZADO PARA EL HISTORIAL ---
     const objetoCompraSincronizado = {
         materialId: materialId,
+        nombreMaterial: nombreMaterialActual, // IMPORTANTE: Asegúrate de que esta variable tenga el nombre
         proveedorId: providerId,
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada, 
-        tempId: stampTransaccion,
-        fecha: new Date().toISOString()
+        totalM2: cantidadCalculada, // Aquí va el 2.9 o el valor que sea
+        unidad: esLineal ? 'ml' : 'm2', // Le avisamos al historial qué es
+        fecha: new Date().toISOString(),
+        tempId: stampTransaccion
     };
 
     try {
