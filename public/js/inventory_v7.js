@@ -550,27 +550,34 @@ if (esLineal) {
         }
     }
 
-  // --- OBJETO REFORZADO PARA HISTORIAL ---
+ // --- OBJETO REFORZADO PARA HISTORIAL (TODAS LAS VARIANTES) ---
     const objetoCompraSincronizado = {
         materialId: materialId,
-        // En lugar de "Ingreso de Material", mandamos el nombre real
-        materialNombre: nombreMaterialActual, 
+        
+        // Nombres (para evitar "Ingreso de Material")
+        materialNombre: nombreMaterialActual,
         nombreMaterial: nombreMaterialActual,
+        nombre: nombreMaterialActual, 
         
         proveedorId: providerId,
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada, // El 2.9 o el m2
         
-        // --- CORRECCIÓN DE COSTO EN $0 ---
-        // Enviamos el costo en todos los formatos posibles para que el historial lo atrape
+        // Cantidades (para que aparezca el 2.9)
+        totalM2: cantidadCalculada, 
+        cantidadCalculada: cantidadCalculada,
+        
+        // --- COSTOS (para evitar el $ 0) ---
         costoTotal: valorUnitarioLamina * cant,
-        precio_total: valorUnitarioLamina * cant, 
-        valorCompra: valorUnitarioLamina * cant,
+        precio_total: valorUnitarioLamina * cant,
+        precioTotal: valorUnitarioLamina * cant,
+        totalCosto: valorUnitarioLamina * cant,
+        costo_unitario: valorUnitarioLamina,
 
         unidad: esLineal ? 'ml' : 'm2',
         fecha: new Date().toISOString(),
+        timestamp: stampTransaccion,
         tempId: stampTransaccion
     };
 
