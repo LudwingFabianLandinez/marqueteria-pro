@@ -483,18 +483,20 @@ function configurarEventos() {
         e.preventDefault();
         // --- ESTE ES EL BLOQUE QUE DEBES PEGAR ---
     // --- ESTE ES EL OBJETO CORREGIDO --- [cite: 1187, 1199]
+    // --- ESTE ES EL BLOQUE QUE DEBE IR DENTRO DEL SUBMIT ---
+    // 1. Definimos el objeto con nombres que el sistema NO rechace
     const objetoCompraSincronizado = {
         materialId: String(materialId), 
-        nombreMaterial: nombreMaterialActual,
-        materialNombre: nombreMaterialActual,
-        proveedorId: providerId,
-        cantidad: cant,
-        largo: largo,
-        ancho: ancho,
-        totalM2: cantidadCalculada,     
-        cantidad_m2: cantidadCalculada, 
-        costo_total: valorUnitarioLamina * cant, 
-        precio_total: valorUnitarioLamina * cant,
+        nombreMaterial: nombreMaterialActual || "Material",
+        materialNombre: nombreMaterialActual || "Material",
+        proveedorId: providerId || "",
+        cantidad: parseFloat(cant) || 0,
+        largo: parseFloat(largo) || 0,
+        ancho: parseFloat(ancho) || 0,
+        totalM2: parseFloat(cantidadCalculada) || 0,     
+        cantidad_m2: parseFloat(cantidadCalculada) || 0, 
+        costo_total: (parseFloat(valorUnitarioLamina) || 0) * (parseFloat(cant) || 0), 
+        precio_total: (parseFloat(valorUnitarioLamina) || 0) * (parseFloat(cant) || 0),
         unidad: esLineal ? 'ml' : 'm2',
         categoria: esLineal ? 'Molduras' : 'General',
         fecha: new Date().toISOString(),
@@ -502,21 +504,35 @@ function configurarEventos() {
     };
 
     try {
+        console.log("📦 Intentando guardar objeto:", objetoCompraSincronizado);
+
+        // 2. Guardar en Bitácora Local
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
+        // 3. Actualizar la tabla visualmente antes de enviar al servidor
         if(typeof renderTable === 'function') {
             renderTable(window.todosLosMateriales);
         }
 
-        await window.API.registerPurchase(objetoCompraSincronizado);
+        // 4. Enviar al servidor
+        const response = await window.API.registerPurchase(objetoCompraSincronizado);
+        console.log("✅ Servidor respondió:", response);
 
+        // 5. CERRAR Y LIMPIAR (Para que no se quede en la misma página)
         if(e.target) e.target.reset();
-        if(window.cerrarModales) window.cerrarModales();
+        
+        // Cerramos el modal (Asegúrate de que esta función exista o usa el estilo directo)
+        const modal = document.getElementById('modalNuevaCompra');
+        if(modal) modal.style.display = 'none';
+
+        // Opcional: recargar historial
+        if (typeof fetchPurchases === 'function') fetchPurchases();
 
     } catch (err) {
-        console.error("❌ Error al guardar:", err);
+        console.error("❌ Error crítico al guardar:", err);
+        alert("Hubo un problema al guardar la compra. Revisa la consola.");
     } finally {
         if(btn) {
             btn.disabled = false;
