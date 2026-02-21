@@ -1,16 +1,17 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.71 (FIX CAPTURA ID + TÚNEL MAESTRO)
- * * CAMBIOS v13.3.71:
- * 1. PRIORIDAD DE TÚNEL: Sincronizado con netlify.toml para usar /api como vía principal.
- * 2. EXTRACCIÓN PROFUNDA: Blindaje para capturar ID incluso si el túnel lo envuelve.
- * 3. ANTI-OFFLINE: Evita que el sistema use LocalStorage si el servidor está respondiendo.
- * 4. Preservación 100% de reglas de molduras (ML) y formatos de OT anteriores.
+ * Módulo de conexión API - Versión 13.3.72 (PUENTE DIRECTO + FIX 404)
+ * * CAMBIOS v13.3.72:
+ * 1. PUENTE DIRECTO: Prioriza la ruta de funciones para evitar el 404 del proxy inestable.
+ * 2. EXTRACCIÓN AGRESIVA: Blindaje para capturar ID incluso en respuestas envueltas.
+ * 3. ANTI-OFFLINE: No salta a LocalStorage si hay una respuesta de servidor válida.
+ * 4. Preservación 100% de molduras (ML), OTs históricas y estructura visual.
  */
 
+// Priorizamos rutas directas para romper el ciclo del error 404
 const API_ROUTES = [
-    '/api',                         // 1. Túnel Maestro (Prioridad por estabilidad)
-    '/.netlify/functions/server',   // 2. Ruta Directa Netlify
+    '/.netlify/functions/server',   // 1. Ruta Directa Netlify (Puente)
+    '/api',                         // 2. Túnel Maestro
     '/functions/server'             // 3. Ruta Legacy
 ];
 
@@ -32,11 +33,10 @@ window.API = {
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
             
-            // --- AJUSTE v13.3.71: EXTRACCIÓN AGRESIVA DE ID ---
-            // El túnel a veces envuelve la respuesta. Buscamos el objeto real.
+            // --- AJUSTE v13.3.72: EXTRACCIÓN DE ID REFORZADA ---
             let cleanObj = (rawData.success && rawData.data) ? rawData.data : rawData;
 
-            // Si es un objeto único (como cuando creamos un material nuevo)
+            // Si es un objeto único (Captura de ID para nuevos materiales)
             if (cleanObj && typeof cleanObj === 'object' && !Array.isArray(cleanObj)) {
                 // Gancho de reparación de OT (v13.3.59 - PRESERVADO)
                 if (cleanObj.ot && String(cleanObj.ot).length > 10) {
@@ -63,26 +63,26 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA (v13.3.71 - ANTI-OFFLINE)
+    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA (v13.3.72 - PERSISTENTE)
     async _request(path, options = {}) {
         let lastError = null;
 
         for (const base of API_ROUTES) {
             try {
                 const url = `${base}${path}`.replace(/\/+/g, '/');
-                console.log(`📡 Intentando Túnel: ${url}`);
+                console.log(`📡 Conectando vía: ${url}`);
                 
                 const response = await fetch(url, {
                     ...options,
-                    signal: AbortSignal.timeout(10000) 
+                    signal: AbortSignal.timeout(12000) // Un poco más de tiempo para procesar
                 });
                 
-                // Si el servidor responde (aunque sea 404), ya no es un error de conexión
+                // Si el servidor responde algo distinto a 404, procesamos
                 if (response.status !== 404) {
                     return await window.API._safeParse(response);
                 }
                 
-                console.warn(`📍 Ruta no encontrada en: ${base}, probando siguiente...`);
+                console.warn(`📍 404 en ${base}, reintentando ruta alterna...`);
             } catch (err) {
                 lastError = err.message;
                 console.warn(`⚠️ Fallo en ${base}:`, err.message);
@@ -100,10 +100,10 @@ window.API = {
             }
         }
         
-        throw new Error("El sistema no pudo conectar con el servidor ni encontrar datos locales.");
+        throw new Error("No se pudo conectar con el servidor. Por favor, verifica tu conexión.");
     },
 
-    // 3. MÉTODOS DE NEGOCIO (PRESERVADOS 100%)
+    // 3. MÉTODOS DE NEGOCIO (100% PRESERVADOS)
     getProviders: function() { return window.API._request('/providers'); },
     getInventory: function() { return window.API._request('/inventory'); },
     getInvoices: function() { return window.API._request('/invoices'); },
@@ -173,4 +173,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.71 - Túnel Maestro y Blindaje de IDs Activo.");
+console.log("🚀 API v13.3.72 - Puente Directo y Blindaje de IDs Activo.");
