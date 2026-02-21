@@ -1,10 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.3.67 - CONSOLIDACIÓN FINAL Y BLINDAJE DE IDs
- * * CAMBIOS v13.3.67:
- * 1. RE-ESTRUCTURACIÓN DE COMPRA: Asegura que el ID del nuevo material se capture antes de registrar la compra.
- * 2. MANTENIMIENTO: Se preserva al 100% la lógica de visualización de stock (unidades + m2/ml).
- * 3. ESTABILIDAD: Corrección del error 500 al detectar correctamente el tipo de unidad (m2/ml) desde la creación.
+ * Versión: 13.4.40 - CONSOLIDACIÓN DE STOCK POR NOMBRE
+ * * CAMBIOS v13.4.40:
+ * 1. VINCULACIÓN REFORZADA: Se añade 'nombreMaterial' al payload de compra para garantizar la suma local si falla el ID.
+ * 2. RE-ESTRUCTURACIÓN DE COMPRA: Asegura que el ID del nuevo material se capture antes de registrar la compra.
+ * 3. MANTENIMIENTO: Se preserva al 100% la lógica de visualización de stock (unidades + m2/ml).
+ * 4. ESTABILIDAD: Corrección del error 500 al detectar correctamente el tipo de unidad (m2/ml) desde la creación.
  */
 
 // 1. VARIABLES GLOBALES
@@ -14,7 +15,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.3.67 - Motor de Precisión Activo");
+    console.log("🚀 Sistema v13.4.40 - Motor de Precisión Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -435,8 +436,8 @@ function configurarEventos() {
 
             // DETECCIÓN DE MOLDURA/METRO LINEAL
             const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
-            const nombreParaValidar = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || "")).toLowerCase();
-            const esLineal = nombreParaValidar.includes("moldura") || ancho <= 1;
+            const nombreMaterialActual = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || ""));
+            const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || ancho <= 1;
             
             let cantidadCalculada = esLineal ? (largo / 100) * cant : (largo / 100) * (ancho / 100) * cant;
             let tipoUnidad = esLineal ? 'ml' : 'm2';
@@ -471,9 +472,11 @@ function configurarEventos() {
                 }
             }
 
-            // REGISTRO DE LA COMPRA CON ID GARANTIZADO
+            // --- VINCULACIÓN MAESTRA v13.4.40 ---
+            // Enviamos el nombre explícito para que el motor de rescate sepa a quién sumar stock.
             const objetoCompraSincronizado = {
                 materialId: materialId,
+                nombreMaterial: nombreMaterialActual, // GANCHO CRÍTICO DE SUMA
                 proveedorId: providerId,
                 cantidad: cant,
                 largo: largo,

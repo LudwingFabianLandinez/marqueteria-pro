@@ -1,10 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.4.30 (REPARACIÓN TOTAL DE STOCK)
- * * CAMBIOS v13.4.30:
+ * Módulo de conexión API - Versión 13.4.35 (REPARACIÓN TOTAL DE STOCK)
+ * * CAMBIOS v13.4.35:
  * 1. NORMALIZACIÓN ESTRICTA: Limpia espacios extra y caracteres invisibles para forzar la suma de stock.
  * 2. VINCULACIÓN TOTAL: Cruza bitácora local con inventario usando comparación de nombres "limpios".
- * 3. Preservación absoluta de blindajes de OTs, diseño visual y lógica de rescate v13.4.25.
+ * 3. SUMA FORZADA: Si el servidor falla, el stock se calcula sumando la bitácora local al inventario base.
+ * 4. Preservación absoluta de blindajes de OTs, diseño visual y lógica de rescate v13.4.25.
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -53,12 +54,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.4.30 - CON NORMALIZACIÓN)
+    // 2. PETICIÓN MAESTRA (v13.4.35 - CON NORMALIZACIÓN)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.4.30: ${url}`);
+            console.log(`🚀 Conectando v13.4.35: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -92,7 +93,7 @@ window.API = {
     // 3. MÉTODOS DE NEGOCIO (ESTRUCTURA ORIGINAL 100% PRESERVADA)
     getProviders: function() { return window.API._request('/providers'); },
 
-    // --- MEJORA v13.4.30: REPARACIÓN MECÁNICA DE STOCK POR NOMBRE LIMPIO ---
+    // --- MEJORA v13.4.35: REPARACIÓN MECÁNICA DE STOCK POR NOMBRE LIMPIO ---
     getInventory: async function() { 
         const res = await window.API._request('/inventory');
         const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
@@ -113,37 +114,44 @@ window.API = {
                 uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [String(m.id || m._id)] });
             });
 
-            // 2. Fusionar datos locales por nombre normalizado
+            // 2. Fusionar datos locales por nombre normalizado (Si el servidor falla, este es el motor principal)
             localMaterials.forEach(m => {
                 const materialId = String(m.id || m._id);
-                if (!serverIds.has(materialId)) {
-                    const key = normalize(m.nombre);
-                    if (!uniqueMap.has(key)) {
-                        uniqueMap.set(key, { ...m, stock: 0, _allIds: [materialId] });
-                    } else {
+                const key = normalize(m.nombre);
+                
+                if (!uniqueMap.has(key)) {
+                    // Si no está en el mapa (server falló o es nuevo), lo agregamos
+                    uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [materialId] });
+                } else {
+                    // Si ya existe por nombre, vinculamos el ID
+                    if (!uniqueMap.get(key)._allIds.includes(materialId)) {
                         uniqueMap.get(key)._allIds.push(materialId);
                     }
                 }
             });
 
-            // 3. Calcular stock final (Normalización estricta de v13.4.30)
+            // 3. Calcular stock final (Suma forzada de compras locales)
             const finalData = Array.from(uniqueMap.values()).map(m => {
                 const nombreNormalM = normalize(m.nombre);
                 
+                // Buscamos compras que coincidan con el ID O con el nombre normalizado
                 const sumaCompras = localPurchases
                     .filter(p => {
                         const matchId = m._allIds.includes(String(p.materialId));
-                        const matchNombre = normalize(p._materialNombre) === nombreNormalM;
+                        const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
                         return matchId || matchNombre;
                     })
                     .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
                 
                 return { 
                     ...m, 
-                    stock: m.stock + sumaCompras,
+                    stock: Number(m.stock || 0) + sumaCompras,
                     _id: m._allIds[0] 
                 };
             });
+
+            // Ordenar alfabéticamente para mantener la estructura visual limpia
+            finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
 
             return { ...res, data: finalData };
         }
@@ -165,14 +173,18 @@ window.API = {
             const localId = id || `LOC-${Date.now()}`;
             const newMaterial = { ...data, id: localId, _id: localId, stock: 0 };
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            localInv.push(newMaterial);
+            
+            // Evitar duplicados por ID en el guardado local
+            const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
+            if (index > -1) localInv[index] = newMaterial;
+            else localInv.push(newMaterial);
+            
             localStorage.setItem('inventory', JSON.stringify(localInv));
             return { success: true, data: newMaterial, id: localId, local: true };
         }
     },
 
     registerPurchase: async function(purchaseData) {
-        // Obtenemos el nombre actual para asegurar la vinculación por texto normalizado
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
         const mat = inv.find(m => String(m.id || m._id) === String(purchaseData.materialId));
         
@@ -180,13 +192,15 @@ window.API = {
             ...purchaseData,
             materialId: String(purchaseData.materialId),
             cantidad: Number(purchaseData.cantidad || 1),
-            _materialNombre: mat ? mat.nombre : (purchaseData.nombreMaterial || null)
+            _materialNombre: mat ? mat.nombre : (purchaseData.nombreMaterial || "Desconocido"),
+            fechaLocal: new Date().toISOString()
         };
         
+        // Intentar envío al servidor
         const res = await window.API._request('/inventory/purchase', { method: 'POST', body: JSON.stringify(payload) });
 
         if (res.isOffline || !res.success) {
-            console.warn("💾 Registrando compra en bitácora local...");
+            console.warn("💾 Registrando compra en bitácora local por fallo de servidor...");
             let localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
             localPurchases.push(payload);
             localStorage.setItem('local_purchases', JSON.stringify(localPurchases));
@@ -207,4 +221,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.4.30 - Normalización y Stock Garantizado.");
+console.log("🛡️ API v13.4.35 - Normalización y Stock Garantizado (Rescate de Emergencia).");
