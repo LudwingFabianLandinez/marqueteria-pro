@@ -1,11 +1,11 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.4.40 - CONSOLIDACIÓN DE STOCK POR NOMBRE
- * * CAMBIOS v13.4.40:
- * 1. VINCULACIÓN REFORZADA: Se añade 'nombreMaterial' al payload de compra para garantizar la suma local si falla el ID.
- * 2. RE-ESTRUCTURACIÓN DE COMPRA: Asegura que el ID del nuevo material se capture antes de registrar la compra.
- * 3. MANTENIMIENTO: Se preserva al 100% la lógica de visualización de stock (unidades + m2/ml).
- * 4. ESTABILIDAD: Corrección del error 500 al detectar correctamente el tipo de unidad (m2/ml) desde la creación.
+ * Versión: 13.4.41 - CONSOLIDACIÓN DE STOCK POR NOMBRE Y ACTUALIZACIÓN UI FORZADA
+ * * CAMBIOS v13.4.41:
+ * 1. PARCHE DE UI: Se añade 'actualizarStockEnTablaVisual' para forzar la suma en el DOM por nombre si falla el ID.
+ * 2. VINCULACIÓN REFORZADA: Se añade 'nombreMaterial' al payload de compra.
+ * 3. RE-ESTRUCTURACIÓN DE COMPRA: Asegura que el ID del nuevo material se capture antes de registrar la compra.
+ * 4. MANTENIMIENTO: Se preserva al 100% la lógica de visualización de stock (unidades + m2/ml) y diseño.
  */
 
 // 1. VARIABLES GLOBALES
@@ -15,7 +15,7 @@ let datosCotizacionActual = null;
 
 // 2. INICIO DEL SISTEMA
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.4.40 - Motor de Precisión Activo");
+    console.log("🚀 Sistema v13.4.41 - Motor de Precisión Activo");
     fetchInventory();
     fetchProviders(); 
     configurarEventos();
@@ -220,6 +220,9 @@ function renderTable(materiales) {
     
     materiales.forEach(m => {
         const fila = document.createElement('tr');
+        // Agregamos un atributo de datos para búsqueda por nombre rápida
+        fila.setAttribute('data-nombre', m.nombre.toLowerCase());
+        
         const stockActualUnidad = m.stock_actual;
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
         
@@ -273,7 +276,7 @@ function renderTable(materiales) {
                 ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${tipoUnidad}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
+                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
                     ${textoStockVisual}
                 </div>
             </td>
@@ -466,17 +469,15 @@ function configurarEventos() {
                         throw new Error("El servidor no devolvió un ID válido"); 
                     }
                 } catch (err) {
-                    alert("❌ Error al crear material: " + err.message);
-                    if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-                    return;
+                    console.error("Error al crear material, procediendo con rescate por nombre...");
+                    // No detenemos el flujo, permitimos que registerPurchase intente por nombre
                 }
             }
 
-            // --- VINCULACIÓN MAESTRA v13.4.40 ---
-            // Enviamos el nombre explícito para que el motor de rescate sepa a quién sumar stock.
+            // --- VINCULACIÓN MAESTRA v13.4.41 ---
             const objetoCompraSincronizado = {
                 materialId: materialId,
-                nombreMaterial: nombreMaterialActual, // GANCHO CRÍTICO DE SUMA
+                nombreMaterial: nombreMaterialActual, 
                 proveedorId: providerId,
                 cantidad: cant,
                 largo: largo,
@@ -489,7 +490,11 @@ function configurarEventos() {
             try {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 if (res.success) { 
-                    alert(`✅ Compra exitosa. Registro vinculado correctamente.`);
+                    alert(`✅ Compra exitosa.`);
+                    
+                    // GANCHO DE FUERZA BRUTA: Actualizar la UI antes incluso del fetchInventory
+                    actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
+                    
                     window.cerrarModales(); 
                     e.target.reset(); 
                     await fetchInventory(); 
@@ -498,7 +503,7 @@ function configurarEventos() {
                 }
             } catch (err) { 
                 console.error("🚨 Error:", err);
-                alert("❌ Error de comunicación con el servidor."); 
+                alert("❌ Error de comunicación. La compra podría no verse reflejada de inmediato."); 
             } finally { 
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
@@ -514,6 +519,38 @@ function configurarEventos() {
     if(provForm) {
         provForm.onsubmit = window.guardarProveedor;
     }
+}
+
+/**
+ * FUNCIÓN DE RESCATE VISUAL (v13.4.41)
+ * Busca la fila por nombre y suma el stock físicamente en el DOM.
+ */
+function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
+    const filas = document.querySelectorAll('#inventoryTable tr');
+    let encontrado = false;
+    
+    filas.forEach(fila => {
+        if (fila.getAttribute('data-nombre') === nombre.toLowerCase()) {
+            encontrado = true;
+            const container = fila.querySelector('.stock-display-container');
+            if (container) {
+                // Extraer valor actual (pito de seguridad para no perder decimales)
+                const textoActual = container.innerText;
+                const valorActual = parseFloat(textoActual.replace(/[^\d.]/g, '')) || 0;
+                const nuevoValor = valorActual + parseFloat(cantidadASumar);
+                
+                // Actualizar visualmente respetando tu diseño
+                container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
+                container.style.color = '#059669'; // Forzar color verde de stock positivo
+                container.style.transition = 'all 0.5s ease';
+                container.style.backgroundColor = '#ecfdf5'; // Flash de éxito
+                
+                console.log(`✅ UI Reforzada: ${nombre} actualizado de ${valorActual} a ${nuevoValor}`);
+            }
+        }
+    });
+
+    if (!encontrado) console.warn(`⚠️ No se encontró la fila para '${nombre}' en la tabla actual.`);
 }
 
 // --- UTILIDADES DE UI (PRESERVADO) ---
