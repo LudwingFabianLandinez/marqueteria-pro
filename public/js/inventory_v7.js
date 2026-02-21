@@ -604,7 +604,7 @@ if (esLineal) {
                 window.cerrarModales();
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-            }
+            }   
         });
     }
 
