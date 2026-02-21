@@ -1,10 +1,10 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.4.10 (VISUALIZACIÓN HÍBRIDA)
- * * CAMBIOS v13.4.10:
- * 1. LECTURA HÍBRIDA: getInventory ahora suma datos del servidor + locales de rescate.
- * 2. ACTUALIZACIÓN LOCAL: registerPurchase actualiza el stock en memoria si el servidor falla.
- * 3. Preservación absoluta de molduras (ML), OTs históricas y diseño visual.
+ * Módulo de conexión API - Versión 13.4.15 (REPARACIÓN DE STOCK LOCAL)
+ * * CAMBIOS v13.4.15:
+ * 1. SUMATORIA DE STOCK: getInventory ahora suma compras locales al stock base.
+ * 2. VINCULACIÓN TOTAL: Asegura que molduras locales muestren sus ML correctos.
+ * 3. Preservación absoluta de blindajes, OTs y diseño visual.
  */
 
 const API_BASE = '/.netlify/functions/server';
@@ -20,7 +20,6 @@ window.API = {
         }
 
         if (!response.ok) {
-            // Cambio sutil para el rescate local: no lanzamos error inmediato si es 404
             return { success: false, status: response.status, path: originalPath };
         }
 
@@ -32,11 +31,9 @@ window.API = {
 
             // Blindaje para Objetos Únicos (Captura de ID fundamental para compras)
             if (cleanObj && typeof cleanObj === 'object' && !Array.isArray(cleanObj)) {
-                // Gancho de reparación de OT (v13.3.59 - PRESERVADO)
                 if (cleanObj.ot && String(cleanObj.ot).length > 10) {
                     console.warn("⚠️ Normalizando OT detectada...");
                 }
-                // Retornar ID explícito para el flujo de la foto/compra
                 return { success: true, data: cleanObj, id: cleanObj.id || cleanObj._id };
             }
 
@@ -56,12 +53,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.4.10 - CON SALVAGUARDA)
+    // 2. PETICIÓN MAESTRA (v13.4.15 - CON SALVAGUARDA)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.4.10: ${url}`);
+            console.log(`🚀 Conectando v13.4.15: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -74,10 +71,7 @@ window.API = {
             });
 
             const result = await window.API._safeParse(response, path);
-            
-            // Si el servidor devolvió error pero el parseo fue exitoso (modo rescate)
             if (result.success === false) throw new Error(`Status ${result.status}`);
-            
             return result;
 
         } catch (err) {
@@ -98,17 +92,26 @@ window.API = {
     // 3. MÉTODOS DE NEGOCIO (ESTRUCTURA ORIGINAL 100% PRESERVADA)
     getProviders: function() { return window.API._request('/providers'); },
 
-    // --- MEJORA v13.4.10: LECTURA HÍBRIDA PARA MOSTRAR MOLDURAS LOCALES ---
+    // --- MEJORA v13.4.15: LECTURA HÍBRIDA CON SUMATORIA DE STOCK LOCAL ---
     getInventory: async function() { 
         const res = await window.API._request('/inventory');
-        const localData = JSON.parse(localStorage.getItem('inventory') || '[]');
+        const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
+        const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
         
-        if (localData.length > 0) {
-            console.log("🧩 Unificando inventario (Servidor + Local)...");
-            // Evitamos duplicados comparando IDs
+        if (localMaterials.length > 0) {
+            console.log("🧩 Calculando stock híbrido para molduras locales...");
             const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
-            const uniqueLocal = localData.filter(i => !serverIds.has(String(i.id || i._id)));
-            return { ...res, data: [...res.data, ...uniqueLocal] };
+            
+            const hybridData = localMaterials.filter(m => !serverIds.has(String(m.id || m._id))).map(m => {
+                // Sumar compras locales realizadas a este material específico para corregir el 0.00 ml
+                const totalComprado = localPurchases
+                    .filter(p => String(p.materialId) === String(m.id || m._id))
+                    .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
+                
+                return { ...m, stock: Number(m.stock || 0) + totalComprado };
+            });
+
+            return { ...res, data: [...res.data, ...hybridData] };
         }
         return res;
     },
@@ -116,10 +119,7 @@ window.API = {
     getInvoices: function() { return window.API._request('/invoices'); },
 
     saveProvider: function(data) {
-        return window.API._request('/providers', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
+        return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) });
     },
 
     saveMaterial: async function(data) {
@@ -136,9 +136,9 @@ window.API = {
             return res;
 
         } catch (e) {
-            console.warn("💾 Rescate Local: Guardando moldura en memoria...");
+            console.warn("💾 Rescate Local: Guardando moldura...");
             const localId = id || `LOC-${Date.now()}`;
-            const newMaterial = { ...data, id: localId, _id: localId };
+            const newMaterial = { ...data, id: localId, _id: localId, stock: Number(data.stock || 0) };
             
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
             localInv = localInv.filter(m => (m.id || m._id) !== localId);
@@ -166,17 +166,12 @@ window.API = {
             body: JSON.stringify(payload)
         });
 
-        // --- MEJORA v13.4.10: ACTUALIZACIÓN DE STOCK LOCAL SI EL SERVER FALLA ---
+        // --- MEJORA v13.4.15: BITÁCORA DE COMPRAS LOCALES PARA REPARAR STOCK ---
         if (res.isOffline || !res.success) {
-            console.warn("💾 Actualizando stock localmente.");
-            let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            localInv = localInv.map(m => {
-                if (String(m.id || m._id) === payload.materialId) {
-                    return { ...m, stock: Number(m.stock || 0) + payload.cantidad };
-                }
-                return m;
-            });
-            localStorage.setItem('inventory', JSON.stringify(localInv));
+            console.warn("💾 Registrando compra en bitácora local...");
+            let localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
+            localPurchases.push(payload);
+            localStorage.setItem('local_purchases', JSON.stringify(localPurchases));
             return { success: true, data: payload, local: true };
         }
         return res;
@@ -194,4 +189,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.4.10 - Visualización Híbrida y Rescate Activo.");
+console.log("🛡️ API v13.4.15 - Stock Híbrido Reparado.");
