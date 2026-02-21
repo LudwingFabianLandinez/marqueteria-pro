@@ -498,7 +498,6 @@ if (formCompra) {
         }
 
         try {
-            // 1. Recolección Directa (Sin buscar en listas externas)
             const materialId = document.getElementById('compraMaterial').value;
             const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
@@ -506,51 +505,50 @@ if (formCompra) {
             const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            // 2. Determinar Nombre y Tipo (Para los 2.9 ML)
             let nombreFinal = nombreNuevo;
-            let esMoldura = nombreFinal.toLowerCase().includes('moldura');
+            // DETECCIÓN INTELIGENTE DE MOLDURA: Por nombre o por ancho de 1cm
+            let esMoldura = nombreFinal.toLowerCase().includes('moldura') || ancho === 1;
 
-            // Si no es nuevo, buscamos el nombre rápido
             if (materialId !== "nuevo" && window.todosLosMateriales) {
                 const encontrado = window.todosLosMateriales.find(m => String(m.id || m._id) === String(materialId));
                 if (encontrado) {
                     nombreFinal = encontrado.nombre;
-                    esMoldura = encontrado.categoria === 'Molduras' || encontrado.unidad_medida === 'ml';
+                    esMoldura = encontrado.categoria === 'Molduras' || encontrado.unidad_medida === 'ml' || nombreFinal.toLowerCase().includes('moldura');
                 }
             }
 
-            // 3. Cálculo de Cantidad (La regla de oro)
-            const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo/100) * (ancho/100));
+            // CÁLCULO CORREGIDO: Si es moldura, ignoramos el ancho y usamos 2.9
+            const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
             const datosCompra = {
                 materialId: materialId,
                 nombreMaterial: nombreFinal,
                 proveedorId: document.getElementById('compraProveedor').value,
                 cantidad: cant,
-                totalM2: totalCalculado,
-                cantidad_m2: totalCalculado,
+                totalM2: totalCalculado, // Valor para el inventario
+                cantidad_m2: totalCalculado, 
                 costo_total: costo * cant,
                 unidad: esMoldura ? 'ml' : 'm2',
                 fecha: new Date().toISOString()
             };
 
-            // 4. Guardado de Emergencia en Bitácora
+            // 1. Guardar en bitácora (Fundamental para que aparezca en el inventario)
             const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             local.push(datosCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(local));
 
-            // 5. Envío al Servidor
+            // 2. Envío al Servidor
             await window.API.registerPurchase(datosCompra);
 
-            alert("✅ GUARDADO: " + totalCalculado.toFixed(2) + (esMoldura ? " ml" : " m2"));
+            alert(`✅ GUARDADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
             
-            // Limpieza y recarga para ver el material nuevo
             if (window.cerrarModales) window.cerrarModales();
+            // Recargamos para que el motor de inventario procese la bitácora nueva
             window.location.reload(); 
 
         } catch (err) {
-            console.error("Fallo crítico:", err);
-            alert("Error al guardar, pero se intentó registrar.");
+            console.error("Fallo:", err);
+            alert("Error al guardar");
         } finally {
             if (btn) {
                 btn.disabled = false;
