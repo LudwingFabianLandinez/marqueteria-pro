@@ -477,126 +477,54 @@ function configurarEventos() {
     const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
     if (formCompra) {
         formCompra.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    const stampTransaccion = Date.now(); 
-    
-    let materialId = document.getElementById('compraMaterial')?.value;
-    const providerId = document.getElementById('compraProveedor')?.value; 
-    const nuevoNombre = document.getElementById('nombreNuevoMaterial')?.value?.trim();
-    const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
-    const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
-    const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0; 
-    const valorUnitarioLamina = parseFloat(document.getElementById('compraCosto')?.value) || 0;
-    
-    if(!materialId || !providerId || cant <= 0) {
-        alert("⚠️ Verifica material, proveedor y cantidad mayor a cero");
-        return;
-    }
-
-    if(btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-    }
-
-    const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
-    const nombreMaterialActual = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || ""));
-    
-    // --- LÓGICA DE DISTINCIÓN MEJORADA ---
-    // Se considera lineal (ml) si:
-    // 1. El nombre contiene "moldura"
-    // 2. El ancho es menor o igual a 15cm (ajustable según tus molduras)
-    // 3. O si el material ya venía definido como 'ml'
-    // --- NUEVA LÓGICA DE CÁLCULO M2 vs ML ---
-// Es lineal si el nombre dice moldura O si el ancho es de una moldura física (ej. 15cm o menos)
-const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || (ancho > 0 && ancho <= 15);
-
-let cantidadCalculada = 0;
-let tipoUnidad = '';
-
-if (esLineal) {
-    // Si es moldura: solo largo por cantidad (Metros Lineales)
-    cantidadCalculada = (largo / 100) * cant;
-    tipoUnidad = 'ml';
-} else {
-    // Si es otro material: área completa (Metros Cuadrados)
-    cantidadCalculada = (largo / 100) * (ancho / 100) * cant;
-    tipoUnidad = 'm2';
-}
-// ---------------------------------------
-
-    if (materialId === "NUEVO") {
-        if (!nuevoNombre) {
-            alert("⚠️ Escribe el nombre del nuevo material");
-            if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-            return;
-        }
-        try {
-            const resMat = await window.API.saveMaterial({
-                nombre: nuevoNombre,
-                categoria: esLineal ? "Molduras" : "General",
-                proveedorId: providerId,
-                ancho_lamina_cm: ancho,
-                largo_lamina_cm: largo,
-                precio_total_lamina: valorUnitarioLamina,
-                tipo: tipoUnidad
-            });
-            
-            if (resMat.success && (resMat.data?._id || resMat.data?.id)) {
-                materialId = resMat.data._id || resMat.data.id; 
-            }
-        } catch (err) {
-            console.error("Error al crear material...");
-        }
-    }
-
-// Busca el final del evento 'submit' de formNuevaCompra (Línea 1230 aprox)
-// REEMPLAZA el bloque try { ... } catch { ... } finally { ... } con este:
+        e.preventDefault();
+        // --- ESTE ES EL BLOQUE QUE DEBES PEGAR ---
+    const objetoCompraSincronizado = {
+        materialId: String(materialId), // FIX: Forzamos texto para que el inventario lo reconozca
+        nombreMaterial: nombreMaterialActual,
+        materialNombre: nombreMaterialActual,
+        proveedorId: providerId,
+        cantidad: cant,
+        largo: largo,
+        ancho: ancho,
+        totalM2: cantidadCalculada,     // FIX: Esto hace que aparezca el 2.9 en inventario
+        cantidad_m2: cantidadCalculada, // FIX: Esto es para el historial
+        costo_total: valorUnitarioLamina * cant, // FIX: Quita el $0 del historial
+        precio_total: valorUnitarioLamina * cant,
+        unidad: esLineal ? 'ml' : 'm2',
+        categoria: esLineal ? 'Molduras' : 'General',
+        fecha: new Date().toISOString(),
+        tempId: stampTransaccion
+    };
 
     try {
-        // 1. REGISTRO EN BITÁCORA (Garantiza que aparezcan los 2.9 ml en Inventario)
+        // 1. GUARDAR EN BITÁCORA LOCAL (Suma inmediata al stock)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-        
-        // Creamos el objeto con TODO lo que necesitan el inventario y el historial
-        const compraFinal = {
-            ...objetoCompraSincronizado,
-            totalM2: cantidadCalculada,       // Usado por calcularStockReal [cite: 792, 960]
-            cantidad_m2: cantidadCalculada,   // Usado por el Historial
-            costo_total: valorUnitarioLamina * cant, // Fix para que el historial no salga en $0
-            precio_total: valorUnitarioLamina * cant,
-            motivo: nombreMaterialActual,     // Identificador para el historial
-            categoria: esLineal ? "Molduras" : "General" // Vital para el filtro de la tabla [cite: 1216]
-        };
-
-        bitacora.push(compraFinal);
+        bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. ACTUALIZACIÓN VISUAL INMEDIATA
-        // Esto usa el window.todosLosMateriales que ya tienes en memoria [cite: 944, 949]
+        // 2. REDIBUJAR LA TABLA (Para que la moldura aparezca ya mismo)
         if(typeof renderTable === 'function') {
             renderTable(window.todosLosMateriales);
         }
 
-        // 3. ENVÍO AL SERVIDOR (Sincronización)
-        const respuesta = await window.API.registerPurchase(compraFinal);
-        console.log("✅ Sincronización Servidor:", respuesta);
+        // 3. ENVIAR AL SERVIDOR (Para el historial de compras)
+        await window.API.registerPurchase(objetoCompraSincronizado);
 
-        // 4. LIMPIEZA Y CIERRE
+        // 4. LIMPIEZA
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // 5. RECARGAR HISTORIAL (Si la función existe en la página)
-        if (typeof fetchPurchases === 'function') fetchPurchases();
-
     } catch (err) {
-        console.error("❌ Error en la operación:", err);
-        alert("Error al procesar la compra");
+        console.error("❌ Error al guardar:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
             btn.innerHTML = 'GUARDAR COMPRA';
         }
     }
+    // --- HASTA AQUÍ TERMINA EL REEMPLAZO ---
+    
 }); // Cierra el submit
 } // Cierra el if (formCompra)
 
