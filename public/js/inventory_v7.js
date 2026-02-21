@@ -498,67 +498,59 @@ if (formCompra) {
         }
 
         try {
+            // 1. Recolección Directa (Sin buscar en listas externas)
             const materialId = document.getElementById('compraMaterial').value;
-            const providerId = document.getElementById('compraProveedor').value;
+            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
-            const valorUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
-            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value;
+            const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            let nombreFinal = "";
-            let esLineal = false;
+            // 2. Determinar Nombre y Tipo (Para los 2.9 ML)
+            let nombreFinal = nombreNuevo;
+            let esMoldura = nombreFinal.toLowerCase().includes('moldura');
 
-            // CASO A: Es un material nuevo
-            if (materialId === "nuevo") {
-                nombreFinal = nombreNuevo || "Nuevo Material";
-                esLineal = nombreFinal.toLowerCase().includes('moldura');
-            } 
-            // CASO B: Es un material existente
-            else {
-                const m = window.todosLosMateriales.find(mat => String(mat.id || mat._id) === String(materialId));
-                if (m) {
-                    nombreFinal = m.nombre;
-                    esLineal = m.categoria === 'Molduras' || m.unidad_medida === 'ml';
-                } else {
-                    throw new Error("Motor de inventario no cargado o material no encontrado");
+            // Si no es nuevo, buscamos el nombre rápido
+            if (materialId !== "nuevo" && window.todosLosMateriales) {
+                const encontrado = window.todosLosMateriales.find(m => String(m.id || m._id) === String(materialId));
+                if (encontrado) {
+                    nombreFinal = encontrado.nombre;
+                    esMoldura = encontrado.categoria === 'Molduras' || encontrado.unidad_medida === 'ml';
                 }
             }
 
-            // CÁLCULO DE 2.9 ML (MOLDURAS) O M2
-            const cantidadCalculada = esLineal ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
+            // 3. Cálculo de Cantidad (La regla de oro)
+            const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo/100) * (ancho/100));
 
-            const objetoCompra = {
+            const datosCompra = {
                 materialId: materialId,
                 nombreMaterial: nombreFinal,
-                proveedorId: providerId,
+                proveedorId: document.getElementById('compraProveedor').value,
                 cantidad: cant,
-                totalM2: cantidadCalculada,
-                cantidad_m2: cantidadCalculada,
-                costo_total: valorUnitario * cant,
-                unidad: esLineal ? 'ml' : 'm2',
+                totalM2: totalCalculado,
+                cantidad_m2: totalCalculado,
+                costo_total: costo * cant,
+                unidad: esMoldura ? 'ml' : 'm2',
                 fecha: new Date().toISOString()
             };
 
-            // 1. Guardar en bitácora local para respuesta inmediata
-            const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-            bitacora.push(objetoCompra);
-            localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
+            // 4. Guardado de Emergencia en Bitácora
+            const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
+            local.push(datosCompra);
+            localStorage.setItem('bitacora_compras', JSON.stringify(local));
 
-            // 2. Enviar al servidor
-            await window.API.registerPurchase(objetoCompra);
+            // 5. Envío al Servidor
+            await window.API.registerPurchase(datosCompra);
 
-            alert("✅ Compra guardada con éxito: " + cantidadCalculada.toFixed(2) + (esLineal ? " ml" : " m2"));
+            alert("✅ GUARDADO: " + totalCalculado.toFixed(2) + (esMoldura ? " ml" : " m2"));
             
+            // Limpieza y recarga para ver el material nuevo
             if (window.cerrarModales) window.cerrarModales();
-            e.target.reset();
-            
-            // Recargar la página para que el nuevo material aparezca en la lista
-            window.location.reload();
+            window.location.reload(); 
 
         } catch (err) {
-            console.error("❌ Error en el proceso:", err);
-            alert("Error: " + err.message);
+            console.error("Fallo crítico:", err);
+            alert("Error al guardar, pero se intentó registrar.");
         } finally {
             if (btn) {
                 btn.disabled = false;
