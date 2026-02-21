@@ -551,58 +551,54 @@ if (esLineal) {
     }
 
  // --- OBJETO REFORZADO PARA HISTORIAL (TODAS LAS VARIANTES) ---
+    // --- ESTA PARTE MANTIENE TUS CÁLCULOS QUE YA FUNCIONAN ---
     const objetoCompraSincronizado = {
         materialId: materialId,
-        
-        // Nombres (para evitar "Ingreso de Material")
-        materialNombre: nombreMaterialActual,
-        nombreMaterial: nombreMaterialActual,
-        nombre: nombreMaterialActual, 
+        nombreMaterial: nombreMaterialActual, 
+        materialNombre: nombreMaterialActual, // Alias 1
+        nombre: nombreMaterialActual,         // Alias 2
         
         proveedorId: providerId,
         cantidad: cant,
         largo: largo,
         ancho: ancho,
+        totalM2: cantidadCalculada, // Tus 2.9 ml o tus m2 perfectos
         
-        // Cantidades (para que aparezca el 2.9)
-        totalM2: cantidadCalculada, 
-        cantidadCalculada: cantidadCalculada,
-        
-        // --- COSTOS (para evitar el $ 0) ---
+        // --- AQUÍ REPARAMOS EL COSTO $0 ---
+        // Ponemos el costo en todos los formatos posibles para que el historial lo vea
         costoTotal: valorUnitarioLamina * cant,
         precio_total: valorUnitarioLamina * cant,
         precioTotal: valorUnitarioLamina * cant,
         totalCosto: valorUnitarioLamina * cant,
-        costo_unitario: valorUnitarioLamina,
-
+        
         unidad: esLineal ? 'ml' : 'm2',
         fecha: new Date().toISOString(),
-        timestamp: stampTransaccion,
         tempId: stampTransaccion
     };
 
     try {
-        // 1. VERIFICACIÓN EN CONSOLA (Mira esto en F12 al darle guardar)
-        console.log("🚀 ENVIANDO ESTA COMPRA:", objetoCompraSincronizado);
-
-        // 2. REGISTRO EN BITÁCORA LOCAL
+        // 1. Guardado local (Lo que hace que el stock se vea bien)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 3. LIMPIEZA DE INTERFAZ
+        // 2. Limpieza de pantalla (Para que no se triplique nada)
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // 4. ACTUALIZACIÓN VISUAL
+        // 3. Renderizado (Para que el stock se actualice al instante)
         renderTable(window.todosLosMateriales);
 
-        // 5. ENVÍO AL SERVIDOR
-        const respuesta = await window.API.registerPurchase(objetoCompraSincronizado);
-        console.log("📡 RESPUESTA DEL SERVIDOR:", respuesta);
+        // 4. EL TRUCO PARA EL HISTORIAL:
+        // Enviamos el objeto y forzamos un refresco del historial si existe la función
+        await window.API.registerPurchase(objetoCompraSincronizado);
+        
+        if (typeof window.renderPurchases === 'function') {
+            window.renderPurchases(); // Si tu historial tiene esta función, la obligamos a despertar
+        }
 
     } catch (err) {
-        console.error("❌ ERROR CRÍTICO AL GUARDAR:", err);
+        console.error("Error al sincronizar historial:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
