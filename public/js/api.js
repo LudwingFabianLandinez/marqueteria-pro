@@ -1,9 +1,9 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.4.05 (RESCATE LOCAL INTEGRADO)
- * * CAMBIOS v13.4.05:
- * 1. PERSISTENCIA HÍBRIDA: Si el servidor da 404, guarda en LocalStorage para no bloquear la compra.
- * 2. AUTO-GENERACIÓN DE ID: Crea IDs temporales (LOC-...) si falla el registro, permitiendo flujo continuo.
+ * Módulo de conexión API - Versión 13.4.10 (VISUALIZACIÓN HÍBRIDA)
+ * * CAMBIOS v13.4.10:
+ * 1. LECTURA HÍBRIDA: getInventory ahora suma datos del servidor + locales de rescate.
+ * 2. ACTUALIZACIÓN LOCAL: registerPurchase actualiza el stock en memoria si el servidor falla.
  * 3. Preservación absoluta de molduras (ML), OTs históricas y diseño visual.
  */
 
@@ -56,12 +56,12 @@ window.API = {
         return { success: true, data: [] };
     },
 
-    // 2. PETICIÓN MAESTRA (v13.4.05 - CON SALVAGUARDA)
+    // 2. PETICIÓN MAESTRA (v13.4.10 - CON SALVAGUARDA)
     async _request(path, options = {}) {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.4.05: ${url}`);
+            console.log(`🚀 Conectando v13.4.10: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -97,7 +97,22 @@ window.API = {
 
     // 3. MÉTODOS DE NEGOCIO (ESTRUCTURA ORIGINAL 100% PRESERVADA)
     getProviders: function() { return window.API._request('/providers'); },
-    getInventory: function() { return window.API._request('/inventory'); },
+
+    // --- MEJORA v13.4.10: LECTURA HÍBRIDA PARA MOSTRAR MOLDURAS LOCALES ---
+    getInventory: async function() { 
+        const res = await window.API._request('/inventory');
+        const localData = JSON.parse(localStorage.getItem('inventory') || '[]');
+        
+        if (localData.length > 0) {
+            console.log("🧩 Unificando inventario (Servidor + Local)...");
+            // Evitamos duplicados comparando IDs
+            const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
+            const uniqueLocal = localData.filter(i => !serverIds.has(String(i.id || i._id)));
+            return { ...res, data: [...res.data, ...uniqueLocal] };
+        }
+        return res;
+    },
+
     getInvoices: function() { return window.API._request('/invoices'); },
 
     saveProvider: function(data) {
@@ -107,13 +122,11 @@ window.API = {
         });
     },
 
-    // --- GANCHO DE BYPASS v13.4.05 REFORZADO CON RESCATE LOCAL ---
     saveMaterial: async function(data) {
         const id = data.id || data._id;
         const path = id ? `/inventory/${id}` : '/inventory';
         
         try {
-            // Intento 1: Servidor Normal
             const res = await window.API._request(path, {
                 method: id ? 'PUT' : 'POST',
                 body: JSON.stringify(data)
@@ -123,12 +136,10 @@ window.API = {
             return res;
 
         } catch (e) {
-            // Si falla el servidor, activamos la GRABACIÓN LOCAL para que no pierdas la moldura
-            console.warn("💾 Servidor Offline/404. Guardando en memoria local para no bloquear...");
+            console.warn("💾 Rescate Local: Guardando moldura en memoria...");
             const localId = id || `LOC-${Date.now()}`;
             const newMaterial = { ...data, id: localId, _id: localId };
             
-            // Actualizar inventario local para que aparezca en la lista
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
             localInv = localInv.filter(m => (m.id || m._id) !== localId);
             localInv.push(newMaterial);
@@ -139,7 +150,6 @@ window.API = {
     },
 
     registerPurchase: async function(purchaseData) {
-        // --- CÁLCULO DE MOLDURAS (ML) PRESERVADO AL 100% ---
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
@@ -156,31 +166,26 @@ window.API = {
             body: JSON.stringify(payload)
         });
 
-        // Si falla la compra en el servidor, la autorizamos localmente
+        // --- MEJORA v13.4.10: ACTUALIZACIÓN DE STOCK LOCAL SI EL SERVER FALLA ---
         if (res.isOffline || !res.success) {
-            console.warn("💾 Compra guardada localmente.");
+            console.warn("💾 Actualizando stock localmente.");
+            let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            localInv = localInv.map(m => {
+                if (String(m.id || m._id) === payload.materialId) {
+                    return { ...m, stock: Number(m.stock || 0) + payload.cantidad };
+                }
+                return m;
+            });
+            localStorage.setItem('inventory', JSON.stringify(localInv));
             return { success: true, data: payload, local: true };
         }
         return res;
     },
 
     deleteMaterial: function(id) { return window.API._request(`/inventory/${id}`, { method: 'DELETE' }); },
-    
-    updateStock: function(id, data) {
-        return window.API._request(`/inventory/${id}`, {
-            method: 'PUT', 
-            body: JSON.stringify(data)
-        });
-    },
-
+    updateStock: function(id, data) { return window.API._request(`/inventory/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
     getHistory: function(id) { return window.API._request(`/inventory/history/${id}`); },
-    
-    saveInvoice: function(data) {
-        return window.API._request('/invoices', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
+    saveInvoice: function(data) { return window.API._request('/invoices', { method: 'POST', body: JSON.stringify(data) }); }
 };
 
 // --- GANCHOS DE COMPATIBILIDAD TOTAL ---
@@ -189,4 +194,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.4.05 - Rescate Local y Blindaje Activo.");
+console.log("🛡️ API v13.4.10 - Visualización Híbrida y Rescate Activo.");
