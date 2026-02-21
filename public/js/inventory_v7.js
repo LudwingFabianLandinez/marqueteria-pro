@@ -243,6 +243,7 @@ function renderTable(materiales) {
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
         // GANCHO CRÍTICO: Cálculo del Stock Real (Servidor + Local)
+        // Aquí es donde el 5.80 + 2.90 se convierte en 8.70
         const stockActualUnidad = calcularStockReal(m);
         
         const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
@@ -262,7 +263,15 @@ function renderTable(materiales) {
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= m.stock_minimo ? '#f59e0b' : '#059669');
         let textoStockVisual = "";
         
-        if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
+        // LÓGICA DIFERENCIADA:
+        if (m.tipo === 'ml') {
+            // PARA MOLDURAS: No calculamos láminas, solo mostramos el total de metros
+            textoStockVisual = `
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Stock en Metros)</div>
+            `;
+        } else if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
+            // PARA OTROS MATERIALES: Mantenemos tu lógica de Unidades + Sobrante m2
             const laminasExactas = stockActualUnidad / areaUnaLaminaM2;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
@@ -284,7 +293,7 @@ function renderTable(materiales) {
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
                 <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre}</span>
+                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre || 'Proveedor'}</span>
                 </div>
             </td>
             <td style="text-align: center;">
