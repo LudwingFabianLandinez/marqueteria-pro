@@ -39,18 +39,14 @@ window.toggleMenu = function() {
 function calcularStockReal(material) {
     let stockServidor = Number(material.stock_actual) || 0;
     
-    // Recuperamos compras locales de la bitácora (localStorage)
+    // Buscamos en la memoria del navegador si hay compras que aún no se reflejan
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // Buscamos compras que coincidan con este material (por ID o por Nombre como respaldo)
+    // Sumamos esas compras al stock del servidor
     const sumaLocal = comprasLocales
-        .filter(c => c.materialId === material.id || c.nombreMaterial === material.nombre)
+        .filter(c => c.materialId === material.id)
         .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
-    
-    if (sumaLocal > 0) {
-        console.log(`🔍 Reconciliación para ${material.nombre}: Server(${stockServidor}) + Local(${sumaLocal})`);
-    }
-    
+        
     return stockServidor + sumaLocal;
 }
 
@@ -532,36 +528,30 @@ if (esLineal) {
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
    try {
-                // 1. Registro visual inmediato (Bitácora)
-                // Esto asegura que si compras 2.9, el sistema sume 5.8 + 2.9 = 8.7 al instante
-                const compraParaBitacora = { ...objetoCompraSincronizado };
+                // REGISTRO LOCAL INMEDIATO (Para que sume en pantalla ya mismo)
                 const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-                bitacora.push(compraParaBitacora);
+                bitacora.push(objetoCompraSincronizado);
                 localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
                 
-                // Refrescamos la tabla inmediatamente para ver el cambio
+                // Forzamos a la tabla a redibujarse con la nueva suma
                 renderTable(window.todosLosMateriales);
 
-                // 2. Enviamos al servidor
+                // Enviamos al servidor para que guarde permanentemente
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 
                 if (res.success) {
-                    // 3. Si el servidor confirma, limpiamos lo temporal
+                    // Si el servidor confirmó, borramos el "temporal" para no sumar doble
                     const nuevaBitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
                         .filter(item => item.tempId !== stampTransaccion);
                     localStorage.setItem('bitacora_compras', JSON.stringify(nuevaBitacora));
                     
-                    // Traemos los datos finales del servidor
-                    await fetchInventory(); 
-                    
-                    alert(`✅ Inventario actualizado: +${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
+                    await fetchInventory(); // Refrescamos datos reales
+                    alert(`✅ Compra registrada. Total: ${cantidadCalculada.toFixed(2)} ${tipoUnidad}`);
                     window.cerrarModales();
-                    if(formCompra) formCompra.reset();
                 }
             } catch (err) {
-                console.error("Error de red, se mantiene en local:", err);
-                // No borramos la bitácora para que el usuario siga viendo su saldo sumado
-                renderTable(window.todosLosMateriales);
+                console.log("Quedó guardado localmente debido a la conexión.");
+                renderTable(window.todosLosMateriales); // Mantenemos la suma visual
             } finally {
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
