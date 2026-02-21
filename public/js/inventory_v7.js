@@ -486,6 +486,7 @@ function configurarEventos() {
 
  // === REEMPLAZO FINAL: COPIAR DESDE AQUÍ ===
 // === BLOQUE DE COMPRA ACTUALIZADO v13.4.58 ===
+// === BLOQUE DE COMPRA FINAL - SIN ERRORES DE VARIABLES ===
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.addEventListener('submit', async (e) => {
@@ -498,27 +499,27 @@ if (formCompra) {
         }
 
         try {
-            // Recolección de datos de los inputs
-            const materialId = document.getElementById('compraMaterialId').value;
+            // USAMOS LOS IDs EXACTOS DE TU HTML
+            const materialId = document.getElementById('compraMaterial').value; 
+            const providerId = document.getElementById('compraProveedor').value;
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
             const valorUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
-            const providerId = document.getElementById('compraProveedorId').value;
 
-            // Buscamos el material en la lista global para saber si es moldura
-            const index = window.todosLosMateriales.findIndex(mat => String(mat.id || mat._id) === String(materialId));
-            if (index === -1) throw new Error("Material no encontrado");
+            // Buscamos el material para el cálculo
+            const index = window.todosLosMateriales.findIndex(m => String(m.id || m._id) === String(materialId));
+            if (index === -1) throw new Error("Selecciona un material válido");
 
-            const materialEncontrado = window.todosLosMateriales[index];
-            const esLineal = materialEncontrado.categoria === 'Molduras' || materialEncontrado.unidad_medida === 'ml';
+            const mat = window.todosLosMateriales[index];
+            const esLineal = mat.categoria === 'Molduras' || (mat.nombre && mat.nombre.toLowerCase().includes('moldura'));
             
-            // Lógica de cálculo (2.9 para molduras)
+            // EL CÁLCULO SAGRADO DE 2.9
             const cantidadCalculada = esLineal ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
             const objetoCompra = {
                 materialId: materialId,
-                nombreMaterial: materialEncontrado.nombre,
+                nombreMaterial: mat.nombre,
                 proveedorId: providerId,
                 cantidad: cant,
                 totalM2: cantidadCalculada,
@@ -528,30 +529,27 @@ if (formCompra) {
                 fecha: new Date().toISOString()
             };
 
-            // 1. GUARDAR EN BITÁCORA LOCAL
+            // 1. GUARDAR LOCAL
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push(objetoCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-            // 2. ACTUALIZAR EL STOCK EN MEMORIA (FORZADO PARA VISIBILIDAD)
+            // 2. INYECTAR EN LA TABLA (Para que lo veas ya)
             window.todosLosMateriales[index].stock_actual = (parseFloat(window.todosLosMateriales[index].stock_actual) || 0) + cantidadCalculada;
 
-            // 3. REDIBUJAR LA TABLA DE INMEDIATO
-            if (typeof renderTable === 'function') {
-                renderTable(window.todosLosMateriales);
-            }
+            // 3. REDIBUJAR
+            if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
 
-            // 4. INFORMAR AL SERVIDOR
+            // 4. SERVIDOR
             await window.API.registerPurchase(objetoCompra);
 
-            // 5. CERRAR Y LIMPIAR
-            alert("✅ ¡Compra exitosa! Stock actualizado.");
+            alert("✅ ¡Stock actualizado! +" + cantidadCalculada.toFixed(2));
             if (window.cerrarModales) window.cerrarModales();
             e.target.reset();
 
         } catch (err) {
-            console.error("❌ Error en el proceso:", err);
-            alert("No se pudo guardar la compra: " + err.message);
+            console.error(err);
+            alert("Error: " + err.message);
         } finally {
             if (btn) {
                 btn.disabled = false;
