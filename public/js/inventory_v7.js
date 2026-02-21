@@ -40,17 +40,12 @@ function calcularStockReal(material) {
     let stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
+    // Filtramos las compras de este material específico
     const sumaLocal = comprasLocales
-        .filter(c => {
-            // FORZAMOS A STRING PARA QUE "1" SEA IGUAL A 1
-            const idCompra = String(c.materialId).trim();
-            const idMaterial = String(material.id || material._id).trim();
-            return idCompra === idMaterial;
-        })
+        .filter(c => String(c.materialId) === String(material.id))
         .reduce((acc, curr) => {
-            // USAMOS totalM2 QUE ES DONDE ESTÁ EL 2.9
-            const valor = parseFloat(curr.totalM2) || 0;
-            return acc + valor;
+            // AQUÍ ESTÁ EL TRUCO: Usamos totalM2 para molduras y m2
+            return acc + (parseFloat(curr.totalM2) || 0);
         }, 0);
         
     return stockServidor + sumaLocal;
@@ -556,14 +551,15 @@ if (esLineal) {
     }
 
     const objetoCompraSincronizado = {
-                materialId: String(materialId).trim(), // Aseguramos que sea texto limpio
+                materialId: materialId,
                 nombreMaterial: nombreMaterialActual, 
                 proveedorId: providerId,
                 cantidad: cant,
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                totalM2: cantidadCalculada, // Aquí va el 2.9
+                // IMPORTANTE: Este es el valor que sumará la función de arriba
+                totalM2: cantidadCalculada, 
                 tempId: stampTransaccion
             };
 
