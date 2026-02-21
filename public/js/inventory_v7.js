@@ -532,28 +532,33 @@ if (esLineal) {
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
             try {
+                // 1. Enviamos la compra al servidor
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
-                if (res.success) { 
-                    alert(`✅ Compra exitosa.`);
-                    
-                    // LIMPIEZA CRÍTICA: Eliminamos de bitácora porque ya está en el servidor
+                
+                if (res.success) {
+                    // 2. LIMPIEZA CRÍTICA: Borramos de la memoria local porque ya se guardó en la nube
                     const bitacoraActualizada = JSON.parse(localStorage.getItem('bitacora_compras') || '[]')
                         .filter(item => item.tempId !== stampTransaccion);
                     localStorage.setItem('bitacora_compras', JSON.stringify(bitacoraActualizada));
 
-                    actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
+                    // 3. RECARGA TOTAL: Le pedimos al servidor los datos nuevos ya sumados
+                    await fetchInventory(); 
+                    
+                    alert(`✅ ¡Inventario Actualizado! Se sumaron ${cantidadCalculada.toFixed(2)} ${tipoUnidad}.`);
+                    
                     window.cerrarModales(); 
                     e.target.reset(); 
-                    await fetchInventory(); 
                 } else {
-                    alert("⚠️ Fallo en servidor, pero la compra se registró localmente.");
+                    // Si el servidor falla, lo dejamos en la tabla visual para no perder el rastro
+                    alert("⚠️ Error de servidor: Se verá reflejado localmente.");
                     actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
                     window.cerrarModales();
                 }
             } catch (err) { 
-                console.error("🚨 Error:", err);
+                console.error("🚨 Error de conexión:", err);
+                // Si no hay internet, el sistema sigue funcionando localmente
                 actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
-                alert("📡 Operando en Modo Local: El stock se actualizó en pantalla."); 
+                alert("📡 Modo Offline: El stock se actualizó solo en esta pantalla."); 
             } finally { 
                 if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
             }
