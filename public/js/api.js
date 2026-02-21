@@ -1,19 +1,17 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de conexión API - Versión 13.3.68 (FIX RUTAS NETLIFY + BLINDAJE)
- * * CAMBIOS v13.3.68:
- * 1. REPARACIÓN DE RUTAS: Se prioriza '/.netlify/functions/server' para eliminar el error 404.
- * 2. Mantiene blindaje de consecutivos de OT (v13.3.59) intacto.
- * 3. EXTRACCIÓN DE ID: Refuerza la captura de data.id para evitar el error "ID no válido".
- * 4. Mantiene ganchos de compatibilidad ML para Molduras.
+ * Módulo de conexión API - Versión 13.3.71 (FIX CAPTURA ID + TÚNEL MAESTRO)
+ * * CAMBIOS v13.3.71:
+ * 1. PRIORIDAD DE TÚNEL: Sincronizado con netlify.toml para usar /api como vía principal.
+ * 2. EXTRACCIÓN PROFUNDA: Blindaje para capturar ID incluso si el túnel lo envuelve.
+ * 3. ANTI-OFFLINE: Evita que el sistema use LocalStorage si el servidor está respondiendo.
+ * 4. Preservación 100% de reglas de molduras (ML) y formatos de OT anteriores.
  */
 
-// Priorizamos la ruta real de Netlify para evitar el "Idling" de rutas inexistentes
 const API_ROUTES = [
-    '/.netlify/functions/server',   // 1. Ruta Directa (La más fiable en producción)
-    '/api',                         // 2. Proxy (Si existe netlify.toml)
-    '/functions/server',            // 3. Alternativa legacy
-    ''                              // 4. Raíz (Localhost)
+    '/api',                         // 1. Túnel Maestro (Prioridad por estabilidad)
+    '/.netlify/functions/server',   // 2. Ruta Directa Netlify
+    '/functions/server'             // 3. Ruta Legacy
 ];
 
 window.API = {
@@ -33,30 +31,26 @@ window.API = {
 
         if (contentType && contentType.includes("application/json")) {
             const rawData = await response.json();
-            let cleanData = [];
             
-            // Blindaje contra errores de .map() y extracción de objetos
-            if (Array.isArray(rawData)) {
-                cleanData = rawData;
-            } else if (rawData && Array.isArray(rawData.data)) {
-                cleanData = rawData.data;
-            } else if (rawData && typeof rawData === 'object') {
-                // --- AJUSTE v13.3.67/68: EXTRACCIÓN PROFUNDA DE ID ---
-                // Si el objeto viene envuelto en .data, lo extraemos. 
-                // Esto es vital para que inventory.js reciba el ID tras crear un material.
-                let finalObj = (rawData.success && rawData.data) ? rawData.data : rawData;
-                
-                // --- GANCHO DE REPARACIÓN DE OT (v13.3.59 - PRESERVADO) ---
-                if (finalObj.ot && String(finalObj.ot).length > 10) {
-                    console.warn("⚠️ Detectada OT con formato largo erróneo, normalizando...");
+            // --- AJUSTE v13.3.71: EXTRACCIÓN AGRESIVA DE ID ---
+            // El túnel a veces envuelve la respuesta. Buscamos el objeto real.
+            let cleanObj = (rawData.success && rawData.data) ? rawData.data : rawData;
+
+            // Si es un objeto único (como cuando creamos un material nuevo)
+            if (cleanObj && typeof cleanObj === 'object' && !Array.isArray(cleanObj)) {
+                // Gancho de reparación de OT (v13.3.59 - PRESERVADO)
+                if (cleanObj.ot && String(cleanObj.ot).length > 10) {
+                    console.warn("⚠️ Normalizando OT detectada...");
                 }
-                
-                return { success: true, data: finalObj };
+                return { success: true, data: cleanObj };
             }
 
-            // --- REPARACIÓN DE HISTORIAL (v13.3.59 - PRESERVADO) ---
-            if (Array.isArray(cleanData)) {
-                cleanData = cleanData.map(item => {
+            // Si es un arreglo (historial o inventario)
+            let items = Array.isArray(cleanObj) ? cleanObj : (Array.isArray(rawData.data) ? rawData.data : []);
+
+            // Reparación de historial OT-00018 (v13.3.59 - PRESERVADO)
+            if (items.length > 0) {
+                items = items.map(item => {
                     if (item.ot && String(item.ot).includes('17713600')) {
                         return { ...item, ot: "OT-00018 (R)" }; 
                     }
@@ -64,54 +58,49 @@ window.API = {
                 });
             }
 
-            return { success: true, data: cleanData };
+            return { success: true, data: items };
         }
         return { success: true, data: [] };
     },
 
-    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA MEJORADA
+    // 2. LÓGICA DE BÚSQUEDA MULTI-RUTA (v13.3.71 - ANTI-OFFLINE)
     async _request(path, options = {}) {
         let lastError = null;
 
         for (const base of API_ROUTES) {
             try {
-                // Normalización de slash para evitar "//"
                 const url = `${base}${path}`.replace(/\/+/g, '/');
-                console.log(`📡 Intentando conexión: ${url}`);
+                console.log(`📡 Intentando Túnel: ${url}`);
                 
                 const response = await fetch(url, {
                     ...options,
-                    // Añadimos un pequeño timeout para no quedar colgados
-                    signal: AbortSignal.timeout(8000) 
+                    signal: AbortSignal.timeout(10000) 
                 });
                 
-                // Si la respuesta es 404, probamos la siguiente ruta en la lista
-                if (response.status === 404) {
-                    console.warn(`📍 Ruta no encontrada en: ${base}`);
-                    continue;
+                // Si el servidor responde (aunque sea 404), ya no es un error de conexión
+                if (response.status !== 404) {
+                    return await window.API._safeParse(response);
                 }
-
-                // Si llegamos aquí, la ruta existe (aunque de error 500, ya es la ruta correcta)
-                return await window.API._safeParse(response);
-
+                
+                console.warn(`📍 Ruta no encontrada en: ${base}, probando siguiente...`);
             } catch (err) {
                 lastError = err.message;
-                console.warn(`⚠️ Falló intento en ${base}:`, err.message);
+                console.warn(`⚠️ Fallo en ${base}:`, err.message);
                 continue; 
             }
         }
 
-        // --- CAÍDA A LOCALSTORAGE (SOPORTE OFFLINE PRESERVADO) ---
+        // --- CAÍDA A LOCALSTORAGE SOLO SI TODO LO ANTERIOR FALLÓ ---
         const storageKey = path.includes('inventory') ? 'inventory' : (path.includes('providers') ? 'providers' : null);
         if (storageKey) {
             const local = localStorage.getItem(storageKey);
             if (local) {
-                console.info(`📦 Cargando data local para ${storageKey} (Modo Offline)`);
+                console.info(`📦 Servidor inaccesible. Usando respaldo local.`);
                 return { success: true, data: JSON.parse(local), local: true };
             }
         }
         
-        throw new Error(lastError || "No se pudo establecer conexión con el servidor.");
+        throw new Error("El sistema no pudo conectar con el servidor ni encontrar datos locales.");
     },
 
     // 3. MÉTODOS DE NEGOCIO (PRESERVADOS 100%)
@@ -138,7 +127,7 @@ window.API = {
     },
 
     registerPurchase: function(purchaseData) {
-        // --- GANCHO DE COMPATIBILIDAD ML (v13.3.66) ---
+        // --- GANCHO DE COMPATIBILIDAD ML (v13.3.66 - PRESERVADO) ---
         const payload = {
             materialId: String(purchaseData.materialId),
             proveedorId: String(purchaseData.proveedorId || purchaseData.proveedor || purchaseData.providerId),
@@ -184,4 +173,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.3.68 - Blindaje de Rutas y Datos Activo.");
+console.log("🛡️ API v13.3.71 - Túnel Maestro y Blindaje de IDs Activo.");
