@@ -552,26 +552,31 @@ if (esLineal) {
 
  // --- OBJETO REFORZADO PARA HISTORIAL (TODAS LAS VARIANTES) ---
     // --- ESTA PARTE MANTIENE TUS CÁLCULOS QUE YA FUNCIONAN ---
-    const objetoCompraSincronizado = {
+   const objetoCompraSincronizado = {
+        // Identificadores
         materialId: materialId,
-        nombreMaterial: nombreMaterialActual, 
-        materialNombre: nombreMaterialActual, // Alias 1
-        nombre: nombreMaterialActual,         // Alias 2
-        
         proveedorId: providerId,
+        
+        // Nombres (Para que no salga "Ingreso de Material")
+        nombreMaterial: nombreMaterialActual,
+        materialNombre: nombreMaterialActual,
+        
+        // Cantidades (Tu cálculo de 2.9 ml o m2)
         cantidad: cant,
         largo: largo,
         ancho: ancho,
-        totalM2: cantidadCalculada, // Tus 2.9 ml o tus m2 perfectos
+        totalM2: cantidadCalculada, 
         
-        // --- AQUÍ REPARAMOS EL COSTO $0 ---
-        // Ponemos el costo en todos los formatos posibles para que el historial lo vea
-        costoTotal: valorUnitarioLamina * cant,
+        // --- COSTOS (EL CAMBIO CLAVE) ---
+        // Muchos sistemas usan 'costo' o 'precio_total' (con guion bajo)
+        costo: valorUnitarioLamina * cant,
         precio_total: valorUnitarioLamina * cant,
-        precioTotal: valorUnitarioLamina * cant,
-        totalCosto: valorUnitarioLamina * cant,
+        costoTotal: valorUnitarioLamina * cant,
+        valor_total: valorUnitarioLamina * cant,
         
+        // Metadatos
         unidad: esLineal ? 'ml' : 'm2',
+        tipo: esLineal ? 'ml' : 'm2',
         fecha: new Date().toISOString(),
         tempId: stampTransaccion
     };
