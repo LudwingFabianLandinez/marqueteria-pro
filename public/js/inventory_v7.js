@@ -550,66 +550,46 @@ if (esLineal) {
         }
     }
 
+    // --- BLOQUE DE GUARDADO FINAL (SIN TRIPLICADOS) ---
     const objetoCompraSincronizado = {
-                // ANTES decía material_id o estaba vacío, DEBE SER ASÍ:
-                materialId: materialId, 
-                nombreMaterial: nombreMaterialActual, 
-                proveedorId: providerId,
-                cantidad: cant,
-                largo: largo,
-                ancho: ancho,
-                valorUnitario: valorUnitarioLamina,
-                totalM2: cantidadCalculada, // Aquí van los 2.9
-                tempId: stampTransaccion
-            };
-
-            // 1. REGISTRO EN BITÁCORA LOCAL
-            const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-            bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
-            localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
-
-            // 2. ACTUALIZACIÓN DE MEMORIA (El paso que faltaba)
-            // Buscamos el material en la lista y le sumamos el valor para que renderTable lo vea
-            window.todosLosMateriales = window.todosLosMateriales.map(m => {
-                if (String(m.id) === String(objetoCompraSincronizado.materialId)) {
-                    return {
-                        ...m,
-                        stock_actual: (parseFloat(m.stock_actual) || 0) + parseFloat(objetoCompraSincronizado.totalM2)
-                    };
-                }
-                return m;
-            });
-
-            // 3. REDIBUJAR TABLA
-            renderTable(window.todosLosMateriales);
+        materialId: materialId,
+        proveedorId: providerId,
+        cantidad: cant,
+        largo: largo,
+        ancho: ancho,
+        totalM2: cantidadCalculada, 
+        tempId: stampTransaccion,
+        fecha: new Date().toISOString()
+    };
 
     try {
-                // 1. REGISTRO ÚNICO EN BITÁCORA
-                const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-                bitacora.push(objetoCompraSincronizado);
-                localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
+        // 1. REGISTRO EN BITÁCORA LOCAL (Suma el 2.9)
+        const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
+        bitacora.push(objetoCompraSincronizado);
+        localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-                // 2. LIMPIEZA TOTAL Y CIERRE
-                if(e.target) e.target.reset();
-                window.cerrarModales();
+        // 2. LIMPIEZA DE INTERFAZ
+        if(e.target) e.target.reset();
+        if(window.cerrarModales) window.cerrarModales();
 
-                // 3. DIBUJAR TABLA (Una sola vez)
-                // renderTable llamará a calcularStockReal y mostrará exactamente 2.90
-                renderTable(window.todosLosMateriales);
+        // 3. ACTUALIZACIÓN VISUAL INMEDIATA
+        if(typeof renderTable === 'function') {
+            renderTable(window.todosLosMateriales);
+        }
 
-                // 4. INFORMAR AL SERVIDOR (En segundo plano)
-                await window.API.registerPurchase(objetoCompraSincronizado);
-                
-                console.log("✅ Compra sincronizada");
-
-            } catch (err) {
-                window.cerrarModales();
-                renderTable(window.todosLosMateriales);
-            } finally {
-                if(btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-            }
-        });
+        // 4. INFORMAR AL SERVIDOR
+        await window.API.registerPurchase(objetoCompraSincronizado);
+        
+    } catch (err) {
+        console.error("Error al guardar:", err);
+    } finally {
+        if(btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'GUARDAR COMPRA';
+        }
     }
+}); // Cierra el submit
+} // Cierra el if (formCompra)
 
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         const termino = e.target.value.toLowerCase();
