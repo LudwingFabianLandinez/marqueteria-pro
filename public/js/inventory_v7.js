@@ -40,13 +40,14 @@ function calcularStockReal(material) {
     let stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
-    // Filtramos las compras de este material específico
     const sumaLocal = comprasLocales
-        .filter(c => String(c.materialId) === String(material.id))
-        .reduce((acc, curr) => {
-            // AQUÍ ESTÁ EL TRUCO: Usamos totalM2 para molduras y m2
-            return acc + (parseFloat(curr.totalM2) || 0);
-        }, 0);
+        .filter(c => {
+            // Comparamos IDs convirtiendo ambos a String para evitar errores de tipo
+            const idC = String(c.materialId || "").trim();
+            const idM = String(material.id || material._id || "").trim();
+            return idC === idM && idC !== "";
+        })
+        .reduce((acc, curr) => acc + (parseFloat(curr.totalM2) || 0), 0);
         
     return stockServidor + sumaLocal;
 }
@@ -551,22 +552,37 @@ if (esLineal) {
     }
 
     const objetoCompraSincronizado = {
-                materialId: materialId,
+                // ANTES decía material_id o estaba vacío, DEBE SER ASÍ:
+                materialId: materialId, 
                 nombreMaterial: nombreMaterialActual, 
                 proveedorId: providerId,
                 cantidad: cant,
                 largo: largo,
                 ancho: ancho,
                 valorUnitario: valorUnitarioLamina,
-                // IMPORTANTE: Este es el valor que sumará la función de arriba
-                totalM2: cantidadCalculada, 
+                totalM2: cantidadCalculada, // Aquí van los 2.9
                 tempId: stampTransaccion
             };
 
-            // REGISTRO EN BITÁCORA LOCAL (RESCATE ANTE ERROR)
+            // 1. REGISTRO EN BITÁCORA LOCAL
             const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             bitacora.push({ ...objetoCompraSincronizado, fecha: new Date().toISOString() });
             localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
+
+            // 2. ACTUALIZACIÓN DE MEMORIA (El paso que faltaba)
+            // Buscamos el material en la lista y le sumamos el valor para que renderTable lo vea
+            window.todosLosMateriales = window.todosLosMateriales.map(m => {
+                if (String(m.id) === String(objetoCompraSincronizado.materialId)) {
+                    return {
+                        ...m,
+                        stock_actual: (parseFloat(m.stock_actual) || 0) + parseFloat(objetoCompraSincronizado.totalM2)
+                    };
+                }
+                return m;
+            });
+
+            // 3. REDIBUJAR TABLA
+            renderTable(window.todosLosMateriales);
 
    try {
                 // 1. REGISTRO LOCAL: Guardamos en la bitácora lo que acabamos de calcular (ej: 2.90)
