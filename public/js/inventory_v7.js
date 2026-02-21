@@ -477,70 +477,77 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    const formCompra = document.getElementById('formNuevaCompra') || document.getElementById('purchaseForm');
-    if (formCompra) {
-        formCompra.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        // --- ESTE ES EL BLOQUE QUE DEBES PEGAR ---
-    // --- ESTE ES EL OBJETO CORREGIDO --- [cite: 1187, 1199]
-    // --- ESTE ES EL BLOQUE QUE DEBE IR DENTRO DEL SUBMIT ---
-    // 1. Definimos el objeto con nombres que el sistema NO rechace
-    const objetoCompraSincronizado = {
-        materialId: String(materialId), 
-        nombreMaterial: nombreMaterialActual || "Material",
-        materialNombre: nombreMaterialActual || "Material",
-        proveedorId: providerId || "",
-        cantidad: parseFloat(cant) || 0,
-        largo: parseFloat(largo) || 0,
-        ancho: parseFloat(ancho) || 0,
-        totalM2: parseFloat(cantidadCalculada) || 0,     
-        cantidad_m2: parseFloat(cantidadCalculada) || 0, 
-        costo_total: (parseFloat(valorUnitarioLamina) || 0) * (parseFloat(cant) || 0), 
-        precio_total: (parseFloat(valorUnitarioLamina) || 0) * (parseFloat(cant) || 0),
-        unidad: esLineal ? 'ml' : 'm2',
-        categoria: esLineal ? 'Molduras' : 'General',
-        fecha: new Date().toISOString(),
-        tempId: stampTransaccion
-    };
+ // --- VERSIÓN DE EMERGENCIA v13.4.51 ---
+const formCompra = document.getElementById('formNuevaCompra');
+if (formCompra) {
+    // Eliminamos cualquier evento previo para evitar conflictos
+    formCompra.onsubmit = async (e) => {
+        e.preventDefault(); // EVITA QUE LA PÁGINA SE RECARGUE
+        e.stopPropagation();
 
-    try {
-        console.log("📦 Intentando guardar objeto:", objetoCompraSincronizado);
-
-        // 2. Guardar en Bitácora Local
-        const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-        bitacora.push(objetoCompraSincronizado);
-        localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
-
-        // 3. Actualizar la tabla visualmente antes de enviar al servidor
-        if(typeof renderTable === 'function') {
-            renderTable(window.todosLosMateriales);
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
         }
 
-        // 4. Enviar al servidor
-        const response = await window.API.registerPurchase(objetoCompraSincronizado);
-        console.log("✅ Servidor respondió:", response);
+        try {
+            // Recolección de datos básica
+            const materialId = document.getElementById('compraMaterialId').value;
+            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+            const valorUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
+            
+            // Los cálculos que ya tenías
+            const m = window.todosLosMateriales.find(mat => String(mat.id) === String(materialId));
+            const esLineal = m && (m.categoria === 'Molduras' || m.unidad_medida === 'ml');
+            
+            let cantidadFinal = cant;
+            if (esLineal) {
+                // Si es moldura, aplicamos tu lógica de 2.9 ml
+                cantidadFinal = cant * 2.9;
+            }
 
-        // 5. CERRAR Y LIMPIAR (Para que no se quede en la misma página)
-        if(e.target) e.target.reset();
-        
-        // Cerramos el modal (Asegúrate de que esta función exista o usa el estilo directo)
-        const modal = document.getElementById('modalNuevaCompra');
-        if(modal) modal.style.display = 'none';
+            const objetoCompra = {
+                materialId: String(materialId),
+                nombreMaterial: m ? m.nombre : "Material",
+                cantidad: cant,
+                totalM2: cantidadFinal,       // Para el Inventario
+                cantidad_m2: cantidadFinal,   // Para el Historial
+                costo_total: valorUnitario * cant,
+                precio_total: valorUnitario * cant,
+                unidad: esLineal ? 'ml' : 'm2',
+                fecha: new Date().toISOString()
+            };
 
-        // Opcional: recargar historial
-        if (typeof fetchPurchases === 'function') fetchPurchases();
+            // 1. GUARDAR LOCAL (Para que aparezca YA en el inventario)
+            const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
+            bitacora.push(objetoCompra);
+            localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-    } catch (err) {
-        console.error("❌ Error crítico al guardar:", err);
-        alert("Hubo un problema al guardar la compra. Revisa la consola.");
-    } finally {
-        if(btn) {
-            btn.disabled = false;
-            btn.innerHTML = 'GUARDAR COMPRA';
+            // 2. ACTUALIZAR TABLA
+            if (typeof renderTable === 'function') {
+                renderTable(window.todosLosMateriales);
+            }
+
+            // 3. ENVIAR AL SERVIDOR
+            await window.API.registerPurchase(objetoCompra);
+
+            // 4. ÉXITO: CERRAR Y LIMPIAR
+            alert("✅ Compra guardada con éxito");
+            if (window.cerrarModales) window.cerrarModales();
+            e.target.reset();
+
+        } catch (err) {
+            console.error("❌ ERROR CRÍTICO:", err);
+            alert("Error al guardar: " + err.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = 'GUARDAR COMPRA';
+            }
         }
-    }
     
-}); // Cierra el submit
+}; // Cierra el submit
 } // Cierra el if (formCompra)
 
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
