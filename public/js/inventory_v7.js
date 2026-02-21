@@ -41,13 +41,17 @@ function calcularStockReal(material) {
     let stockServidor = parseFloat(material.stock_actual) || 0;
     const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
     
+    // Obtenemos el ID del material de forma limpia
+    const materialIdBuscar = String(material.id || material._id);
+
     const sumaExtra = comprasLocales
         .filter(c => {
-            const cId = (c.materialId && typeof c.materialId === 'object') ? c.materialId._id : c.materialId;
-            return String(cId) === String(material.id);
+            // Sacamos el ID de la compra, ya sea que venga como objeto o string
+            const compraId = (c.materialId && typeof c.materialId === 'object') ? c.materialId._id : c.materialId;
+            return String(compraId) === materialIdBuscar;
         })
         .reduce((acc, curr) => {
-            // Sumamos tanto totalM2 como cantidad_m2 por seguridad
+            // Sumamos totalM2 o cantidad_m2 (donde estén los 2.9 ml)
             return acc + (parseFloat(curr.totalM2 || curr.cantidad_m2 || 0));
         }, 0);
 
