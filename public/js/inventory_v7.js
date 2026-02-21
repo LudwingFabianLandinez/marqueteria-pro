@@ -550,43 +550,49 @@ if (esLineal) {
         }
     }
 
- const objetoCompraSincronizado = {
+ // --- OBJETO TODOTERRENO (Suma Inventario + Llena Historial) ---
+    const objetoCompraSincronizado = {
         materialId: materialId,
         nombreMaterial: nombreMaterialActual, 
+        materialNombre: nombreMaterialActual, // Para purchases.js
         proveedorId: providerId,
+        
+        // Datos para el cálculo del Inventario (2.9 ml / m2)
         cantidad: cant,
-        // ESTOS SON LOS NOMBRES QUE EL HISTORIAL BUSCA:
-        cantidad_m2: cantidadCalculada, 
+        largo: largo,
+        ancho: ancho,
+        totalM2: cantidadCalculada, // ESTE es el que suma al stock
+        cantidad_m2: cantidadCalculada, // Duplicado para purchases.js
+        
+        // Datos de Dinero para el Historial (Evita el $0)
         costo_total: valorUnitarioLamina * cant,
-        // ------------------------------------------
+        precio_total: valorUnitarioLamina * cant,
+        
         unidad: esLineal ? 'ml' : 'm2',
         fecha: new Date().toISOString(),
         tempId: stampTransaccion
     };
 
     try {
-        // 1. Guardado local (Lo que hace que el stock se vea bien)
+        // 1. REGISTRO EN BITÁCORA (Esto es lo que hace que SUME al inventario)
         const bitacora = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         bitacora.push(objetoCompraSincronizado);
         localStorage.setItem('bitacora_compras', JSON.stringify(bitacora));
 
-        // 2. Limpieza de pantalla (Para que no se triplique nada)
+        // 2. LIMPIEZA DE INTERFAZ
         if(e.target) e.target.reset();
         if(window.cerrarModales) window.cerrarModales();
 
-        // 3. Renderizado (Para que el stock se actualice al instante)
-        renderTable(window.todosLosMateriales);
-
-        // 4. EL TRUCO PARA EL HISTORIAL:
-        // Enviamos el objeto y forzamos un refresco del historial si existe la función
-        await window.API.registerPurchase(objetoCompraSincronizado);
-        
-        if (typeof window.renderPurchases === 'function') {
-            window.renderPurchases(); // Si tu historial tiene esta función, la obligamos a despertar
+        // 3. ACTUALIZACIÓN VISUAL (Redibuja la tabla con el nuevo stock)
+        if(typeof renderTable === 'function') {
+            renderTable(window.todosLosMateriales);
         }
 
+        // 4. SINCRONIZACIÓN CON SERVIDOR (Para el Historial)
+        await window.API.registerPurchase(objetoCompraSincronizado);
+        
     } catch (err) {
-        console.error("Error al sincronizar historial:", err);
+        console.error("❌ Error en sincronización:", err);
     } finally {
         if(btn) {
             btn.disabled = false;
