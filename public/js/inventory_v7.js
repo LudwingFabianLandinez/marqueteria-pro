@@ -220,7 +220,6 @@ function renderTable(materiales) {
     
     materiales.forEach(m => {
         const fila = document.createElement('tr');
-        // Agregamos un atributo de datos para búsqueda por nombre rápida
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
         const stockActualUnidad = m.stock_actual;
@@ -437,7 +436,6 @@ function configurarEventos() {
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
             }
 
-            // DETECCIÓN DE MOLDURA/METRO LINEAL
             const materialPrevio = window.todosLosMateriales.find(m => m.id === materialId);
             const nombreMaterialActual = (materialId === "NUEVO" ? nuevoNombre : (materialPrevio?.nombre || ""));
             const esLineal = nombreMaterialActual.toLowerCase().includes("moldura") || ancho <= 1;
@@ -445,7 +443,6 @@ function configurarEventos() {
             let cantidadCalculada = esLineal ? (largo / 100) * cant : (largo / 100) * (ancho / 100) * cant;
             let tipoUnidad = esLineal ? 'ml' : 'm2';
 
-            // --- FLUJO BLINDADO PARA NUEVO MATERIAL ---
             if (materialId === "NUEVO") {
                 if (!nuevoNombre) {
                     alert("⚠️ Escribe el nombre del nuevo material");
@@ -465,16 +462,12 @@ function configurarEventos() {
                     
                     if (resMat.success && (resMat.data?._id || resMat.data?.id)) {
                         materialId = resMat.data._id || resMat.data.id; 
-                    } else { 
-                        throw new Error("El servidor no devolvió un ID válido"); 
                     }
                 } catch (err) {
                     console.error("Error al crear material, procediendo con rescate por nombre...");
-                    // No detenemos el flujo, permitimos que registerPurchase intente por nombre
                 }
             }
 
-            // --- VINCULACIÓN MAESTRA v13.4.41 ---
             const objetoCompraSincronizado = {
                 materialId: materialId,
                 nombreMaterial: nombreMaterialActual, 
@@ -491,10 +484,7 @@ function configurarEventos() {
                 const res = await window.API.registerPurchase(objetoCompraSincronizado);
                 if (res.success) { 
                     alert(`✅ Compra exitosa.`);
-                    
-                    // GANCHO DE FUERZA BRUTA: Actualizar la UI antes incluso del fetchInventory
                     actualizarStockEnTablaVisual(nombreMaterialActual, cantidadCalculada, tipoUnidad);
-                    
                     window.cerrarModales(); 
                     e.target.reset(); 
                     await fetchInventory(); 
@@ -521,10 +511,6 @@ function configurarEventos() {
     }
 }
 
-/**
- * FUNCIÓN DE RESCATE VISUAL (v13.4.41)
- * Busca la fila por nombre y suma el stock físicamente en el DOM.
- */
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
     let encontrado = false;
@@ -534,23 +520,19 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
             encontrado = true;
             const container = fila.querySelector('.stock-display-container');
             if (container) {
-                // Extraer valor actual (pito de seguridad para no perder decimales)
                 const textoActual = container.innerText;
                 const valorActual = parseFloat(textoActual.replace(/[^\d.]/g, '')) || 0;
                 const nuevoValor = valorActual + parseFloat(cantidadASumar);
                 
-                // Actualizar visualmente respetando tu diseño
                 container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
-                container.style.color = '#059669'; // Forzar color verde de stock positivo
+                container.style.color = '#059669'; 
                 container.style.transition = 'all 0.5s ease';
-                container.style.backgroundColor = '#ecfdf5'; // Flash de éxito
+                container.style.backgroundColor = '#ecfdf5'; 
                 
                 console.log(`✅ UI Reforzada: ${nombre} actualizado de ${valorActual} a ${nuevoValor}`);
             }
         }
     });
-
-    if (!encontrado) console.warn(`⚠️ No se encontró la fila para '${nombre}' en la tabla actual.`);
 }
 
 // --- UTILIDADES DE UI (PRESERVADO) ---
