@@ -515,45 +515,52 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // --- EXTRACCIÓN QUIRÚRGICA ---
-        const inputTexto = document.getElementById('nombreMaterialNuevo');
-        const selectOpcion = document.getElementById('compraMaterial');
+        // --- BÚSQUEDA QUIRÚRGICA DEL NOMBRE ---
+        // Intentamos 3 formas diferentes de encontrar el cuadro de texto
+        const inputPorId = document.getElementById('nombreMaterialNuevo');
+        const inputPorSelector = document.querySelector('input[placeholder*="Nombre del material"]');
+        const inputPorClase = document.querySelector('.form-control-nuevo-material'); // Ajusta si tienes una clase
         
-        // PRIORIDAD: Si el input de texto tiene algo, usamos eso. 
-        // Si no, usamos el texto del select siempre que no sea el de "Agregar".
-        let nombreReal = "";
+        const inputFinal = inputPorId || inputPorSelector || inputPorClase;
         
-        if (inputTexto && inputTexto.value.trim() !== "") {
-            nombreReal = inputTexto.value.trim().toUpperCase();
-        } else if (selectOpcion && selectOpcion.value !== "nuevo") {
-            nombreReal = selectOpcion.options[selectOpcion.selectedIndex].text.toUpperCase();
+        let nombreEscrito = "";
+        if (inputFinal && inputFinal.value.trim() !== "") {
+            nombreEscrito = inputFinal.value.trim().toUpperCase();
+        } else {
+            // Si el input está vacío, intentamos ver si seleccionaste uno del SELECT
+            const selectMat = document.getElementById('compraMaterial');
+            if (selectMat && selectMat.value !== "nuevo") {
+                nombreEscrito = selectMat.options[selectMat.selectedIndex].text.toUpperCase();
+            }
         }
 
-        // BLOQUEO DE SEGURIDAD: Si el nombre sigue siendo genérico, detenemos todo
-        if (!nombreReal || nombreReal.includes("AGREGAR NUEVO")) {
-            alert("⚠️ Por favor, escribe el nombre del material en el cuadro de texto.");
-            if(inputTexto) inputTexto.focus();
-            return;
+        // BLOQUEO FINAL: Si después de todo sigue vacío o es el texto del botón
+        if (!nombreEscrito || nombreEscrito.includes("AGREGAR NUEVO")) {
+            alert("⚠️ EL SISTEMA NO DETECTA EL NOMBRE. Por favor, asegúrate de escribirlo en el cuadro de texto.");
+            if (inputFinal) inputFinal.focus();
+            return; 
         }
 
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
         const totalML = (cant * 2.90);
         const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-        // --- LÓGICA DE SUMA O INSERCIÓN ---
+        // --- LÓGICA DE SUMA DE STOCK ---
         if (!window.todosLosMateriales) window.todosLosMateriales = [];
         
-        let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
+        // Buscamos si el material ya existe para SUMAR
+        let coincidencia = window.todosLosMateriales.find(m => 
+            m.nombre.trim().toUpperCase() === nombreEscrito.trim().toUpperCase()
+        );
 
-        if (existente) {
-            // SUMAR SI YA EXISTE
-            existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
-            existente.precio_total_lamina = costo; 
+        if (coincidencia) {
+            coincidencia.stock_actual = (Number(coincidencia.stock_actual) || 0) + totalML;
+            coincidencia.precio_total_lamina = costo;
+            alert(`📈 STOCK ACTUALIZADO: ${nombreEscrito}\nNuevo total: ${coincidencia.stock_actual.toFixed(2)} ml`);
         } else {
-            // CREAR SI ES NUEVO
             const nuevo = {
                 id: `MOLD-${Date.now()}`,
-                nombre: nombreReal,
+                nombre: nombreEscrito,
                 categoria: "MOLDURAS",
                 tipo: "ml",
                 largo_lamina_cm: 290,
@@ -562,25 +569,24 @@ if (formCompra) {
                 fecha_registro: new Date().toISOString()
             };
             window.todosLosMateriales.unshift(nuevo);
+            alert(`✅ NUEVO MATERIAL REGISTRADO: ${nombreEscrito}`);
         }
 
-        // --- RENDER Y PERSISTENCIA ---
+        // --- PERSISTENCIA Y CIERRE ---
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
 
         try {
             await window.API.registerPurchase({
-                nombre: nombreReal,
+                nombre: nombreEscrito,
                 cantidad: cant,
                 totalML: totalML,
                 costo: costo,
                 tipo: 'ml'
             });
-            alert(`✅ REGISTRADO: ${nombreReal} (${totalML.toFixed(2)} ml)`);
             if (window.cerrarModales) window.cerrarModales();
         } catch (err) {
             console.error("Error API:", err);
-            renderTable(window.todosLosMateriales);
         }
     };
 }
