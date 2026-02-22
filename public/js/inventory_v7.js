@@ -516,65 +516,71 @@ if (formCompra) {
         e.preventDefault();
         
         // --- CAPTURA QUIRÚRGICA DEL NOMBRE ---
-        // 1. CAPTURA DEL NOMBRE (Prioridad absoluta al texto escrito)
-        // 1. FORZADO QUIRÚRGICO DEL NOMBRE
-        const inputTexto = document.getElementById('nombreMaterialNuevo');
-        const selectOpcion = document.getElementById('compraMaterial');
+    // 1. CAPTURA DEL NOMBRE (Forzado para ignorar el "+ AGREGAR...")
+        const inputNuevo = document.getElementById('nombreMaterialNuevo');
+        const selectMat = document.getElementById('compraMaterial');
         
-        let nombreParaGuardar = "";
-
-        // REGLA DE ORO: Si escribiste algo en el cuadro de texto, eso manda.
-        if (inputTexto && inputTexto.value.trim() !== "") {
-            nombreParaGuardar = inputTexto.value.trim().toUpperCase();
-        } 
-        // Si no escribiste nada, pero seleccionaste uno de la lista que NO sea el de "Agregar"
-        else if (selectOpcion && selectOpcion.value !== "nuevo") {
-            nombreParaGuardar = selectOpcion.options[selectOpcion.selectedIndex].text.toUpperCase();
+        let nombreReal = "";
+        if (inputNuevo && inputNuevo.value.trim() !== "") {
+            nombreReal = inputNuevo.value.trim().toUpperCase();
+        } else {
+            nombreReal = selectMat.options[selectMat.selectedIndex].text.toUpperCase();
         }
-        // Si todo falla, nombre genérico para no romper el sistema
-        else {
-            nombreParaGuardar = "MOLDURA ESPECIFICA " + new Date().toLocaleTimeString();
+
+        // Si el nombre sigue siendo el del botón, abortamos para no ensuciar
+        if (nombreReal.includes("AGREGAR NUEVO")) {
+            alert("Por favor, escribe un nombre para el material.");
+            return;
         }
 
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
         const totalML = (cant * 2.90);
+        const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-        const itemFinal = {
-            id: `MOLD-${Date.now()}`, 
-            nombre: nombreParaGuardar,      // <--- EL NOMBRE QUE ESCRIBISTE
-            materialNombre: nombreParaGuardar, 
-            categoria: "MOLDURAS",
-            tipo: "ml",
-            largo_lamina_cm: 290,
-            ancho_lamina_cm: 1,
-            stock_actual: totalML,
-            precio_total_lamina: costo
-        };
-
-        // 2. INYECCIÓN DIRECTA EN LA MEMORIA (Evita que el Motor lo sobrescriba)
+        // 2. LÓGICA DE SUMA (Para que se acumule en el inventario)
         if (!window.todosLosMateriales) window.todosLosMateriales = [];
-        window.todosLosMateriales.unshift(itemFinal);
+        
+        // Buscamos si ya existe una moldura con ese nombre
+        let materialExistente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
 
-        // 3. PERSISTENCIA EN CAJA DE SEGURIDAD
-        let locales = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-        locales.unshift(itemFinal);
-        localStorage.setItem('molduras_pendientes', JSON.stringify(locales));
+        if (materialExistente) {
+            // SI EXISTE: Sumamos el nuevo stock al actual
+            materialExistente.stock_actual = (Number(materialExistente.stock_actual) || 0) + totalML;
+            materialExistente.precio_total_lamina = costo; // Actualizamos el precio al último
+            console.log(`Sumando ${totalML}ml a ${nombreReal}. Nuevo total: ${materialExistente.stock_actual}`);
+        } else {
+            // SI NO EXISTE: Creamos el registro nuevo
+            const nuevoItem = {
+                id: `MOLD-${Date.now()}`,
+                nombre: nombreReal,
+                categoria: "MOLDURAS",
+                tipo: "ml",
+                largo_lamina_cm: 290,
+                stock_actual: totalML,
+                precio_total_lamina: costo,
+                fecha_registro: new Date().toISOString()
+            };
+            window.todosLosMateriales.unshift(nuevoItem);
+        }
+
+        // 3. PERSISTENCIA Y RENDER
+        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+        renderTable(window.todosLosMateriales);
 
         try {
-            renderTable(window.todosLosMateriales);
-            await window.API.registerPurchase(itemFinal);
-            
-            alert(`✅ REGISTRADO COMO: ${nombreParaGuardar}`);
+            await window.API.registerPurchase({
+                nombre: nombreReal,
+                cantidad: cant,
+                totalML: totalML,
+                costo: costo,
+                tipo: 'ml'
+            });
+            alert(`✅ INVENTARIO ACTUALIZADO: ${nombreReal}`);
             if (window.cerrarModales) window.cerrarModales();
-            
-            // LIMPIEZA DEL INPUT PARA LA PRÓXIMA
-            if(inputTexto) inputTexto.value = "";
-
         } catch (err) {
-            console.warn("Sincronización pendiente, pero visible en tabla.");
+            console.error("Error API:", err);
             renderTable(window.todosLosMateriales);
-        }
+        } 
     };
 }
 }
