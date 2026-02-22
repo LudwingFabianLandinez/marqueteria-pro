@@ -510,47 +510,36 @@ function configurarEventos() {
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
 // Reemplaza tu bloque formCompra.onsubmit con este corregido:
-// 1. ELIMINAMOS CUALQUIER EVENTO PREVIO PARA LIMPIAR EL BOTÓN
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
-    formCompra.onsubmit = null; // Limpieza total
-
-    formCompra.onsubmit = function(e) {
+    formCompra.onsubmit = async (e) => {
         e.preventDefault();
-        console.log("🚀 Click detectado - Iniciando bypass...");
-
-        // 2. FORZAR ACTIVACIÓN DEL BOTÓN
-        const btn = document.querySelector('#formNuevaCompra button[type="submit"]');
         
+        // 1. Reactivación del botón para que no se quede pegado
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
+
         try {
-            // 3. CAPTURA DIRECTA (Sin importar el select)
-            const inputNombre = document.getElementById('nombreMaterialNuevo');
+            // 2. Captura del nombre (Prioridad al texto escrito para que no salga el mensaje del botón)
+            const inputNuevo = document.getElementById('nombreMaterialNuevo');
             const selectMat = document.getElementById('compraMaterial');
             
-            let nombreFinal = "";
-            
-            // Si el cuadro de texto tiene algo escrito, eso manda sobre todo
-            if (inputNombre && inputNombre.value.trim() !== "") {
-                nombreFinal = inputNombre.value.trim().toUpperCase();
-            } else if (selectMat) {
-                nombreFinal = selectMat.options[selectMat.selectedIndex].text
-                    .replace('+ AGREGAR NUEVO MATERIAL', '')
-                    .trim().toUpperCase();
+            let nombreReal = "";
+            if (inputNuevo && inputNuevo.value.trim() !== "") {
+                nombreReal = inputNuevo.value.trim().toUpperCase();
+            } else {
+                nombreReal = selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim().toUpperCase();
             }
 
-            if (!nombreFinal || nombreFinal.includes("SELECCIONAR")) {
-                alert("Escriba el nombre del material.");
-                return false;
-            }
-
+            // 3. Captura de cantidades
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
             const totalML = cant * 2.90;
 
-            // 4. INYECCIÓN DIRECTA EN LA TABLA
-            const nuevoItem = {
-                id: "MOLD-" + Date.now(),
-                nombre: nombreFinal,
+            // 4. Creación del objeto para la tabla
+            const item = {
+                id: selectMat.value === 'nuevo' ? "MOLD-" + Date.now() : selectMat.value,
+                nombre: nombreReal,
                 categoria: "MOLDURAS",
                 tipo: "ml",
                 stock_actual: totalML,
@@ -559,32 +548,34 @@ if (formCompra) {
                 ancho_lamina_cm: 1
             };
 
-            // Lo metemos al principio del inventario
+            // 5. Inyección inmediata en la lista global
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Si ya existe, le sumamos. Si no, lo agregamos.
-            let existente = window.todosLosMateriales.find(m => m.nombre === nombreFinal);
+            // Si el nombre ya existe, sumamos la cantidad comprada a la actual
+            const existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
             } else {
-                window.todosLosMateriales.unshift(nuevoItem);
+                window.todosLosMateriales.unshift(item);
             }
 
-            // 5. ACTUALIZACIÓN VISUAL INMEDIATA
+            // 6. Actualizar pantalla y cerrar
             renderTable(window.todosLosMateriales);
+            
+            // Guardar localmente para que el refresh no lo borre
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            // 6. CERRAR Y AVISAR
-            alert("REGISTRADO: " + nombreFinal + " (" + totalML + " ml)");
+            await window.API.registerPurchase(item);
+            
+            alert(`REGISTRADO: ${nombreReal} - ${totalML.toFixed(2)} ml`);
             if (window.cerrarModales) window.cerrarModales();
-            formCompra.reset();
 
         } catch (err) {
-            console.error("Error crítico:", err);
-            alert("Error en el proceso. Revisa la consola.");
+            console.error("Error:", err);
+        } finally {
+            // 7. El botón vuelve a estar activo siempre
+            if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
-        
-        return false;
     };
 }
 }
