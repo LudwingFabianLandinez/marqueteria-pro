@@ -488,77 +488,44 @@ function configurarEventos() {
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
-
-
+// Reemplaza tu bloque formCompra.onsubmit con este corregido:
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'FORZANDO LISTADO...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = 'REGISTRANDO...'; }
 
         try {
-            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "MOLDURA NUEVA";
+            const nombre = document.getElementById('nombreMaterialNuevo')?.value || "MOLDURA NUEVA";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 1;
-            const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
             const totalML = (cant * 2.90);
 
             const nuevaMoldura = {
-                id: `MOLD-${Date.now()}`,
-                nombre: nombreNuevo.toUpperCase(),
+                id: `TEMP-${Date.now()}`,
+                nombre: nombre.toUpperCase(),
                 categoria: "MOLDURAS",
-                medidas: "290x1 cm",
-                totalStock: totalML,
-                cantidad_m2: totalML, // Por si el motor busca este campo
-                unidad: "ml",
-                precio_unidad: costo,
-                costo_unitario: costo
+                tipo: "ml", // IMPORTANTE para que renderTable la reconozca
+                largo_lamina_cm: 290,
+                stock_actual: totalML,
+                precio_total_lamina: parseFloat(document.getElementById('compraCosto').value) || 0
             };
 
-            // --- PASO 1: Inyectar en CUALQUIER variable que el motor use ---
-            window.inventarioCompleto = [nuevaMoldura, ...(window.inventarioCompleto || [])];
-            window.inventoryData = [nuevaMoldura, ...(window.inventoryData || [])];
-            if (window.estadoGlobal) window.estadoGlobal.inventario = window.inventarioCompleto;
+            // PASO 1: Meterla en la memoria global para que renderTable no la borre
+            window.todosLosMateriales = [nuevaMoldura, ...window.todosLosMateriales];
 
-            // --- PASO 2: Envío real a la base de datos ---
+            // PASO 2: Mandar al servidor
             await window.API.registerPurchase(nuevaMoldura);
 
-            // --- PASO 3: Inyección Visual "Inmortal" ---
-            const tablaCuerpo = document.querySelector('#tablaInventario tbody');
-            if (tablaCuerpo) {
-                const filaInmortal = `
-                    <tr class="fila-nueva-moldura" style="background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important;">
-                        <td>
-                            <div class="fw-bold text-primary">${nuevaMoldura.nombre}</div>
-                            <small class="badge bg-primary">MOLDURAS (RECIÉN CREADO)</small>
-                        </td>
-                        <td class="text-center">290x1 cm</td>
-                        <td class="text-center">$ ${costo.toLocaleString()}</td>
-                        <td class="text-center fw-bold text-primary" style="font-size: 1.2em;">
-                            ${totalML.toFixed(2)} ml
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-success">EN STOCK</span>
-                        </td>
-                    </tr>
-                `;
-                // Insertamos al principio
-                tablaCuerpo.insertAdjacentHTML('afterbegin', filaHtml);
-                
-                // Si el motor intenta borrarla, la forzamos a quedarse
-                setTimeout(() => {
-                    if (!document.querySelector('.fila-nueva-moldura')) {
-                        tablaCuerpo.insertAdjacentHTML('afterbegin', filaHtml);
-                    }
-                }, 1000);
-            }
+            // PASO 3: Redibujar la tabla usando la función oficial corregida
+            renderTable(window.todosLosMateriales);
 
-            alert("✅ MOLDURA REGISTRADA: Debería aparecer de primera en azul.");
+            alert("✅ REGISTRADO: Aparecerá arriba en la lista.");
             if (window.cerrarModales) window.cerrarModales();
 
         } catch (err) {
-            console.error("Fallo total:", err);
-            alert("Error: " + err.message);
+            console.error("Error:", err);
+            alert("Error al guardar moldura");
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
