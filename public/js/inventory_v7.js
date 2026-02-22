@@ -697,27 +697,28 @@ window.verHistorial = async function(id, nombre) {
 window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
         try {
-            // 1. AVISAR AL SERVIDOR (Para que no vuelvan al refrescar)
+            // 1. ELIMINACIÓN REAL EN EL SERVIDOR (Esto evita que vuelva al refrescar)
             if (window.API && window.API.deleteMaterial) {
-                await window.API.deleteMaterial(id);
+                const respuesta = await window.API.deleteMaterial(id);
+                if (!respuesta.success) {
+                    throw new Error("El servidor no permitió borrarlo.");
+                }
             }
 
-            // 2. BORRAR DE LA MEMORIA LOCAL (window.todosLosMateriales)
+            // 2. ELIMINACIÓN EN MEMORIA LOCAL
             window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
             
-            // 3. LIMPIAR EL LOCAL STORAGE (Para que el refresh no los vea)
+            // 3. ACTUALIZAR EL LOCAL STORAGE
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // 4. REFRESCAR LA TABLA
+            // 4. VOLVER A PINTAR LA TABLA
             renderTable(window.todosLosMateriales);
 
-            alert("✅ Eliminado de la base de datos y del navegador.");
+            alert("✅ Borrado con éxito. Ya no aparecerá al refrescar.");
 
         } catch (error) {
-            console.error("Error al borrar:", error);
-            // Si falla el servidor, igual lo borramos de la vista para no estorbar
-            window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
-            renderTable(window.todosLosMateriales);
+            console.error("Error al eliminar:", error);
+            alert("No se pudo borrar del servidor, intenta de nuevo.");
         }
     }
 };
