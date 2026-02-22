@@ -495,53 +495,57 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = 'PROCESANDO...'; }
 
         try {
+            // Recolección de datos
             const materialId = document.getElementById('compraMaterial').value;
-            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "Material Nuevo";
+            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "Moldura Especial";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const largo = parseFloat(document.getElementById('compraLargo').value) || 290;
-            const ancho = parseFloat(document.getElementById('compraAncho').value) || 1;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || largo === 290;
-            const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
+            const totalCalculado = (cant * 2.9); // Fuerza el cálculo de moldura (2.9m)
 
-            const datosCompra = {
-                id: materialId === 'nuevo' ? `MOLD-${Date.now()}` : materialId,
-                nombre: nombreNuevo,
-                categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                medidas: `${largo}x${ancho} cm`,
-                largo, ancho,
-                cantidad: cant,
+            const nuevoItem = {
+                id: Date.now().toString(),
+                nombre: nombreNuevo.toUpperCase(),
+                categoria: "MOLDURAS", // Forzamos categoría para que el filtro no la oculte
+                medidas: `${largo}x1 cm`,
+                cantidad_m2: totalCalculado,
                 totalStock: totalCalculado,
-                unidad: esMoldura ? 'ml' : 'm2',
-                costo_unidad: costo
+                unidad: "ml",
+                costo_total: costo * cant,
+                precio_unidad: costo
             };
 
-            // 1. FORZAR INSERCIÓN EN EL ARRAY GLOBAL (El motor de la tabla)
-            if (!window.inventarioCompleto) window.inventarioCompleto = [];
-            window.inventarioCompleto.unshift(datosCompra); 
+            // --- PASO CONTUNDENTE 1: Actualizar la memoria global ---
+            // Buscamos cómo se llama tu array global (suele ser inventarioCompleto o inventoryData)
+            const globalData = window.inventarioCompleto || window.inventoryData || [];
+            globalData.unshift(nuevoItem); 
+            window.inventarioCompleto = globalData; // Aseguramos que se guarde
 
-            // 2. REGISTRO EN API Y LOCALSTORAGE
-            await window.API.registerPurchase(datosCompra);
+            // --- PASO CONTUNDENTE 2: Registro Real en API ---
+            await window.API.registerPurchase(nuevoItem);
 
-            // 3. RE-RENDERIZADO TOTAL DE LA TABLA
-            // Llamamos a la función que dibuja la tabla para que procese el nuevo array
-            if (typeof renderTable === 'function') {
-                renderTable(window.inventarioCompleto);
-            } else {
-                // Si no existe, forzamos la recarga visual manual
-                location.reload(); 
+            // --- PASO CONTUNDENTE 3: Forzar que aparezca en la tabla ---
+            const tablaCuerpo = document.querySelector('#tablaInventario tbody');
+            if (tablaCuerpo) {
+                // Si la función renderTable existe, la obligamos a ejecutarse con el nuevo array
+                if (typeof renderTable === 'function') {
+                    renderTable(window.inventarioCompleto);
+                } else {
+                    // Si no, recargamos la página forzosamente para leer de la DB actualizada
+                    location.reload();
+                }
             }
 
-            alert(`✅ REGISTRADO: ${nombreNuevo} (${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"})`);
+            alert("✅ MOLDURA REGISTRADA Y VISIBLE");
             if (window.cerrarModales) window.cerrarModales();
 
         } catch (err) {
-            console.error("Error al guardar moldura:", err);
-            alert("Error: " + err.message);
+            console.error("ERROR CRÍTICO:", err);
+            alert("Error al guardar: " + err.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
