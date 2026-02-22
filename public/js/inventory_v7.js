@@ -510,90 +510,81 @@ function configurarEventos() {
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
 // Reemplaza tu bloque formCompra.onsubmit con este corregido:
+// 1. ELIMINAMOS CUALQUIER EVENTO PREVIO PARA LIMPIAR EL BOTÓN
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
-    formCompra.onsubmit = async (e) => {
-        e.preventDefault();
-        
-        // 1. REACTIVACIÓN OBLIGATORIA
-        const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
+    formCompra.onsubmit = null; // Limpieza total
 
+    formCompra.onsubmit = function(e) {
+        e.preventDefault();
+        console.log("🚀 Click detectado - Iniciando bypass...");
+
+        // 2. FORZAR ACTIVACIÓN DEL BOTÓN
+        const btn = document.querySelector('#formNuevaCompra button[type="submit"]');
+        
         try {
+            // 3. CAPTURA DIRECTA (Sin importar el select)
+            const inputNombre = document.getElementById('nombreMaterialNuevo');
             const selectMat = document.getElementById('compraMaterial');
-            const inputNuevo = document.getElementById('nombreMaterialNuevo');
             
-            // 2. CAPTURA DE NOMBRE "LO QUE VES ES LO QUE HAY"
             let nombreFinal = "";
             
-            // Si escribiste en el cuadro de texto, eso manda.
-            if (inputNuevo && inputNuevo.value.trim() !== "") {
-                nombreFinal = inputNuevo.value.trim().toUpperCase();
-            } 
-            // Si no escribiste, saca el texto del menú desplegable
-            else if (selectMat && selectMat.selectedIndex >= 0) {
+            // Si el cuadro de texto tiene algo escrito, eso manda sobre todo
+            if (inputNombre && inputNombre.value.trim() !== "") {
+                nombreFinal = inputNombre.value.trim().toUpperCase();
+            } else if (selectMat) {
                 nombreFinal = selectMat.options[selectMat.selectedIndex].text
                     .replace('+ AGREGAR NUEVO MATERIAL', '')
                     .trim().toUpperCase();
             }
 
-            // Si el nombre sigue siendo basura, no seguimos
-            if (!nombreFinal || nombreFinal === "" || nombreFinal.includes("SELECCIONAR")) {
-                alert("⚠️ Escribe o selecciona un nombre de material válido.");
-                if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-                return;
+            if (!nombreFinal || nombreFinal.includes("SELECCIONAR")) {
+                alert("Escriba el nombre del material.");
+                return false;
             }
 
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const totalML = cant * 2.90;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
+            const totalML = cant * 2.90;
 
-            // 3. ACTUALIZACIÓN DE LA TABLA (SUMA O CREACIÓN)
+            // 4. INYECCIÓN DIRECTA EN LA TABLA
+            const nuevoItem = {
+                id: "MOLD-" + Date.now(),
+                nombre: nombreFinal,
+                categoria: "MOLDURAS",
+                tipo: "ml",
+                stock_actual: totalML,
+                precio_total_lamina: costo,
+                largo_lamina_cm: 290,
+                ancho_lamina_cm: 1
+            };
+
+            // Lo metemos al principio del inventario
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Buscamos si el nombre YA EXISTE para sumarle
-            let indexEncontrado = window.todosLosMateriales.findIndex(m => m.nombre === nombreFinal);
-
-            if (indexEncontrado !== -1) {
-                // SUMAMOS AL EXISTENTE
-                let stockPrevio = Number(window.todosLosMateriales[indexEncontrado].stock_actual) || 0;
-                window.todosLosMateriales[indexEncontrado].stock_actual = stockPrevio + totalML;
-                window.todosLosMateriales[indexEncontrado].precio_total_lamina = costo;
+            // Si ya existe, le sumamos. Si no, lo agregamos.
+            let existente = window.todosLosMateriales.find(m => m.nombre === nombreFinal);
+            if (existente) {
+                existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
             } else {
-                // CREAMOS UNO NUEVO
-                const nuevoItem = {
-                    id: `MOLD-${Date.now()}`,
-                    nombre: nombreFinal,
-                    categoria: "MOLDURAS",
-                    tipo: "ml",
-                    stock_actual: totalML,
-                    precio_total_lamina: costo,
-                    largo_lamina_cm: 290,
-                    ancho_lamina_cm: 1
-                };
                 window.todosLosMateriales.unshift(nuevoItem);
             }
 
-            // 4. REFRESCO DE PANTALLA INMEDIATO
+            // 5. ACTUALIZACIÓN VISUAL INMEDIATA
             renderTable(window.todosLosMateriales);
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            // 5. API EN SEGUNDO PLANO (Si falla no importa, ya lo ves en pantalla)
-            window.API.registerPurchase({
-                nombre: nombreFinal,
-                stock_actual: totalML,
-                tipo: 'ml'
-            }).catch(err => console.log("Error API (normal):", err));
-
-            alert(`✅ OK: ${nombreFinal} ahora tiene +${totalML.toFixed(2)} ml`);
+            // 6. CERRAR Y AVISAR
+            alert("REGISTRADO: " + nombreFinal + " (" + totalML + " ml)");
             if (window.cerrarModales) window.cerrarModales();
+            formCompra.reset();
 
         } catch (err) {
-            console.error("Fallo:", err);
-        } finally {
-            // El botón se activa sí o sí
-            if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+            console.error("Error crítico:", err);
+            alert("Error en el proceso. Revisa la consola.");
         }
+        
+        return false;
     };
 }
 }
