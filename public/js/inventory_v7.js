@@ -579,22 +579,23 @@ const formCompra = document.getElementById('formNuevaCompra');
 
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
+            // Buscamos ignorando espacios extras y mayúsculas/minúsculas
+            let existente = window.todosLosMateriales.find(m => 
+                m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
+            );
 
-           // --- MODIFICACIÓN PARA SUMAR EN LUGAR DE BORRAR ---
             if (existente) {
-                // El truco está en (Number(existente.stock_actual) || 0) + stockASumar
-                // Esto toma lo que ya había y le suma lo nuevo
+                // SUMAMOS AL EXISTENTE (Para que no se cree otra línea)
+                console.log("Material encontrado, sumando stock...");
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                
-                // Actualizamos también el costo y la unidad por si acaso
-                existente.precio_total_lamina = costo;
+                existente.precio_total_lamina = costo; // Actualiza el precio
                 existente.tipo = unidadFinal; 
             } else {
-                // Si el material no existe en la tabla, lo crea desde cero
+                // SOLO SI NO EXISTE, crea la nueva línea
+                console.log("Material nuevo, creando registro...");
                 window.todosLosMateriales.unshift({
                     id: `MAT-${Date.now()}`,
-                    nombre: nombreReal,
+                    nombre: nombreReal.trim().toUpperCase(),
                     categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                     tipo: unidadFinal,
                     stock_actual: stockASumar,
