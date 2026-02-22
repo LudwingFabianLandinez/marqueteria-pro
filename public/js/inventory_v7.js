@@ -695,29 +695,29 @@ window.verHistorial = async function(id, nombre) {
 };
 
 window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Estás seguro de que deseas eliminar este material?")) {
+    if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
         try {
-            // 1. Intentar borrar en el servidor (API)
+            // 1. AVISAR AL SERVIDOR (Para que no vuelvan al refrescar)
             if (window.API && window.API.deleteMaterial) {
-                await window.API.deleteMaterial(id).catch(e => console.log("Borrado local únicamente"));
+                await window.API.deleteMaterial(id);
             }
 
-            // 2. BORRADO EN MEMORIA (Para que desaparezca de la tabla ya mismo)
-            if (window.todosLosMateriales) {
-                window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
-                
-                // 3. Guardar cambios en el navegador
-                localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-                
-                // 4. Refrescar la tabla visualmente
-                renderTable(window.todosLosMateriales);
-            }
+            // 2. BORRAR DE LA MEMORIA LOCAL (window.todosLosMateriales)
+            window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
+            
+            // 3. LIMPIAR EL LOCAL STORAGE (Para que el refresh no los vea)
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            
+            // 4. REFRESCAR LA TABLA
+            renderTable(window.todosLosMateriales);
 
-            alert("✅ Material eliminado correctamente.");
+            alert("✅ Eliminado de la base de datos y del navegador.");
 
         } catch (error) {
-            console.error("Error al eliminar:", error);
-            alert("Hubo un problema al eliminar el material.");
+            console.error("Error al borrar:", error);
+            // Si falla el servidor, igual lo borramos de la vista para no estorbar
+            window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
+            renderTable(window.todosLosMateriales);
         }
     }
 };
