@@ -515,75 +515,83 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
+        // 1. REACTIVACIÓN GARANTIZADA DEL BOTÓN
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = 'PROCESANDO...'; }
 
         try {
-            const selectMaterial = document.getElementById('compraMaterial');
-            const inputNuevoNombre = document.getElementById('nombreMaterialNuevo');
+            const selectMat = document.getElementById('compraMaterial');
+            const inputNuevo = document.getElementById('nombreMaterialNuevo');
             
-            let nombreParaInventario = "";
-            let materialId = selectMaterial.value;
-
-            // --- LÓGICA QUIRÚRGICA DE NOMBRE ---
-            if (materialId !== "nuevo" && materialId !== "") {
-                // BUSCAMOS EN LA MEMORIA EL NOMBRE REAL DE ESE ID
-                const materialEncontrado = window.todosLosMateriales.find(m => m.id == materialId);
-                if (materialEncontrado) {
-                    nombreParaInventario = materialEncontrado.nombre.toUpperCase();
-                } else {
-                    // Si no lo encuentra en memoria, sacamos el texto del select limpiando el "+"
-                    nombreParaInventario = selectMaterial.options[selectMaterial.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim().toUpperCase();
-                }
-            } else {
-                // Es un material nuevo escrito a mano
-                nombreParaInventario = inputNuevoNombre.value.trim().toUpperCase();
+            // 2. EXTRACCIÓN VIOLENTA DEL NOMBRE
+            // Prioridad 1: Lo que escribiste. Prioridad 2: Lo que seleccionaste.
+            let nombreFinal = "";
+            
+            if (inputNuevo && inputNuevo.value.trim() !== "") {
+                nombreFinal = inputNuevo.value.trim().toUpperCase();
+            } else if (selectMat && selectMat.selectedIndex >= 0) {
+                // Sacamos el texto directamente de lo que ves en el dropdown
+                nombreFinal = selectMat.options[selectMat.selectedIndex].text
+                    .replace('+ AGREGAR NUEVO MATERIAL', '')
+                    .replace('-- Seleccionar Material --', '')
+                    .trim().toUpperCase();
             }
 
-            // Si el nombre sigue vacío o contiene el texto del botón, lanzamos error
-            if (!nombreParaInventario || nombreParaInventario.includes("AGREGAR NUEVO")) {
-                alert("⚠️ Error: No se detectó el nombre del material. Por favor escríbalo.");
-                if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-                return;
+            // 3. VALIDACIÓN DE SEGURIDAD
+            if (!nombreFinal || nombreFinal === "") {
+                alert("⚠️ DEBES ESCRIBIR O SELECCIONAR UN NOMBRE REAL.");
+                throw new Error("Nombre vacío");
             }
 
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const totalML = cant * 2.90;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            const itemFinal = {
-                id: materialId === "nuevo" ? `MOLD-${Date.now()}` : materialId,
-                nombre: nombreParaInventario,
-                categoria: "MOLDURAS",
-                tipo: "ml",
-                stock_actual: totalML,
-                precio_total_lamina: costo,
-                largo_lamina_cm: 290,
-                ancho_lamina_cm: 1
-            };
-
-            // ACTUALIZAR LA TABLA (SUMAR O AGREGAR)
+            // 4. ACTUALIZACIÓN DIRECTA EN MEMORIA (PARA QUE APAREZCA YA)
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            const existeIdx = window.todosLosMateriales.findIndex(m => m.nombre === nombreParaInventario);
-            if (existeIdx !== -1) {
-                window.todosLosMateriales[existeIdx].stock_actual = (Number(window.todosLosMateriales[existeIdx].stock_actual) || 0) + totalML;
+            // Buscamos si el material existe para SUMAR, si no, CREAR
+            let materialIdx = window.todosLosMateriales.findIndex(m => m.nombre === nombreFinal);
+
+            if (materialIdx !== -1) {
+                // SUMA AL EXISTENTE
+                window.todosLosMateriales[materialIdx].stock_actual = 
+                    (Number(window.todosLosMateriales[materialIdx].stock_actual) || 0) + totalML;
+                window.todosLosMateriales[materialIdx].precio_total_lamina = costo;
             } else {
-                window.todosLosMateriales.unshift(itemFinal);
+                // CREA NUEVO REGISTRO
+                const nuevo = {
+                    id: `MOLD-${Date.now()}`,
+                    nombre: nombreFinal,
+                    categoria: "MOLDURAS",
+                    tipo: "ml",
+                    stock_actual: totalML,
+                    precio_total_lamina: costo,
+                    largo_lamina_cm: 290,
+                    ancho_lamina_cm: 1
+                };
+                window.todosLosMateriales.unshift(nuevo);
             }
 
-            // RENDER Y PERSISTENCIA
+            // 5. PINTAR TABLA Y GUARDAR LOCAL
             renderTable(window.todosLosMateriales);
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            await window.API.registerPurchase(itemFinal);
-            
-            alert(`✅ REGISTRADO: ${nombreParaInventario}`);
+            // 6. ENVIAR A API (En segundo plano)
+            await window.API.registerPurchase({
+                id: selectMat.value,
+                nombre: nombreFinal,
+                stock_actual: totalML,
+                tipo: 'ml'
+            });
+
+            alert(`✅ INVENTARIO ACTUALIZADO: ${nombreFinal}`);
             if (window.cerrarModales) window.cerrarModales();
 
         } catch (err) {
-            console.error(err);
+            console.error("Error en el proceso:", err);
         } finally {
+            // EL BOTÓN SE ACTIVA PASE LO QUE PASE
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
     };
