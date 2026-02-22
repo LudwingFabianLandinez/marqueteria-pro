@@ -498,80 +498,56 @@ if (formCompra) {
         if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
-            // Captura de valores
             const materialId = document.getElementById('compraMaterial').value;
             const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "Material Nuevo";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
-            const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
+            const largo = parseFloat(document.getElementById('compraLargo').value) || 290;
+            const ancho = parseFloat(document.getElementById('compraAncho').value) || 1;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            // LÓGICA DE DETECCIÓN DE MOLDURA (290cm)
-            // Si el largo es 290 o el nombre dice "moldura", se trata como metros lineales
             const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || largo === 290;
-            
-            // Si es moldura: cantidad * 2.9 (metros). Si es lámina: m2 (largo * ancho * cant / 10000)
             const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
-            const unidadMedida = esMoldura ? "ml" : "m2";
 
-            // 1. OBJETO DE DATOS (Lo que va al servidor y al estado interno)
             const datosCompra = {
-                id: materialId === 'nuevo' ? Date.now() : materialId,
+                id: materialId === 'nuevo' ? `MOLD-${Date.now()}` : materialId,
                 nombre: nombreNuevo,
+                categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                medidas: `${largo}x${ancho} cm`,
+                largo, ancho,
                 cantidad: cant,
-                largo: largo,
-                ancho: ancho,
-                totalStock: totalCalculado, // Aquí se refleja el stock real
-                unidad: unidadMedida,
-                costo_unidad: costo,
-                fecha: new Date().toISOString()
+                totalStock: totalCalculado,
+                unidad: esMoldura ? 'ml' : 'm2',
+                costo_unidad: costo
             };
 
-            // 2. ACTUALIZAR EL "MOTOR" (Si tienes un array global de inventario)
-            if (window.inventarioActual) {
-                window.inventarioActual.push(datosCompra);
-            }
+            // 1. FORZAR INSERCIÓN EN EL ARRAY GLOBAL (El motor de la tabla)
+            if (!window.inventarioCompleto) window.inventarioCompleto = [];
+            window.inventarioCompleto.unshift(datosCompra); 
 
-            // 3. INYECCIÓN VISUAL EN LA TABLA
-            const tablaCuerpo = document.querySelector('#tablaInventario tbody');
-            if (tablaCuerpo) {
-                const nuevaFila = document.createElement('tr');
-                nuevaFila.classList.add('table-success'); // Resaltado visual
-                nuevaFila.innerHTML = `
-                    <td>
-                        <div class="fw-bold">${nombreNuevo}</div>
-                        <small class="text-muted">${esMoldura ? "MOLDURA" : "GENERAL"}</small>
-                    </td>
-                    <td class="text-center">${largo}x${ancho} cm</td>
-                    <td class="text-center">$ ${costo.toLocaleString()}</td>
-                    <td class="text-center fw-bold text-primary">
-                        ${totalCalculado.toFixed(2)} ${unidadMedida}
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-success">Recién Agregado</span>
-                    </td>
-                `;
-                tablaCuerpo.prepend(nuevaFila);
-            }
-
-            // 4. PERSISTENCIA (LocalStorage y API)
+            // 2. REGISTRO EN API Y LOCALSTORAGE
             await window.API.registerPurchase(datosCompra);
-            
-            alert(`✅ REGISTRADO: ${nombreNuevo} (${totalCalculado.toFixed(2)} ${unidadMedida})`);
-            
+
+            // 3. RE-RENDERIZADO TOTAL DE LA TABLA
+            // Llamamos a la función que dibuja la tabla para que procese el nuevo array
+            if (typeof renderTable === 'function') {
+                renderTable(window.inventarioCompleto);
+            } else {
+                // Si no existe, forzamos la recarga visual manual
+                location.reload(); 
+            }
+
+            alert(`✅ REGISTRADO: ${nombreNuevo} (${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"})`);
             if (window.cerrarModales) window.cerrarModales();
 
         } catch (err) {
-            console.error("Error detallado:", err);
-            alert("Error al guardar: " + err.message);
+            console.error("Error al guardar moldura:", err);
+            alert("Error: " + err.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
     };
 }
 }
-
-
 
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
