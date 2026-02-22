@@ -515,46 +515,52 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // 1. CAPTURA BRUTA (Sin intermediarios)
-        const nombreManual = document.getElementById('nombreMaterialNuevo').value.trim().toUpperCase();
-        const cantidadUnidades = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const precioCosto = parseFloat(document.getElementById('compraCosto').value) || 0;
+        // 1. CAPTURA DIRECTA DEL VALOR DEL INPUT
+        const inputNombre = document.getElementById('nombreMaterialNuevo');
+        const nombreReal = inputNombre.value.trim().toUpperCase();
+        const cantUnidades = parseFloat(document.getElementById('compraCantidad').value) || 0;
+        const costoUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
         
-        // 2. CÁLCULO DE MOLDURA (Siempre 2.9m por cada unidad comprada)
-        const totalMetrosLineales = cantidadUnidades * 2.9;
+        // 2. CÁLCULO DE ML (2.90m por cada moldura)
+        const totalML = cantUnidades * 2.90;
 
-        // 3. OBJETO QUIRÚRGICO (Con los campos exactos que lee tu tabla)
-        const nuevaFila = {
-            id: `MOLD-${Date.now()}`,
-            nombre: nombreManual || "MOLDURA NUEVA", // Aquí va el nombre que escribiste
+        // 3. OBJETO CON LA ESTRUCTURA EXACTA QUE TU TABLA LEE
+        const itemForzado = {
+            id: "MOLD-" + Date.now(),
+            nombre: nombreReal, // <--- ESTO ES LO QUE QUIERES VER
             categoria: "MOLDURAS",
             tipo: "ml",
-            stock_actual: totalMetrosLineales, // Aquí sale la cantidad comprada x 2.9
-            precio_total_lamina: precioCosto,
+            stock_actual: totalML, // <--- ESTA ES LA CANTIDAD QUE QUIERES VER
+            precio_total_lamina: costoUnitario,
             largo_lamina_cm: 290,
             ancho_lamina_cm: 1,
-            fecha_registro: new Date().toISOString()
+            proveedorNombre: "NUEVA COMPRA"
         };
 
-        // 4. INYECCIÓN VIOLENTA (Al principio de la lista)
-        if (!window.todosLosMateriales) window.todosLosMateriales = [];
-        window.todosLosMateriales.unshift(nuevaFila);
+        // 4. INYECCIÓN VIOLENTA EN EL ARRAY GLOBAL
+        // Esto evita que el motor lo ignore
+        if (!Array.isArray(window.todosLosMateriales)) window.todosLosMateriales = [];
+        window.todosLosMateriales.unshift(itemForzado);
 
-        // 5. ACTUALIZAR PANTALLA YA MISMO
+        // 5. RENDERIZADO INMEDIATO
+        // Forzamos a la tabla a dibujarse con nuestro nuevo objeto arriba
         renderTable(window.todosLosMateriales);
-        
-        // 6. PERSISTENCIA PARA QUE NO DESAPAREZCA AL REFRESCAR
-        let backup = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-        backup.unshift(nuevaFila);
-        localStorage.setItem('molduras_pendientes', JSON.stringify(backup));
+
+        // 6. PERSISTENCIA EN LOCALSTORAGE (Para que el Refresh no lo borre)
+        const actuales = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+        actuales.unshift(itemForzado);
+        localStorage.setItem('molduras_pendientes', JSON.stringify(actuales));
 
         try {
-            // Mandamos al servidor en segundo plano
-            await window.API.registerPurchase(nuevaFila);
-            alert(`REGISTRADO: ${nombreManual} - ${totalMetrosLineales.toFixed(2)} ml`);
+            // Enviamos al servidor pero la pantalla ya cambió
+            await window.API.registerPurchase(itemForzado);
+            
+            alert(`✅ REGISTRADO: ${nombreReal} | ${totalML.toFixed(2)} ml`);
+            
             if (window.cerrarModales) window.cerrarModales();
+            if (inputNombre) inputNombre.value = ""; // Limpiamos el campo
         } catch (err) {
-            console.log("Error de red, pero el dato ya está en tu tabla.");
+            console.error("Error al sincronizar, pero el dato está en pantalla.");
         }
     };
 }
