@@ -487,6 +487,9 @@ function configurarEventos() {
     // === RECUPERANDO VERSIÓN ESTABLE v13.4.48 ===
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
+
+
+
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async (e) => {
@@ -505,9 +508,31 @@ if (formCompra) {
             const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || ancho === 1;
             const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
-            // OBJETO PARA EL SERVIDOR
+            // 1. Inyección Directa en la Tabla (Visual instantáneo)
+            const tablaCuerpo = document.querySelector('#tablaInventario tbody');
+            if (tablaCuerpo) {
+                const nuevaFila = document.createElement('tr');
+                nuevaFila.style.backgroundColor = '#e8f5e9'; // Color verde suave para resaltar
+                nuevaFila.innerHTML = `
+                    <td>
+                        <div class="fw-bold">${nombreNuevo}</div>
+                        <small class="text-muted">${esMoldura ? "Molduras" : "GENERAL"} | SIN PROVEEDOR</small>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark">${largo}x${ancho} cm</span>
+                    </td>
+                    <td class="text-center">$ ${costo.toLocaleString()} <small>/ ${esMoldura ? "ml" : "m2"}</small></td>
+                    <td class="text-center fw-bold text-success">
+                        ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}
+                    </td>
+                    <td class="text-center">---</td>
+                `;
+                tablaCuerpo.prepend(nuevaFila); // Lo pone de primero
+            }
+
+            // 2. Datos para el servidor
             const datosCompra = {
-                materialId: materialId,
+                materialId,
                 nombreMaterial: nombreNuevo,
                 proveedorId: document.getElementById('compraProveedor').value,
                 cantidad: cant,
@@ -518,48 +543,20 @@ if (formCompra) {
                 fecha: new Date().toISOString()
             };
 
-            // --- INYECCIÓN FORZADA PARA QUE "BRINQUE" EN LA TABLA ---
-            if (materialId === "nuevo") {
-                const nuevoItem = {
-                    id: "temp_" + Date.now(),
-                    _id: "temp_" + Date.now(),
-                    nombre: nombreNuevo,
-                    // Usamos 'GENERAL' porque es lo que veo en tu tabla (image_1fe3fc.png)
-                    categoria: esMoldura ? "Molduras" : "GENERAL", 
-                    stock_actual: totalCalculado,
-                    unidad_medida: esMoldura ? "ml" : "m2",
-                    precio_compra: costo,
-                    // IMPORTANTE: Ponemos "SIN PROVEEDOR" para que coincida con tu filtro visual
-                    proveedor: "SIN PROVEEDOR", 
-                    medidas_originales: `${largo}x${ancho} cm`
-                };
-                
-                if (!window.todosLosMateriales) window.todosLos_Materiales = [];
-                // Lo ponemos al inicio de la lista
-                window.todosLosMateriales.unshift(nuevoItem);
-            }
-
-            // 1. Guardar localmente
+            // 3. Registro en Bitácora y API
             const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             local.push(datosCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(local));
-            
-            // 2. FORZAR EL DIBUJO DE LA TABLA AHORA MISMO
-            if (typeof renderTable === 'function') {
-                console.log("Forzando renderTable con el nuevo material...");
-                renderTable(window.todosLosMateriales);
-            }
 
-            // 3. Enviar al Servidor (esto va por debajo)
             await window.API.registerPurchase(datosCompra);
 
             alert(`✅ REGISTRADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
             
             if (window.cerrarModales) window.cerrarModales();
-            // Quitamos el reload() para que no se borre lo que acabamos de inyectar
+            // NO recargamos para que veas la fila ahí puesta.
             
         } catch (err) {
-            console.error("Error:", err);
+            console.error(err);
             alert("Error al guardar");
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
@@ -567,6 +564,10 @@ if (formCompra) {
     };
 }
 }
+
+
+
+
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
     let encontrado = false;
