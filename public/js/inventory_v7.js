@@ -517,6 +517,7 @@ if (formCompra) {
         
         // --- CAPTURA QUIRÚRGICA DEL NOMBRE ---
     // 1. CAPTURA DEL NOMBRE (Forzado para ignorar el "+ AGREGAR...")
+        // 1. CAPTURA DEL NOMBRE (Forzado para ignorar el "+ AGREGAR...")
         const inputNuevo = document.getElementById('nombreMaterialNuevo');
         const selectMat = document.getElementById('compraMaterial');
         
