@@ -515,78 +515,46 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // --- BÚSQUEDA QUIRÚRGICA DEL NOMBRE ---
-        // Intentamos 3 formas diferentes de encontrar el cuadro de texto
-        const inputPorId = document.getElementById('nombreMaterialNuevo');
-        const inputPorSelector = document.querySelector('input[placeholder*="Nombre del material"]');
-        const inputPorClase = document.querySelector('.form-control-nuevo-material'); // Ajusta si tienes una clase
+        // 1. CAPTURA BRUTA (Sin intermediarios)
+        const nombreManual = document.getElementById('nombreMaterialNuevo').value.trim().toUpperCase();
+        const cantidadUnidades = parseFloat(document.getElementById('compraCantidad').value) || 0;
+        const precioCosto = parseFloat(document.getElementById('compraCosto').value) || 0;
         
-        const inputFinal = inputPorId || inputPorSelector || inputPorClase;
-        
-        let nombreEscrito = "";
-        if (inputFinal && inputFinal.value.trim() !== "") {
-            nombreEscrito = inputFinal.value.trim().toUpperCase();
-        } else {
-            // Si el input está vacío, intentamos ver si seleccionaste uno del SELECT
-            const selectMat = document.getElementById('compraMaterial');
-            if (selectMat && selectMat.value !== "nuevo") {
-                nombreEscrito = selectMat.options[selectMat.selectedIndex].text.toUpperCase();
-            }
-        }
+        // 2. CÁLCULO DE MOLDURA (Siempre 2.9m por cada unidad comprada)
+        const totalMetrosLineales = cantidadUnidades * 2.9;
 
-        // BLOQUEO FINAL: Si después de todo sigue vacío o es el texto del botón
-        if (!nombreEscrito || nombreEscrito.includes("AGREGAR NUEVO")) {
-            alert("⚠️ EL SISTEMA NO DETECTA EL NOMBRE. Por favor, asegúrate de escribirlo en el cuadro de texto.");
-            if (inputFinal) inputFinal.focus();
-            return; 
-        }
+        // 3. OBJETO QUIRÚRGICO (Con los campos exactos que lee tu tabla)
+        const nuevaFila = {
+            id: `MOLD-${Date.now()}`,
+            nombre: nombreManual || "MOLDURA NUEVA", // Aquí va el nombre que escribiste
+            categoria: "MOLDURAS",
+            tipo: "ml",
+            stock_actual: totalMetrosLineales, // Aquí sale la cantidad comprada x 2.9
+            precio_total_lamina: precioCosto,
+            largo_lamina_cm: 290,
+            ancho_lamina_cm: 1,
+            fecha_registro: new Date().toISOString()
+        };
 
-        const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const totalML = (cant * 2.90);
-        const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
-
-        // --- LÓGICA DE SUMA DE STOCK ---
+        // 4. INYECCIÓN VIOLENTA (Al principio de la lista)
         if (!window.todosLosMateriales) window.todosLosMateriales = [];
-        
-        // Buscamos si el material ya existe para SUMAR
-        let coincidencia = window.todosLosMateriales.find(m => 
-            m.nombre.trim().toUpperCase() === nombreEscrito.trim().toUpperCase()
-        );
+        window.todosLosMateriales.unshift(nuevaFila);
 
-        if (coincidencia) {
-            coincidencia.stock_actual = (Number(coincidencia.stock_actual) || 0) + totalML;
-            coincidencia.precio_total_lamina = costo;
-            alert(`📈 STOCK ACTUALIZADO: ${nombreEscrito}\nNuevo total: ${coincidencia.stock_actual.toFixed(2)} ml`);
-        } else {
-            const nuevo = {
-                id: `MOLD-${Date.now()}`,
-                nombre: nombreEscrito,
-                categoria: "MOLDURAS",
-                tipo: "ml",
-                largo_lamina_cm: 290,
-                stock_actual: totalML,
-                precio_total_lamina: costo,
-                fecha_registro: new Date().toISOString()
-            };
-            window.todosLosMateriales.unshift(nuevo);
-            alert(`✅ NUEVO MATERIAL REGISTRADO: ${nombreEscrito}`);
-        }
-
-        // --- PERSISTENCIA Y CIERRE ---
-        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+        // 5. ACTUALIZAR PANTALLA YA MISMO
         renderTable(window.todosLosMateriales);
+        
+        // 6. PERSISTENCIA PARA QUE NO DESAPAREZCA AL REFRESCAR
+        let backup = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+        backup.unshift(nuevaFila);
+        localStorage.setItem('molduras_pendientes', JSON.stringify(backup));
 
         try {
-            await window.API.registerPurchase({
-                nombre: nombreEscrito,
-                cantidad: cant,
-                totalML: totalML,
-                costo: costo,
-                tipo: 'ml'
-            });
+            // Mandamos al servidor en segundo plano
+            await window.API.registerPurchase(nuevaFila);
+            alert(`REGISTRADO: ${nombreManual} - ${totalMetrosLineales.toFixed(2)} ml`);
             if (window.cerrarModales) window.cerrarModales();
         } catch (err) {
-            console.error("Error API:", err);
+            console.log("Error de red, pero el dato ya está en tu tabla.");
         }
     };
 }
