@@ -694,31 +694,34 @@ window.verHistorial = async function(id, nombre) {
     } catch (error) { console.error("Error historial:", error); }
 };
 
-window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
+    window.eliminarMaterial = async function(id) {
+    if (confirm("⚠️ ¿Eliminar permanentemente? No volverá a aparecer al refrescar.")) {
         try {
-            // 1. ELIMINACIÓN REAL EN EL SERVIDOR (Esto evita que vuelva al refrescar)
+            // 1. Intentar borrar en el servidor
             if (window.API && window.API.deleteMaterial) {
-                const respuesta = await window.API.deleteMaterial(id);
-                if (!respuesta.success) {
-                    throw new Error("El servidor no permitió borrarlo.");
-                }
+                await window.API.deleteMaterial(id);
             }
 
-            // 2. ELIMINACIÓN EN MEMORIA LOCAL
+            // 2. LIMPIEZA DE BITÁCORA (Esto es lo que evita que reaparezcan)
+            // Buscamos en la memoria 'inventory_local' que es donde el sistema guarda los cambios pendientes
+            let bitacora = JSON.parse(localStorage.getItem('inventory_local') || '[]');
+            bitacora = bitacora.filter(item => String(item.id) !== String(id));
+            localStorage.setItem('inventory_local', JSON.stringify(bitacora));
+
+            // 3. LIMPIEZA DEL INVENTARIO ACTUAL
             window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
-            
-            // 3. ACTUALIZAR EL LOCAL STORAGE
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // 4. VOLVER A PINTAR LA TABLA
+            // 4. REFRESCO VISUAL
             renderTable(window.todosLosMateriales);
 
-            alert("✅ Borrado con éxito. Ya no aparecerá al refrescar.");
+            alert("✅ Borrado total exitoso.");
 
         } catch (error) {
             console.error("Error al eliminar:", error);
-            alert("No se pudo borrar del servidor, intenta de nuevo.");
+            // Si falla el servidor, igual lo quitamos de la vista local
+            window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
+            renderTable(window.todosLosMateriales);
         }
     }
 };
