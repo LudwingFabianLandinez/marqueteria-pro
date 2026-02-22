@@ -515,52 +515,61 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // 1. CAPTURA DIRECTA DEL VALOR DEL INPUT
-        const inputNombre = document.getElementById('nombreMaterialNuevo');
-        const nombreReal = inputNombre.value.trim().toUpperCase();
-        const cantUnidades = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const costoUnitario = parseFloat(document.getElementById('compraCosto').value) || 0;
-        
-        // 2. CÁLCULO DE ML (2.90m por cada moldura)
-        const totalML = cantUnidades * 2.90;
-
-        // 3. OBJETO CON LA ESTRUCTURA EXACTA QUE TU TABLA LEE
-        const itemForzado = {
-            id: "MOLD-" + Date.now(),
-            nombre: nombreReal, // <--- ESTO ES LO QUE QUIERES VER
-            categoria: "MOLDURAS",
-            tipo: "ml",
-            stock_actual: totalML, // <--- ESTA ES LA CANTIDAD QUE QUIERES VER
-            precio_total_lamina: costoUnitario,
-            largo_lamina_cm: 290,
-            ancho_lamina_cm: 1,
-            proveedorNombre: "NUEVA COMPRA"
-        };
-
-        // 4. INYECCIÓN VIOLENTA EN EL ARRAY GLOBAL
-        // Esto evita que el motor lo ignore
-        if (!Array.isArray(window.todosLosMateriales)) window.todosLosMateriales = [];
-        window.todosLosMateriales.unshift(itemForzado);
-
-        // 5. RENDERIZADO INMEDIATO
-        // Forzamos a la tabla a dibujarse con nuestro nuevo objeto arriba
-        renderTable(window.todosLosMateriales);
-
-        // 6. PERSISTENCIA EN LOCALSTORAGE (Para que el Refresh no lo borre)
-        const actuales = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-        actuales.unshift(itemForzado);
-        localStorage.setItem('molduras_pendientes', JSON.stringify(actuales));
+        // 1. ACTIVACIÓN Y BLOQUEO VISUAL DEL BOTÓN
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> GUARDANDO...'; }
 
         try {
-            // Enviamos al servidor pero la pantalla ya cambió
-            await window.API.registerPurchase(itemForzado);
+            // 2. CAPTURA DE DATOS (Forzando el nombre del input de texto)
+            const inputNombre = document.getElementById('nombreMaterialNuevo');
+            const nombreReal = inputNombre && inputNombre.value.trim() !== "" 
+                               ? inputNombre.value.trim().toUpperCase() 
+                               : "MOLDURA SIN NOMBRE";
+
+            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+            const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
+            const totalML = cant * 2.90; // Cálculo directo de metros lineales
+
+            // 3. CREACIÓN DEL OBJETO (Estructura idéntica a tu tabla)
+            const nuevaMoldura = {
+                id: "TEMP-" + Date.now(),
+                nombre: nombreReal,
+                categoria: "MOLDURAS",
+                tipo: "ml",
+                stock_actual: totalML, // <-- Esto es lo que verás en la columna Cantidad
+                precio_total_lamina: costo,
+                largo_lamina_cm: 290,
+                ancho_lamina_cm: 1,
+                proveedorNombre: "NUEVA ENTRADA"
+            };
+
+            // 4. INYECCIÓN DIRECTA Y RENDER (Sin esperas)
+            if (!Array.isArray(window.todosLosMateriales)) window.todosLosMateriales = [];
+            window.todosLosMateriales.unshift(nuevaMoldura);
             
-            alert(`✅ REGISTRADO: ${nombreReal} | ${totalML.toFixed(2)} ml`);
-            
+            // Persistencia inmediata para el Refresh
+            const pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            pendientes.unshift(nuevaMoldura);
+            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+
+            // Dibujar tabla YA
+            renderTable(window.todosLosMateriales);
+
+            // 5. ENVÍO AL SERVIDOR
+            await window.API.registerPurchase(nuevaMoldura);
+
+            alert(`✅ REGISTRADO: ${nombreReal} (${totalML.toFixed(2)} ml)`);
             if (window.cerrarModales) window.cerrarModales();
-            if (inputNombre) inputNombre.value = ""; // Limpiamos el campo
+
         } catch (err) {
-            console.error("Error al sincronizar, pero el dato está en pantalla.");
+            console.error("Error crítico en compra:", err);
+            alert("Hubo un error, pero el dato se intentó guardar localmente.");
+        } finally {
+            // 6. RE-ACTIVACIÓN OBLIGATORIA DEL BOTÓN (Pase lo que pase)
+            if (btn) { 
+                btn.disabled = false; 
+                btn.innerHTML = 'GUARDAR COMPRA'; 
+            }
         }
     };
 }
