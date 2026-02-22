@@ -515,22 +515,24 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // --- CAPTURA QUIRÚRGICA DEL NOMBRE ---
-    // 1. CAPTURA DEL NOMBRE (Forzado para ignorar el "+ AGREGAR...")
-        // 1. CAPTURA DEL NOMBRE (Forzado para ignorar el "+ AGREGAR...")
-        const inputNuevo = document.getElementById('nombreMaterialNuevo');
-        const selectMat = document.getElementById('compraMaterial');
+        // --- EXTRACCIÓN QUIRÚRGICA ---
+        const inputTexto = document.getElementById('nombreMaterialNuevo');
+        const selectOpcion = document.getElementById('compraMaterial');
         
+        // PRIORIDAD: Si el input de texto tiene algo, usamos eso. 
+        // Si no, usamos el texto del select siempre que no sea el de "Agregar".
         let nombreReal = "";
-        if (inputNuevo && inputNuevo.value.trim() !== "") {
-            nombreReal = inputNuevo.value.trim().toUpperCase();
-        } else {
-            nombreReal = selectMat.options[selectMat.selectedIndex].text.toUpperCase();
+        
+        if (inputTexto && inputTexto.value.trim() !== "") {
+            nombreReal = inputTexto.value.trim().toUpperCase();
+        } else if (selectOpcion && selectOpcion.value !== "nuevo") {
+            nombreReal = selectOpcion.options[selectOpcion.selectedIndex].text.toUpperCase();
         }
 
-        // Si el nombre sigue siendo el del botón, abortamos para no ensuciar
-        if (nombreReal.includes("AGREGAR NUEVO")) {
-            alert("Por favor, escribe un nombre para el material.");
+        // BLOQUEO DE SEGURIDAD: Si el nombre sigue siendo genérico, detenemos todo
+        if (!nombreReal || nombreReal.includes("AGREGAR NUEVO")) {
+            alert("⚠️ Por favor, escribe el nombre del material en el cuadro de texto.");
+            if(inputTexto) inputTexto.focus();
             return;
         }
 
@@ -538,20 +540,18 @@ if (formCompra) {
         const totalML = (cant * 2.90);
         const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-        // 2. LÓGICA DE SUMA (Para que se acumule en el inventario)
+        // --- LÓGICA DE SUMA O INSERCIÓN ---
         if (!window.todosLosMateriales) window.todosLosMateriales = [];
         
-        // Buscamos si ya existe una moldura con ese nombre
-        let materialExistente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
+        let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
 
-        if (materialExistente) {
-            // SI EXISTE: Sumamos el nuevo stock al actual
-            materialExistente.stock_actual = (Number(materialExistente.stock_actual) || 0) + totalML;
-            materialExistente.precio_total_lamina = costo; // Actualizamos el precio al último
-            console.log(`Sumando ${totalML}ml a ${nombreReal}. Nuevo total: ${materialExistente.stock_actual}`);
+        if (existente) {
+            // SUMAR SI YA EXISTE
+            existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
+            existente.precio_total_lamina = costo; 
         } else {
-            // SI NO EXISTE: Creamos el registro nuevo
-            const nuevoItem = {
+            // CREAR SI ES NUEVO
+            const nuevo = {
                 id: `MOLD-${Date.now()}`,
                 nombre: nombreReal,
                 categoria: "MOLDURAS",
@@ -561,10 +561,10 @@ if (formCompra) {
                 precio_total_lamina: costo,
                 fecha_registro: new Date().toISOString()
             };
-            window.todosLosMateriales.unshift(nuevoItem);
+            window.todosLosMateriales.unshift(nuevo);
         }
 
-        // 3. PERSISTENCIA Y RENDER
+        // --- RENDER Y PERSISTENCIA ---
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
 
@@ -576,12 +576,12 @@ if (formCompra) {
                 costo: costo,
                 tipo: 'ml'
             });
-            alert(`✅ INVENTARIO ACTUALIZADO: ${nombreReal}`);
+            alert(`✅ REGISTRADO: ${nombreReal} (${totalML.toFixed(2)} ml)`);
             if (window.cerrarModales) window.cerrarModales();
         } catch (err) {
             console.error("Error API:", err);
             renderTable(window.todosLosMateriales);
-        } 
+        }
     };
 }
 }
