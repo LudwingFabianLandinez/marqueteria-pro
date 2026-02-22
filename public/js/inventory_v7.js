@@ -496,28 +496,18 @@ if (formCompra) {
 
         try {
             const materialId = document.getElementById('compraMaterial').value;
-            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "";
+            const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "Material Nuevo";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const largo = parseFloat(document.getElementById('compraLargo').value) || 290;
             const ancho = parseFloat(document.getElementById('compraAncho').value) || 1;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            let nombreFinal = nombreNuevo;
-            let esMoldura = nombreFinal.toLowerCase().includes('moldura') || ancho === 1;
-
-            if (materialId !== "nuevo" && window.todosLosMateriales) {
-                const encontrado = window.todosLosMateriales.find(m => String(m.id || m._id) === String(materialId));
-                if (encontrado) {
-                    nombreFinal = encontrado.nombre;
-                    esMoldura = encontrado.categoria === 'Molduras' || encontrado.unidad_medida === 'ml';
-                }
-            }
-
+            const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || ancho === 1;
             const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
             const datosCompra = {
                 materialId: materialId,
-                nombreMaterial: nombreFinal,
+                nombreMaterial: nombreNuevo,
                 proveedorId: document.getElementById('compraProveedor').value,
                 cantidad: cant,
                 totalM2: totalCalculado,
@@ -527,40 +517,52 @@ if (formCompra) {
                 fecha: new Date().toISOString()
             };
 
-            // --- TRUCO PARA QUE APAREZCA EN EL INVENTARIO ---
+            // --- ESTO ES LO QUE HARÁ QUE APAREZCA SÍ O SÍ ---
             if (materialId === "nuevo") {
-                const nuevoMatParaTabla = {
+                const nuevoItem = {
                     id: "temp_" + Date.now(),
-                    nombre: nombreFinal,
-                    categoria: esMoldura ? "Molduras" : "General",
+                    _id: "temp_" + Date.now(),
+                    nombre: nombreNuevo,
+                    categoria: esMoldura ? "Molduras" : "General", // Categoría exacta para que el filtro lo vea
                     stock_actual: totalCalculado,
                     unidad_medida: esMoldura ? "ml" : "m2",
-                    precio_compra: costo
+                    precio_compra: costo,
+                    proveedor: "Nuevo"
                 };
-                window.todosLosMateriales.push(nuevoMatParaTabla);
+                
+                // Lo metemos al principio de la lista
+                if (!window.todosLosMateriales) window.todosLosMateriales = [];
+                window.todosLosMateriales.unshift(nuevoItem);
             } else {
                 const idx = window.todosLosMateriales.findIndex(m => String(m.id || m._id) === String(materialId));
-                if (idx !== -1) window.todosLosMateriales[idx].stock_actual += totalCalculado;
+                if (idx !== -1) {
+                    window.todosLosMateriales[idx].stock_actual = (parseFloat(window.todosLosMateriales[idx].stock_actual) || 0) + totalCalculado;
+                }
             }
 
-            // 1. Guardar local y redibujar ya
+            // 1. Guardar en bitácora local
             const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             local.push(datosCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(local));
             
-            if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
+            // 2. REDIBUJAR LA TABLA ANTES DE ENVIAR AL SERVIDOR
+            if (typeof renderTable === 'function') {
+                renderTable(window.todosLos_Materiales || window.todosLosMateriales);
+            }
 
-            // 2. Enviar al Servidor
+            // 3. Enviar al Servidor
             await window.API.registerPurchase(datosCompra);
 
-            alert(`✅ GUARDADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
-            if (window.cerrarModales) window.cerrarModales();
+            alert(`✅ REGISTRADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
             
-            // Recarga para consolidar con el servidor
-            setTimeout(() => window.location.reload(), 1500);
+            if (window.cerrarModales) window.cerrarModales();
+            e.target.reset();
+
+            // 4. Recarga suave después de un momento para sincronizar con DB
+            setTimeout(() => { window.location.reload(); }, 2000);
 
         } catch (err) {
-            console.error(err);
+            console.error("Error:", err);
             alert("Error al guardar");
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
