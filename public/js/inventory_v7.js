@@ -511,52 +511,47 @@ function configurarEventos() {
 
 // Reemplaza tu bloque formCompra.onsubmit con este corregido:
 const formCompra = document.getElementById('formNuevaCompra');
-if (formCompra) {
+    if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
-        
+
+        // 1. Identificar el botón
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
+        if (btn) { 
+            btn.disabled = true; 
+            btn.innerHTML = 'GUARDANDO...'; 
+        }
 
         try {
+            // 2. Captura de elementos (IDs de tu HTML)
             const selectMat = document.getElementById('compraMaterial');
-            const inputNuevo = document.getElementById('nombreMaterialNuevo');
-            
-            // 1. CAPTURA DEL NOMBRE REAL (Prioridad absoluta)
+            const inputNuevo = document.getElementById('nombreNuevoMaterial'); 
+            const inputCant = document.getElementById('compraCantidad');
+            const inputCosto = document.getElementById('compraCosto');
+
+            // 3. Sacar el nombre limpio
             let nombreReal = "";
-            
-            // Si hay algo escrito en el cuadro de texto, usamos eso primero
-            if (inputNuevo && inputNuevo.value.trim() !== "") {
+            if (selectMat.value === "NUEVO") {
                 nombreReal = inputNuevo.value.trim().toUpperCase();
-            } 
-            // Si no, buscamos el texto del material seleccionado en la lista
-            else if (selectMat && selectMat.selectedIndex >= 0) {
+            } else {
                 nombreReal = selectMat.options[selectMat.selectedIndex].text
                     .replace('+ AGREGAR NUEVO MATERIAL', '')
                     .trim().toUpperCase();
             }
 
-            // Validación final para que nunca sea "Sin nombre"
-            if (!nombreReal || nombreReal === "" || nombreReal.includes("SELECCIONAR")) {
-                alert("⚠️ Por favor, escribe o selecciona un nombre de material válido.");
-                if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
-                return;
-            }
+            // 4. Cálculos y Stock (Tus 2.90 ML)
+            const unidades = parseFloat(inputCant.value) || 0;
+            const totalML = unidades * 2.90; 
+            const costo = parseFloat(inputCosto.value) || 0;
 
-            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const totalML = cant * 2.90; 
-            const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
-
-            // 2. EVITAR DUPLICADOS Y ACTUALIZAR
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
             let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
 
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
-                existente.precio_total_lamina = costo;
             } else {
-                const nuevoItem = {
+                window.todosLosMateriales.unshift({
                     id: `MOLD-${Date.now()}`,
                     nombre: nombreReal,
                     categoria: "MOLDURAS",
@@ -565,39 +560,31 @@ if (formCompra) {
                     precio_total_lamina: costo,
                     largo_lamina_cm: 290,
                     ancho_lamina_cm: 1
-                };
-                window.todosLosMateriales.unshift(nuevoItem);
+                });
             }
 
-            // 3. ACTUALIZAR PANTALLA Y PERSISTENCIA
+            // 5. Actualizar y cerrar
             renderTable(window.todosLosMateriales);
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            alert(`✅ REGISTRADO: ${nombreReal} | ${totalML.toFixed(2)} ml`);
-            
-            if (window.cerrarModales) window.cerrarModales();
-
-            // Enviar al servidor sin bloquear
-            window.API.registerPurchase({
-                nombre: nombreReal,
-                stock_actual: totalML,
-                tipo: 'ml'
-            }).catch(e => console.log("Sincronización pendiente"));
+            alert("✅ Guardado: " + nombreReal);
+            document.getElementById('modalCompra').style.display = 'none';
+            e.target.reset();
 
         } catch (err) {
-            console.error("Error en la compra:", err);
-            alert("Ocurrió un error al procesar la compra.");
+            alert("Error: " + err.message);
         } finally {
-            // REACTIVACIÓN DEL BOTÓN
-            const btnSubmit = document.querySelector('#formNuevaCompra button[type="submit"]');
-            if (btnSubmit) {
-                btnSubmit.disabled = false;
-                btnSubmit.innerHTML = 'GUARDAR COMPRA';
+            // Desbloqueo del botón
+            if (btn) { 
+                btn.disabled = false; 
+                btn.innerHTML = 'Guardar Compra'; 
             }
         }
-    }; // Fin del onsubmit
-} // Fin del if (formCompra)
+    }; // Aquí cierra el onsubmit
+} // Aquí cierra el if (formCompra)
+// --- FIN DEL BLOQUE CORREGIDO ---
 }
+
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
