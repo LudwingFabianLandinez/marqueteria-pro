@@ -515,65 +515,74 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // 1. Reactivación del botón para que no se quede pegado
         const btn = e.target.querySelector('button[type="submit"]');
         if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
-            // 2. Captura del nombre (Prioridad al texto escrito para que no salga el mensaje del botón)
-            const inputNuevo = document.getElementById('nombreMaterialNuevo');
             const selectMat = document.getElementById('compraMaterial');
+            const inputNuevo = document.getElementById('nombreMaterialNuevo');
             
+            // 1. CAPTURA DEL NOMBRE (Garantizamos que NO sea "Sin nombre")
             let nombreReal = "";
             if (inputNuevo && inputNuevo.value.trim() !== "") {
                 nombreReal = inputNuevo.value.trim().toUpperCase();
-            } else {
-                nombreReal = selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim().toUpperCase();
+            } else if (selectMat && selectMat.selectedIndex >= 0) {
+                // Capturamos el texto visible del material seleccionado
+                nombreReal = selectMat.options[selectMat.selectedIndex].text
+                    .replace('+ AGREGAR NUEVO MATERIAL', '')
+                    .trim().toUpperCase();
             }
 
-            // 3. Captura de cantidades
+            // Si por algún error sigue vacío, usamos un genérico descriptivo
+            if (!nombreReal || nombreReal === "") nombreReal = "MOLDURA SELECCIONADA";
+
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+            const totalML = cant * 2.90; // Cantidad correcta
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
-            const totalML = cant * 2.90;
 
-            // 4. Creación del objeto para la tabla
-            const item = {
-                id: selectMat.value === 'nuevo' ? "MOLD-" + Date.now() : selectMat.value,
-                nombre: nombreReal,
-                categoria: "MOLDURAS",
-                tipo: "ml",
-                stock_actual: totalML,
-                precio_total_lamina: costo,
-                largo_lamina_cm: 290,
-                ancho_lamina_cm: 1
-            };
-
-            // 5. Inyección inmediata en la lista global
+            // 2. EVITAR DUPLICADOS (Actualización única)
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Si el nombre ya existe, sumamos la cantidad comprada a la actual
-            const existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
+            // Buscamos si ya existe para SUMAR, si no, CREAR
+            let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
+
             if (existente) {
+                // ACTUALIZAR EXISTENTE (No triplicar)
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
+                existente.precio_total_lamina = costo;
             } else {
-                window.todosLosMateriales.unshift(item);
+                // AGREGAR NUEVO
+                const nuevoItem = {
+                    id: `MOLD-${Date.now()}`,
+                    nombre: nombreReal,
+                    categoria: "MOLDURAS",
+                    tipo: "ml",
+                    stock_actual: totalML,
+                    precio_total_lamina: costo,
+                    largo_lamina_cm: 290,
+                    ancho_lamina_cm: 1
+                };
+                window.todosLosMateriales.unshift(nuevoItem);
             }
 
-            // 6. Actualizar pantalla y cerrar
+            // 3. ACTUALIZAR PANTALLA (Una sola vez)
             renderTable(window.todosLosMateriales);
-            
-            // Guardar localmente para que el refresh no lo borre
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            await window.API.registerPurchase(item);
-            
-            alert(`REGISTRADO: ${nombreReal} - ${totalML.toFixed(2)} ml`);
+            // Notificación y cierre
+            alert(`✅ REGISTRADO: ${nombreReal} | ${totalML.toFixed(2)} ml`);
             if (window.cerrarModales) window.cerrarModales();
+
+            // Enviar al servidor sin bloquear la vista
+            window.API.registerPurchase({
+                nombre: nombreReal,
+                stock_actual: totalML,
+                tipo: 'ml'
+            }).catch(err => console.error("Error API:", err));
 
         } catch (err) {
             console.error("Error:", err);
         } finally {
-            // 7. El botón vuelve a estar activo siempre
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
     };
