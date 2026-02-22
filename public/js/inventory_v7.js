@@ -498,66 +498,72 @@ if (formCompra) {
         if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
+            // Captura de valores
             const materialId = document.getElementById('compraMaterial').value;
             const nombreNuevo = document.getElementById('nombreMaterialNuevo')?.value || "Material Nuevo";
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const largo = parseFloat(document.getElementById('compraLargo').value) || 290;
-            const ancho = parseFloat(document.getElementById('compraAncho').value) || 1;
+            const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
+            const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || ancho === 1;
+            // LÓGICA DE DETECCIÓN DE MOLDURA (290cm)
+            // Si el largo es 290 o el nombre dice "moldura", se trata como metros lineales
+            const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || largo === 290;
+            
+            // Si es moldura: cantidad * 2.9 (metros). Si es lámina: m2 (largo * ancho * cant / 10000)
             const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
+            const unidadMedida = esMoldura ? "ml" : "m2";
 
-            // 1. Inyección Directa en la Tabla (Visual instantáneo)
-            const tablaCuerpo = document.querySelector('#tablaInventario tbody');
-            if (tablaCuerpo) {
-                const nuevaFila = document.createElement('tr');
-                nuevaFila.style.backgroundColor = '#e8f5e9'; // Color verde suave para resaltar
-                nuevaFila.innerHTML = `
-                    <td>
-                        <div class="fw-bold">${nombreNuevo}</div>
-                        <small class="text-muted">${esMoldura ? "Molduras" : "GENERAL"} | SIN PROVEEDOR</small>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-light text-dark">${largo}x${ancho} cm</span>
-                    </td>
-                    <td class="text-center">$ ${costo.toLocaleString()} <small>/ ${esMoldura ? "ml" : "m2"}</small></td>
-                    <td class="text-center fw-bold text-success">
-                        ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}
-                    </td>
-                    <td class="text-center">---</td>
-                `;
-                tablaCuerpo.prepend(nuevaFila); // Lo pone de primero
-            }
-
-            // 2. Datos para el servidor
+            // 1. OBJETO DE DATOS (Lo que va al servidor y al estado interno)
             const datosCompra = {
-                materialId,
-                nombreMaterial: nombreNuevo,
-                proveedorId: document.getElementById('compraProveedor').value,
+                id: materialId === 'nuevo' ? Date.now() : materialId,
+                nombre: nombreNuevo,
                 cantidad: cant,
-                totalM2: totalCalculado,
-                cantidad_m2: totalCalculado,
-                costo_total: costo * cant,
-                unidad: esMoldura ? 'ml' : 'm2',
+                largo: largo,
+                ancho: ancho,
+                totalStock: totalCalculado, // Aquí se refleja el stock real
+                unidad: unidadMedida,
+                costo_unidad: costo,
                 fecha: new Date().toISOString()
             };
 
-            // 3. Registro en Bitácora y API
-            const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-            local.push(datosCompra);
-            localStorage.setItem('bitacora_compras', JSON.stringify(local));
+            // 2. ACTUALIZAR EL "MOTOR" (Si tienes un array global de inventario)
+            if (window.inventarioActual) {
+                window.inventarioActual.push(datosCompra);
+            }
 
+            // 3. INYECCIÓN VISUAL EN LA TABLA
+            const tablaCuerpo = document.querySelector('#tablaInventario tbody');
+            if (tablaCuerpo) {
+                const nuevaFila = document.createElement('tr');
+                nuevaFila.classList.add('table-success'); // Resaltado visual
+                nuevaFila.innerHTML = `
+                    <td>
+                        <div class="fw-bold">${nombreNuevo}</div>
+                        <small class="text-muted">${esMoldura ? "MOLDURA" : "GENERAL"}</small>
+                    </td>
+                    <td class="text-center">${largo}x${ancho} cm</td>
+                    <td class="text-center">$ ${costo.toLocaleString()}</td>
+                    <td class="text-center fw-bold text-primary">
+                        ${totalCalculado.toFixed(2)} ${unidadMedida}
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-success">Recién Agregado</span>
+                    </td>
+                `;
+                tablaCuerpo.prepend(nuevaFila);
+            }
+
+            // 4. PERSISTENCIA (LocalStorage y API)
             await window.API.registerPurchase(datosCompra);
-
-            alert(`✅ REGISTRADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
+            
+            alert(`✅ REGISTRADO: ${nombreNuevo} (${totalCalculado.toFixed(2)} ${unidadMedida})`);
             
             if (window.cerrarModales) window.cerrarModales();
-            // NO recargamos para que veas la fila ahí puesta.
-            
+
         } catch (err) {
-            console.error(err);
-            alert("Error al guardar");
+            console.error("Error detallado:", err);
+            alert("Error al guardar: " + err.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
