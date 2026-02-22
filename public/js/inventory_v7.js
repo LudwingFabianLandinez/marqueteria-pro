@@ -515,61 +515,67 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // 1. ACTIVACIÓN Y BLOQUEO VISUAL DEL BOTÓN
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> GUARDANDO...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
-            // 2. CAPTURA DE DATOS (Forzando el nombre del input de texto)
-            const inputNombre = document.getElementById('nombreMaterialNuevo');
-            const nombreReal = inputNombre && inputNombre.value.trim() !== "" 
-                               ? inputNombre.value.trim().toUpperCase() 
-                               : "MOLDURA SIN NOMBRE";
+            // --- CAPTURA DEL NOMBRE REAL (DETECTAR SELECT O INPUT) ---
+            const selectMaterial = document.getElementById('compraMaterial');
+            const inputNuevoNombre = document.getElementById('nombreMaterialNuevo');
+            
+            let nombreParaInventario = "";
+
+            // Si seleccionaste un material existente en la lista (que no sea "nuevo")
+            if (selectMaterial && selectMaterial.value !== "nuevo" && selectMaterial.value !== "") {
+                nombreParaInventario = selectMaterial.options[selectMaterial.selectedIndex].text.toUpperCase();
+            } 
+            // Si el selector dice "nuevo", usamos lo que escribiste en el cuadro de texto
+            else if (inputNuevoNombre && inputNuevoNombre.value.trim() !== "") {
+                nombreParaInventario = inputNuevoNombre.value.trim().toUpperCase();
+            } else {
+                nombreParaInventario = "MOLDURA SIN NOMBRE";
+            }
 
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+            const totalML = cant * 2.90;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
-            const totalML = cant * 2.90; // Cálculo directo de metros lineales
 
-            // 3. CREACIÓN DEL OBJETO (Estructura idéntica a tu tabla)
-            const nuevaMoldura = {
-                id: "TEMP-" + Date.now(),
-                nombre: nombreReal,
+            const itemFinal = {
+                id: selectMaterial.value === "nuevo" ? `MOLD-${Date.now()}` : selectMaterial.value,
+                nombre: nombreParaInventario, // <--- AQUÍ VA EL NOMBRE REAL QUE ESCOGISTE
                 categoria: "MOLDURAS",
                 tipo: "ml",
-                stock_actual: totalML, // <-- Esto es lo que verás en la columna Cantidad
+                stock_actual: totalML,
                 precio_total_lamina: costo,
                 largo_lamina_cm: 290,
-                ancho_lamina_cm: 1,
-                proveedorNombre: "NUEVA ENTRADA"
+                ancho_lamina_cm: 1
             };
 
-            // 4. INYECCIÓN DIRECTA Y RENDER (Sin esperas)
-            if (!Array.isArray(window.todosLosMateriales)) window.todosLosMateriales = [];
-            window.todosLosMateriales.unshift(nuevaMoldura);
+            // Inyectar en memoria y redibujar tabla
+            if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Persistencia inmediata para el Refresh
-            const pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            pendientes.unshift(nuevaMoldura);
-            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+            // Si ya existe en la tabla, actualizamos el stock, si no, lo agregamos arriba
+            const index = window.todosLosMateriales.findIndex(m => m.nombre === nombreParaInventario);
+            if (index !== -1) {
+                window.todosLosMateriales[index].stock_actual += totalML;
+            } else {
+                window.todosLosMateriales.unshift(itemFinal);
+            }
 
-            // Dibujar tabla YA
             renderTable(window.todosLosMateriales);
 
-            // 5. ENVÍO AL SERVIDOR
-            await window.API.registerPurchase(nuevaMoldura);
+            // Guardar en persistencia local
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            alert(`✅ REGISTRADO: ${nombreReal} (${totalML.toFixed(2)} ml)`);
+            await window.API.registerPurchase(itemFinal);
+            
+            alert(`✅ REGISTRADO: ${nombreParaInventario}`);
             if (window.cerrarModales) window.cerrarModales();
 
         } catch (err) {
-            console.error("Error crítico en compra:", err);
-            alert("Hubo un error, pero el dato se intentó guardar localmente.");
+            console.error(err);
         } finally {
-            // 6. RE-ACTIVACIÓN OBLIGATORIA DEL BOTÓN (Pase lo que pase)
-            if (btn) { 
-                btn.disabled = false; 
-                btn.innerHTML = 'GUARDAR COMPRA'; 
-            }
+            if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
     };
 }
