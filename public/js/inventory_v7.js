@@ -487,7 +487,6 @@ function configurarEventos() {
     // === RECUPERANDO VERSIÓN ESTABLE v13.4.48 ===
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
-
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async (e) => {
@@ -503,10 +502,10 @@ if (formCompra) {
             const ancho = parseFloat(document.getElementById('compraAncho').value) || 1;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            // Detección de Moldura
             const esMoldura = nombreNuevo.toLowerCase().includes('moldura') || ancho === 1;
             const totalCalculado = esMoldura ? (cant * 2.9) : (cant * (largo / 100) * (ancho / 100));
 
+            // OBJETO PARA EL SERVIDOR
             const datosCompra = {
                 materialId: materialId,
                 nombreMaterial: nombreNuevo,
@@ -519,51 +518,46 @@ if (formCompra) {
                 fecha: new Date().toISOString()
             };
 
-            // INYECCIÓN FORZADA: Creamos el material con datos que la tabla NO pueda ocultar
+            // --- INYECCIÓN FORZADA PARA QUE "BRINQUE" EN LA TABLA ---
             if (materialId === "nuevo") {
                 const nuevoItem = {
                     id: "temp_" + Date.now(),
                     _id: "temp_" + Date.now(),
                     nombre: nombreNuevo,
-                    categoria: esMoldura ? "Molduras" : "General",
+                    // Usamos 'GENERAL' porque es lo que veo en tu tabla (image_1fe3fc.png)
+                    categoria: esMoldura ? "Molduras" : "GENERAL", 
                     stock_actual: totalCalculado,
                     unidad_medida: esMoldura ? "ml" : "m2",
                     precio_compra: costo,
-                    // Dejamos proveedor vacío o "SIN PROVEEDOR" para que pase tu filtro actual
+                    // IMPORTANTE: Ponemos "SIN PROVEEDOR" para que coincida con tu filtro visual
                     proveedor: "SIN PROVEEDOR", 
                     medidas_originales: `${largo}x${ancho} cm`
                 };
                 
-                if (!window.todosLosMateriales) window.todosLosMateriales = [];
+                if (!window.todosLosMateriales) window.todosLos_Materiales = [];
+                // Lo ponemos al inicio de la lista
                 window.todosLosMateriales.unshift(nuevoItem);
-            } else {
-                const idx = window.todosLosMateriales.findIndex(m => String(m.id || m._id) === String(materialId));
-                if (idx !== -1) {
-                    window.todosLosMateriales[idx].stock_actual = (parseFloat(window.todosLosMateriales[idx].stock_actual) || 0) + totalCalculado;
-                }
             }
 
-            // 1. Guardar local y actualizar pantalla YA
+            // 1. Guardar localmente
             const local = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
             local.push(datosCompra);
             localStorage.setItem('bitacora_compras', JSON.stringify(local));
             
-            // Forzamos el renderizado ignorando filtros por un momento
+            // 2. FORZAR EL DIBUJO DE LA TABLA AHORA MISMO
             if (typeof renderTable === 'function') {
+                console.log("Forzando renderTable con el nuevo material...");
                 renderTable(window.todosLosMateriales);
             }
 
-            // 2. Enviar al Servidor
+            // 3. Enviar al Servidor (esto va por debajo)
             await window.API.registerPurchase(datosCompra);
 
             alert(`✅ REGISTRADO: ${totalCalculado.toFixed(2)} ${esMoldura ? "ml" : "m2"}`);
             
             if (window.cerrarModales) window.cerrarModales();
-            e.target.reset();
-
-            // 3. NO recargamos de inmediato para que puedas ver la fila aparecer
-            console.log("Material inyectado con éxito en la lista local.");
-
+            // Quitamos el reload() para que no se borre lo que acabamos de inyectar
+            
         } catch (err) {
             console.error("Error:", err);
             alert("Error al guardar");
@@ -573,7 +567,6 @@ if (formCompra) {
     };
 }
 }
-    
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
     let encontrado = false;
