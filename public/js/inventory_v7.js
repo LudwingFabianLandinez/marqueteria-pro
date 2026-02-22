@@ -581,13 +581,17 @@ const formCompra = document.getElementById('formNuevaCompra');
             
             let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
 
-           if (existente) {
-                // SUMA AL STOCK EXISTENTE (No lo borra)
+           // --- MODIFICACIÓN PARA SUMAR EN LUGAR DE BORRAR ---
+            if (existente) {
+                // El truco está en (Number(existente.stock_actual) || 0) + stockASumar
+                // Esto toma lo que ya había y le suma lo nuevo
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                
+                // Actualizamos también el costo y la unidad por si acaso
                 existente.precio_total_lamina = costo;
-                existente.tipo = unidadFinal; // Mantiene ml o m2 según el caso
+                existente.tipo = unidadFinal; 
             } else {
-                // CREA NUEVO CON LA UNIDAD CORRECTA
+                // Si el material no existe en la tabla, lo crea desde cero
                 window.todosLosMateriales.unshift({
                     id: `MAT-${Date.now()}`,
                     nombre: nombreReal,
