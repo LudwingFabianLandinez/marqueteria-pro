@@ -522,36 +522,40 @@ if (formCompra) {
             const selectMat = document.getElementById('compraMaterial');
             const inputNuevo = document.getElementById('nombreMaterialNuevo');
             
-            // 1. CAPTURA DEL NOMBRE (Garantizamos que NO sea "Sin nombre")
+            // 1. CAPTURA DEL NOMBRE REAL (Prioridad absoluta)
             let nombreReal = "";
+            
+            // Si hay algo escrito en el cuadro de texto, usamos eso primero
             if (inputNuevo && inputNuevo.value.trim() !== "") {
                 nombreReal = inputNuevo.value.trim().toUpperCase();
-            } else if (selectMat && selectMat.selectedIndex >= 0) {
-                // Capturamos el texto visible del material seleccionado
+            } 
+            // Si no, buscamos el texto del material seleccionado en la lista
+            else if (selectMat && selectMat.selectedIndex >= 0) {
                 nombreReal = selectMat.options[selectMat.selectedIndex].text
                     .replace('+ AGREGAR NUEVO MATERIAL', '')
                     .trim().toUpperCase();
             }
 
-            // Si por algún error sigue vacío, usamos un genérico descriptivo
-            if (!nombreReal || nombreReal === "") nombreReal = "MOLDURA SELECCIONADA";
+            // Validación final para que nunca sea "Sin nombre"
+            if (!nombreReal || nombreReal === "" || nombreReal.includes("SELECCIONAR")) {
+                alert("⚠️ Por favor, escribe o selecciona un nombre de material válido.");
+                if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+                return;
+            }
 
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const totalML = cant * 2.90; // Cantidad correcta
+            const totalML = cant * 2.90; 
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            // 2. EVITAR DUPLICADOS (Actualización única)
+            // 2. EVITAR DUPLICADOS Y ACTUALIZAR
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Buscamos si ya existe para SUMAR, si no, CREAR
             let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
 
             if (existente) {
-                // ACTUALIZAR EXISTENTE (No triplicar)
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
                 existente.precio_total_lamina = costo;
             } else {
-                // AGREGAR NUEVO
                 const nuevoItem = {
                     id: `MOLD-${Date.now()}`,
                     nombre: nombreReal,
@@ -565,30 +569,35 @@ if (formCompra) {
                 window.todosLosMateriales.unshift(nuevoItem);
             }
 
-            // 3. ACTUALIZAR PANTALLA (Una sola vez)
+            // 3. ACTUALIZAR PANTALLA Y PERSISTENCIA
             renderTable(window.todosLosMateriales);
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            // Notificación y cierre
             alert(`✅ REGISTRADO: ${nombreReal} | ${totalML.toFixed(2)} ml`);
+            
             if (window.cerrarModales) window.cerrarModales();
 
-            // Enviar al servidor sin bloquear la vista
+            // Enviar al servidor sin bloquear
             window.API.registerPurchase({
                 nombre: nombreReal,
                 stock_actual: totalML,
                 tipo: 'ml'
-            }).catch(err => console.error("Error API:", err));
+            }).catch(e => console.log("Sincronización pendiente"));
 
         } catch (err) {
-            console.error("Error:", err);
+            console.error("Error en la compra:", err);
+            alert("Ocurrió un error al procesar la compra.");
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+            // REACTIVACIÓN DEL BOTÓN
+            const btnSubmit = document.querySelector('#formNuevaCompra button[type="submit"]');
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = 'GUARDAR COMPRA';
+            }
         }
-    };
+    }; // Fin del onsubmit
+} // Fin del if (formCompra)
 }
-}
-
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
