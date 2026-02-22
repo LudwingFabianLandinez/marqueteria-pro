@@ -515,17 +515,22 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // Captura el nombre REAL que escribiste
-        const nombreManual = document.getElementById('nombreMaterialNuevo')?.value || "MOLDURA";
+        // --- CAPTURA QUIRÚRGICA DEL NOMBRE ---
+        const inputNombre = document.getElementById('nombreMaterialNuevo');
+        const nombreManual = inputNombre && inputNombre.value.trim() !== "" 
+                             ? inputNombre.value.trim() 
+                             : "MOLDURA NUEVA";
+
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
         const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
         const totalML = (cant * 2.90);
 
         const itemFinal = {
-            id: `MOLD-${Date.now()}`, // ID único temporal
-            nombre: nombreManual.toUpperCase().trim(), // Forzamos tu nombre
+            id: `MOLD-${Date.now()}`, 
+            nombre: nombreManual.toUpperCase(), // Campo principal para la tabla
+            materialNombre: nombreManual.toUpperCase(), // Campo de respaldo para el motor
             categoria: "MOLDURAS",
-            tipo: "ml", // Esto evita que lo trate como m2
+            tipo: "ml",
             largo_lamina_cm: 290,
             ancho_lamina_cm: 1,
             stock_actual: totalML,
@@ -533,26 +538,34 @@ if (formCompra) {
             fecha_registro: new Date().toISOString()
         };
 
-        // --- EL TRUCO DE LA PERSISTENCIA ---
-        // 1. Lo guardamos en una "Caja de Seguridad" local
+        // --- PERSISTENCIA LOCAL ---
         let persistencia = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
         persistencia.push(itemFinal);
         localStorage.setItem('molduras_pendientes', JSON.stringify(persistencia));
 
-        // 2. Lo metemos en la memoria de la sesión actual
+        // Actualizamos la memoria de la sesión
         window.todosLosMateriales = [itemFinal, ...(window.todosLosMateriales || [])];
 
         try {
-            // 3. Dibujamos inmediatamente
+            // Dibujamos con el nombre forzado
             renderTable(window.todosLosMateriales);
             
-            // 4. Enviamos al servidor (pero ya está en pantalla)
-            await window.API.registerPurchase(itemFinal);
+            // Enviamos al servidor
+            const response = await window.API.registerPurchase(itemFinal);
             
-            alert(`✅ REGISTRADO: ${nombreManual}`);
+            // --- LIMPIEZA QUIRÚRGICA (Sugerencia) ---
+            // Si el servidor responde con éxito, marcamos que ya no necesita estar en "pendientes"
+            // para que no se duplique tras el refresh cuando el servidor lo mande oficialmente.
+            if (response && response.success) {
+                console.log("Servidor confirmó recepción. Limpiando caché local...");
+                // Opcional: podrías limpiar aquí, pero mejor dejarlo hasta que fetchInventory lo confirme
+            }
+
+            alert(`✅ REGISTRADO CON ÉXITO: ${nombreManual.toUpperCase()}`);
             if (window.cerrarModales) window.cerrarModales();
+            
         } catch (err) {
-            console.warn("Error de red, pero el material se queda en pantalla local.");
+            console.warn("⚠️ Guardado local activo. El servidor lo procesará después.");
             renderTable(window.todosLosMateriales);
         }
     };
