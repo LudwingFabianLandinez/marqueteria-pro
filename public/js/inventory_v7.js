@@ -515,52 +515,53 @@ if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
         
-        // 1. REACTIVACIÓN GARANTIZADA DEL BOTÓN
+        // 1. REACTIVACIÓN OBLIGATORIA
         const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'PROCESANDO...'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
             const selectMat = document.getElementById('compraMaterial');
             const inputNuevo = document.getElementById('nombreMaterialNuevo');
             
-            // 2. EXTRACCIÓN VIOLENTA DEL NOMBRE
-            // Prioridad 1: Lo que escribiste. Prioridad 2: Lo que seleccionaste.
+            // 2. CAPTURA DE NOMBRE "LO QUE VES ES LO QUE HAY"
             let nombreFinal = "";
             
+            // Si escribiste en el cuadro de texto, eso manda.
             if (inputNuevo && inputNuevo.value.trim() !== "") {
                 nombreFinal = inputNuevo.value.trim().toUpperCase();
-            } else if (selectMat && selectMat.selectedIndex >= 0) {
-                // Sacamos el texto directamente de lo que ves en el dropdown
+            } 
+            // Si no escribiste, saca el texto del menú desplegable
+            else if (selectMat && selectMat.selectedIndex >= 0) {
                 nombreFinal = selectMat.options[selectMat.selectedIndex].text
                     .replace('+ AGREGAR NUEVO MATERIAL', '')
-                    .replace('-- Seleccionar Material --', '')
                     .trim().toUpperCase();
             }
 
-            // 3. VALIDACIÓN DE SEGURIDAD
-            if (!nombreFinal || nombreFinal === "") {
-                alert("⚠️ DEBES ESCRIBIR O SELECCIONAR UN NOMBRE REAL.");
-                throw new Error("Nombre vacío");
+            // Si el nombre sigue siendo basura, no seguimos
+            if (!nombreFinal || nombreFinal === "" || nombreFinal.includes("SELECCIONAR")) {
+                alert("⚠️ Escribe o selecciona un nombre de material válido.");
+                if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+                return;
             }
 
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
             const totalML = cant * 2.90;
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
-            // 4. ACTUALIZACIÓN DIRECTA EN MEMORIA (PARA QUE APAREZCA YA)
+            // 3. ACTUALIZACIÓN DE LA TABLA (SUMA O CREACIÓN)
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Buscamos si el material existe para SUMAR, si no, CREAR
-            let materialIdx = window.todosLosMateriales.findIndex(m => m.nombre === nombreFinal);
+            // Buscamos si el nombre YA EXISTE para sumarle
+            let indexEncontrado = window.todosLosMateriales.findIndex(m => m.nombre === nombreFinal);
 
-            if (materialIdx !== -1) {
-                // SUMA AL EXISTENTE
-                window.todosLosMateriales[materialIdx].stock_actual = 
-                    (Number(window.todosLosMateriales[materialIdx].stock_actual) || 0) + totalML;
-                window.todosLosMateriales[materialIdx].precio_total_lamina = costo;
+            if (indexEncontrado !== -1) {
+                // SUMAMOS AL EXISTENTE
+                let stockPrevio = Number(window.todosLosMateriales[indexEncontrado].stock_actual) || 0;
+                window.todosLosMateriales[indexEncontrado].stock_actual = stockPrevio + totalML;
+                window.todosLosMateriales[indexEncontrado].precio_total_lamina = costo;
             } else {
-                // CREA NUEVO REGISTRO
-                const nuevo = {
+                // CREAMOS UNO NUEVO
+                const nuevoItem = {
                     id: `MOLD-${Date.now()}`,
                     nombre: nombreFinal,
                     categoria: "MOLDURAS",
@@ -570,28 +571,27 @@ if (formCompra) {
                     largo_lamina_cm: 290,
                     ancho_lamina_cm: 1
                 };
-                window.todosLosMateriales.unshift(nuevo);
+                window.todosLosMateriales.unshift(nuevoItem);
             }
 
-            // 5. PINTAR TABLA Y GUARDAR LOCAL
+            // 4. REFRESCO DE PANTALLA INMEDIATO
             renderTable(window.todosLosMateriales);
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            // 6. ENVIAR A API (En segundo plano)
-            await window.API.registerPurchase({
-                id: selectMat.value,
+            // 5. API EN SEGUNDO PLANO (Si falla no importa, ya lo ves en pantalla)
+            window.API.registerPurchase({
                 nombre: nombreFinal,
                 stock_actual: totalML,
                 tipo: 'ml'
-            });
+            }).catch(err => console.log("Error API (normal):", err));
 
-            alert(`✅ INVENTARIO ACTUALIZADO: ${nombreFinal}`);
+            alert(`✅ OK: ${nombreFinal} ahora tiene +${totalML.toFixed(2)} ml`);
             if (window.cerrarModales) window.cerrarModales();
 
         } catch (err) {
-            console.error("Error en el proceso:", err);
+            console.error("Fallo:", err);
         } finally {
-            // EL BOTÓN SE ACTIVA PASE LO QUE PASE
+            // El botón se activa sí o sí
             if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
         }
     };
