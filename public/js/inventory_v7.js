@@ -551,26 +551,52 @@ const formCompra = document.getElementById('formNuevaCompra');
             }
 
             // 4. Cálculos y Stock (Tus 2.90 ML)
-            const unidades = parseFloat(inputCant.value) || 0;
-            const totalML = unidades * 2.90; 
+            // --- NUEVA LÓGICA DE CÁLCULO INTELIGENTE (ml vs m2) ---
+            const cant = parseFloat(inputCant.value) || 0;
             const costo = parseFloat(inputCosto.value) || 0;
+            
+            let stockASumar = 0;
+            let unidadFinal = "m²"; // Por defecto para Chapillas, Vidrios, etc.
+
+            // Detectamos si es Moldura por el nombre o el select
+            const esMoldura = nombreReal.includes("MOLDURA") || nombreReal.startsWith("K ");
+
+            if (esMoldura) {
+                stockASumar = cant * 2.90; // Cálculo en Metros Lineales
+                unidadFinal = "ml";
+            } else {
+                // Cálculo en Metros Cuadrados para todo lo demás
+                const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
+                const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
+                
+                if (largo > 0 && ancho > 0) {
+                    stockASumar = ((largo * ancho) / 10000) * cant; // (L x A en cm / 10000) * cantidad
+                } else {
+                    stockASumar = cant; // Si no hay medidas, suma la unidad tal cual
+                }
+                unidadFinal = "m²";
+            }
 
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
             let existente = window.todosLosMateriales.find(m => m.nombre === nombreReal);
 
-            if (existente) {
-                existente.stock_actual = (Number(existente.stock_actual) || 0) + totalML;
+           if (existente) {
+                // SUMA AL STOCK EXISTENTE (No lo borra)
+                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                existente.precio_total_lamina = costo;
+                existente.tipo = unidadFinal; // Mantiene ml o m2 según el caso
             } else {
+                // CREA NUEVO CON LA UNIDAD CORRECTA
                 window.todosLosMateriales.unshift({
-                    id: `MOLD-${Date.now()}`,
+                    id: `MAT-${Date.now()}`,
                     nombre: nombreReal,
-                    categoria: "MOLDURAS",
-                    tipo: "ml",
-                    stock_actual: totalML,
+                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    tipo: unidadFinal,
+                    stock_actual: stockASumar,
                     precio_total_lamina: costo,
-                    largo_lamina_cm: 290,
-                    ancho_lamina_cm: 1
+                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(document.getElementById('compraLargo')?.value) || 0),
+                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(document.getElementById('compraAncho')?.value) || 0)
                 });
             }
 
