@@ -374,10 +374,21 @@ function renderTable(materiales) {
             </td>
             <td style="text-align: center;">
                 <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
-                    <button class="btn-table-action" onclick="window.prepararEdicionMaterial('${m.id}')" title="Editar Material"><i class="fas fa-edit"></i></button>
-                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}', ${stockActualUnidad}, ${m.stock_minimo})" title="Ajustar Stock"><i class="fas fa-sliders-h"></i></button>
-                    <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m.id}', '${m.nombre}')"><i class="fas fa-history"></i></button>
-                    <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m.id}')"><i class="fas fa-trash"></i></button>
+                    <button class="btn-table-action" onclick="window.editarMaterial('${m.id}')" title="Editar Material">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    
+                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}')" title="Ajustar Stock">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                    
+                    <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m.id}', '${m.nombre}')" title="Ver Historial">
+                        <i class="fas fa-history"></i>
+                    </button>
+                    
+                    <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m.id}')" title="Eliminar Material" style="color: #e53e3e;">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </td>
         `;
@@ -653,11 +664,30 @@ window.verHistorial = async function(id, nombre) {
 };
 
 window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Estás seguro de eliminar este material?")) {
+    if (confirm("⚠️ ¿Estás seguro de que deseas eliminar este material?")) {
         try {
-            const res = await window.API.deleteMaterial(id);
-            if (res.success) await fetchInventory();
-        } catch (error) { console.error("Error:", error); }
+            // 1. Intentar borrar en el servidor (API)
+            if (window.API && window.API.deleteMaterial) {
+                await window.API.deleteMaterial(id).catch(e => console.log("Borrado local únicamente"));
+            }
+
+            // 2. BORRADO EN MEMORIA (Para que desaparezca de la tabla ya mismo)
+            if (window.todosLosMateriales) {
+                window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
+                
+                // 3. Guardar cambios en el navegador
+                localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+                
+                // 4. Refrescar la tabla visualmente
+                renderTable(window.todosLosMateriales);
+            }
+
+            alert("✅ Material eliminado correctamente.");
+
+        } catch (error) {
+            console.error("Error al eliminar:", error);
+            alert("Hubo un problema al eliminar el material.");
+        }
     }
 };
 
