@@ -517,19 +517,23 @@ if (formCompra) {
         
         // --- CAPTURA QUIRÚRGICA DEL NOMBRE ---
         // 1. CAPTURA DEL NOMBRE (Prioridad absoluta al texto escrito)
-        const inputNombreNuevo = document.getElementById('nombreMaterialNuevo');
-        const selectMaterial = document.getElementById('compraMaterial');
+        // 1. FORZADO QUIRÚRGICO DEL NOMBRE
+        const inputTexto = document.getElementById('nombreMaterialNuevo');
+        const selectOpcion = document.getElementById('compraMaterial');
         
-        let nombreFinal = "";
-        
-        // Si hay algo escrito en "Nuevo Material", manda eso. 
-        // Si no, lo que diga el Select.
-        if (inputNombreNuevo && inputNombreNuevo.value.trim() !== "") {
-            nombreFinal = inputNombreNuevo.value.trim().toUpperCase();
-        } else if (selectMaterial) {
-            nombreFinal = selectMaterial.options[selectMaterial.selectedIndex].text.toUpperCase();
-        } else {
-            nombreFinal = "MOLDURA SIN NOMBRE";
+        let nombreParaGuardar = "";
+
+        // REGLA DE ORO: Si escribiste algo en el cuadro de texto, eso manda.
+        if (inputTexto && inputTexto.value.trim() !== "") {
+            nombreParaGuardar = inputTexto.value.trim().toUpperCase();
+        } 
+        // Si no escribiste nada, pero seleccionaste uno de la lista que NO sea el de "Agregar"
+        else if (selectOpcion && selectOpcion.value !== "nuevo") {
+            nombreParaGuardar = selectOpcion.options[selectOpcion.selectedIndex].text.toUpperCase();
+        }
+        // Si todo falla, nombre genérico para no romper el sistema
+        else {
+            nombreParaGuardar = "MOLDURA ESPECIFICA " + new Date().toLocaleTimeString();
         }
 
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
@@ -537,41 +541,38 @@ if (formCompra) {
         const totalML = (cant * 2.90);
 
         const itemFinal = {
-            id: `MOLD-${Date.now()}`, // Generamos un ID único para que el motor no lo ignore
-            nombre: nombreFinal,      // <--- AQUÍ SE FIJA EL NOMBRE REAL
-            materialNombre: nombreFinal, 
+            id: `MOLD-${Date.now()}`, 
+            nombre: nombreParaGuardar,      // <--- EL NOMBRE QUE ESCRIBISTE
+            materialNombre: nombreParaGuardar, 
             categoria: "MOLDURAS",
             tipo: "ml",
             largo_lamina_cm: 290,
             ancho_lamina_cm: 1,
             stock_actual: totalML,
-            precio_total_lamina: costo,
-            fecha_registro: new Date().toISOString()
+            precio_total_lamina: costo
         };
 
-        // 2. PERSISTENCIA LOCAL (Para que sobreviva al Refresh)
-        let persistencia = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-        persistencia.push(itemFinal);
-        localStorage.setItem('molduras_pendientes', JSON.stringify(persistencia));
+        // 2. INYECCIÓN DIRECTA EN LA MEMORIA (Evita que el Motor lo sobrescriba)
+        if (!window.todosLosMateriales) window.todosLosMateriales = [];
+        window.todosLosMateriales.unshift(itemFinal);
 
-        // 3. ACTUALIZACIÓN INMEDIATA DE LA MEMORIA
-        window.todosLosMateriales = [itemFinal, ...(window.todosLosMateriales || [])];
+        // 3. PERSISTENCIA EN CAJA DE SEGURIDAD
+        let locales = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+        locales.unshift(itemFinal);
+        localStorage.setItem('molduras_pendientes', JSON.stringify(locales));
 
         try {
-            // Dibujamos la tabla con el nombre que ACABAMOS de capturar
             renderTable(window.todosLosMateriales);
-            
-            // Enviamos al servidor
             await window.API.registerPurchase(itemFinal);
             
-            alert(`✅ REGISTRADO COMO: ${nombreFinal}`);
-            
-            // Limpiamos los campos para que no se duplique
-            if(inputNombreNuevo) inputNombreNuevo.value = "";
+            alert(`✅ REGISTRADO COMO: ${nombreParaGuardar}`);
             if (window.cerrarModales) window.cerrarModales();
             
+            // LIMPIEZA DEL INPUT PARA LA PRÓXIMA
+            if(inputTexto) inputTexto.value = "";
+
         } catch (err) {
-            console.warn("⚠️ Guardado local exitoso. El servidor sincronizará luego.");
+            console.warn("Sincronización pendiente, pero visible en tabla.");
             renderTable(window.todosLosMateriales);
         }
     };
