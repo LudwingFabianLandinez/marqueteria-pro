@@ -519,21 +519,32 @@ if (formCompra) {
         if (btn) { btn.disabled = true; btn.innerHTML = 'GUARDANDO...'; }
 
         try {
-            // --- CAPTURA DEL NOMBRE REAL (DETECTAR SELECT O INPUT) ---
             const selectMaterial = document.getElementById('compraMaterial');
             const inputNuevoNombre = document.getElementById('nombreMaterialNuevo');
             
             let nombreParaInventario = "";
+            let materialId = selectMaterial.value;
 
-            // Si seleccionaste un material existente en la lista (que no sea "nuevo")
-            if (selectMaterial && selectMaterial.value !== "nuevo" && selectMaterial.value !== "") {
-                nombreParaInventario = selectMaterial.options[selectMaterial.selectedIndex].text.toUpperCase();
-            } 
-            // Si el selector dice "nuevo", usamos lo que escribiste en el cuadro de texto
-            else if (inputNuevoNombre && inputNuevoNombre.value.trim() !== "") {
-                nombreParaInventario = inputNuevoNombre.value.trim().toUpperCase();
+            // --- LÓGICA QUIRÚRGICA DE NOMBRE ---
+            if (materialId !== "nuevo" && materialId !== "") {
+                // BUSCAMOS EN LA MEMORIA EL NOMBRE REAL DE ESE ID
+                const materialEncontrado = window.todosLosMateriales.find(m => m.id == materialId);
+                if (materialEncontrado) {
+                    nombreParaInventario = materialEncontrado.nombre.toUpperCase();
+                } else {
+                    // Si no lo encuentra en memoria, sacamos el texto del select limpiando el "+"
+                    nombreParaInventario = selectMaterial.options[selectMaterial.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim().toUpperCase();
+                }
             } else {
-                nombreParaInventario = "MOLDURA SIN NOMBRE";
+                // Es un material nuevo escrito a mano
+                nombreParaInventario = inputNuevoNombre.value.trim().toUpperCase();
+            }
+
+            // Si el nombre sigue vacío o contiene el texto del botón, lanzamos error
+            if (!nombreParaInventario || nombreParaInventario.includes("AGREGAR NUEVO")) {
+                alert("⚠️ Error: No se detectó el nombre del material. Por favor escríbalo.");
+                if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+                return;
             }
 
             const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
@@ -541,8 +552,8 @@ if (formCompra) {
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
 
             const itemFinal = {
-                id: selectMaterial.value === "nuevo" ? `MOLD-${Date.now()}` : selectMaterial.value,
-                nombre: nombreParaInventario, // <--- AQUÍ VA EL NOMBRE REAL QUE ESCOGISTE
+                id: materialId === "nuevo" ? `MOLD-${Date.now()}` : materialId,
+                nombre: nombreParaInventario,
                 categoria: "MOLDURAS",
                 tipo: "ml",
                 stock_actual: totalML,
@@ -551,20 +562,18 @@ if (formCompra) {
                 ancho_lamina_cm: 1
             };
 
-            // Inyectar en memoria y redibujar tabla
+            // ACTUALIZAR LA TABLA (SUMAR O AGREGAR)
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Si ya existe en la tabla, actualizamos el stock, si no, lo agregamos arriba
-            const index = window.todosLosMateriales.findIndex(m => m.nombre === nombreParaInventario);
-            if (index !== -1) {
-                window.todosLosMateriales[index].stock_actual += totalML;
+            const existeIdx = window.todosLosMateriales.findIndex(m => m.nombre === nombreParaInventario);
+            if (existeIdx !== -1) {
+                window.todosLosMateriales[existeIdx].stock_actual = (Number(window.todosLosMateriales[existeIdx].stock_actual) || 0) + totalML;
             } else {
                 window.todosLosMateriales.unshift(itemFinal);
             }
 
+            // RENDER Y PERSISTENCIA
             renderTable(window.todosLosMateriales);
-
-            // Guardar en persistencia local
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
             await window.API.registerPurchase(itemFinal);
