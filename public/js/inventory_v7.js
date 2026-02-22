@@ -516,19 +516,30 @@ if (formCompra) {
         e.preventDefault();
         
         // --- CAPTURA QUIRÚRGICA DEL NOMBRE ---
-        const inputNombre = document.getElementById('nombreMaterialNuevo');
-        const nombreManual = inputNombre && inputNombre.value.trim() !== "" 
-                             ? inputNombre.value.trim() 
-                             : "MOLDURA NUEVA";
+        // 1. CAPTURA DEL NOMBRE (Prioridad absoluta al texto escrito)
+        const inputNombreNuevo = document.getElementById('nombreMaterialNuevo');
+        const selectMaterial = document.getElementById('compraMaterial');
+        
+        let nombreFinal = "";
+        
+        // Si hay algo escrito en "Nuevo Material", manda eso. 
+        // Si no, lo que diga el Select.
+        if (inputNombreNuevo && inputNombreNuevo.value.trim() !== "") {
+            nombreFinal = inputNombreNuevo.value.trim().toUpperCase();
+        } else if (selectMaterial) {
+            nombreFinal = selectMaterial.options[selectMaterial.selectedIndex].text.toUpperCase();
+        } else {
+            nombreFinal = "MOLDURA SIN NOMBRE";
+        }
 
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
         const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
         const totalML = (cant * 2.90);
 
         const itemFinal = {
-            id: `MOLD-${Date.now()}`, 
-            nombre: nombreManual.toUpperCase(), // Campo principal para la tabla
-            materialNombre: nombreManual.toUpperCase(), // Campo de respaldo para el motor
+            id: `MOLD-${Date.now()}`, // Generamos un ID único para que el motor no lo ignore
+            nombre: nombreFinal,      // <--- AQUÍ SE FIJA EL NOMBRE REAL
+            materialNombre: nombreFinal, 
             categoria: "MOLDURAS",
             tipo: "ml",
             largo_lamina_cm: 290,
@@ -538,34 +549,29 @@ if (formCompra) {
             fecha_registro: new Date().toISOString()
         };
 
-        // --- PERSISTENCIA LOCAL ---
+        // 2. PERSISTENCIA LOCAL (Para que sobreviva al Refresh)
         let persistencia = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
         persistencia.push(itemFinal);
         localStorage.setItem('molduras_pendientes', JSON.stringify(persistencia));
 
-        // Actualizamos la memoria de la sesión
+        // 3. ACTUALIZACIÓN INMEDIATA DE LA MEMORIA
         window.todosLosMateriales = [itemFinal, ...(window.todosLosMateriales || [])];
 
         try {
-            // Dibujamos con el nombre forzado
+            // Dibujamos la tabla con el nombre que ACABAMOS de capturar
             renderTable(window.todosLosMateriales);
             
             // Enviamos al servidor
-            const response = await window.API.registerPurchase(itemFinal);
+            await window.API.registerPurchase(itemFinal);
             
-            // --- LIMPIEZA QUIRÚRGICA (Sugerencia) ---
-            // Si el servidor responde con éxito, marcamos que ya no necesita estar en "pendientes"
-            // para que no se duplique tras el refresh cuando el servidor lo mande oficialmente.
-            if (response && response.success) {
-                console.log("Servidor confirmó recepción. Limpiando caché local...");
-                // Opcional: podrías limpiar aquí, pero mejor dejarlo hasta que fetchInventory lo confirme
-            }
-
-            alert(`✅ REGISTRADO CON ÉXITO: ${nombreManual.toUpperCase()}`);
+            alert(`✅ REGISTRADO COMO: ${nombreFinal}`);
+            
+            // Limpiamos los campos para que no se duplique
+            if(inputNombreNuevo) inputNombreNuevo.value = "";
             if (window.cerrarModales) window.cerrarModales();
             
         } catch (err) {
-            console.warn("⚠️ Guardado local activo. El servidor lo procesará después.");
+            console.warn("⚠️ Guardado local exitoso. El servidor sincronizará luego.");
             renderTable(window.todosLosMateriales);
         }
     };
