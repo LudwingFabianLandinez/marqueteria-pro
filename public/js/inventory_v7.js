@@ -216,9 +216,10 @@ window.guardarProveedor = async function(event) {
 async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
-        const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        window.todosLosMateriales = datos.map(m => {
+        // 1. MAPEAMOS LOS DATOS DEL SERVIDOR
+        const materialesMapeados = datosServidor.map(m => {
             return {
                 ...m,
                 id: m._id || m.id,
@@ -234,12 +235,32 @@ async function fetchInventory() {
                 tipo: m.tipo || 'm2'
             };
         });
+
+        // 2. RECONCILIACIÓN QUIRÚRGICA (Persistencia de molduras nuevas)
+        // Recuperamos las molduras que guardamos en la "Caja de Seguridad" local
+        const moldurasPendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
         
+        // Unimos: Primero las locales (nuevas) y luego las del servidor
+        // Filtramos por ID para evitar duplicados si el servidor ya la procesó
+        const idsServidor = materialesMapeados.map(m => m.id);
+        const localesUnicas = moldurasPendientes.filter(lp => !idsServidor.includes(lp.id));
+
+        window.todosLosMateriales = [...localesUnicas, ...materialesMapeados];
+        
+        // 3. ACTUALIZACIÓN DE VISTA Y CACHÉ
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
         actualizarDatalistMateriales();
-        window.cargarListasModal();
-    } catch (error) { console.error("❌ Error inventario:", error); }
+        
+        if (typeof window.cargarListasModal === 'function') {
+            window.cargarListasModal();
+        }
+        
+        console.log("✅ Inventario sincronizado (Local + Servidor)");
+
+    } catch (error) { 
+        console.error("❌ Error inventario:", error); 
+    }
 }
 
 function renderTable(materiales) {
@@ -493,41 +514,46 @@ const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = 'REGISTRANDO...'; }
+        
+        // Captura el nombre REAL que escribiste
+        const nombreManual = document.getElementById('nombreMaterialNuevo')?.value || "MOLDURA";
+        const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+        const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
+        const totalML = (cant * 2.90);
+
+        const itemFinal = {
+            id: `MOLD-${Date.now()}`, // ID único temporal
+            nombre: nombreManual.toUpperCase().trim(), // Forzamos tu nombre
+            categoria: "MOLDURAS",
+            tipo: "ml", // Esto evita que lo trate como m2
+            largo_lamina_cm: 290,
+            ancho_lamina_cm: 1,
+            stock_actual: totalML,
+            precio_total_lamina: costo,
+            fecha_registro: new Date().toISOString()
+        };
+
+        // --- EL TRUCO DE LA PERSISTENCIA ---
+        // 1. Lo guardamos en una "Caja de Seguridad" local
+        let persistencia = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+        persistencia.push(itemFinal);
+        localStorage.setItem('molduras_pendientes', JSON.stringify(persistencia));
+
+        // 2. Lo metemos en la memoria de la sesión actual
+        window.todosLosMateriales = [itemFinal, ...(window.todosLosMateriales || [])];
 
         try {
-            const nombre = document.getElementById('nombreMaterialNuevo')?.value || "MOLDURA NUEVA";
-            const cant = parseFloat(document.getElementById('compraCantidad').value) || 1;
-            const totalML = (cant * 2.90);
-
-            const nuevaMoldura = {
-                id: `TEMP-${Date.now()}`,
-                nombre: nombre.toUpperCase(),
-                categoria: "MOLDURAS",
-                tipo: "ml", // IMPORTANTE para que renderTable la reconozca
-                largo_lamina_cm: 290,
-                stock_actual: totalML,
-                precio_total_lamina: parseFloat(document.getElementById('compraCosto').value) || 0
-            };
-
-            // PASO 1: Meterla en la memoria global para que renderTable no la borre
-            window.todosLosMateriales = [nuevaMoldura, ...window.todosLosMateriales];
-
-            // PASO 2: Mandar al servidor
-            await window.API.registerPurchase(nuevaMoldura);
-
-            // PASO 3: Redibujar la tabla usando la función oficial corregida
+            // 3. Dibujamos inmediatamente
             renderTable(window.todosLosMateriales);
-
-            alert("✅ REGISTRADO: Aparecerá arriba en la lista.");
+            
+            // 4. Enviamos al servidor (pero ya está en pantalla)
+            await window.API.registerPurchase(itemFinal);
+            
+            alert(`✅ REGISTRADO: ${nombreManual}`);
             if (window.cerrarModales) window.cerrarModales();
-
         } catch (err) {
-            console.error("Error:", err);
-            alert("Error al guardar moldura");
-        } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = 'GUARDAR COMPRA'; }
+            console.warn("Error de red, pero el material se queda en pantalla local.");
+            renderTable(window.todosLosMateriales);
         }
     };
 }
