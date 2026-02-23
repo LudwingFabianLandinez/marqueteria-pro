@@ -886,3 +886,39 @@ window.verHistorial = async function(id, nombre) {
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
 };
+
+// Función para procesar el guardado desde el nuevo modal de gestión
+window.guardarMaterial = async function() {
+    try {
+        // Obtenemos el ID que guardamos en el modal al abrirlo
+        const id = document.getElementById('modalNuevoMaterial').dataset.id;
+        
+        const materialData = {
+            nombre: document.getElementById('matNombre').value,
+            ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
+            largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
+            precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
+            stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2
+        };
+
+        if (!materialData.nombre) return alert("El nombre es obligatorio");
+
+        let res;
+        if (id) {
+            // Si hay ID, llamamos a la edición (API update)
+            res = await window.API.updateMaterial(id, materialData);
+        } else {
+            // Si no hay ID, es un material nuevo
+            res = await window.API.createMaterial(materialData);
+        }
+
+        if (res.success) {
+            alert("✅ Cambios guardados");
+            document.getElementById('modalNuevoMaterial').style.display = 'none';
+            fetchInventory(); // Esta función sí existe en tu código [cite: 359]
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert("Fallo al guardar");
+    }
+};
