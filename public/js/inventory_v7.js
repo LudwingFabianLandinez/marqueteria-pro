@@ -800,7 +800,7 @@ window.prepararEdicionMaterial = function(id) {
 // --- ACTIVACIÓN MAESTRA DE FUNCIONES GLOBALES ---
 
 window.abrirModalEditar = function(idRecibido) {
-    // 1. Limpiamos el ID
+    // 1. Limpiamos el ID (por si llega con comillas extra o espacios)
     const idLimpio = String(idRecibido).trim();
     console.log("🚀 Intentando editar ID:", idLimpio);
 
@@ -817,7 +817,7 @@ window.abrirModalEditar = function(idRecibido) {
 
     console.log("✅ Material encontrado:", m.nombre);
 
-    // 3. Llenamos el modal
+    // 3. Llenamos el modal (Usando tus IDs exactos del ARCHIVO.docx)
     window.materialEditandoId = m.id || m._id;
     
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id || m._id;
@@ -832,15 +832,15 @@ window.abrirModalEditar = function(idRecibido) {
         document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     }
 
-    // 4. ANCLAJE DE SEGURIDAD (La conexión crítica)
+    // 4. ANCLAJE DE SEGURIDAD (Esto conecta con el guardado)
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) {
         modal.dataset.id = m.id || m._id; 
-        console.log("📍 ID anclado al modal para guardar:", modal.dataset.id);
-        // Mostramos el modal
+        // Mostramos el modal SOLO AQUÍ adentro
         modal.style.display = 'flex';
+        console.log("📍 ID anclado al modal para guardar:", modal.dataset.id);
     }
-}; // <--- La llave cierra aquí correctamente
+}; // <--- AQUÍ TERMINA TODO. No debe haber nada más después de esta llave.
 
 
     // 4. Mostramos el modal
