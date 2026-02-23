@@ -1,7 +1,7 @@
 /**
  * Lógica del Historial de Órdenes de Trabajo - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.1 - CORRECCIÓN DE RUTA NETLIFY Y BLINDAJE JSON
- * Objetivo: Lectura híbrida de datos y estabilidad en producción.
+ * Versión: 13.5.1 - REPORTE DE RENTABILIDAD INTEGRADO
+ * Blindaje: Generación de reportes local para evitar Error 404.
  */
 
 let todasLasFacturas = [];
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- 1. FORMATEO DE NÚMERO DE ORDEN ---
 function formatearNumeroOT(f) {
-    const num = f.numeroFactura || f.ot || f.numeroOT;
+    const num = f.numeroFactura || f.ot || f.numeroOT || f.numeroOrden;
     if (num && num !== "undefined") {
         return num.toString().startsWith('OT-') ? num : `OT-${num.toString().padStart(6, '0')}`;
     }
@@ -43,11 +43,8 @@ function formatearNumeroOT(f) {
 async function fetchInvoices() {
     try {
         console.log("📡 Intentando conectar con la API de órdenes...");
-        
-        // CORRECCIÓN: Usamos la ruta directa de Netlify Functions para evitar el Error 404/JSON
         const response = await fetch('/.netlify/functions/invoices');
         
-        // Validamos que la respuesta no sea un error 404 de página HTML
         if (!response.ok) {
             throw new Error(`Servidor respondió con estado ${response.status}`);
         }
@@ -63,8 +60,6 @@ async function fetchInvoices() {
         }
     } catch (error) {
         console.error("❌ Error cargando órdenes:", error);
-        // Notificación visual discreta en la consola para depuración
-        console.warn("Sugerencia: Revisa si la función 'invoices' está desplegada en Netlify.");
     }
 }
 
@@ -157,22 +152,17 @@ async function generarReporteDiario() {
                     </div>
                 </div>
                 <div style="text-align: center; margin-top: 40px;" class="no-print">
-                    <button onclick="window.print()" style="background: #1e3a8a; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold;">
-                         IMPRIMIR REPORTE
-                    </button>
-                    <button onclick="window.close()" style="background: #64748b; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">
-                         CERRAR
-                    </button>
+                    <button onclick="window.print()" style="background: #1e3a8a; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold;">IMPRIMIR REPORTE</button>
+                    <button onclick="window.close()" style="background: #64748b; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">CERRAR</button>
                 </div>
             </div>`;
 
         const ventana = window.open('', '_blank');
-        ventana.document.write(`<html><head><title>Reporte_Diario_${hoyStr}</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"><style>@media print{.no-print{display:none}}</style></head><body>${htmlReporte}</body></html>`);
+        ventana.document.write(`<html><head><title>Reporte_Diario</title><style>@media print{.no-print{display:none}}</style></head><body>${htmlReporte}</body></html>`);
         ventana.document.close();
         
     } catch (error) {
         console.error("❌ Error al generar reporte:", error);
-        alert("Ocurrió un error al procesar el reporte.");
     }
 }
 
@@ -198,83 +188,84 @@ function exportarAExcel() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `Marqueteria_Reporte_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute("download", `Reporte_Ventas.csv`);
         link.click();
     } catch (error) { console.error("Error Excel:", error); }
 }
 
 // --- 5. RENDERIZADO DE LA TABLA ---
-// --- FUNCIÓN DE REPORTE (Pégala al final de history.js) ---
+function renderTable(facturas) {
+    const tableBody = document.getElementById('invoiceTableBody');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+    facturas.forEach(f => {
+        const tr = document.createElement('tr');
+        const total = Number(f.totalFactura || f.total) || 0;
+        const pagado = Number(f.totalPagado || f.abono || f.abonoInicial) || 0;
+        const saldo = total - pagado;
+        const numeroOT = formatearNumeroOT(f);
+        const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
+
+        tr.innerHTML = `
+            <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
+            <td style="font-weight: 700; color: #1e3a8a;">${numeroOT}</td>
+            <td>${clienteVisual}</td>
+            <td style="font-weight: 600;">${formatter.format(total)}</td>
+            <td style="color: #e11d48; font-weight: 600;">${formatter.format(saldo)}</td>
+            <td><span class="badge-status ${saldo <= 0 ? 'badge-pagado' : 'badge-abonado'}">${saldo <= 0 ? 'PAGADO' : 'ABONADO'}</span></td>
+            <td>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="abrirAnalisisCostos('${f._id}')" class="btn-action-blue"><i class="fas fa-eye"></i></button>
+                    <button onclick="eliminarFactura('${f._id}', '${numeroOT}')" class="btn-action-red"><i class="fas fa-trash"></i></button>
+                </div>
+            </td>`;
+        tableBody.appendChild(tr);
+    });
+}
+
+// --- 6. FUNCIÓN DE REPORTE INDIVIDUAL (CONTUNDENTE) ---
 window.abrirAnalisisCostos = function(id) {
     if (window.event) window.event.preventDefault();
 
-    // Buscamos la OT en la lista 'todasLasFacturas' que ya tiene el navegador
     const f = todasLasFacturas.find(fact => String(fact._id) === String(id));
     
-    if (!f) {
-        return alert("No se encontró la información de esta orden. Por favor, intenta recargar la página.");
-    }
+    if (!f) return alert("Información no encontrada.");
 
-    const formatter = new Intl.NumberFormat('es-CO', {
-        style: 'currency', currency: 'COP', maximumFractionDigits: 0
-    });
+    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
     // REGLA DE NEGOCIO: Costo Material x 3 + Mano de Obra
-    // Usamos los nombres de campos que vienen de tu servidor v13.4.45
     const cMat = Number(f.costo_materiales_total || 0);
     const cMO = Number(f.mano_obra_total || 0);
     const cX3 = cMat * 3;
     const totalCobrado = Number(f.totalFactura || f.total || 0);
 
     const reporteHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 30px; max-width: 550px; margin: auto; border: 2px solid #1e3a8a; border-radius: 12px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <h2 style="color: #1e3a8a; text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">ANÁLISIS DE RENTABILIDAD</h2>
-            
-            <div style="margin-bottom: 15px;">
-                <p><strong>OT:</strong> ${f.numeroFactura || f.numeroOrden || 'S/N'}</p>
-                <p><strong>Cliente:</strong> ${(f.cliente?.nombre || f.clienteNombre || 'N/A').toUpperCase()}</p>
-                <p><strong>Medidas:</strong> ${f.medidas || 'No registradas'}</p>
-            </div>
-
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 10px;">Costo Real Material (Prorrateado):</td>
-                    <td style="padding: 10px; text-align: right;">${formatter.format(cMat)}</td>
-                </tr>
-                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af; border-bottom: 1px solid #3b82f6;">
-                    <td style="padding: 10px;">VENTA MATERIAL (COSTO X3):</td>
-                    <td style="padding: 10px; text-align: right;">${formatter.format(cX3)}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 10px;">Mano de Obra (Adicional):</td>
-                    <td style="padding: 10px; text-align: right;">${formatter.format(cMO)}</td>
-                </tr>
-                <tr style="font-size: 1.2em; font-weight: bold; color: #1e3a8a;">
-                    <td style="padding: 10px;">TOTAL COBRADO AL CLIENTE:</td>
-                    <td style="padding: 10px; text-align: right;">${formatter.format(totalCobrado)}</td>
-                </tr>
+        <div style="font-family: Arial, sans-serif; padding: 30px; max-width: 500px; margin: auto; border: 2px solid #1e3a8a; border-radius: 12px; background: white;">
+            <h2 style="color: #1e3a8a; text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px;">ANÁLISIS DE RENTABILIDAD</h2>
+            <p><strong>OT:</strong> ${formatearNumeroOT(f)}</p>
+            <p><strong>Cliente:</strong> ${(f.cliente?.nombre || f.clienteNombre || 'N/A').toUpperCase()}</p>
+            <hr>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 10px;">Costo Real Material:</td><td style="text-align: right;">${formatter.format(cMat)}</td></tr>
+                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;"><td style="padding: 10px;">VENTA MATERIAL (x3):</td><td style="text-align: right;">${formatter.format(cX3)}</td></tr>
+                <tr><td style="padding: 10px;">Mano de Obra:</td><td style="text-align: right;">${formatter.format(cMO)}</td></tr>
+                <tr style="font-size: 1.2em; font-weight: bold; color: #1e3a8a;"><td style="padding: 10px;">TOTAL COBRADO:</td><td style="text-align: right;">${formatter.format(totalCobrado)}</td></tr>
             </table>
-
-            <div style="margin-top: 25px; padding: 15px; background: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; text-align: center;">
-                <h3 style="margin: 0; color: #166534;">UTILIDAD BRUTA ESTIMADA:</h3>
-                <h2 style="margin: 5px 0 0 0; color: #15803d;">${formatter.format(totalCobrado - cMat)}</h2>
-                <p style="margin: 5px 0 0 0; font-size: 0.8em; color: #166534;">(Total Cobrado - Costo Real Material)</p>
+            <div style="margin-top: 20px; padding: 15px; background: #dcfce7; border-radius: 8px; text-align: center; border: 1px solid #22c55e;">
+                <h3 style="margin: 0; color: #166534;">UTILIDAD: ${formatter.format(totalCobrado - cMat)}</h3>
             </div>
-            
-            <div style="margin-top: 25px; text-align: center;">
-                <button onclick="window.print()" style="padding: 10px 25px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">🖨️ IMPRIMIR REPORTE</button>
-            </div>
+            <button onclick="window.print()" style="width: 100%; margin-top: 20px; padding: 12px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">IMPRIMIR</button>
         </div>
     `;
 
     const win = window.open("", "_blank");
-    if (!win) return alert("El navegador bloqueó la ventana emergente. Por favor permítelas.");
-    
     win.document.write(`<html><head><title>Reporte Rentabilidad</title></head><body style="background:#f8fafc; padding:20px;">${reporteHTML}</body></html>`);
     win.document.close();
 };
 
-// --- 6. BUSCADOR ---
+// --- 7. BUSCADOR ---
 function configurarBuscador() {
     const searchInput = document.getElementById('searchInputFacturas');
     if (!searchInput) return;
@@ -289,11 +280,10 @@ function configurarBuscador() {
     });
 }
 
-// --- 7. ACCIONES ---
+// --- 8. ACCIONES ---
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Estás seguro de eliminar la Orden ${numero}?`)) {
         try {
-            // CORRECCIÓN: También en eliminar usamos la ruta de Netlify
             const res = await fetch(`/.netlify/functions/invoices/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 alert("✅ Orden eliminada exitosamente");
@@ -302,4 +292,3 @@ async function eliminarFactura(id, numero) {
         } catch (error) { console.error("Error al eliminar:", error); }
     }
 }
-
