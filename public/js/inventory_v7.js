@@ -800,7 +800,7 @@ window.prepararEdicionMaterial = function(id) {
 // --- ACTIVACIÓN MAESTRA DE FUNCIONES GLOBALES ---
 
 window.abrirModalEditar = function(idRecibido) {
-    // 1. Limpiamos el ID (por si llega con comillas extra o espacios)
+    // 1. Limpiamos el ID
     const idLimpio = String(idRecibido).trim();
     console.log("🚀 Intentando editar ID:", idLimpio);
 
@@ -817,7 +817,7 @@ window.abrirModalEditar = function(idRecibido) {
 
     console.log("✅ Material encontrado:", m.nombre);
 
-    // 3. Llenamos el modal (Usando tus IDs exactos del ARCHIVO.docx)
+    // 3. Llenamos el modal
     window.materialEditandoId = m.id || m._id;
     
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id || m._id;
@@ -832,13 +832,23 @@ window.abrirModalEditar = function(idRecibido) {
         document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     }
 
+    // 4. ANCLAJE DE SEGURIDAD (La conexión crítica)
+    const modal = document.getElementById('modalNuevoMaterial');
+    if(modal) {
+        modal.dataset.id = m.id || m._id; 
+        console.log("📍 ID anclado al modal para guardar:", modal.dataset.id);
+        // Mostramos el modal
+        modal.style.display = 'flex';
+    }
+}; // <--- La llave cierra aquí correctamente
+
+
     // 4. Mostramos el modal
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) {
         modal.style.display = 'flex';
         console.log("✨ Modal desplegado con éxito");
     }
-};
 
 // --- MANTENIMIENTO DE SELECTORES ---
 window.actualizarSelectProveedores = function() {
@@ -889,8 +899,15 @@ window.verHistorial = async function(id, nombre) {
 
 window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
-    const id = modal.dataset.id;
-    if (!id) return alert("No se encontró el ID del material");
+    
+    // 🕵️‍♂️ Búsqueda exhaustiva del ID
+    // Lo buscamos en el atributo 'data-id' o en una variable global si existe
+    const id = modal.dataset.id || window.currentEditingId; 
+
+    if (!id) {
+        console.error("❌ Fallo crítico: ID no localizado en el modal.");
+        return alert("⚠️ Error técnico: No se pudo localizar el ID del material. Cierra el modal e intenta abrirlo de nuevo.");
+    }
 
     const materialData = {
         nombre: document.getElementById('matNombre').value.trim(),
@@ -901,21 +918,22 @@ window.guardarMaterial = async function() {
     };
 
     try {
+        // Usamos la ruta de emergencia que ya tienes en server.js
         const url = `${window.API_URL}/fix-material-data/${id}`; 
+        
         const response = await fetch(url, {
-            method: 'POST', 
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(materialData)
         });
 
         if (response.ok) {
-            alert("✅ ¡Material actualizado con éxito!");
+            alert("✅ ¡Material actualizado! El punto de reorden ahora es " + materialData.stock_minimo);
             location.reload(); 
         } else {
-            alert("❌ Error: El servidor no procesó el cambio.");
+            alert("❌ El servidor no permitió el guardado.");
         }
     } catch (error) {
-        console.error("Error:", error);
-        alert("❌ Error de conexión.");
+        alert("❌ Error de red al intentar guardar.");
     }
 };
