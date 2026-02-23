@@ -8,7 +8,7 @@
  * 4. Preservación absoluta de blindajes de OTs, diseño visual y lógica de rescate v13.4.25.
  */
 
-const API_BASE = '/.netlify/functions/server';
+const API_BASE = window.API_URL || '/.netlify/functions/server';
 
 window.API = {
     // 1. MOTOR DE PROCESAMIENTO SEGURO (Mantiene blindaje de OTs y Rescate)
