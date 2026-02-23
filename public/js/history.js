@@ -234,41 +234,10 @@ window.abrirAnalisisCostos = function(id) {
         alert("Error: No se pudo obtener el ID de esta orden.");
         return;
     }
-    // Abrimos reportes.html pasando el ID como parámetro
-    window.open(`reportes.html?id=${id}`, '_blank');    
-
-    // Buscamos en la variable que ya tiene todas las facturas cargadas
-    const f = todasLasFacturas.find(fact => String(fact._id) === String(id));
     
-    if (!f) return alert("Información no encontrada en la sesión actual.");
-
-    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-
-    const cMat = Number(f.costo_materiales_total || 0);
-    const cMO = Number(f.mano_obra_total || 0);
-    const totalCobrado = Number(f.totalFactura || f.total || 0);
-
-    const reporteHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 30px; max-width: 500px; margin: auto; border: 2px solid #1e3a8a; border-radius: 12px; background: white;">
-            <h2 style="color: #1e3a8a; text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px;">ANÁLISIS DE RENTABILIDAD</h2>
-            <p><strong>OT:</strong> ${formatearNumeroOT(f)}</p>
-            <p><strong>Cliente:</strong> ${(f.cliente?.nombre || f.clienteNombre || 'N/A').toUpperCase()}</p>
-            <hr>
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr><td style="padding: 10px;">Costo Real Material:</td><td style="text-align: right;">${formatter.format(cMat)}</td></tr>
-                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;"><td style="padding: 10px;">VENTA MATERIAL (x3):</td><td style="text-align: right;">${formatter.format(cMat * 3)}</td></tr>
-                <tr><td style="padding: 10px;">Mano de Obra:</td><td style="text-align: right;">${formatter.format(cMO)}</td></tr>
-                <tr style="font-size: 1.2em; font-weight: bold; color: #1e3a8a;"><td style="padding: 10px;">TOTAL COBRADO:</td><td style="text-align: right;">${formatter.format(totalCobrado)}</td></tr>
-            </table>
-            <div style="margin-top: 20px; padding: 15px; background: #dcfce7; border-radius: 8px; text-align: center; border: 1px solid #22c55e;">
-                <h3 style="margin: 0; color: #166534;">UTILIDAD: ${formatter.format(totalCobrado - cMat)}</h3>
-            </div>
-            <button onclick="window.print()" style="width: 100%; margin-top: 20px; padding: 12px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">IMPRIMIR</button>
-        </div>`;
-
-    const win = window.open("", "_blank");
-    win.document.write(`<html><head><title>Análisis OT</title></head><body style="background:#f8fafc; padding:20px;">${reporteHTML}</body></html>`);
-    win.document.close();
+    // LIMPIEZA TOTAL: Solo abrimos el archivo reportes.html
+    // El archivo reportes.html ya tiene su propia lógica para buscar los datos
+    window.location.href = `reportes.html?id=${id}`;
 };
 
 // --- 7. BUSCADOR (INTACTO) ---
