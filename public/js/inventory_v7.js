@@ -887,38 +887,50 @@ window.verHistorial = async function(id, nombre) {
     } catch (error) { console.error("Error historial:", error); }
 };
 
-// Función para procesar el guardado desde el nuevo modal de gestión
 window.guardarMaterial = async function() {
+    const btn = event.target;
+    btn.disabled = true; // Evitamos doble clic
+    
     try {
-        // Obtenemos el ID que guardamos en el modal al abrirlo
         const id = document.getElementById('modalNuevoMaterial').dataset.id;
         
+        // Mapeo exacto a tu base de datos
         const materialData = {
-            nombre: document.getElementById('matNombre').value,
+            nombre: document.getElementById('matNombre').value.trim(),
             ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
             largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
-            stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2
+            stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
         };
 
-        if (!materialData.nombre) return alert("El nombre es obligatorio");
+        console.log("📤 Enviando datos:", materialData);
+
+        if (!materialData.nombre) {
+            alert("❌ El nombre es obligatorio");
+            btn.disabled = false;
+            return;
+        }
 
         let res;
         if (id) {
-            // Si hay ID, llamamos a la edición (API update)
+            // Edición de moldura/lámina existente
             res = await window.API.updateMaterial(id, materialData);
         } else {
-            // Si no hay ID, es un material nuevo
+            // Nuevo registro
             res = await window.API.createMaterial(materialData);
         }
 
-        if (res.success) {
-            alert("✅ Cambios guardados");
+        if (res.success || res.id || res._id) {
+            alert("✅ ¡Guardado con éxito!");
             document.getElementById('modalNuevoMaterial').style.display = 'none';
-            fetchInventory(); // Esta función sí existe en tu código [cite: 359]
+            if (typeof fetchInventory === 'function') fetchInventory(); 
+        } else {
+            throw new Error(res.message || "Respuesta fallida del servidor");
         }
     } catch (error) {
-        console.error("Error:", error);
-        alert("Fallo al guardar");
+        console.error("❌ Error al guardar:", error);
+        alert("⚠️ Fallo al guardar: " + error.message);
+    } finally {
+        btn.disabled = false;
     }
 };
