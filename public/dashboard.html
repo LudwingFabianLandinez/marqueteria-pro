@@ -244,8 +244,8 @@
                                 <th>ACCIONES</th>
                             </tr>
                         </thead>
-                        <tbody id="inventoryTable">
-                            </tbody>
+                        <tbody id="invoiceTableBody">
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -351,8 +351,10 @@
 
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js"></script>
+<script src="js/history.js"></script>
+
 <script>
-    window.API_URL = "/api"; 
+    window.API_URL = "/.netlify/functions/server"; 
 
     document.addEventListener('DOMContentLoaded', () => {
         if (window.loadInventory) window.loadInventory();
@@ -420,6 +422,8 @@
         }
     }
 </script>
+
+
 <div id="modalHistorialPrecios" class="modal" style="display:none; position:fixed; z-index:999999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
     <div style="background:white; width:90%; max-width:500px; border-radius:10px; overflow:hidden;">
         <div style="background:#1e293b; color:white; padding:15px; font-weight:bold;">HISTORIAL REAL AL 22/02/2026</div>
