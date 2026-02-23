@@ -782,17 +782,8 @@ window.prepararEdicionMaterial = function(id) {
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
+}
     
-    // AQUÍ SE ACTIVA EL PUNTO DE REORDEN
-    if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
-    
-    if(document.getElementById('matAncho')) document.getElementById('matAncho').value = m.ancho_lamina_cm;
-    if(document.getElementById('matLargo')) document.getElementById('matLargo').value = m.largo_lamina_cm;
-    if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
-    
-    const modal = document.getElementById('modalNuevoMaterial');
-    if(modal) modal.style.display = 'flex';
-};
 
 // --- CONEXIÓN DEFINITIVA DE BOTONES ---
 
@@ -800,24 +791,22 @@ window.prepararEdicionMaterial = function(id) {
 // --- ACTIVACIÓN MAESTRA DE FUNCIONES GLOBALES ---
 
 window.abrirModalEditar = function(idRecibido) {
-    // 1. Limpiamos el ID (por si llega con comillas extra o espacios)
+    // 1. Limpiamos el ID
     const idLimpio = String(idRecibido).trim();
     console.log("🚀 Intentando editar ID:", idLimpio);
 
-    // 2. Buscamos el material en la lista global
+    // 2. Buscamos el material
     const m = window.todosLosMateriales.find(mat => 
         (mat.id === idLimpio || mat._id === idLimpio)
     );
 
     if (!m) {
-        console.error("❌ No se encontró el material con ID:", idLimpio, "en", window.todosLosMateriales);
+        console.error("❌ No se encontró el material");
         alert("Error: No se encontró la información del material.");
         return;
     }
 
-    console.log("✅ Material encontrado:", m.nombre);
-
-    // 3. Llenamos el modal (Usando tus IDs exactos del ARCHIVO.docx)
+    // 3. Llenamos los campos (Respetando tus IDs de ARCHIVO.docx)
     window.materialEditandoId = m.id || m._id;
     
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id || m._id;
@@ -832,23 +821,14 @@ window.abrirModalEditar = function(idRecibido) {
         document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     }
 
-    // 4. ANCLAJE DE SEGURIDAD (Esto conecta con el guardado)
+    // 4. ANCLAJE DE SEGURIDAD Y APERTURA (Esto es lo que faltaba)
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) {
-        modal.dataset.id = m.id || m._id; 
-        // Mostramos el modal SOLO AQUÍ adentro
-        
-        console.log("📍 ID anclado al modal para guardar:", modal.dataset.id);
+        modal.dataset.id = m.id || m._id; // <--- Anclamos el ID para el 36
+        modal.style.display = 'flex';     // <--- ABRIMOS LA VENTANA AQUÍ
+        console.log("📍 ID listo para guardar:", modal.dataset.id);
     }
-}; // <--- AQUÍ TERMINA TODO. No debe haber nada más después de esta llave.
-
-
-    // 4. Mostramos el modal
-    const modal = document.getElementById('modalNuevoMaterial');
-    if(modal) {
-        modal.style.display = 'flex';
-        console.log("✨ Modal desplegado con éxito");
-    }
+}; 
 
 // --- MANTENIMIENTO DE SELECTORES ---
 window.actualizarSelectProveedores = function() {
