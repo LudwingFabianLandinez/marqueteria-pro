@@ -888,55 +888,65 @@ window.verHistorial = async function(id, nombre) {
 };
 
 window.guardarMaterial = async function() {
-    const btn = event.target; // Capturamos el botón que lanzó el evento
+    const btn = document.querySelector('#modalNuevoMaterial button[onclick*="guardarMaterial"]');
     const modal = document.getElementById('modalNuevoMaterial');
     const id = modal.dataset.id;
     
-    // Bloqueamos el botón para evitar que el formulario se envíe dos veces o se limpie solo
-    btn.disabled = true;
-    btn.innerText = "Guardando...";
+    // Capturamos el valor exacto del input antes de cualquier otra cosa
+    const nuevoStockMinimo = parseFloat(document.getElementById('matStockMin').value) || 0;
 
     const materialData = {
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
         largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
         precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
-        stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
+        stock_minimo: nuevoStockMinimo // Este es el famoso "36"
     };
 
-    // 🛡️ Escudo para no tocar el stock actual
+    // PROTECCIÓN TOTAL: Eliminamos stock para que no se resetee a cero
     delete materialData.stock_actual;
     delete materialData.cantidad;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Procesando...";
+    }
 
     try {
         let base = window.API_URL || "";
         if (base.endsWith('/')) base = base.slice(0, -1);
         
         const url = id ? `${base}/materials/${id}` : `${base}/materials`;
-        const metodo = id ? 'PUT' : 'POST';
+        
+        console.log("📤 ENVIANDO DATO:", { url, stock_minimo: materialData.stock_minimo });
 
         const response = await fetch(url, {
-            method: metodo,
-            headers: { 'Content-Type': 'application/json' },
+            method: id ? 'PUT' : 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache' // Forzamos al servidor a no usar cache
+            },
             body: JSON.stringify(materialData)
         });
 
         if (response.ok) {
-            console.log("✅ Servidor actualizó correctamente");
-            alert("✅ ¡Cambios guardados! Ahora verás el nuevo Punto de Reorden.");
-            modal.style.display = 'none';
+            console.log("✅ EXITOSO: El servidor confirmó el cambio.");
+            alert(`✅ ¡Guardado! El Punto de Reorden ahora es ${nuevoStockMinimo}`);
             
-            // Recarga total para limpiar cualquier dato viejo en memoria
-            window.location.reload(); 
+            // LIMPIEZA RADICAL: Cerramos modal y forzamos recarga ignorando el cache
+            modal.style.display = 'none';
+            window.location.href = window.location.href.split('?')[0] + '?update=' + Date.now();
         } else {
-            throw new Error("El servidor no procesó el cambio");
+            const errorText = await response.text();
+            alert("❌ Error: El servidor no aceptó el cambio.");
+            console.error(errorText);
         }
     } catch (error) {
-        console.error("❌ Error:", error);
-        alert("❌ No se pudo guardar. Intenta de nuevo.");
+        alert("❌ Error de red. Verifica tu conexión.");
     } finally {
-        // Liberamos el botón si algo falla
-        btn.disabled = false;
-        btn.innerText = "Guardar Cambios";
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "Guardar Cambios";
+        }
     }
 };
