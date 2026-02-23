@@ -197,33 +197,35 @@ try {
         }
     });
 
+
+
     // --- NUEVAS RUTAS: GUARDAR Y EDITAR MATERIALES (CIRUGÍA PRECISA) ---
 
-// 1. Ruta para CREAR nuevo material
-router.post('/materials', async (req, res) => {
-    try {
-        const nuevoMaterial = new Material(req.body);
-        await nuevoMaterial.save();
-        res.status(201).json({ success: true, data: nuevoMaterial });
-    } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
-    }
-});
+    // 1. Ruta para CREAR nuevo material
+    router.post('/materials', async (req, res) => {
+        try {
+            const nuevoMaterial = new Material(req.body);
+            await nuevoMaterial.save();
+            res.status(201).json({ success: true, data: nuevoMaterial });
+        } catch (error) {
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
 
-// 2. Ruta para EDITAR material existente
-router.put('/materials/:id', async (req, res) => {
-    try {
-        const actualizado = await Material.findByIdAndUpdate(
-            req.params.id, 
-            req.body, 
-            { new: true }
-        );
-        if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
-        res.json({ success: true, data: actualizado });
-    } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
-    }
-});
+    // 2. Ruta para EDITAR material existente
+    router.put('/materials/:id', async (req, res) => {
+        try {
+            const actualizado = await Material.findByIdAndUpdate(
+                req.params.id, 
+                req.body, 
+                { new: true }
+            );
+            if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
+            res.json({ success: true, data: actualizado });
+        } catch (error) {
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
 
     // --- REPORTE DE COMPRAS (INTACTO) ---
     router.get('/inventory/all-purchases', async (req, res) => {
