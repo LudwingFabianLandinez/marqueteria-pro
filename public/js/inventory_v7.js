@@ -891,7 +891,7 @@ window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
     const id = modal.dataset.id;
     
-    // 1. Recolectamos solo los datos básicos de gestión
+    // 1. Captura de datos exacta 📝
     const materialData = {
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
@@ -900,20 +900,22 @@ window.guardarMaterial = async function() {
         stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
     };
 
-    // 💉 CIRUGÍA DE PROTECCIÓN:
-    // Eliminamos cualquier propiedad de stock para que el proceso de "Editar" 
-    // no toque los niveles de inventario existentes en la base de datos.
+    // 2. Escudo de Protección de Stock 🛡️
+    // Eliminamos estas propiedades para que el servidor NO las sobreescriba con 0
     delete materialData.stock_actual;
     delete materialData.cantidad;
 
     if (!materialData.nombre) return alert("⚠️ El nombre es obligatorio.");
 
     try {
+        // 3. Configuración de Ruta 🛣️
         let base = window.API_URL || "";
         if (base.endsWith('/')) base = base.slice(0, -1);
         
         const url = id ? `${base}/materials/${id}` : `${base}/materials`;
         const metodo = id ? 'PUT' : 'POST';
+
+        console.log(`🚀 Intentando guardar en: ${url}`);
 
         const response = await fetch(url, {
             method: metodo,
@@ -922,14 +924,17 @@ window.guardarMaterial = async function() {
         });
 
         if (response.ok) {
-            alert("✅ Cambios guardados sin afectar el stock.");
+            alert("✅ ¡Cambios guardados exitosamente!");
             modal.style.display = 'none';
+            // Forzamos recarga para ver el nuevo punto de reorden (36)
             location.reload(); 
         } else {
-            alert("❌ Error al procesar los datos en el servidor.");
+            const errorText = await response.text();
+            console.error("Error del servidor:", errorText);
+            alert("❌ El servidor rechazó el cambio. Revisa la consola (F12).");
         }
     } catch (error) {
         console.error("Error de red:", error);
-        alert("❌ Error de conexión con el servidor.");
+        alert("❌ Error de conexión. El servidor no responde.");
     }
 };
