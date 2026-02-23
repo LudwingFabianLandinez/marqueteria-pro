@@ -218,10 +218,11 @@ async function fetchInventory() {
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // --- NUEVO: LISTA NEGRA DE ELIMINADOS ---
+        // 1. CARGAR CAJAS DE SEGURIDAD (Declaradas una sola vez para evitar error)
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+        const moldurasPendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
 
-        // 1. MAPEAMOS LOS DATOS DEL SERVIDOR (Tu lógica original intacta)
+        // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Tu lógica original intacta)
         const materialesMapeados = datosServidor.map(m => {
             return {
                 ...m,
@@ -239,23 +240,32 @@ async function fetchInventory() {
             };
         });
 
-        // 2. RECONCILIACIÓN QUIRÚRGICA (Modificada para respetar eliminaciones)
-        const moldurasPendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-        
-        // Unimos: Primero las locales únicas, luego el servidor, pero FILTRAMOS los eliminados
-        const idsServidor = materialesMapeados.map(m => m.id);
-        
-        // Filtro: Solo lo que no está en el servidor Y no ha sido marcado como eliminado
-        const localesUnicas = moldurasPendientes.filter(lp => 
-            !idsServidor.includes(lp.id) && !eliminados.includes(String(lp.id))
-        );
+        // 3. RECONCILIACIÓN POR NOMBRE (Asegura que m2/Lona no se borren al refrescar)
+        window.todosLosMateriales = materialesMapeados.map(mServidor => {
+            const compraReciente = moldurasPendientes.find(p => p.nombre.toLowerCase() === mServidor.nombre.toLowerCase());
+            if (compraReciente) {
+                // Mantenemos los datos del servidor pero inyectamos el stock de la compra local
+                return { ...mServidor, ...compraReciente };
+            }
+            return mServidor;
+        });
 
-        // Unión final aplicando el filtro de eliminados a toda la lista
-        window.todosLosMateriales = [...localesUnicas, ...materialesMapeados].filter(m => 
-            !eliminados.includes(String(m.id))
-        );
+        // Agregamos materiales nuevos que aún no existen en el servidor
+        moldurasPendientes.forEach(p => {
+            const yaExisteEnLista = window.todosLosMateriales.some(m => m.nombre.toLowerCase() === p.nombre.toLowerCase());
+            if (!yaExisteEnLista) {
+                window.todosLosMateriales.push(p);
+            }
+        });
+
+        // 4. FILTRADO FINAL: Quitamos los eliminados y nombres basura
+        window.todosLosMateriales = window.todosLosMateriales.filter(m => {
+            const noEstaEliminado = !eliminados.includes(String(m.id));
+            const tieneNombreValido = m.nombre && m.nombre !== "Sin nombre";
+            return noEstaEliminado && tieneNombreValido;
+        });
         
-        // 3. ACTUALIZACIÓN DE VISTA Y CACHÉ (Tu lógica original intacta)
+        // 5. ACTUALIZACIÓN DE VISTA Y CACHÉ
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
         
@@ -267,7 +277,7 @@ async function fetchInventory() {
             window.cargarListasModal();
         }
         
-        console.log("✅ Inventario sincronizado y filtrado (Anti-resurrección)");
+        console.log("✅ Inventario sincronizado por nombre (Tela/Lona protegidas)");
 
     } catch (error) { 
         console.error("❌ Error inventario:", error); 
@@ -589,11 +599,21 @@ const formCompra = document.getElementById('formNuevaCompra');
                     window.todosLosMateriales.unshift(existente);
                 }
 
-                // --- LA "CAJA DE SEGURIDAD" (Esto evita que la lona se borre al refrescar) ---
+                // --- CAJA DE SEGURIDAD REFORZADA (M2 y ML) ---
                 let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-                // Quitamos lo viejo de este material específico y ponemos lo nuevo
-                pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
-                pendientes.push(existente);
+                
+                // Buscamos si ya existe en pendientes por nombre para actualizarlo
+                const index = pendientes.findIndex(p => p.nombre.toLowerCase() === nombreReal.toLowerCase());
+                
+                // Creamos una copia limpia del objeto para la caja fuerte
+                const datoASalvar = { ...existente, fechaCompra: new Date().toISOString() };
+
+                if (index !== -1) {
+                    pendientes[index] = datoASalvar;
+                } else {
+                    pendientes.push(datoASalvar);
+                }
+                
                 localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
                 // Limpieza de lista negra (Para que no se oculte al refrescar)
