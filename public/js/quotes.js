@@ -1,7 +1,7 @@
 /**
  * Lógica del Cotizador y Facturación - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.1.8 - CONSOLIDACIÓN DE COSTOS PARA AUDITORÍA
- * Objetivo: Asegurar que el costoBase se guarde en cada ítem para el reporte de historial.
+ * Versión: 13.1.7 - CONSOLIDACIÓN ESTRICTA (FRONT 13.1.7 + BACK 13.1.0)
+ * Objetivo: Asegurar que la venta se registre respetando el diseño y el blindaje actual.
  */
 
 let datosCotizacionActual = null;
@@ -51,8 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // IMPORTANTE: Capturamos el costo base aquí
-                    const precioDetectado = m.costo_m2 || m.precio_m2_costo || m.costo || 0;
+                    const precioDetectado = m.costo_m2 || m.precio_m2_costo || 0;
                     
                     option.dataset.costo = precioDetectado;
                     option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
@@ -69,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Materiales cargados con blindaje v13.1.8");
+            console.log("✅ Materiales cargados con blindaje v13.1.7");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -272,7 +271,7 @@ function imprimirResumen() {
     setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
 
-// --- FUNCIÓN ACTUALIZADA PARA GUARDAR COSTOS BASE ---
+// --- FUNCIÓN ACTUALIZADA CON GANCHOS PARA MODELO 13.1.0 ---
 async function facturarVenta() {
     if (!datosCotizacionActual) return;
     const nombre = document.getElementById('nombreCliente').value.trim();
@@ -282,29 +281,21 @@ async function facturarVenta() {
 
     if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
 
-    // --- MEJORA DE SEGURIDAD PARA CAPTURA DE DATOS ---
-    const itemsProcesados = (datosCotizacionActual.detalles?.materiales || []).map(m => {
-        // Forzamos la obtención del nombre y costo desde el objeto o desde el DOM si es necesario
-        const nombreReal = m.nombre || "Material Desconocido";
-        const costoReal = parseFloat(m.costoUnitario) || 0;
-
-        return {
+    // Sincronización con InvoiceSchema: cliente { nombre, telefono }, totalFactura, totalPagado
+    const facturaData = {
+        cliente: {
+            nombre: nombre,
+            telefono: tel
+        },
+        medidas: datosCotizacionActual.detalles?.medidas || '--',
+        items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
             productoId: m.id || m._id,
-            descripcion: nombreReal, // Esto quita el texto "MATERIAL"
-            materialNombre: nombreReal,
+            materialNombre: m.nombre, 
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
             area_m2: datosCotizacionActual.areaFinal,
-            cantidad: 1,
-            costoBase: costoReal,      // Para el reporte de auditoría
-            costo_base_unitario: costoReal // Para compatibilidad con el servidor
-        };
-    });
-
-    const facturaData = {
-        cliente: { nombre: nombre, telefono: tel },
-        medidas: datosCotizacionActual.detalles?.medidas || '--',
-        items: itemsProcesados, 
+            costo_base_unitario: m.costoUnitario || 0
+        })), 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         totalPagado: abono,
@@ -321,16 +312,21 @@ async function facturarVenta() {
             body: JSON.stringify(facturaData)
         });
 
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || !contentType || !contentType.includes("application/json")) {
+             throw new Error("El servidor no respondió correctamente. Revisa la ruta.");
+        }
+
         const result = await response.json();
         if (result.success) {
-            alert(`✅ VENTA REGISTRADA CON ÉXITO`);
+            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
             window.location.href = "/history.html"; 
         } else {
-            throw new Error(result.error || "Error al guardar");
+            throw new Error(result.error || "No se pudo registrar la venta.");
         }
     } catch (error) { 
-        console.error("Error:", error);
-        alert("🚨 ERROR AL GUARDAR: " + error.message);
+        console.error("Error en facturación:", error);
+        alert("🚨 ERROR: " + error.message);
         btnVenta.disabled = false;
         btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
     }
