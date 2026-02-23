@@ -394,28 +394,28 @@ function renderTable(materiales) {
                 </div>
             </td>
             <td style="text-align: center; vertical-align: middle; min-width: 320px;">
-                <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
-                    
-                    <button onclick="window.abrirModalEditar(${JSON.stringify(m).replace(/"/g, '&quot;')})" 
-                            style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
-                            title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
-                        <i class="fas fa-edit"></i> EDITAR
-                    </button>
-                    
-                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" 
-                            style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);"
-                            title="Ver bitácora detallada: compras realizadas y consumos registrados de este material">
-                        <i class="fas fa-history"></i> HISTORIAL
-                    </button>
-                    
-                    <button onclick="window.eliminarMaterial('${m.id}')" 
-                            style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);"
-                            title="Eliminar este material permanentemente del inventario">
-                        <i class="fas fa-trash"></i> ELIMINAR
-                    </button>
-                    
-                </div>
-            </td>
+    <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
+        
+        <button onclick="window.abrirModalEditar('${m.id}')" 
+                style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
+                title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
+            <i class="fas fa-edit"></i> EDITAR
+        </button>
+        
+        <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" 
+                style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);"
+                title="Ver movimientos de stock e historial de precios">
+            <i class="fas fa-history"></i> HISTORIAL
+        </button>
+        
+        <button onclick="window.eliminarMaterial('${m.id}')" 
+                style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);"
+                title="Eliminar este material permanentemente">
+            <i class="fas fa-trash"></i> ELIMINAR
+        </button>
+        
+    </div>
+</td>
         `;
         cuerpoTabla.appendChild(fila);
     });
@@ -808,10 +808,24 @@ window.prepararEdicionMaterial = function(id) {
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };
-// --- ESTA ES LA CONEXIÓN CLAVE ---
-window.abrirModalEditar = (m) => {
-    console.log("Conectando con prepararEdicionMaterial para:", m.nombre);
-    window.prepararEdicionMaterial(m.id || m._id);
+
+// --- CONEXIÓN DEFINITIVA DE BOTONES ---
+
+// Esta función ahora es inteligente: recibe el ID y busca el material
+window.abrirModalEditar = function(id) {
+    console.log("🔌 Buscando material para editar con ID:", id);
+    
+    // Buscamos el material en la lista global que ya tenemos cargada
+    const materialEncontrado = window.todosLosMateriales.find(mat => (mat.id === id || mat._id === id));
+    
+    if (materialEncontrado) {
+        // Si lo encuentra, llama a tu función original que llena los campos
+        window.prepararEdicionMaterial(materialEncontrado.id || materialEncontrado._id);
+    } else {
+        console.error("❌ No se encontró el material con ID:", id, "en window.todosLosMateriales");
+        // Plan B: Si m es un objeto (por si acaso), intentamos usarlo directo
+        if (typeof id === 'object') window.prepararEdicionMaterial(id.id || id._id);
+    }
 };
 
 function actualizarSelectProveedores() {
