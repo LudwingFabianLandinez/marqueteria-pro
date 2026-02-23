@@ -264,92 +264,98 @@ async function eliminarFactura(id, numero) {
     }
 }
 
-function verDetalle(id) {
-    // 1. Evitamos que la página se recargue o busque archivos
-    if (window.event) window.event.preventDefault();
+// FORZAMOS LA FUNCIÓN AL OBJETO GLOBAL PARA QUE NADIE LA SOBREESCRIBA
+window.verDetalle = function(id) {
+    // 1. Bloqueo total de cualquier redirección o error 404
+    if (window.event) {
+        window.event.preventDefault();
+        window.event.stopPropagation();
+    }
 
-    console.log("🔍 Buscando OT con ID:", id);
+    console.log("🚀 EJECUTANDO REPORTE PARA ID:", id);
 
-    // 2. Buscamos la información en la lista global que cargó la tabla
-    // Usamos una búsqueda flexible por si el ID viene con espacios
-    const f = todasLasFacturas.find(fact => 
-        String(fact._id).trim() === String(id).trim() || 
-        String(fact.id).trim() === String(id).trim()
+    // 2. BUSQUEDA ULTRA-FLEXIBLE (Si esto falla, nada funcionará)
+    const f = (window.todasLasFacturas || []).find(fact => 
+        String(fact._id) === String(id) || 
+        String(fact.id) === String(id) ||
+        fact.numeroFactura === id
     );
 
     if (!f) {
-        console.error("❌ Factura no encontrada en la lista local. Lista:", todasLasFacturas);
-        return alert("No se pudo cargar el detalle. Por favor, refresca la página (F5) e intenta de nuevo.");
+        console.error("❌ OT no encontrada. IDs disponibles:", window.todasLasFacturas.map(x => x._id));
+        return alert("La información de esta OT no se ha cargado correctamente. Por favor refresca la página.");
     }
 
     const formatter = new Intl.NumberFormat('es-CO', {
         style: 'currency', currency: 'COP', maximumFractionDigits: 0
     });
 
-    // 3. Tus reglas de negocio: Costo x 3
-    const cMat = Number(f.costo_materiales_total || f.costoMateriales || 0);
-    const cMO = Number(f.mano_obra_total || f.manoObra || 0);
-    const cX3 = cMat * 3; // Lo que le cobras al cliente por materiales
+    // 3. REGLA DE NEGOCIO: (COSTO MATERIAL X 3) + MANO DE OBRA
+    const costoReal = Number(f.costo_materiales_total || f.costoMateriales || 0);
+    const manoObra = Number(f.mano_obra_total || f.manoObra || 0);
+    const valorVentaMaterial = costoReal * 3;
     const totalCobrado = Number(f.totalFactura || f.total || 0);
 
-    // 4. Diseño del reporte (Cuadro de rentabilidad)
+    // 4. CONSTRUCCIÓN DEL REPORTE (DISEÑO LIMPIO)
     const reporteHTML = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #1e293b; max-width: 650px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
-            <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px;">
-                <h2 style="margin: 0; color: #1e3a8a;">ANÁLISIS DE RENTABILIDAD</h2>
-                <p style="margin: 5px 0 0 0; font-weight: bold; color: #64748b;">ORDEN DE TRABAJO: ${f.numeroFactura || 'S/N'}</p>
+        <div style="font-family: Arial, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: auto; background: white; border: 1px solid #ddd;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 4px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="margin: 0; color: #1e3a8a;">ANÁLISIS DE RENTABILIDAD</h1>
+                <div style="text-align: right;">
+                    <p style="margin: 0; font-weight: bold;">OT: ${f.numeroFactura || 'S/N'}</p>
+                    <p style="margin: 0; font-size: 0.9em;">${new Date().toLocaleDateString()}</p>
+                </div>
             </div>
 
-            <div style="margin-bottom: 20px; font-size: 0.95em;">
-                <p><strong>Cliente:</strong> ${f.cliente?.nombre || f.clienteNombre || 'N/A'}</p>
-                <p><strong>Medidas:</strong> ${f.medidas || 'Registradas en descripción'}</p>
-                <p><strong>Fecha:</strong> ${f.fecha ? new Date(f.fecha).toLocaleDateString() : 'N/A'}</p>
-            </div>
+            <p><strong>Cliente:</strong> ${f.cliente?.nombre || f.clienteNombre || 'N/A'}</p>
+            <p><strong>Medidas Cuadro:</strong> ${f.medidas || 'Ver descripción'}</p>
 
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+            <table style="width: 100%; border-collapse: collapse; margin-top: 30px;">
                 <thead>
-                    <tr style="background: #f8fafc;">
-                        <th style="padding: 12px; border: 1px solid #e2e8f0; text-align: left;">CONCEPTO</th>
-                        <th style="padding: 12px; border: 1px solid #e2e8f0; text-align: right;">VALOR</th>
+                    <tr style="background: #f1f5f9;">
+                        <th style="padding: 15px; border: 1px solid #cbd5e1; text-align: left;">DESCRIPCIÓN</th>
+                        <th style="padding: 15px; border: 1px solid #cbd5e1; text-align: right;">COSTO REAL</th>
+                        <th style="padding: 15px; border: 1px solid #cbd5e1; text-align: right;">VALOR VENTA (X3)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="padding: 12px; border: 1px solid #e2e8f0;">Costo Real Material (Insumo)</td>
-                        <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: right;">${formatter.format(cMat)}</td>
-                    </tr>
-                    <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;">
-                        <td style="padding: 12px; border: 1px solid #e2e8f0;">VALOR VENTA MATERIAL (COSTO x3)</td>
-                        <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: right;">${formatter.format(cX3)}</td>
+                        <td style="padding: 15px; border: 1px solid #cbd5e1;">Materiales Usados (Prorrateados)</td>
+                        <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: right;">${formatter.format(costoReal)}</td>
+                        <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: right;">${formatter.format(valorVentaMaterial)}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 12px; border: 1px solid #e2e8f0;">Mano de Obra Aplicada</td>
-                        <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: right;">${formatter.format(cMO)}</td>
-                    </tr>
-                    <tr style="background: #1e3a8a; color: white; font-size: 1.2em; font-weight: bold;">
-                        <td style="padding: 12px; border: 1px solid #e2e8f0;">TOTAL COBRADO AL CLIENTE</td>
-                        <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: right;">${formatter.format(totalCobrado)}</td>
+                        <td style="padding: 15px; border: 1px solid #cbd5e1;">Mano de Obra (Valor Manual)</td>
+                        <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: right; color: #94a3b8;">N/A</td>
+                        <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: right;">${formatter.format(manoObra)}</td>
                     </tr>
                 </tbody>
+                <tfoot>
+                    <tr style="background: #1e3a8a; color: white; font-weight: bold; font-size: 1.2em;">
+                        <td style="padding: 15px; border: 1px solid #1e3a8a;">TOTAL COBRADO</td>
+                        <td style="padding: 15px; border: 1px solid #1e3a8a; text-align: right;">${formatter.format(costoReal)} (Costo)</td>
+                        <td style="padding: 15px; border: 1px solid #1e3a8a; text-align: right;">${formatter.format(totalCobrado)}</td>
+                    </tr>
+                </tfoot>
             </table>
 
-            <div style="background: #dcfce7; border: 2px solid #22c55e; padding: 15px; border-radius: 8px; text-align: center;">
-                <h3 style="margin: 0; color: #166534;">UTILIDAD BRUTA: ${formatter.format(totalCobrado - cMat)}</h3>
-                <p style="margin: 5px 0 0 0; font-size: 0.85em; color: #166534;">(Diferencia entre lo vendido y el costo real del material)</p>
+            <div style="margin-top: 40px; padding: 20px; background: #dcfce7; border: 2px solid #22c55e; border-radius: 10px; text-align: center;">
+                <h2 style="margin: 0; color: #166534;">GANANCIA ESTIMADA: ${formatter.format(totalCobrado - costoReal)}</h2>
+                <p style="margin: 5px 0 0 0; color: #166534;">Esta es la utilidad neta después de pagar el material.</p>
             </div>
 
-            <div style="margin-top: 25px; text-align: center;">
-                <button onclick="window.print()" style="background: #1e293b; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">🖨️ IMPRIMIR REPORTE</button>
+            <div style="margin-top: 30px; text-align: center;">
+                <button onclick="window.print()" style="padding: 12px 25px; background: #334155; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">🖨️ IMPRIMIR REPORTE</button>
             </div>
         </div>
     `;
 
-    // 5. Apertura segura del reporte
+    // 5. APERTURA DE VENTANA (INYECTADA)
     const win = window.open("", "_blank");
     if (win) {
-        win.document.write(`<html><head><title>Detalle OT - ${f.numeroFactura}</title></head><body style="background:#f1f5f9; padding: 20px;">${reporteHTML}</body></html>`);
+        win.document.write(`<html><head><title>Reporte Rentabilidad</title></head><body style="background:#f8fafc; margin:0;">${reporteHTML}</body></html>`);
         win.document.close();
     } else {
-        alert("El navegador bloqueó la ventana. Por favor, permite los pop-ups.");
+        alert("¡Atención! El navegador bloqueó la ventana. Mira arriba a la derecha en la barra de direcciones y permite los pop-ups.");
     }
-}
+};
