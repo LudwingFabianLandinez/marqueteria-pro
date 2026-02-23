@@ -888,49 +888,45 @@ window.verHistorial = async function(id, nombre) {
 };
 
 window.guardarMaterial = async function() {
-    const btn = event.target;
-    btn.disabled = true; // Evitamos doble clic
-    
     try {
         const id = document.getElementById('modalNuevoMaterial').dataset.id;
         
-        // Mapeo exacto a tu base de datos
         const materialData = {
-            nombre: document.getElementById('matNombre').value.trim(),
+            nombre: document.getElementById('matNombre').value,
             ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
             largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
         };
 
-        console.log("📤 Enviando datos:", materialData);
+        if (!materialData.nombre) return alert("⚠️ El nombre es obligatorio");
 
-        if (!materialData.nombre) {
-            alert("❌ El nombre es obligatorio");
-            btn.disabled = false;
-            return;
-        }
+        let url = `${window.API_URL}/materials`;
+        let metodo = 'POST'; // Para crear nuevo
 
-        let res;
         if (id) {
-            // Edición de moldura/lámina existente
-            res = await window.API.updateMaterial(id, materialData);
-        } else {
-            // Nuevo registro
-            res = await window.API.createMaterial(materialData);
+            url = `${window.API_URL}/materials/${id}`;
+            metodo = 'PUT'; // Para editar existente
         }
 
-        if (res.success || res.id || res._id) {
+        // Enviamos directamente al servidor sin depender de window.API.createMaterial
+        const response = await fetch(url, {
+            method: metodo,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(materialData)
+        });
+
+        const resultado = await response.json();
+
+        if (response.ok || resultado.success) {
             alert("✅ ¡Guardado con éxito!");
             document.getElementById('modalNuevoMaterial').style.display = 'none';
-            if (typeof fetchInventory === 'function') fetchInventory(); 
+            if (window.fetchInventory) window.fetchInventory();
         } else {
-            throw new Error(res.message || "Respuesta fallida del servidor");
+            alert("❌ Error del servidor: " + (resultado.message || "No se pudo guardar"));
         }
     } catch (error) {
-        console.error("❌ Error al guardar:", error);
-        alert("⚠️ Fallo al guardar: " + error.message);
-    } finally {
-        btn.disabled = false;
+        console.error("Error crítico:", error);
+        alert("❌ Error de conexión: " + error.message);
     }
 };
