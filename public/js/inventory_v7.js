@@ -218,7 +218,10 @@ async function fetchInventory() {
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // 1. MAPEAMOS LOS DATOS DEL SERVIDOR
+        // --- NUEVO: LISTA NEGRA DE ELIMINADOS ---
+        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+
+        // 1. MAPEAMOS LOS DATOS DEL SERVIDOR (Tu lógica original intacta)
         const materialesMapeados = datosServidor.map(m => {
             return {
                 ...m,
@@ -236,27 +239,35 @@ async function fetchInventory() {
             };
         });
 
-        // 2. RECONCILIACIÓN QUIRÚRGICA (Persistencia de molduras nuevas)
-        // Recuperamos las molduras que guardamos en la "Caja de Seguridad" local
+        // 2. RECONCILIACIÓN QUIRÚRGICA (Modificada para respetar eliminaciones)
         const moldurasPendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
         
-        // Unimos: Primero las locales (nuevas) y luego las del servidor
-        // Filtramos por ID para evitar duplicados si el servidor ya la procesó
+        // Unimos: Primero las locales únicas, luego el servidor, pero FILTRAMOS los eliminados
         const idsServidor = materialesMapeados.map(m => m.id);
-        const localesUnicas = moldurasPendientes.filter(lp => !idsServidor.includes(lp.id));
-
-        window.todosLosMateriales = [...localesUnicas, ...materialesMapeados];
         
-        // 3. ACTUALIZACIÓN DE VISTA Y CACHÉ
+        // Filtro: Solo lo que no está en el servidor Y no ha sido marcado como eliminado
+        const localesUnicas = moldurasPendientes.filter(lp => 
+            !idsServidor.includes(lp.id) && !eliminados.includes(String(lp.id))
+        );
+
+        // Unión final aplicando el filtro de eliminados a toda la lista
+        window.todosLosMateriales = [...localesUnicas, ...materialesMapeados].filter(m => 
+            !eliminados.includes(String(m.id))
+        );
+        
+        // 3. ACTUALIZACIÓN DE VISTA Y CACHÉ (Tu lógica original intacta)
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
-        actualizarDatalistMateriales();
+        
+        if (typeof actualizarDatalistMateriales === 'function') {
+            actualizarDatalistMateriales();
+        }
         
         if (typeof window.cargarListasModal === 'function') {
             window.cargarListasModal();
         }
         
-        console.log("✅ Inventario sincronizado (Local + Servidor)");
+        console.log("✅ Inventario sincronizado y filtrado (Anti-resurrección)");
 
     } catch (error) { 
         console.error("❌ Error inventario:", error); 
@@ -695,32 +706,33 @@ window.verHistorial = async function(id, nombre) {
 };
 
     window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Eliminar permanentemente? No volverá a aparecer al refrescar.")) {
+    if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
         try {
-            // 1. Intentar borrar en el servidor
-            if (window.API && window.API.deleteMaterial) {
-                await window.API.deleteMaterial(id);
+            // 1. AGREGAR A LISTA NEGRA (Para que fetchInventory no lo resucite)
+            let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+            if (!eliminados.includes(String(id))) {
+                eliminados.push(String(id));
+                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
             }
 
-            // 2. LIMPIEZA DE BITÁCORA (Esto es lo que evita que reaparezcan)
-            // Buscamos en la memoria 'inventory_local' que es donde el sistema guarda los cambios pendientes
-            let bitacora = JSON.parse(localStorage.getItem('inventory_local') || '[]');
-            bitacora = bitacora.filter(item => String(item.id) !== String(id));
-            localStorage.setItem('inventory_local', JSON.stringify(bitacora));
+            // 2. LIMPIAR DE LA "CAJA DE SEGURIDAD" (molduras_pendientes)
+            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            pendientes = pendientes.filter(p => String(p.id) !== String(id));
+            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // 3. LIMPIEZA DEL INVENTARIO ACTUAL
+            // 3. BORRAR DE LA VISTA ACTUAL
             window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
-            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // 4. REFRESCO VISUAL
-            renderTable(window.todosLosMateriales);
+            // 4. AVISAR AL SERVIDOR
+            if (window.API && window.API.deleteMaterial) {
+                await window.API.deleteMaterial(id).catch(e => console.log("Pendiente en nube"));
+            }
 
-            alert("✅ Borrado total exitoso.");
+            renderTable(window.todosLosMateriales);
+            alert("✅ Material eliminado definitivamente.");
 
         } catch (error) {
             console.error("Error al eliminar:", error);
-            // Si falla el servidor, igual lo quitamos de la vista local
-            window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
             renderTable(window.todosLosMateriales);
         }
     }
