@@ -545,16 +545,17 @@ const formCompra = document.getElementById('formNuevaCompra');
         }
 
         try {
-            // 2. Captura de elementos (IDs de tu HTML)
-            const selectMat = document.getElementById('compraMaterial');
-            const inputNuevo = document.getElementById('nombreNuevoMaterial'); 
-            const inputCant = document.getElementById('compraCantidad');
-            const inputCosto = document.getElementById('compraCosto');
+        // 2. Captura de elementos (IDs de tu HTML)
+        const selectMat = document.getElementById('compraMaterial');
+        const inputNuevo = document.getElementById('nombreNuevoMaterial'); 
+        const inputCant = document.getElementById('compraCantidad');
+        const inputCosto = document.getElementById('compraCosto');
+        
+        // --- ESTAS DOS LÍNEAS SON LAS QUE EVITAN EL ERROR "NOT DEFINED" ---
+        const inputLargo = document.getElementById('compraLargo');
+        const inputAncho = document.getElementById('compraAncho');
 
-            // 3. Sacar el nombre limpio
-            // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO ---
-       // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO (ML vs m2) ---
-       // --- 1. DETERMINAR NOMBRE (ML: MAYÚS | m2: Original) ---
+        // --- 1. DETERMINAR NOMBRE (ML: MAYÚS | m2: Original) ---
         let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
         
         const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
@@ -563,11 +564,15 @@ const formCompra = document.getElementById('formNuevaCompra');
         // --- 2. CÁLCULO DE STOCK ---
         const cant = parseFloat(inputCant.value) || 0;
         const costo = parseFloat(inputCosto.value) || 0;
-        let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo.value) || 0) * (parseFloat(inputAncho.value) || 0) / 10000) * cant);
+        
+        // Obtenemos valores numéricos de largo y ancho de forma segura
+        const largoVal = inputLargo ? parseFloat(inputLargo.value) : 0;
+        const anchoVal = inputAncho ? parseFloat(inputAncho.value) : 0;
+        
+        let stockASumar = esMoldura ? (cant * 2.90) : ((largoVal * anchoVal / 10000) * cant);
         let unidadFinal = esMoldura ? "ml" : "m²";
 
         // --- 3. LIMPIEZA TOTAL DE MEMORIA PARA ESTE MATERIAL ---
-        // Esto evita que el refresh lo borre si fue eliminado antes
         let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
 
@@ -579,7 +584,7 @@ const formCompra = document.getElementById('formNuevaCompra');
             existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
             existente.precio_total_lamina = costo;
             existente.nombre = nombreReal;
-            // Quitamos su ID de la lista negra
+            // Quitamos su ID de la lista negra para que aparezca al refrescar
             eliminados = eliminados.filter(id => id !== String(existente.id));
         } else {
             const nuevoId = `MAT-${Date.now()}`;
@@ -590,11 +595,10 @@ const formCompra = document.getElementById('formNuevaCompra');
                 tipo: unidadFinal,
                 stock_actual: stockASumar,
                 precio_total_lamina: costo,
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo.value) || 0),
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho.value) || 0)
+                largo_lamina_cm: esMoldura ? 290 : largoVal,
+                ancho_lamina_cm: esMoldura ? 1 : anchoVal
             };
             window.todosLosMateriales.unshift(nuevoMaterial);
-            // Agregamos a la caja de seguridad para que el refresh no lo pierda
             pendientes.push(nuevoMaterial);
         }
 
@@ -602,23 +606,25 @@ const formCompra = document.getElementById('formNuevaCompra');
         localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
         localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // 5. Actualizar y cerrar
-            renderTable(window.todosLosMateriales);
-            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+        // 5. Actualizar y cerrar
+        renderTable(window.todosLosMateriales);
+        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            alert("✅ Guardado: " + nombreReal);
-            document.getElementById('modalCompra').style.display = 'none';
-            e.target.reset();
+        alert("✅ Guardado correctamente: " + nombreReal);
+        document.getElementById('modalCompra').style.display = 'none';
+        
+        if (typeof e !== 'undefined' && e.target) e.target.reset();
+        else formulario.reset();
 
-        } catch (err) {
-            alert("Error: " + err.message);
-        } finally {
-            // Desbloqueo del botón
-            if (btn) { 
-                btn.disabled = false; 
-                btn.innerHTML = 'Guardar Compra'; 
-            }
+    } catch (err) {
+        console.error("Error detallado:", err);
+        alert("Error: " + err.message);
+    } finally {
+        if (typeof btn !== 'undefined' && btn) { 
+            btn.disabled = false; 
+            btn.innerHTML = 'Guardar Compra'; 
         }
+    }
     }; // Aquí cierra el onsubmit
 } // Aquí cierra el if (formCompra)
 // --- FIN DEL BLOQUE CORREGIDO ---
