@@ -393,23 +393,27 @@ function renderTable(materiales) {
                     ${textoStockVisual}
                 </div>
             </td>
-            <td style="text-align: center;">
-                <div class="actions-cell" style="display: flex; justify-content: center; gap: 4px;">
-                    <button class="btn-table-action" onclick="window.editarMaterial('${m.id}')" title="Editar Material">
-                        <i class="fas fa-edit"></i>
+            <td style="text-align: center; vertical-align: middle; min-width: 320px;">
+                <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
+                    
+                    <button onclick="window.abrirModalEditar(${JSON.stringify(m).replace(/"/g, '&quot;')})" 
+                            style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
+                            title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
+                        <i class="fas fa-edit"></i> EDITAR
                     </button>
                     
-                    <button class="btn-table-action btn-edit-action" onclick="window.prepararAjuste('${m.id}', '${m.nombre}')" title="Ajustar Stock">
-                        <i class="fas fa-sliders-h"></i>
+                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" 
+                            style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);"
+                            title="Ver bitácora detallada: compras realizadas y consumos registrados de este material">
+                        <i class="fas fa-history"></i> HISTORIAL
                     </button>
                     
-                    <button class="btn-table-action btn-history-action" onclick="window.verHistorial('${m.id}', '${m.nombre}')" title="Ver Historial">
-                        <i class="fas fa-history"></i>
+                    <button onclick="window.eliminarMaterial('${m.id}')" 
+                            style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);"
+                            title="Eliminar este material permanentemente del inventario">
+                        <i class="fas fa-trash"></i> ELIMINAR
                     </button>
                     
-                    <button class="btn-table-action btn-delete-action" onclick="window.eliminarMaterial('${m.id}')" title="Eliminar Material" style="color: #e53e3e;">
-                        <i class="fas fa-trash"></i>
-                    </button>
                 </div>
             </td>
         `;
