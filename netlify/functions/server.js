@@ -328,6 +328,16 @@ router.post('/inventory/save', async (req, res) => {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
+// --- RUTA PARA ELIMINAR FACTURAS (Añadir esto) ---
+router.delete('/invoices/:id', async (req, res) => {
+    try {
+        await Invoice.findByIdAndDelete(req.params.id);
+        res.json({ success: true, message: "Orden eliminada" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 6. MONTAJE DE RUTAS
 router.post('/fix-material-data/:id', async (req, res) => {
     try {

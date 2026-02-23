@@ -1,7 +1,7 @@
 /**
  * Lógica del Historial de Órdenes de Trabajo - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.5.7 - REPORTE DE RENTABILIDAD INTEGRADO (NORMALIZADO)
- * Blindaje: Generación de reportes local para evitar Error 404.
+ * Versión: 13.5.9 - BOTONES BLINDADOS (AZUL Y ROJO)
+ * Blindaje: Análisis local para evitar 404 y ruta de eliminación sincronizada.
  */
 
 let todasLasFacturas = [];
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchInvoices();
     configurarBuscador();
     
-    // Vinculación robusta del botón de reporte diario (Botón "REPORTE HOY")
+    // Vinculación robusta del botón de reporte diario
     const btnReporte = document.querySelector('.btn-primary') || 
                        document.querySelector('button[onclick*="generarReporte"]') ||
                        Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('REPORTE HOY'));
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- 1. FORMATEO DE NÚMERO DE ORDEN ---
+// --- 1. FORMATEO DE NÚMERO DE ORDEN (INTACTO) ---
 function formatearNumeroOT(f) {
     const num = f.numeroFactura || f.ot || f.numeroOT || f.numeroOrden;
     if (num && num !== "undefined") {
@@ -39,11 +39,11 @@ function formatearNumeroOT(f) {
     return `OT-${idSufijo}`;
 }
 
-// --- 2. CARGA DE DATOS DESDE EL SERVIDOR (Ruta Normalizada) ---
+// --- 2. CARGA DE DATOS (Sincronizado con API_BASE) ---
 async function fetchInvoices() {
     try {
-        console.log("📡 Intentando conectar con la API de órdenes...");
-        // Se añade /server para coincidir con la arquitectura de la función Netlify
+        console.log("📡 Conectando con el servidor de órdenes...");
+        // Usamos la ruta completa que tu server.js espera recibir
         const response = await fetch('/.netlify/functions/server/invoices');
         
         if (!response.ok) {
@@ -52,20 +52,21 @@ async function fetchInvoices() {
 
         const result = await response.json();
         
-        // Manejo flexible de la respuesta (si viene en .data o directo)
-        if (result.success || Array.isArray(result)) {
-            todasLasFacturas = result.data || result || [];
-            renderTable(todasLasFacturas);
-            
-            const contador = document.querySelector('.badge-soft-blue');
-            if (contador) contador.textContent = `${todasLasFacturas.length} órdenes`;
-        }
+        // Manejo de la respuesta según tu server.js (devuelve array o .data)
+        todasLasFacturas = result.data || result || [];
+        if (!Array.isArray(todasLasFacturas)) todasLasFacturas = [];
+
+        renderTable(todasLasFacturas);
+        
+        const contador = document.querySelector('.badge-soft-blue');
+        if (contador) contador.textContent = `${todasLasFacturas.length} órdenes`;
+        
     } catch (error) {
         console.error("❌ Error cargando órdenes:", error);
     }
 }
 
-// --- 3. REPORTE DIARIO (AUTÓNOMO Y LOCAL) ---
+// --- 3. REPORTE DIARIO (TU LÓGICA ORIGINAL) ---
 async function generarReporteDiario() {
     try {
         const hoyDate = new Date();
@@ -77,7 +78,7 @@ async function generarReporteDiario() {
         });
 
         if (facturasHoy.length === 0) {
-            alert("ℹ️ No hay ventas registradas con fecha de hoy en el historial.");
+            alert("ℹ️ No hay ventas registradas con fecha de hoy.");
             return;
         }
 
@@ -168,7 +169,7 @@ async function generarReporteDiario() {
     }
 }
 
-// --- 4. EXPORTAR A EXCEL ---
+// --- 4. EXPORTAR A EXCEL (INTACTO) ---
 function exportarAExcel() {
     if (todasLasFacturas.length === 0) {
         alert("No hay datos para exportar");
@@ -182,7 +183,7 @@ function exportarAExcel() {
             const ot = formatearNumeroOT(f);
             const cliente = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, ''); 
             const total = Number(f.totalFactura || f.total) || 0;
-            const abono = Number(f.totalPagado || f.abono || f.abonoInicial) || 0;
+            const abono = Number(f.totalPagado || f.abono || 0);
             const saldo = total - abono;
             csvContent += `${fecha},${ot},${cliente},${total},${saldo},${saldo <= 0 ? "PAGADO" : "ABONADO"}\n`;
         });
@@ -195,7 +196,7 @@ function exportarAExcel() {
     } catch (error) { console.error("Error Excel:", error); }
 }
 
-// --- 5. RENDERIZADO DE LA TABLA ---
+// --- 5. RENDERIZADO DE LA TABLA (AJUSTE DE BOTONES) ---
 function renderTable(facturas) {
     const tableBody = document.getElementById('invoiceTableBody');
     if (!tableBody) return;
@@ -204,8 +205,8 @@ function renderTable(facturas) {
 
     facturas.forEach(f => {
         const tr = document.createElement('tr');
-        const total = Number(f.totalFactura || f.total) || 0;
-        const pagado = Number(f.totalPagado || f.abono || f.abonoInicial) || 0;
+        const total = Number(f.totalFactura || f.total || 0);
+        const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
         const numeroOT = formatearNumeroOT(f);
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
@@ -227,20 +228,19 @@ function renderTable(facturas) {
     });
 }
 
-// --- 6. FUNCIÓN DE REPORTE INDIVIDUAL (CONTUNDENTE) ---
+// --- 6. FUNCIÓN DE ANÁLISIS (AHORA LOCAL PARA EVITAR 404) ---
 window.abrirAnalisisCostos = function(id) {
     if (window.event) window.event.preventDefault();
 
+    // Buscamos en la variable que ya tiene todas las facturas cargadas
     const f = todasLasFacturas.find(fact => String(fact._id) === String(id));
     
-    if (!f) return alert("Información no encontrada.");
+    if (!f) return alert("Información no encontrada en la sesión actual.");
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
-    // REGLA DE NEGOCIO: Costo Material x 3 + Mano de Obra
     const cMat = Number(f.costo_materiales_total || 0);
     const cMO = Number(f.mano_obra_total || 0);
-    const cX3 = cMat * 3;
     const totalCobrado = Number(f.totalFactura || f.total || 0);
 
     const reporteHTML = `
@@ -251,7 +251,7 @@ window.abrirAnalisisCostos = function(id) {
             <hr>
             <table style="width: 100%; border-collapse: collapse;">
                 <tr><td style="padding: 10px;">Costo Real Material:</td><td style="text-align: right;">${formatter.format(cMat)}</td></tr>
-                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;"><td style="padding: 10px;">VENTA MATERIAL (x3):</td><td style="text-align: right;">${formatter.format(cX3)}</td></tr>
+                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;"><td style="padding: 10px;">VENTA MATERIAL (x3):</td><td style="text-align: right;">${formatter.format(cMat * 3)}</td></tr>
                 <tr><td style="padding: 10px;">Mano de Obra:</td><td style="text-align: right;">${formatter.format(cMO)}</td></tr>
                 <tr style="font-size: 1.2em; font-weight: bold; color: #1e3a8a;"><td style="padding: 10px;">TOTAL COBRADO:</td><td style="text-align: right;">${formatter.format(totalCobrado)}</td></tr>
             </table>
@@ -259,15 +259,14 @@ window.abrirAnalisisCostos = function(id) {
                 <h3 style="margin: 0; color: #166534;">UTILIDAD: ${formatter.format(totalCobrado - cMat)}</h3>
             </div>
             <button onclick="window.print()" style="width: 100%; margin-top: 20px; padding: 12px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">IMPRIMIR</button>
-        </div>
-    `;
+        </div>`;
 
     const win = window.open("", "_blank");
-    win.document.write(`<html><head><title>Reporte Rentabilidad</title></head><body style="background:#f8fafc; padding:20px;">${reporteHTML}</body></html>`);
+    win.document.write(`<html><head><title>Análisis OT</title></head><body style="background:#f8fafc; padding:20px;">${reporteHTML}</body></html>`);
     win.document.close();
 };
 
-// --- 7. BUSCADOR ---
+// --- 7. BUSCADOR (INTACTO) ---
 function configurarBuscador() {
     const searchInput = document.getElementById('searchInputFacturas');
     if (!searchInput) return;
@@ -282,15 +281,21 @@ function configurarBuscador() {
     });
 }
 
-// --- 8. ACCIONES (Ruta Normalizada) ---
+// --- 8. ELIMINAR (Sincronizado con la nueva ruta DELETE) ---
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Estás seguro de eliminar la Orden ${numero}?`)) {
         try {
-            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, { 
+                method: 'DELETE' 
+            });
             if (res.ok) {
                 alert("✅ Orden eliminada exitosamente");
                 fetchInvoices();
+            } else {
+                alert("❌ No se pudo eliminar la orden.");
             }
-        } catch (error) { console.error("Error al eliminar:", error); }
+        } catch (error) { 
+            console.error("Error al eliminar:", error); 
+        }
     }
 }
