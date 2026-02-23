@@ -10,13 +10,18 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchInvoices();
     configurarBuscador();
     
-    // Vinculación robusta del botón de reporte diario
+    // Vinculación LIMPIA del botón de reporte diario
     const btnReporte = document.querySelector('.btn-primary') || 
                        document.querySelector('button[onclick*="generarReporte"]') ||
                        Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('REPORTE HOY'));
     
     if (btnReporte) {
-        btnReporte.onclick = generarReporteDiario;
+        // Forzamos a que SOLO ejecute nuestra función y no abra modales viejos
+        btnReporte.onclick = (e) => {
+            e.preventDefault(); // Evita que otros scripts abran el modal
+            e.stopPropagation(); 
+            generarReporteDiario();
+        };
     }
 
     // Vinculación del botón EXCEL
