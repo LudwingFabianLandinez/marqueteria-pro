@@ -290,10 +290,15 @@ async function facturarVenta() {
         medidas: datosCotizacionActual.detalles?.medidas || '--',
         items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
             productoId: m.id || m._id,
+            // --- AQUÍ ESTÁ EL CAMBIO ---
+            descripcion: m.nombre, 
+            nombre: m.nombre,
             materialNombre: m.nombre, 
+            // ---------------------------
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
             area_m2: datosCotizacionActual.areaFinal,
+            costoBase: m.costoUnitario || 0, // Esto es para el reporte
             costo_base_unitario: m.costoUnitario || 0
         })), 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
