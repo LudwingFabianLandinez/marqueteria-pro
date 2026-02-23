@@ -66,7 +66,6 @@ async function fetchInvoices() {
     }
 }
 
-// --- 3. REPORTE DIARIO (TU LÓGICA ORIGINAL) ---
 async function generarReporteDiario() {
     try {
         const hoyDate = new Date();
@@ -88,6 +87,8 @@ async function generarReporteDiario() {
 
         let totalVentas = 0;
         let utilidadTotal = 0;
+        let totalCostoMateriales = 0; // <--- NUEVA VARIABLE
+        let totalManoObra = 0;        // <--- NUEVA VARIABLE
 
         let filasHTML = facturasHoy.map(f => {
             const vOT = formatearNumeroOT(f);
@@ -103,6 +104,8 @@ async function generarReporteDiario() {
 
             totalVentas += vVenta;
             utilidadTotal += vUtilidad;
+            totalCostoMateriales += costoEstimadoMat; // Acumulamos para el resumen
+            totalManoObra += cMO;                     // Acumulamos para el resumen
 
             return `
                 <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -144,8 +147,13 @@ async function generarReporteDiario() {
                 <div style="margin-top: 30px; padding: 25px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
                     <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
                         <div>
-                            <p style="margin: 0; color: #64748b; text-transform: uppercase; font-size: 0.8rem;">Ingresos Brutos</p>
+                            <p style="margin: 0; color: #64748b; text-transform: uppercase; font-size: 0.8rem;">Ventas Totales</p>
                             <p style="font-size: 1.5rem; font-weight: bold; color: #1e293b; margin: 5px 0;">${formatter.format(totalVentas)}</p>
+                        </div>
+                        <div style="width: 1px; height: 50px; background: #bbf7d0;"></div>
+                        <div>
+                            <p style="margin: 0; color: #64748b; text-transform: uppercase; font-size: 0.8rem;">Costo Materiales</p>
+                            <p style="font-size: 1.2rem; font-weight: bold; color: #1e293b; margin: 5px 0;">${formatter.format(totalCostoMateriales)}</p>
                         </div>
                         <div style="width: 1px; height: 50px; background: #bbf7d0;"></div>
                         <div>
