@@ -1,6 +1,6 @@
 /**
  * Lógica del Historial de Órdenes de Trabajo - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.5.1 - REPORTE DE RENTABILIDAD INTEGRADO
+ * Versión: 13.5.7 - REPORTE DE RENTABILIDAD INTEGRADO (NORMALIZADO)
  * Blindaje: Generación de reportes local para evitar Error 404.
  */
 
@@ -39,11 +39,12 @@ function formatearNumeroOT(f) {
     return `OT-${idSufijo}`;
 }
 
-// --- 2. CARGA DE DATOS DESDE EL SERVIDOR ---
+// --- 2. CARGA DE DATOS DESDE EL SERVIDOR (Ruta Normalizada) ---
 async function fetchInvoices() {
     try {
         console.log("📡 Intentando conectar con la API de órdenes...");
-        const response = await fetch('/.netlify/functions/invoices');
+        // Se añade /server para coincidir con la arquitectura de la función Netlify
+        const response = await fetch('/.netlify/functions/server/invoices');
         
         if (!response.ok) {
             throw new Error(`Servidor respondió con estado ${response.status}`);
@@ -51,8 +52,9 @@ async function fetchInvoices() {
 
         const result = await response.json();
         
-        if (result.success) {
-            todasLasFacturas = result.data || [];
+        // Manejo flexible de la respuesta (si viene en .data o directo)
+        if (result.success || Array.isArray(result)) {
+            todasLasFacturas = result.data || result || [];
             renderTable(todasLasFacturas);
             
             const contador = document.querySelector('.badge-soft-blue');
@@ -280,11 +282,11 @@ function configurarBuscador() {
     });
 }
 
-// --- 8. ACCIONES ---
+// --- 8. ACCIONES (Ruta Normalizada) ---
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Estás seguro de eliminar la Orden ${numero}?`)) {
         try {
-            const res = await fetch(`/.netlify/functions/invoices/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 alert("✅ Orden eliminada exitosamente");
                 fetchInvoices();
