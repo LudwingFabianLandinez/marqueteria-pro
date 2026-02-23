@@ -329,9 +329,30 @@ router.post('/inventory/save', async (req, res) => {
 }
 
 // 6. MONTAJE DE RUTAS
+router.post('/fix-material-data/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const update = {
+            nombre: req.body.nombre,
+            ancho_lamina_cm: req.body.ancho_lamina_cm,
+            largo_lamina_cm: req.body.largo_lamina_cm,
+            precio_total_lamina: req.body.precio_total_lamina,
+            stock_minimo: req.body.stock_minimo
+        };
+
+        const materialActualizado = await Material.findByIdAndUpdate(id, { $set: update }, { new: true });
+        console.log("Actualizado:", materialActualizado.stock_minimo); 
+        res.json({ success: true, data: materialActualizado });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// 6. MONTAJE DE RUTAS (SOLO UNA VEZ Y AL FINAL)
 app.use('/', router);
 
 const handler = serverless(app);
+
 
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;

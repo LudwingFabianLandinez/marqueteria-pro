@@ -890,9 +890,9 @@ window.verHistorial = async function(id, nombre) {
 window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
     const id = modal.dataset.id;
-    
+    if (!id) return alert("No se encontró el ID del material");
+
     const materialData = {
-        id: id, // Enviamos el ID dentro del paquete
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
         largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
@@ -901,20 +901,21 @@ window.guardarMaterial = async function() {
     };
 
     try {
-        const url = `${window.API_URL}/inventory/save`;
+        const url = `${window.API_URL}/fix-material-data/${id}`; 
         const response = await fetch(url, {
-            method: 'POST',
+            method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(materialData)
         });
 
         if (response.ok) {
-            alert("✅ ¡CAMBIO REALIZADO!");
-            location.reload();
+            alert("✅ ¡Material actualizado con éxito!");
+            location.reload(); 
         } else {
-            alert("❌ El servidor rechazó la ruta unificada.");
+            alert("❌ Error: El servidor no procesó el cambio.");
         }
     } catch (error) {
+        console.error("Error:", error);
         alert("❌ Error de conexión.");
     }
 };
