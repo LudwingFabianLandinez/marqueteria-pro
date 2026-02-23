@@ -837,7 +837,7 @@ window.abrirModalEditar = function(idRecibido) {
     if(modal) {
         modal.dataset.id = m.id || m._id; 
         // Mostramos el modal SOLO AQUÍ adentro
-        modal.style.display = 'flex';
+        
         console.log("📍 ID anclado al modal para guardar:", modal.dataset.id);
     }
 }; // <--- AQUÍ TERMINA TODO. No debe haber nada más después de esta llave.
