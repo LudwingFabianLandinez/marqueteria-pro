@@ -288,15 +288,16 @@ function renderTable(materiales) {
         // GANCHO CRÍTICO: Cálculo del Stock Real (Servidor + Local)
         // Aquí es donde el 5.80 + 2.90 se convierte en 8.70
         // 1. Calculamos el stock sumando la bitácora local (Pieza 1 corregida)
-       // 5. Construcción del texto visual (ACTUALIZADO PARA MOLDURAS Y M2)
+       // 5. Construcción del texto visual (ACTUALIZADO CON BISTURÍ)
         let textoStockVisual = "";
         
         if (m.tipo === 'ml') {
-            // --- MOLDURAS: Desglose por tiras de 2.90 ---
+            // MOLDURAS: Calculamos cuántas tiras de 2.90m hay
             const tirasCompletas = Math.floor(stockActualUnidad / 2.90);
             let sobranteML = stockActualUnidad - (tirasCompletas * 2.90);
-            if (sobranteML < 0.01) sobranteML = 0; // Limpieza de decimales pequeños
+            if (sobranteML < 0.01) sobranteML = 0;
 
+            // Creamos el desglose similar al de m2
             let desgloseML = (tirasCompletas > 0) 
                 ? (sobranteML > 0 ? `(${tirasCompletas} und + ${sobranteML.toFixed(2)} ml)` : `(${tirasCompletas} unidades)`)
                 : `(${sobranteML.toFixed(2)} ml)`;
@@ -306,7 +307,7 @@ function renderTable(materiales) {
                 <div style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">${desgloseML}</div>
             `;
         } else {
-            // --- VIDRIOS/MADERA: Tu lógica de láminas + m2 sobrantes (SE MANTIENE IGUAL) ---
+            // VIDRIOS/MADERA: Tu lógica original (NO SE TOCA NADA)
             const laminasExactas = areaUnaLaminaM2 > 0 ? stockActualUnidad / areaUnaLaminaM2 : 0;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
