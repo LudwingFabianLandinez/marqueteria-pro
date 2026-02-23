@@ -870,3 +870,30 @@ window.actualizarDatalistMateriales = function() {
         lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
     }
 };
+window.verHistorial = async function(id, nombre) {
+    console.log("📜 Abriendo historial para:", nombre);
+    try {
+        const resultado = await window.API.getHistory(id);
+        const modal = document.getElementById('modalHistorialPrecios');
+        const contenedor = document.getElementById('listaHistorialPrecios');
+        if (document.getElementById('historialMaterialNombre')) document.getElementById('historialMaterialNombre').innerText = nombre;
+        
+        const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        
+        if (datos.length > 0) {
+            contenedor.innerHTML = datos.map(h => `
+                <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; font-size: 0.8rem;">
+                    <div>
+                        <strong>${h.tipo?.toUpperCase() || 'MOVIMIENTO'}</strong>
+                        <div style="color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div style="font-weight: bold; color: ${h.cantidad >= 0 ? '#10b981' : '#ef4444'};">
+                        ${h.cantidad >= 0 ? '+' : ''}${h.cantidad || 0}
+                    </div>
+                </div>`).join('');
+        } else {
+            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`;
+        }
+        if (modal) modal.style.display = 'block';
+    } catch (error) { console.error("Error historial:", error); }
+};
