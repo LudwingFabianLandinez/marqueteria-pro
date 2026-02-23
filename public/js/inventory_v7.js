@@ -553,6 +553,7 @@ const formCompra = document.getElementById('formNuevaCompra');
 
             // 3. Sacar el nombre limpio
             // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO ---
+       // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO (ML vs m2) ---
         let nombreInput = "";
         if (selectMat.value === "NUEVO") {
             nombreInput = inputNuevo.value.trim();
@@ -563,28 +564,44 @@ const formCompra = document.getElementById('formNuevaCompra');
         }
 
         // Si el nombre contiene "MOLDURA" o empieza por "K ", es ML y va en MAYÚSCULAS
+        // Si es m2 (Cartón, Chapilla, etc.), se queda como lo escribiste (minúsculas)
         const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
         let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
-        // --- 2. GESTIÓN DE LA "LISTA NEGRA" (Para que no se borre al refrescar) ---
+        // --- 2. CÁLCULOS SEGÚN UNIDAD ---
+        const cant = parseFloat(inputCant.value) || 0;
+        const costo = parseFloat(inputCosto.value) || 0;
+        let stockASumar = 0;
+        let unidadFinal = esMoldura ? "ml" : "m²";
+
+        if (esMoldura) {
+            stockASumar = cant * 2.90;
+        } else {
+            const largo = parseFloat(inputLargo.value) || 0;
+            const ancho = parseFloat(inputAncho.value) || 0;
+            stockASumar = ((largo * ancho) / 10000) * cant;
+        }
+
+        // --- 3. GESTIÓN DE LA "LISTA NEGRA" (Para evitar que desaparezca al refrescar) ---
         let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
 
-        // --- 3. ACTUALIZAR O CREAR SIN DUPLICADOS ---
+        // --- 4. ACTUALIZAR O CREAR ---
         if (!window.todosLosMateriales) window.todosLosMateriales = [];
         
-        // Buscamos si ya existe (ignorando mayúsculas solo para comparar)
+        // Buscamos si ya existe (comparación insensible a mayúsculas para no duplicar)
         let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
         if (existente) {
-            // Si existe, SUMAMOS (no sobreescribimos)
+            // Si ya existe, SUMAMOS stock
             existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
             existente.precio_total_lamina = costo;
-            
-            // SACAR DE LISTA NEGRA: Si lo habías borrado antes, esto lo "perdona" para que aparezca al refrescar
+            existente.nombre = nombreReal; // Actualiza el nombre al formato nuevo si cambió
+
+            // "PERDÓN" DE ID: Si lo habías borrado antes, lo quitamos de la lista negra
             eliminados = eliminados.filter(id => id !== String(existente.id));
             localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
         } else {
-            // Si es nuevo, creamos con ID nuevo
+            // Si es nuevo, creamos con ID único
             const nuevoId = `MAT-${Date.now()}`;
             window.todosLosMateriales.unshift({
                 id: nuevoId,
