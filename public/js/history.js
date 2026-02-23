@@ -103,7 +103,7 @@ async function generarReporteDiario() {
             const cMat = Number(f.costo_materiales_total) || 0;
             const cMO = Number(f.mano_obra_total || f.manoObraTotal) || 0;
             
-            // Lógica de costos
+            // Lógica de costos solicitada (Materiales, Sugerido x3 y Utilidad)
             const costoMat = cMat > 0 ? cMat : (vVenta - cMO) / 3;
             const sugeridoX3 = costoMat * 3;
             const vUtilidad = vVenta - (costoMat + cMO);
@@ -159,7 +159,7 @@ async function generarReporteDiario() {
                     <tbody>${filasHTML}</tbody>
                     <tfoot>
                         <tr style="background: #f8fafc; font-weight: bold; border-top: 2px solid #1e3a8a;">
-                            <td style="padding: 10px;">TOTALES</td>
+                            <td style="padding: 10px;">TOTALES HOY</td>
                             <td style="padding: 10px; text-align: center;">${formatter.format(totalCostoMateriales)}</td>
                             <td style="padding: 10px; text-align: center; color: #1e3a8a;">${formatter.format(totalCostoMateriales * 3)}</td>
                             <td style="padding: 10px; text-align: center;">${formatter.format(totalManoObra)}</td>
@@ -176,12 +176,12 @@ async function generarReporteDiario() {
             </div>`;
 
         const ventana = window.open('', '_blank');
-        ventana.document.write('<html><head><title>Reporte</title><style>@media print{.no-print{display:none}} body{margin:0;}</style></head><body>' + htmlReporte + '</body></html>');
+        ventana.document.write('<html><head><title>Reporte_Analisis_Costos</title><style>@media print{.no-print{display:none}} body{margin:0; background:#fff;}</style></head><body>' + htmlReporte + '</body></html>');
         ventana.document.close();
         
     } catch (error) {
         console.error("❌ Error detallado:", error);
-        alert("Ocurrió un error al generar el reporte. Revisa la consola.");
+        alert("Ocurrió un error al generar el reporte financiero.");
     }
 }
 
