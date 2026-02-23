@@ -35,14 +35,13 @@
             }
 
             try {
-                // RUTA DIRECTA AL SERVIDOR (SIN DEPENDER DE VARIABLES EXTERNAS)
-                const res = await fetch(/.netlify/functions/server/invoices/${id});
+                // RUTA DIRECTA AL SERVIDOR DE NETLIFY
+                const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
                 
                 if (!res.ok) throw new Error("No se pudo obtener la información");
                 
                 const data = await res.json();
                 
-                // Formateador de moneda
                 const cop = new Intl.NumberFormat('es-CO', { 
                     style: 'currency', 
                     currency: 'COP', 
@@ -51,7 +50,7 @@
 
                 const costoMat = data.costo_materiales_total || 0;
                 const manoObra = data.mano_obra_total || 0;
-                const totalFactura = data.totalFactura || 0;
+                const totalFactura = data.totalFactura || data.total || 0;
 
                 titulo.textContent = `Análisis de la Orden: ${data.numeroFactura || 'S/N'}`;
                 
@@ -92,7 +91,8 @@
             }
         }
 
-        cargarReporte();
+        // Ejecutar al cargar la página
+        window.onload = cargarReporte;
     </script>
 </body>
 </html>

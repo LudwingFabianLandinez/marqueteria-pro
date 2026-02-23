@@ -230,13 +230,11 @@ function renderTable(facturas) {
 
 // --- 6. FUNCIÓN DE ANÁLISIS (AHORA LOCAL PARA EVITAR 404) ---
 window.abrirAnalisisCostos = function(id) {
-    if (!id || id === 'undefined' || id === 'null') {
-        alert("Error: No se pudo obtener el ID de esta orden.");
+    if (!id || id === 'undefined') {
+        alert("ID de orden no válido.");
         return;
     }
-    
-    // LIMPIEZA TOTAL: Solo abrimos el archivo reportes.html
-    // El archivo reportes.html ya tiene su propia lógica para buscar los datos
+    // Solo enviamos el ID a la nueva página, nada más.
     window.location.href = `reportes.html?id=${id}`;
 };
 
