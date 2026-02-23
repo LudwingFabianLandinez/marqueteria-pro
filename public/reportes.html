@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Análisis de Rentabilidad - La Chica Morales</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-slate-50 p-6">
+    <div class="max-w-4xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden border border-slate-200">
+        <div class="bg-blue-900 p-6 text-white flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold uppercase">Análisis de Rentabilidad</h1>
+                <p id="ot-numero" class="text-blue-200 font-mono text-lg">Cargando OT...</p>
+            </div>
+            <div class="text-right">
+                <button onclick="exportarExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+                    📊 EXPORTAR A EXCEL
+                </button>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <table class="w-full text-left border-collapse" id="tabla-reporte">
+                <thead>
+                    <tr class="border-b-2 border-slate-200">
+                        <th class="py-3 px-2 text-slate-600 uppercase text-sm">Insumo / Material</th>
+                        <th class="py-3 px-2 text-right text-slate-600 uppercase text-sm">Costo Base</th>
+                        <th class="py-3 px-2 text-center text-slate-600 uppercase text-sm">Mult.</th>
+                        <th class="py-3 px-2 text-right text-slate-600 uppercase text-sm font-bold text-blue-800">Venta Sugerida (x3)</th>
+                    </tr>
+                </thead>
+                <tbody id="contenido-reporte">
+                    </tbody>
+            </table>
+
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-6">
+                <div class="p-4 bg-slate-100 rounded-lg text-center">
+                    <p class="text-slate-500 text-xs uppercase font-bold">Suma Materiales (Real)</p>
+                    <p id="total-costo-real" class="text-xl font-bold text-slate-800">$0</p>
+                </div>
+                <div class="p-4 bg-blue-50 rounded-lg text-center border border-blue-200">
+                    <p class="text-blue-600 text-xs uppercase font-bold">Mano de Obra</p>
+                    <p id="total-mano-obra" class="text-xl font-bold text-blue-900">$0</p>
+                </div>
+                <div class="p-4 bg-green-100 rounded-lg text-center border border-green-300">
+                    <p class="text-green-700 text-xs uppercase font-bold text-lg">UTILIDAD TOTAL</p>
+                    <p id="utilidad-final" class="text-2xl font-bold text-green-800">$0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Lógica para capturar el ID de la URL y mostrar datos
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+            if (!id) return alert("No se especificó una OT");
+
+            try {
+                const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
+                const data = await res.json();
+                renderReporte(data);
+            } catch (error) {
+                console.error("Error cargando reporte:", error);
+            }
+        });
+
+        function renderReporte(f) {
+            const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+            document.getElementById('ot-numero').textContent = `ORDEN: ${f.numeroFactura || '---'}`;
+            
+            let html = "";
+            let sumaCostoReal = 0;
+
+            // Suponiendo que los materiales vienen en un array 'materiales' dentro de la factura
+            // Si no, usamos el total que ya tienes
+            const materiales = f.detalles_materiales || [{ nombre: "Materiales Generales", costo: f.costo_materiales_total }];
+
+            materiales.forEach(m => {
+                const costo = Number(m.costo) || 0;
+                sumaCostoReal += costo;
+                html += `
+                    <tr class="border-b border-slate-100">
+                        <td class="py-3 px-2 font-medium">${m.nombre}</td>
+                        <td class="py-3 px-2 text-right">${formatter.format(costo)}</td>
+                        <td class="py-3 px-2 text-center text-slate-400">x3</td>
+                        <td class="py-3 px-2 text-right font-bold text-blue-700">${formatter.format(costo * 3)}</td>
+                    </tr>`;
+            });
+
+            document.getElementById('contenido-reporte').innerHTML = html;
+            
+            const vVentaTotal = Number(f.totalFactura || 0);
+            const vManoObra = Number(f.mano_obra_total || 0);
+            
+            document.getElementById('total-costo-real').textContent = formatter.format(sumaCostoReal);
+            document.getElementById('total-mano-obra').textContent = formatter.format(vManoObra);
+            document.getElementById('utilidad-final').textContent = formatter.format(vVentaTotal - sumaCostoReal);
+        }
+
+        function exportarExcel() {
+            const table = document.getElementById("tabla-reporte");
+            const wb = XLSX.utils.table_to_book(table, {sheet: "Rentabilidad"});
+            XLSX.writeFile(wb, `Reporte_Rentabilidad_${document.getElementById('ot-numero').textContent}.xlsx`);
+        }
+    </script>
+</body>
+</html>
