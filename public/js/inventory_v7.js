@@ -554,56 +554,36 @@ const formCompra = document.getElementById('formNuevaCompra');
             // 3. Sacar el nombre limpio
             // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO ---
        // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO (ML vs m2) ---
-        let nombreInput = "";
-        if (selectMat.value === "NUEVO") {
-            nombreInput = inputNuevo.value.trim();
-        } else {
-            nombreInput = selectMat.options[selectMat.selectedIndex].text
-                .replace('+ AGREGAR NUEVO MATERIAL', '')
-                .trim();
-        }
-
-        // Si el nombre contiene "MOLDURA" o empieza por "K ", es ML y va en MAYÚSCULAS
-        // Si es m2 (Cartón, Chapilla, etc.), se queda como lo escribiste (minúsculas)
+       // --- 1. DETERMINAR NOMBRE (ML: MAYÚS | m2: Original) ---
+        let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
+        
         const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
         let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
-        // --- 2. CÁLCULOS SEGÚN UNIDAD ---
+        // --- 2. CÁLCULO DE STOCK ---
         const cant = parseFloat(inputCant.value) || 0;
         const costo = parseFloat(inputCosto.value) || 0;
-        let stockASumar = 0;
+        let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo.value) || 0) * (parseFloat(inputAncho.value) || 0) / 10000) * cant);
         let unidadFinal = esMoldura ? "ml" : "m²";
 
-        if (esMoldura) {
-            stockASumar = cant * 2.90;
-        } else {
-            const largo = parseFloat(inputLargo.value) || 0;
-            const ancho = parseFloat(inputAncho.value) || 0;
-            stockASumar = ((largo * ancho) / 10000) * cant;
-        }
-
-        // --- 3. GESTIÓN DE LA "LISTA NEGRA" (Para evitar que desaparezca al refrescar) ---
+        // --- 3. LIMPIEZA TOTAL DE MEMORIA PARA ESTE MATERIAL ---
+        // Esto evita que el refresh lo borre si fue eliminado antes
         let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+        let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
 
         // --- 4. ACTUALIZAR O CREAR ---
         if (!window.todosLosMateriales) window.todosLosMateriales = [];
-        
-        // Buscamos si ya existe (comparación insensible a mayúsculas para no duplicar)
         let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
         if (existente) {
-            // Si ya existe, SUMAMOS stock
             existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
             existente.precio_total_lamina = costo;
-            existente.nombre = nombreReal; // Actualiza el nombre al formato nuevo si cambió
-
-            // "PERDÓN" DE ID: Si lo habías borrado antes, lo quitamos de la lista negra
+            existente.nombre = nombreReal;
+            // Quitamos su ID de la lista negra
             eliminados = eliminados.filter(id => id !== String(existente.id));
-            localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
         } else {
-            // Si es nuevo, creamos con ID único
             const nuevoId = `MAT-${Date.now()}`;
-            window.todosLosMateriales.unshift({
+            const nuevoMaterial = {
                 id: nuevoId,
                 nombre: nombreReal,
                 categoria: esMoldura ? "MOLDURAS" : "GENERAL",
@@ -612,8 +592,15 @@ const formCompra = document.getElementById('formNuevaCompra');
                 precio_total_lamina: costo,
                 largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo.value) || 0),
                 ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho.value) || 0)
-            });
+            };
+            window.todosLosMateriales.unshift(nuevoMaterial);
+            // Agregamos a la caja de seguridad para que el refresh no lo pierda
+            pendientes.push(nuevoMaterial);
         }
+
+        // Guardamos las listas limpias
+        localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+        localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
             // 5. Actualizar y cerrar
             renderTable(window.todosLosMateriales);
