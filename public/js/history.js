@@ -230,8 +230,8 @@ function renderTable(facturas) {
 
 // --- 6. FUNCIÓN DE ANÁLISIS (AHORA LOCAL PARA EVITAR 404) ---
 window.abrirAnalisisCostos = function(id) {
-    // Esto abrirá el reporte en una pestaña nueva sin errores de ruta
-    window.open(`reportes.html?id=${id}`, '_blank');
+    // ESTA ES LA ÚNICA LÍNEA QUE DEBE EXISTIR
+    window.open(`reportes.html?id=${id}`, '_blank');    
 
     // Buscamos en la variable que ya tiene todas las facturas cargadas
     const f = todasLasFacturas.find(fact => String(fact._id) === String(id));
