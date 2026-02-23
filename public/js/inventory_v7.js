@@ -808,7 +808,11 @@ window.prepararEdicionMaterial = function(id) {
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };
-window.abrirModalEditar = (m) => window.prepararEdicionMaterial(m.id);
+// --- ESTA ES LA CONEXIÓN CLAVE ---
+window.abrirModalEditar = (m) => {
+    console.log("Conectando con prepararEdicionMaterial para:", m.nombre);
+    window.prepararEdicionMaterial(m.id || m._id);
+};
 
 function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
@@ -820,5 +824,7 @@ function actualizarSelectProveedores() {
 
 function actualizarDatalistMateriales() {
     const lista = document.getElementById('listaMateriales');
-    if (lista) lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
+    if (lista) {
+        lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
+    }
 }
