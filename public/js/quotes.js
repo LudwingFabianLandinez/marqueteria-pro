@@ -282,24 +282,29 @@ async function facturarVenta() {
 
     if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
 
-    const facturaData = {
-        cliente: {
-            nombre: nombre,
-            telefono: tel
-        },
-        medidas: datosCotizacionActual.detalles?.medidas || '--',
-        // MAPEO CLAVE: Guardamos costoBase y descripcion para que history.js los lea
-        items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
+    // --- MEJORA DE SEGURIDAD PARA CAPTURA DE DATOS ---
+    const itemsProcesados = (datosCotizacionActual.detalles?.materiales || []).map(m => {
+        // Forzamos la obtención del nombre y costo desde el objeto o desde el DOM si es necesario
+        const nombreReal = m.nombre || "Material Desconocido";
+        const costoReal = parseFloat(m.costoUnitario) || 0;
+
+        return {
             productoId: m.id || m._id,
-            descripcion: m.nombre, // Aseguramos el nombre
-            nombre: m.nombre,
+            descripcion: nombreReal, // Esto quita el texto "MATERIAL"
+            materialNombre: nombreReal,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
-            cantidad: 1, // Por defecto 1 obra
             area_m2: datosCotizacionActual.areaFinal,
-            costoBase: m.costoUnitario || 0, // <--- AQUÍ ESTÁ EL TRUCO
-            costo_base_unitario: m.costoUnitario || 0
-        })), 
+            cantidad: 1,
+            costoBase: costoReal,      // Para el reporte de auditoría
+            costo_base_unitario: costoReal // Para compatibilidad con el servidor
+        };
+    });
+
+    const facturaData = {
+        cliente: { nombre: nombre, telefono: tel },
+        medidas: datosCotizacionActual.detalles?.medidas || '--',
+        items: itemsProcesados, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         totalPagado: abono,
@@ -316,21 +321,16 @@ async function facturarVenta() {
             body: JSON.stringify(facturaData)
         });
 
-        const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
-             throw new Error("El servidor no respondió correctamente.");
-        }
-
         const result = await response.json();
         if (result.success) {
-            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
+            alert(`✅ VENTA REGISTRADA CON ÉXITO`);
             window.location.href = "/history.html"; 
         } else {
-            throw new Error(result.error || "No se pudo registrar la venta.");
+            throw new Error(result.error || "Error al guardar");
         }
     } catch (error) { 
-        console.error("Error en facturación:", error);
-        alert("🚨 ERROR: " + error.message);
+        console.error("Error:", error);
+        alert("🚨 ERROR AL GUARDAR: " + error.message);
         btnVenta.disabled = false;
         btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
     }
