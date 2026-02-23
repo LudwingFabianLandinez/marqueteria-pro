@@ -214,18 +214,27 @@ try {
 
     // 2. Ruta para EDITAR material existente
     router.put('/materials/:id', async (req, res) => {
-        try {
-            const actualizado = await Material.findByIdAndUpdate(
-                req.params.id, 
-                req.body, 
-                { new: true }
-            );
-            if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
-            res.json({ success: true, data: actualizado });
-        } catch (error) {
-            res.status(400).json({ success: false, error: error.message });
+    try {
+        // Aseguramos que el stock_minimo sea un número real antes de enviarlo a la DB
+        if (req.body.stock_minimo !== undefined) {
+            req.body.stock_minimo = parseFloat(req.body.stock_minimo);
         }
-    });
+
+        const actualizado = await Material.findByIdAndUpdate(
+            req.params.id, 
+            { $set: req.body }, // Usamos $set para ser más precisos
+            { new: true, runValidators: false } // Desactivamos validaciones que puedan bloquear el 36
+        );
+
+        if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
+        
+        console.log(`✅ Material ${actualizado.nombre} actualizado. Nuevo Stock Mínimo: ${actualizado.stock_minimo}`);
+        res.json({ success: true, data: actualizado });
+    } catch (error) {
+        console.error("❌ Error al actualizar material:", error.message);
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
 
     // --- REPORTE DE COMPRAS (INTACTO) ---
     router.get('/inventory/all-purchases', async (req, res) => {
