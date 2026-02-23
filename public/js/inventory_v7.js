@@ -288,26 +288,40 @@ function renderTable(materiales) {
         // GANCHO CRÍTICO: Cálculo del Stock Real (Servidor + Local)
         // Aquí es donde el 5.80 + 2.90 se convierte en 8.70
         // 1. Calculamos el stock sumando la bitácora local (Pieza 1 corregida)
-       // 5. Construcción del texto visual (ACTUALIZADO CON BISTURÍ)
+        const stockActualUnidad = calcularStockReal(m);
+        
+        // 2. Definimos unidad y dimensiones
+        const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
+        const ancho = parseFloat(m.ancho_lamina_cm) || 0;
+        const largo = parseFloat(m.largo_lamina_cm) || 0;
+        const areaUnaLaminaM2 = (ancho * largo) / 10000;
+        
+        // 3. Cálculo de costo por unidad (ML o M2)
+        let costoMostrar = 0;
+        if (m.tipo === 'ml' && largo > 0) {
+            // Precio por Metro Lineal
+            costoMostrar = Math.round(m.precio_total_lamina / (largo / 100));
+        } else if (areaUnaLaminaM2 > 0) {
+            // Precio por Metro Cuadrado
+            costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
+        } else {
+            costoMostrar = m.precio_m2_costo || 0;
+        }
+
+        // 4. Semáforo de colores (Rojo, Naranja, Verde)
+        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= m.stock_minimo ? '#f59e0b' : '#059669');
+        
+        // 5. Construcción del texto visual
         let textoStockVisual = "";
         
         if (m.tipo === 'ml') {
-            // MOLDURAS: Calculamos cuántas tiras de 2.90m hay
-            const tirasCompletas = Math.floor(stockActualUnidad / 2.90);
-            let sobranteML = stockActualUnidad - (tirasCompletas * 2.90);
-            if (sobranteML < 0.01) sobranteML = 0;
-
-            // Creamos el desglose similar al de m2
-            let desgloseML = (tirasCompletas > 0) 
-                ? (sobranteML > 0 ? `(${tirasCompletas} und + ${sobranteML.toFixed(2)} ml)` : `(${tirasCompletas} unidades)`)
-                : `(${sobranteML.toFixed(2)} ml)`;
-            
+            // MOLDURAS: Solo mostramos los metros lineales totales (Ej: 8.70 ml)
             textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem; color: ${colorStock};">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
-                <div style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">${desgloseML}</div>
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total en tiras)</div>
             `;
         } else {
-            // VIDRIOS/MADERA: Tu lógica original (NO SE TOCA NADA)
+            // VIDRIOS/MADERA: Tu lógica de láminas + m2 sobrantes
             const laminasExactas = areaUnaLaminaM2 > 0 ? stockActualUnidad / areaUnaLaminaM2 : 0;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
@@ -318,8 +332,8 @@ function renderTable(materiales) {
                 : `(${sobranteM2.toFixed(2)} m²)`;
             
             textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem; color: ${colorStock};">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
-                <div style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">${desglose}</div>
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
             `;
         }
         
