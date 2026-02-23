@@ -230,7 +230,11 @@ function renderTable(facturas) {
 
 // --- 6. FUNCIÓN DE ANÁLISIS (AHORA LOCAL PARA EVITAR 404) ---
 window.abrirAnalisisCostos = function(id) {
-    // ESTA ES LA ÚNICA LÍNEA QUE DEBE EXISTIR
+    if (!id || id === 'undefined' || id === 'null') {
+        alert("Error: No se pudo obtener el ID de esta orden.");
+        return;
+    }
+    // Abrimos reportes.html pasando el ID como parámetro
     window.open(`reportes.html?id=${id}`, '_blank');    
 
     // Buscamos en la variable que ya tiene todas las facturas cargadas
