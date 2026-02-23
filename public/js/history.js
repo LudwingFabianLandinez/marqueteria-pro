@@ -68,6 +68,11 @@ async function fetchInvoices() {
 
 async function generarReporteDiario() {
     try {
+        if (typeof todasLasFacturas === 'undefined' || todasLasFacturas.length === 0) {
+            alert("❌ No hay datos de facturas cargados.");
+            return;
+        }
+
         const hoyDate = new Date();
         const hoyStr = hoyDate.toLocaleDateString();
         
@@ -87,11 +92,12 @@ async function generarReporteDiario() {
 
         let totalVentas = 0;
         let utilidadTotal = 0;
-        let totalCostoMateriales = 0; // <--- NUEVA VARIABLE
-        let totalManoObra = 0;        // <--- NUEVA VARIABLE
+        let totalCostoMateriales = 0;
+        let totalManoObra = 0;
 
-        let filasHTML = facturasHoy.map(f => {
-            const vOT = formatearNumeroOT(f);
+        let filasHTML = "";
+        facturasHoy.forEach(f => {
+            const vOT = (typeof formatearNumeroOT === 'function') ? formatearNumeroOT(f) : (f.numeroFactura || 'S/N');
             const vCliente = (f.cliente?.nombre || f.clienteNombre || "Cliente Genérico").toUpperCase();
             const vDetalle = f.medidas || "Medidas N/A";
             
@@ -104,10 +110,10 @@ async function generarReporteDiario() {
 
             totalVentas += vVenta;
             utilidadTotal += vUtilidad;
-            totalCostoMateriales += costoEstimadoMat; // Acumulamos para el resumen
-            totalManoObra += cMO;                     // Acumulamos para el resumen
+            totalCostoMateriales += costoEstimadoMat;
+            totalManoObra += cMO;
 
-            return `
+            filasHTML += `
                 <tr style="border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 12px;">
                         <div style="font-weight: bold; color: #1e3a8a;">${vOT}</div>
@@ -115,65 +121,62 @@ async function generarReporteDiario() {
                     </td>
                     <td style="padding: 12px; font-size: 0.85rem; color: #475569;">${vDetalle}</td>
                     <td style="padding: 12px; text-align: right; color: #444;">
-                        <div style="font-size: 0.75rem;">Costos Est.: ${formatter.format(costoEstimadoMat + cMO)}</div>
-                        <div style="font-weight: bold; color: #1e3a8a; border-top: 1px solid #eee; margin-top: 4px;">Utilidad: ${formatter.format(vUtilidad)}</div>
+                        <div style="font-size: 0.75rem;">Mat: ${formatter.format(costoEstimadoMat)}</div>
+                        <div style="font-size: 0.75rem;">M.O: ${formatter.format(cMO)}</div>
                     </td>
-                    <td style="padding: 12px; text-align: right; font-weight: bold; color: #15803d; font-size: 1.05rem;">
+                    <td style="padding: 12px; text-align: right; font-weight: bold; color: #15803d;">
                         ${formatter.format(vVenta)}
                     </td>
                 </tr>`;
-        }).join('');
+        });
 
         const htmlReporte = `
-            <div style="font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; max-width: 900px; margin: auto;">
-                <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #1e3a8a; padding-bottom: 20px;">
-                    <h1 style="color: #1e3a8a; margin: 0; font-size: 24px; text-transform: uppercase;">Marquetería La Chica Morales</h1>
-                    <h2 style="color: #64748b; margin: 5px 0; font-size: 18px;">Reporte de Operaciones Diario</h2>
-                    <p style="background: #f1f5f9; display: inline-block; padding: 5px 20px; border-radius: 50px; font-weight: bold;">
-                        ${hoyDate.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
+            <div style="font-family: Arial, sans-serif; padding: 30px; color: #1e293b; max-width: 800px; margin: auto;">
+                <div style="text-align: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 15px; margin-bottom: 20px;">
+                    <h1 style="color: #1e3a8a; font-size: 22px; margin: 0;">MARQUETERÍA LA CHICA MORALES</h1>
+                    <h2 style="color: #64748b; font-size: 16px; margin: 5px 0;">Reporte Financiero Diario</h2>
                 </div>
-                <table style="width: 100%; border-collapse: collapse;">
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                     <thead>
-                        <tr style="background: #1e3a8a; color: white;">
-                            <th style="padding: 15px; text-align: left;">OT / CLIENTE</th>
-                            <th style="padding: 15px; text-align: left;">DETALLE</th>
-                            <th style="padding: 15px; text-align: right;">DESGLOSE</th>
-                            <th style="padding: 15px; text-align: right;">VALOR VENTA</th>
+                        <tr style="background: #1e3a8a; color: white; font-size: 0.9rem;">
+                            <th style="padding: 10px; text-align: left;">ORDEN / CLIENTE</th>
+                            <th style="padding: 10px; text-align: left;">DETALLE</th>
+                            <th style="padding: 10px; text-align: right;">DESGLOSE</th>
+                            <th style="padding: 10px; text-align: right;">VENTA</th>
                         </tr>
                     </thead>
                     <tbody>${filasHTML}</tbody>
                 </table>
-                <div style="margin-top: 30px; padding: 25px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
-                    <div style="display: flex; justify-content: space-around; align-items: center; text-align: center;">
-                        <div>
-                            <p style="margin: 0; color: #64748b; text-transform: uppercase; font-size: 0.8rem;">Ventas Totales</p>
-                            <p style="font-size: 1.5rem; font-weight: bold; color: #1e293b; margin: 5px 0;">${formatter.format(totalVentas)}</p>
-                        </div>
-                        <div style="width: 1px; height: 50px; background: #bbf7d0;"></div>
-                        <div>
-                            <p style="margin: 0; color: #64748b; text-transform: uppercase; font-size: 0.8rem;">Costo Materiales</p>
-                            <p style="font-size: 1.2rem; font-weight: bold; color: #1e293b; margin: 5px 0;">${formatter.format(totalCostoMateriales)}</p>
-                        </div>
-                        <div style="width: 1px; height: 50px; background: #bbf7d0;"></div>
-                        <div>
-                            <p style="margin: 0; color: #166534; font-weight: bold; text-transform: uppercase; font-size: 0.8rem;">UTILIDAD TOTAL</p>
-                            <p style="font-size: 2rem; font-weight: bold; color: #15803d; margin: 5px 0;">${formatter.format(utilidadTotal)}</p>
-                        </div>
+
+                <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 20px;">
+                    <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                        <span style="font-size: 0.7rem; color: #64748b; font-weight: bold;">VENTAS</span>
+                        <p style="margin: 5px 0; font-size: 1.1rem; font-weight: bold;">${formatter.format(totalVentas)}</p>
+                    </div>
+                    <div style="flex: 1; background: #fff1f2; padding: 15px; border-radius: 8px; border: 1px solid #fecdd3; text-align: center;">
+                        <span style="font-size: 0.7rem; color: #be123c; font-weight: bold;">COSTOS</span>
+                        <p style="margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #be123c;">${formatter.format(totalCostoMateriales + totalManoObra)}</p>
+                    </div>
+                    <div style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 2px solid #22c55e; text-align: center;">
+                        <span style="font-size: 0.7rem; color: #15803d; font-weight: bold;">UTILIDAD</span>
+                        <p style="margin: 5px 0; font-size: 1.3rem; font-weight: bold; color: #15803d;">${formatter.format(utilidadTotal)}</p>
                     </div>
                 </div>
-                <div style="text-align: center; margin-top: 40px;" class="no-print">
-                    <button onclick="window.print()" style="background: #1e3a8a; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold;">IMPRIMIR REPORTE</button>
-                    <button onclick="window.close()" style="background: #64748b; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">CERRAR</button>
+
+                <div style="margin-top: 30px; text-align: center;" class="no-print">
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #1e3a8a; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimir</button>
+                    <button onclick="window.close()" style="padding: 10px 20px; background: #64748b; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Cerrar</button>
                 </div>
             </div>`;
 
         const ventana = window.open('', '_blank');
-        ventana.document.write(`<html><head><title>Reporte_Diario</title><style>@media print{.no-print{display:none}}</style></head><body>${htmlReporte}</body></html>`);
+        ventana.document.write('<html><head><title>Reporte</title><style>@media print{.no-print{display:none}} body{margin:0;}</style></head><body>' + htmlReporte + '</body></html>');
         ventana.document.close();
         
     } catch (error) {
-        console.error("❌ Error al generar reporte:", error);
+        console.error("❌ Error detallado:", error);
+        alert("Ocurrió un error al generar el reporte. Revisa la consola.");
     }
 }
 
