@@ -552,69 +552,51 @@ const formCompra = document.getElementById('formNuevaCompra');
             const inputCosto = document.getElementById('compraCosto');
 
             // 3. Sacar el nombre limpio
-            let nombreReal = "";
-            if (selectMat.value === "NUEVO") {
-                nombreReal = inputNuevo.value.trim().toUpperCase();
-            } else {
-                nombreReal = selectMat.options[selectMat.selectedIndex].text
-                    .replace('+ AGREGAR NUEVO MATERIAL', '')
-                    .trim().toUpperCase();
-            }
+            // --- 1. DETERMINAR EL NOMBRE SEGÚN TIPO ---
+        let nombreInput = "";
+        if (selectMat.value === "NUEVO") {
+            nombreInput = inputNuevo.value.trim();
+        } else {
+            nombreInput = selectMat.options[selectMat.selectedIndex].text
+                .replace('+ AGREGAR NUEVO MATERIAL', '')
+                .trim();
+        }
 
-            // 4. Cálculos y Stock (Tus 2.90 ML)
-            // --- NUEVA LÓGICA DE CÁLCULO INTELIGENTE (ml vs m2) ---
-            const cant = parseFloat(inputCant.value) || 0;
-            const costo = parseFloat(inputCosto.value) || 0;
+        // Si el nombre contiene "MOLDURA" o empieza por "K ", es ML y va en MAYÚSCULAS
+        const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
+        let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
+
+        // --- 2. GESTIÓN DE LA "LISTA NEGRA" (Para que no se borre al refrescar) ---
+        let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+
+        // --- 3. ACTUALIZAR O CREAR SIN DUPLICADOS ---
+        if (!window.todosLosMateriales) window.todosLosMateriales = [];
+        
+        // Buscamos si ya existe (ignorando mayúsculas solo para comparar)
+        let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
+
+        if (existente) {
+            // Si existe, SUMAMOS (no sobreescribimos)
+            existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+            existente.precio_total_lamina = costo;
             
-            let stockASumar = 0;
-            let unidadFinal = "m²"; // Por defecto para Chapillas, Vidrios, etc.
-
-            // Detectamos si es Moldura por el nombre o el select
-            const esMoldura = nombreReal.includes("MOLDURA") || nombreReal.startsWith("K ");
-
-            if (esMoldura) {
-                stockASumar = cant * 2.90; // Cálculo en Metros Lineales
-                unidadFinal = "ml";
-            } else {
-                // Cálculo en Metros Cuadrados para todo lo demás
-                const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
-                const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
-                
-                if (largo > 0 && ancho > 0) {
-                    stockASumar = ((largo * ancho) / 10000) * cant; // (L x A en cm / 10000) * cantidad
-                } else {
-                    stockASumar = cant; // Si no hay medidas, suma la unidad tal cual
-                }
-                unidadFinal = "m²";
-            }
-
-            if (!window.todosLosMateriales) window.todosLosMateriales = [];
-            
-            // Buscamos ignorando espacios extras y mayúsculas/minúsculas
-            let existente = window.todosLosMateriales.find(m => 
-                m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
-            );
-
-            if (existente) {
-                // SUMAMOS AL EXISTENTE (Para que no se cree otra línea)
-                console.log("Material encontrado, sumando stock...");
-                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                existente.precio_total_lamina = costo; // Actualiza el precio
-                existente.tipo = unidadFinal; 
-            } else {
-                // SOLO SI NO EXISTE, crea la nueva línea
-                console.log("Material nuevo, creando registro...");
-                window.todosLosMateriales.unshift({
-                    id: `MAT-${Date.now()}`,
-                    nombre: nombreReal.trim().toUpperCase(),
-                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                    tipo: unidadFinal,
-                    stock_actual: stockASumar,
-                    precio_total_lamina: costo,
-                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(document.getElementById('compraLargo')?.value) || 0),
-                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(document.getElementById('compraAncho')?.value) || 0)
-                });
-            }
+            // SACAR DE LISTA NEGRA: Si lo habías borrado antes, esto lo "perdona" para que aparezca al refrescar
+            eliminados = eliminados.filter(id => id !== String(existente.id));
+            localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+        } else {
+            // Si es nuevo, creamos con ID nuevo
+            const nuevoId = `MAT-${Date.now()}`;
+            window.todosLosMateriales.unshift({
+                id: nuevoId,
+                nombre: nombreReal,
+                categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                tipo: unidadFinal,
+                stock_actual: stockASumar,
+                precio_total_lamina: costo,
+                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo.value) || 0),
+                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho.value) || 0)
+            });
+        }
 
             // 5. Actualizar y cerrar
             renderTable(window.todosLosMateriales);
