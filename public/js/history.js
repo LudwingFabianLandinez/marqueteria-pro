@@ -230,8 +230,8 @@ function renderTable(facturas) {
 
 // --- 6. FUNCIÓN DE ANÁLISIS (AHORA LOCAL PARA EVITAR 404) ---
 window.abrirAnalisisCostos = function(id) {
-    if (!id) return;
-    window.location.href = `reportes.html?id=${id}`;
+    // Si el ID existe, simplemente cambia la página. Sin trucos raros.
+    if (id) window.location.href = `reportes.html?id=${id}`;
 };
 
 // --- 7. BUSCADOR (INTACTO) ---

@@ -11,14 +11,14 @@
         <h1 id="titulo" class="text-2xl font-bold text-gray-800 mb-6">Cargando datos de la orden...</h1>
         
         <div id="contenido" class="space-y-6">
-            <div class="animate-pulse flex space-y-4 flex-col">
+            <div id="loader" class="animate-pulse flex space-y-4 flex-col">
                 <div class="h-4 bg-gray-200 rounded w-3/4"></div>
                 <div class="h-4 bg-gray-200 rounded w-1/2"></div>
             </div>
         </div>
 
-        <button onclick="window.close()" class="mt-8 w-full bg-gray-800 text-white py-2 rounded-lg hover:bg-gray-700 transition">
-            Cerrar Reporte
+        <button onclick="window.history.back()" class="mt-8 w-full bg-gray-800 text-white py-2 rounded-lg hover:bg-gray-700 transition">
+            Volver al Historial
         </button>
     </div>
 
@@ -31,11 +31,12 @@
 
             if (!id) {
                 titulo.textContent = "Error: No se encontró el ID de la orden";
+                contenido.innerHTML = `<p class="text-red-500">Regresa al historial y vuelve a hacer clic en el botón azul.</p>`;
                 return;
             }
 
             try {
-                // RUTA DIRECTA AL SERVIDOR DE NETLIFY
+                // LLAMADA A TU SERVIDOR EN NETLIFY
                 const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
                 
                 if (!res.ok) throw new Error("No se pudo obtener la información");
@@ -48,6 +49,7 @@
                     maximumFractionDigits: 0 
                 });
 
+                // Cálculos extraídos de tu base de datos
                 const costoMat = data.costo_materiales_total || 0;
                 const manoObra = data.mano_obra_total || 0;
                 const totalFactura = data.totalFactura || data.total || 0;
@@ -63,7 +65,7 @@
                     <div class="p-4 bg-green-50 rounded-lg border border-green-100">
                         <p class="text-sm text-green-600 font-semibold uppercase">Precio Sugerido (Costo x 3)</p>
                         <p class="text-2xl font-bold text-green-900">${cop.format(costoMat * 3)}</p>
-                        <p class="text-xs text-green-700 mt-1">* Recomendado para cubrir gastos fijos y utilidad.</p>
+                        <p class="text-xs text-green-700 mt-1">* Ideal para cubrir gastos fijos y utilidad.</p>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -86,12 +88,13 @@
                 `;
 
             } catch (error) {
+                console.error(error);
                 titulo.textContent = "Error al cargar";
-                contenido.innerHTML = `<p class="text-red-500">No se pudo conectar con el servidor. Por favor, cierra esta pestaña e intenta de nuevo desde el historial.</p>`;
+                contenido.innerHTML = `<p class="text-red-500">No se pudo conectar con el servidor. Verifica que la factura aún exista.</p>`;
             }
         }
 
-        // Ejecutar al cargar la página
+        // Se ejecuta automáticamente al abrir la página
         window.onload = cargarReporte;
     </script>
 </body>
