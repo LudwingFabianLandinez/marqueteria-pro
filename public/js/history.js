@@ -204,36 +204,75 @@ function exportarAExcel() {
 }
 
 // --- 5. RENDERIZADO DE LA TABLA ---
-function renderTable(facturas) {
-    const tableBody = document.getElementById('invoiceTableBody');
-    if (!tableBody) return;
-    tableBody.innerHTML = '';
-    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+// --- FUNCIÓN DE REPORTE (Pégala al final de history.js) ---
+window.abrirAnalisisCostos = function(id) {
+    if (window.event) window.event.preventDefault();
 
-    facturas.forEach(f => {
-        const tr = document.createElement('tr');
-        const total = Number(f.totalFactura || f.total) || 0;
-        const pagado = Number(f.totalPagado || f.abono || f.abonoInicial) || 0;
-        const saldo = total - pagado;
-        const numeroOT = formatearNumeroOT(f);
-        const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
+    // Buscamos la OT en la lista 'todasLasFacturas' que ya tiene el navegador
+    const f = todasLasFacturas.find(fact => String(fact._id) === String(id));
+    
+    if (!f) {
+        return alert("No se encontró la información de esta orden. Por favor, intenta recargar la página.");
+    }
 
-        tr.innerHTML = `
-            <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
-            <td style="font-weight: 700; color: #1e3a8a;">${numeroOT}</td>
-            <td>${clienteVisual}</td>
-            <td style="font-weight: 600;">${formatter.format(total)}</td>
-            <td style="color: #e11d48; font-weight: 600;">${formatter.format(saldo)}</td>
-            <td><span class="badge-status ${saldo <= 0 ? 'badge-pagado' : 'badge-abonado'}">${saldo <= 0 ? 'PAGADO' : 'ABONADO'}</span></td>
-            <td>
-                <div style="display: flex; gap: 8px;">
-                    <button onclick="verDetalle('${f._id}')" class="btn-action-blue"><i class="fas fa-eye"></i></button>
-                    <button onclick="eliminarFactura('${f._id}', '${numeroOT}')" class="btn-action-red"><i class="fas fa-trash"></i></button>
-                </div>
-            </td>`;
-        tableBody.appendChild(tr);
+    const formatter = new Intl.NumberFormat('es-CO', {
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0
     });
-}
+
+    // REGLA DE NEGOCIO: Costo Material x 3 + Mano de Obra
+    // Usamos los nombres de campos que vienen de tu servidor v13.4.45
+    const cMat = Number(f.costo_materiales_total || 0);
+    const cMO = Number(f.mano_obra_total || 0);
+    const cX3 = cMat * 3;
+    const totalCobrado = Number(f.totalFactura || f.total || 0);
+
+    const reporteHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 30px; max-width: 550px; margin: auto; border: 2px solid #1e3a8a; border-radius: 12px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <h2 style="color: #1e3a8a; text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">ANÁLISIS DE RENTABILIDAD</h2>
+            
+            <div style="margin-bottom: 15px;">
+                <p><strong>OT:</strong> ${f.numeroFactura || f.numeroOrden || 'S/N'}</p>
+                <p><strong>Cliente:</strong> ${(f.cliente?.nombre || f.clienteNombre || 'N/A').toUpperCase()}</p>
+                <p><strong>Medidas:</strong> ${f.medidas || 'No registradas'}</p>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px;">Costo Real Material (Prorrateado):</td>
+                    <td style="padding: 10px; text-align: right;">${formatter.format(cMat)}</td>
+                </tr>
+                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af; border-bottom: 1px solid #3b82f6;">
+                    <td style="padding: 10px;">VENTA MATERIAL (COSTO X3):</td>
+                    <td style="padding: 10px; text-align: right;">${formatter.format(cX3)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px;">Mano de Obra (Adicional):</td>
+                    <td style="padding: 10px; text-align: right;">${formatter.format(cMO)}</td>
+                </tr>
+                <tr style="font-size: 1.2em; font-weight: bold; color: #1e3a8a;">
+                    <td style="padding: 10px;">TOTAL COBRADO AL CLIENTE:</td>
+                    <td style="padding: 10px; text-align: right;">${formatter.format(totalCobrado)}</td>
+                </tr>
+            </table>
+
+            <div style="margin-top: 25px; padding: 15px; background: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; text-align: center;">
+                <h3 style="margin: 0; color: #166534;">UTILIDAD BRUTA ESTIMADA:</h3>
+                <h2 style="margin: 5px 0 0 0; color: #15803d;">${formatter.format(totalCobrado - cMat)}</h2>
+                <p style="margin: 5px 0 0 0; font-size: 0.8em; color: #166534;">(Total Cobrado - Costo Real Material)</p>
+            </div>
+            
+            <div style="margin-top: 25px; text-align: center;">
+                <button onclick="window.print()" style="padding: 10px 25px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">🖨️ IMPRIMIR REPORTE</button>
+            </div>
+        </div>
+    `;
+
+    const win = window.open("", "_blank");
+    if (!win) return alert("El navegador bloqueó la ventana emergente. Por favor permítelas.");
+    
+    win.document.write(`<html><head><title>Reporte Rentabilidad</title></head><body style="background:#f8fafc; padding:20px;">${reporteHTML}</body></html>`);
+    win.document.close();
+};
 
 // --- 6. BUSCADOR ---
 function configurarBuscador() {
@@ -264,78 +303,3 @@ async function eliminarFactura(id, numero) {
     }
 }
 
-// FORZAMOS LA FUNCIÓN AL NIVEL MÁS ALTO DEL NAVEGADOR
-window.verDetalle = function(id) {
-    // 1. Evitar que el botón haga cosas raras
-    if (window.event) window.event.preventDefault();
-
-    console.log("Intentando abrir OT:", id);
-
-    // 2. Buscar la factura (Probamos todas las rutas de ID posibles)
-    const f = todasLasFacturas.find(fact => 
-        (fact._id && String(fact._id) === String(id)) || 
-        (fact.id && String(fact.id) === String(id))
-    );
-
-    if (!f) {
-        alert("La información no se encuentra cargada. Por favor, pulsa Ctrl+F5.");
-        return;
-    }
-
-    const formatter = new Intl.NumberFormat('es-CO', {
-        style: 'currency', currency: 'COP', maximumFractionDigits: 0
-    });
-
-    // 3. REGLAS DE ORO: Costo Real vs Venta x3
-    // Usamos los nombres exactos que suelen venir en tu JSON
-    const costoMaterial = Number(f.costo_materiales_total || f.costoMateriales || 0);
-    const manoObra = Number(f.mano_obra_total || f.manoObra || 0);
-    const ventaX3 = costoMaterial * 3;
-    const totalVendido = Number(f.totalFactura || f.total || 0);
-
-    // 4. Crear el Reporte Visual
-    const htmlReporte = `
-        <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b; max-width: 600px; border: 2px solid #3b82f6; border-radius: 10px; background: white;">
-            <h2 style="color: #1e3a8a; text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">ANÁLISIS DE COSTOS - ${f.numeroFactura || 'OT'}</h2>
-            
-            <p><strong>Cliente:</strong> ${f.cliente?.nombre || f.clienteNombre || 'N/A'}</p>
-            <p><strong>Medidas:</strong> ${f.medidas || 'No especificadas'}</p>
-            <hr>
-            
-            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">Costo Real Material:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatter.format(costoMaterial)}</td>
-                </tr>
-                <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;">
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">PRECIO VENTA MATERIAL (X3):</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatter.format(ventaX3)}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">Mano de Obra:</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatter.format(manoObra)}</td>
-                </tr>
-                <tr style="background: #1e3a8a; color: white; font-size: 1.1em; font-weight: bold;">
-                    <td style="padding: 10px;">TOTAL COBRADO:</td>
-                    <td style="padding: 10px; text-align: right;">${formatter.format(totalVendido)}</td>
-                </tr>
-            </table>
-
-            <div style="margin-top: 25px; padding: 15px; background: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; text-align: center;">
-                <h3 style="margin: 0; color: #166534;">GANANCIA REAL: ${formatter.format(totalVendido - costoMaterial)}</h3>
-                <p style="margin: 5px 0 0 0; font-size: 0.8em;">(Total Vendido menos el Costo del Insumo)</p>
-            </div>
-            
-            <button onclick="window.print()" style="margin-top: 20px; width: 100%; padding: 10px; cursor: pointer; background: #334155; color: white; border: none; border-radius: 5px;">Imprimir Reporte</button>
-        </div>
-    `;
-
-    // 5. APERTURA FORZADA
-    const ventana = window.open("", "_blank");
-    if (!ventana) {
-        alert("El navegador bloqueó la ventana. Por favor, permite los pop-ups para ver el reporte.");
-        return;
-    }
-    ventana.document.write(`<html><head><title>Reporte Rentabilidad</title></head><body style="background:#f1f5f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0;">${htmlReporte}</body></html>`);
-    ventana.document.close();
-};
