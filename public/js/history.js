@@ -264,6 +264,78 @@ async function eliminarFactura(id, numero) {
     }
 }
 
-function verDetalle(id) {
-    window.location.href = `/invoice-detail.html?id=${id}`;
-}
+window.verDetalle = function(id) {
+    // 1. Buscamos la OT en la lista que ya tenemos cargada
+    const f = todasLasFacturas.find(fact => fact._id === id);
+    if (!f) return alert("No se encontró la información de esta orden.");
+
+    const formatter = new Intl.NumberFormat('es-CO', {
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0
+    });
+
+    // 2. Cálculos de Rentabilidad (Basado en tus reglas)
+    const costoRealMateriales = Number(f.costo_materiales_total || f.costoMateriales || 0);
+    const manoDeObra = Number(f.mano_obra_total || f.manoObra || 0);
+    const costoX3 = costoRealMateriales * 3;
+    const totalVendido = Number(f.totalFactura || f.total || 0);
+
+    // 3. Crear el contenido del reporte
+    const reporteHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a;">ANÁLISIS DE COSTOS Y RENTABILIDAD</h2>
+            <p><strong>Orden de Trabajo:</strong> ${f.numeroFactura || 'S/N'}</p>
+            <p><strong>Cliente:</strong> ${f.cliente?.nombre || f.clienteNombre || 'N/A'}</p>
+            <p><strong>Medidas Cuadro:</strong> ${f.medidas || 'Ver descripción'}</p>
+            <hr>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="background: #f3f4f6;">
+                        <th style="border: 1px solid #ccc; padding: 8px; text-align: left;">CONCEPTO</th>
+                        <th style="border: 1px solid #ccc; padding: 8px; text-align: right;">COSTO REAL (A MEDIDA)</th>
+                        <th style="border: 1px solid #ccc; padding: 8px; text-align: right;">COSTO X3 (VENTA)</th>
+                        <th style="border: 1px solid #ccc; padding: 8px; text-align: right;">VALOR COBRADO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="border: 1px solid #ccc; padding: 8px;">Materiales (Prorrateado)</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${formatter.format(costoRealMateriales)}</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${formatter.format(costoX3)}</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${formatter.format(costoX3)}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ccc; padding: 8px;">Mano de Obra (A mano)</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">-</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">-</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${formatter.format(manoDeObra)}</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr style="background: #e5e7eb; font-weight: bold;">
+                        <td style="border: 1px solid #ccc; padding: 8px;">TOTALES</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${formatter.format(costoRealMateriales)}</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${formatter.format(costoX3)}</td>
+                        <td style="border: 1px solid #ccc; padding: 8px; text-align: right; color: #16a34a;">${formatter.format(totalVendido)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #f0fdf4; border: 1px solid #16a34a; border-radius: 8px;">
+                <p style="margin: 0; font-size: 1.1em;"><strong>GANANCIA BRUTA:</strong> ${formatter.format(totalVendido - costoRealMateriales)}</p>
+                <small>Cálculo: (Total Vendido - Costo Real de Materiales)</small>
+            </div>
+            
+            <button onclick="window.print()" style="margin-top: 20px; padding: 10px 20px; cursor: pointer; background: #1e3a8a; color: white; border: none; border-radius: 5px;">Imprimir Reporte</button>
+        </div>
+    `;
+
+    // 4. Abrimos el reporte en una ventana nueva
+    const ventanaDetalle = window.open("", "_blank", "width=800,height=600");
+    ventanaDetalle.document.write(`
+        <html>
+            <head><title>Detalle Rentabilidad - ${f.numeroFactura}</title></head>
+            <body>${reporteHTML}</body>
+        </html>
+    `);
+    ventanaDetalle.document.close();
+};
