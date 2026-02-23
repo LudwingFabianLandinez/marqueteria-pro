@@ -264,8 +264,12 @@ async function eliminarFactura(id, numero) {
     }
 }
 
-window.verDetalle = function(id) {
-    // 1. Buscamos la OT en la lista global
+// 1. Cambiamos a declaración directa para evitar el error 404
+function verDetalle(id) {
+    // Evitamos que el navegador intente navegar a otra página
+    if (event) event.preventDefault(); 
+
+    // 2. Buscamos la OT en la lista global
     const f = todasLasFacturas.find(fact => fact._id === id);
     if (!f) {
         console.error("No se encontró la factura con ID:", id);
@@ -276,13 +280,13 @@ window.verDetalle = function(id) {
         style: 'currency', currency: 'COP', maximumFractionDigits: 0
     });
 
-    // 2. Cálculos de Rentabilidad (Asegurando que lea bien los campos de la base de datos)
+    // 3. Cálculos de Rentabilidad (Costo Real vs Venta x3)
     const costoRealMateriales = Number(f.costo_materiales_total || f.costoMateriales || 0);
     const manoDeObra = Number(f.mano_obra_total || f.manoObra || 0);
     const costoX3 = costoRealMateriales * 3;
     const totalVendido = Number(f.totalFactura || f.total || 0);
 
-    // 3. Crear el contenido del reporte
+    // 4. Crear el contenido del reporte
     const reporteHTML = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 700px; margin: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px;">
@@ -339,20 +343,12 @@ window.verDetalle = function(id) {
         </div>
     `;
 
-    // 4. Apertura segura del reporte
+    // 5. Apertura inyectando el HTML directamente
     const ventanaDetalle = window.open("", "_blank");
     if (!ventanaDetalle) {
-        return alert("El navegador bloqueó la ventana emergente. Por favor, permite las ventanas emergentes para ver el reporte.");
+        return alert("El navegador bloqueó la ventana. Por favor permite los pop-ups.");
     }
     
-    ventanaDetalle.document.write(`
-        <html>
-            <head>
-                <title>Rentabilidad - ${f.numeroFactura || 'Detalle'}</title>
-                <style>@media print { button { display: none; } }</style>
-            </head>
-            <body style="margin:0; background: #f9fafb;">${reporteHTML}</body>
-        </html>
-    `);
+    ventanaDetalle.document.write(`<html><head><title>Rentabilidad OT</title></head><body style="margin:0; background:#f9fafb;">${reporteHTML}</body></html>`);
     ventanaDetalle.document.close();
-};
+}
