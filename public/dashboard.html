@@ -262,51 +262,41 @@
     </main>
 </div>
 
-<div id="modalCompra" class="modal">
+<div id="modalNuevoMaterial" class="modal" style="display: none;">
     <div class="modal-content">
-        <div class="modal-header">REGISTRAR COMPRA DE MATERIAL</div>
-        <form id="formNuevaCompra" class="modal-body" onsubmit="if(window.handlePurchase) { window.handlePurchase(event); } else { event.preventDefault(); alert('Error: Motor de inventario no cargado'); }">
+        <div class="modal-header">GESTIONAR MATERIAL</div>
+        <div class="modal-body">
             <div class="form-group">
-                <label>Proveedor</label>
-                <select id="compraProveedor" name="providerId" required></select>
+                <label>Nombre del Material</label>
+                <input type="text" id="matNombre" placeholder="Ej: Lona 13oz">
             </div>
-            <div class="form-group">
-                <label>Material</label>
-                <select id="compraMaterial" name="materialId" required onchange="manejarCambioMaterial()"></select>
-                <div id="contenedorNombreNuevo">
-                    <label style="color: #2b6cb0;">Nombre del Material Nuevo</label>
-                    <input type="text" id="nombreNuevoMaterial" name="nombreNuevo" placeholder="Escribe el nombre aquí...">
-                </div>
-            </div>
+            
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div class="form-group">
-                    <label>Largo (cm)</label>
-                    <input type="number" id="compraLargo" name="largo" step="0.1" required oninput="calcularConversionM2()">
-                </div>
                 <div class="form-group">
                     <label>Ancho (cm)</label>
-                    <input type="number" id="compraAncho" name="ancho" step="0.1" required oninput="calcularConversionM2()">
-                </div>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div class="form-group">
-                    <label>Cantidad (Uds)</label>
-                    <input type="number" id="compraCantidad" name="cantidad" required oninput="calcularConversionM2()">
+                    <input type="number" id="matAncho" step="0.1">
                 </div>
                 <div class="form-group">
-                    <label>Valor Unitario ($)</label>
-                    <input type="number" id="compraCosto" name="valorUnitario" required>
+                    <label>Largo (cm)</label>
+                    <input type="number" id="matLargo" step="0.1">
                 </div>
             </div>
-            <div id="displayConversion" style="background: #f8fafc; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; border: 1px solid #edf2f7;">
-                <strong>Conversión automática:</strong><br>
-                <span id="labelConversion" style="color: #2f855a; font-weight: bold;">Total a ingresar: 0.00 m²</span>
+
+            <div class="form-group">
+                <label>Costo Base ($)</label>
+                <input type="number" id="matCosto" step="0.01">
             </div>
+
+            <div class="form-group">
+                <label>Punto de Reorden (Stock Mínimo)</label>
+                <input type="number" id="matStockMin" step="0.01" placeholder="Avisar cuando quede menos de...">
+            </div>
+
             <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button type="submit" class="btn-action btn-green" style="flex: 1;">Guardar Compra</button>
-                <button type="button" class="btn-action" style="background: #e2e8f0; color: #4a5568; flex: 1;" onclick="document.getElementById('modalCompra').style.display='none'">Cancelar</button>
+                <button onclick="window.guardarMaterial()" class="btn-action btn-green" style="flex: 1;">Guardar Cambios</button>
+                <button type="button" class="btn-action" style="background: #e2e8f0; color: #4a5568; flex: 1;" onclick="document.getElementById('modalNuevoMaterial').style.display='none'">Cancelar</button>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
