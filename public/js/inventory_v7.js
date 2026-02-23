@@ -888,10 +888,14 @@ window.verHistorial = async function(id, nombre) {
 };
 
 window.guardarMaterial = async function() {
+    const btn = event.target; // Capturamos el botón que lanzó el evento
     const modal = document.getElementById('modalNuevoMaterial');
     const id = modal.dataset.id;
     
-    // 1. Captura de datos exacta 📝
+    // Bloqueamos el botón para evitar que el formulario se envíe dos veces o se limpie solo
+    btn.disabled = true;
+    btn.innerText = "Guardando...";
+
     const materialData = {
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
@@ -900,22 +904,16 @@ window.guardarMaterial = async function() {
         stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
     };
 
-    // 2. Escudo de Protección de Stock 🛡️
-    // Eliminamos estas propiedades para que el servidor NO las sobreescriba con 0
+    // 🛡️ Escudo para no tocar el stock actual
     delete materialData.stock_actual;
     delete materialData.cantidad;
 
-    if (!materialData.nombre) return alert("⚠️ El nombre es obligatorio.");
-
     try {
-        // 3. Configuración de Ruta 🛣️
         let base = window.API_URL || "";
         if (base.endsWith('/')) base = base.slice(0, -1);
         
         const url = id ? `${base}/materials/${id}` : `${base}/materials`;
         const metodo = id ? 'PUT' : 'POST';
-
-        console.log(`🚀 Intentando guardar en: ${url}`);
 
         const response = await fetch(url, {
             method: metodo,
@@ -924,17 +922,21 @@ window.guardarMaterial = async function() {
         });
 
         if (response.ok) {
-            alert("✅ ¡Cambios guardados exitosamente!");
+            console.log("✅ Servidor actualizó correctamente");
+            alert("✅ ¡Cambios guardados! Ahora verás el nuevo Punto de Reorden.");
             modal.style.display = 'none';
-            // Forzamos recarga para ver el nuevo punto de reorden (36)
-            location.reload(); 
+            
+            // Recarga total para limpiar cualquier dato viejo en memoria
+            window.location.reload(); 
         } else {
-            const errorText = await response.text();
-            console.error("Error del servidor:", errorText);
-            alert("❌ El servidor rechazó el cambio. Revisa la consola (F12).");
+            throw new Error("El servidor no procesó el cambio");
         }
     } catch (error) {
-        console.error("Error de red:", error);
-        alert("❌ Error de conexión. El servidor no responde.");
+        console.error("❌ Error:", error);
+        alert("❌ No se pudo guardar. Intenta de nuevo.");
+    } finally {
+        // Liberamos el botón si algo falla
+        btn.disabled = false;
+        btn.innerText = "Guardar Cambios";
     }
 };
