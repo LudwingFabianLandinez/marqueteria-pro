@@ -188,29 +188,38 @@ try {
     });
 
     // --- INVENTARIO ---
-    router.get('/inventory', async (req, res) => {
-        try {
-            const materiales = await Material.find().sort({ nombre: 1 }).lean();
-            res.json(materiales);
-        } catch (error) {
-            res.status(500).json({ success: false, error: error.message });
+    // --- INVENTARIO UNIFICADO (LECTURA Y GUARDADO) ---
+
+// A. Leer Inventario (Ya lo tienes)
+router.get('/inventory', async (req, res) => {
+    try {
+        const materiales = await Material.find().sort({ nombre: 1 }).lean();
+        res.json(materiales);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// B. Guardar/Editar desde la misma ruta base (CIRUGÍA MAYOR)
+router.post('/inventory/save', async (req, res) => {
+    try {
+        const { id, ...datos } = req.body;
+        let resultado;
+
+        if (id && id.length > 5) {
+            // Si hay ID, es una edición (como tu 36 de stock mínimo)
+            resultado = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
+        } else {
+            // Si no hay ID, es uno nuevo
+            resultado = new Material(datos);
+            await resultado.save();
         }
-    });
 
-
-
-    // --- NUEVAS RUTAS: GUARDAR Y EDITAR MATERIALES (CIRUGÍA PRECISA) ---
-
-    // 1. Ruta para CREAR nuevo material
-    router.post('/materials', async (req, res) => {
-        try {
-            const nuevoMaterial = new Material(req.body);
-            await nuevoMaterial.save();
-            res.status(201).json({ success: true, data: nuevoMaterial });
-        } catch (error) {
-            res.status(400).json({ success: false, error: error.message });
-        }
-    });
+        res.json({ success: true, data: resultado });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
 
     // 2. Ruta para EDITAR material existente
     router.put('/materials/:id', async (req, res) => {

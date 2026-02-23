@@ -888,65 +888,33 @@ window.verHistorial = async function(id, nombre) {
 };
 
 window.guardarMaterial = async function() {
-    const btn = document.querySelector('#modalNuevoMaterial button[onclick*="guardarMaterial"]');
     const modal = document.getElementById('modalNuevoMaterial');
     const id = modal.dataset.id;
     
-    // Capturamos el valor exacto del input antes de cualquier otra cosa
-    const nuevoStockMinimo = parseFloat(document.getElementById('matStockMin').value) || 0;
-
     const materialData = {
+        id: id, // Enviamos el ID dentro del paquete
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
         largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
         precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
-        stock_minimo: nuevoStockMinimo // Este es el famoso "36"
+        stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
     };
 
-    // PROTECCIÓN TOTAL: Eliminamos stock para que no se resetee a cero
-    delete materialData.stock_actual;
-    delete materialData.cantidad;
-
-    if (btn) {
-        btn.disabled = true;
-        btn.innerText = "Procesando...";
-    }
-
     try {
-        let base = window.API_URL || "";
-        if (base.endsWith('/')) base = base.slice(0, -1);
-        
-        const url = id ? `${base}/materials/${id}` : `${base}/materials`;
-        
-        console.log("📤 ENVIANDO DATO:", { url, stock_minimo: materialData.stock_minimo });
-
+        const url = `${window.API_URL}/inventory/save`;
         const response = await fetch(url, {
-            method: id ? 'PUT' : 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache' // Forzamos al servidor a no usar cache
-            },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(materialData)
         });
 
         if (response.ok) {
-            console.log("✅ EXITOSO: El servidor confirmó el cambio.");
-            alert(`✅ ¡Guardado! El Punto de Reorden ahora es ${nuevoStockMinimo}`);
-            
-            // LIMPIEZA RADICAL: Cerramos modal y forzamos recarga ignorando el cache
-            modal.style.display = 'none';
-            window.location.href = window.location.href.split('?')[0] + '?update=' + Date.now();
+            alert("✅ ¡CAMBIO REALIZADO!");
+            location.reload();
         } else {
-            const errorText = await response.text();
-            alert("❌ Error: El servidor no aceptó el cambio.");
-            console.error(errorText);
+            alert("❌ El servidor rechazó la ruta unificada.");
         }
     } catch (error) {
-        alert("❌ Error de red. Verifica tu conexión.");
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerText = "Guardar Cambios";
-        }
+        alert("❌ Error de conexión.");
     }
-};  
+};
