@@ -692,10 +692,23 @@ window.cerrarModales = function() {
 };
 
 window.verHistorial = async function(id, nombre) {
+    const modal = document.getElementById('modalHistorialPrecios');
+    const contenedorHistorial = document.getElementById('listaHistorialPrecios');
+    
+    // 1. Limpieza inmediata y mensaje de carga (Evita ver datos viejos)
+    if (modal) modal.style.display = 'flex';
+    if (contenedorHistorial) {
+        contenedorHistorial.innerHTML = `
+            <div style="text-align:center; padding:40px; color:#7c3aed;">
+                <i class="fas fa-sync fa-spin" style="font-size: 2rem; margin-bottom:10px;"></i>
+                <p style="font-weight:bold;">Buscando movimientos actualizados...</p>
+                <p style="font-size:0.7rem; color:#94a3b8;">Sincronizando con hoy 22/02/2026</p>
+            </div>`;
+    }
+
     try {
-        const resultado = await window.API.getHistory(id);
-        const modal = document.getElementById('modalHistorialPrecios');
-        const contenedorHistorial = document.getElementById('listaHistorialPrecios');
+        // 2. FORZADO DE DATOS NUEVOS: Agregamos un timestamp (?t=...) para saltar el historial viejo del 16/02
+        const resultado = await window.API.getHistory(id + '?t=' + Date.now());
         
         if (document.getElementById('historialMaterialNombre')) {
             document.getElementById('historialMaterialNombre').innerText = nombre;
@@ -703,28 +716,35 @@ window.verHistorial = async function(id, nombre) {
 
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
+        // Ordenar por fecha (el más reciente de hoy arriba)
+        if (Array.isArray(datos)) {
+            datos.sort((a, b) => new Date(b.fecha || b.createdAt) - new Date(a.fecha || a.createdAt));
+        }
+
         if (Array.isArray(datos) && datos.length > 0) {
             const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
             
             contenedorHistorial.innerHTML = datos.map(h => {
-                // Lógica para detectar el tipo de movimiento y color
                 const esEntrada = h.cantidad > 0 || h.tipo === 'compra';
-                const colorMovimiento = esEntrada ? '#10b981' : '#ef4444'; // Verde entrada, Rojo salida
+                const colorMovimiento = esEntrada ? '#10b981' : '#ef4444'; 
                 const signo = esEntrada ? '+' : '';
                 const tipoTexto = h.tipo?.toUpperCase() || (esEntrada ? 'COMPRA' : 'VENTA/CONSUMO');
 
+                // Forzamos estilos inline para asegurar que el texto sea visible (color negro #1e293b)
                 return `
-                    <div class="history-item" style="padding: 12px; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: bold; color: #1e293b;">${tipoTexto}</div>
-                            <div style="font-size: 0.75rem; color: #64748b;">${h.proveedor?.nombre || h.referencia || 'Sistema'}</div>
-                            <div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-weight: 800; color: ${colorMovimiento}; font-size: 0.9rem;">
-                                ${signo}${h.cantidad || 0} <span style="font-size: 0.7rem;">unid/m2</span>
+                    <div class="history-item" style="padding: 15px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; color: #1e293b; font-size: 0.9rem; margin-bottom: 2px;">${tipoTexto}</div>
+                            <div style="font-size: 0.8rem; color: #475569;">Ref: ${h.proveedor?.nombre || h.referencia || 'Sistema'}</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 500;">
+                                <i class="far fa-clock"></i> ${new Date(h.fecha || h.createdAt).toLocaleString()}
                             </div>
-                            <div style="font-size: 0.75rem; color: #64748b;">
+                        </div>
+                        <div style="text-align: right; min-width: 100px;">
+                            <div style="font-weight: 900; color: ${colorMovimiento}; font-size: 1rem; letter-spacing: -0.5px;">
+                                ${signo}${h.cantidad || 0}
+                            </div>
+                            <div style="font-size: 0.75rem; color: #64748b; font-weight: bold;">
                                 ${formateador.format(h.costo_unitario || h.costo_total || 0)}
                             </div>
                         </div>
@@ -732,15 +752,15 @@ window.verHistorial = async function(id, nombre) {
             }).join('');
         } else { 
             contenedorHistorial.innerHTML = `
-                <div style="text-align:center; padding:30px; color:#94a3b8;">
-                    <i class="fas fa-history" style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.3;"></i>
-                    No se han registrado movimientos para este material.
+                <div style="text-align:center; padding:50px; color:#94a3b8;">
+                    <i class="fas fa-history" style="font-size: 3rem; display: block; margin-bottom: 15px; opacity: 0.2;"></i>
+                    <p style="font-weight:bold;">No hay registros después del 16/02</p>
+                    <p style="font-size:0.8rem;">Verifica si las compras de hoy fueron guardadas con éxito.</p>
                 </div>`; 
         }
-        
-        if (modal) modal.style.display = 'flex'; // Usamos flex para centrarlo mejor
     } catch (error) { 
-        console.error("❌ Error al cargar historial:", error); 
+        console.error("❌ Error al cargar historial:", error);
+        contenedorHistorial.innerHTML = `<div style="padding:20px; color:red; text-align:center;">Error de conexión. Intenta de nuevo.</div>`;
     }
 };
 
