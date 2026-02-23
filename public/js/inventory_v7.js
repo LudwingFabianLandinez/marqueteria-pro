@@ -374,41 +374,22 @@ function renderTable(materiales) {
         }
 
         fila.innerHTML = `
-            <td style="text-align: left; padding: 10px 15px;">
-                <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
-                <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre || 'Proveedor'}</span>
-                </div>
-            </td>
-            <td style="text-align: center;">
-                <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${m.tipo === 'ml' ? `${largo} cm` : `${ancho}x${largo} cm`}
-                </span>
-            </td>
-            <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
-                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${tipoUnidad}</span>
-            </td>
-            <td style="text-align: center; padding: 8px;">
-                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
-                    ${textoStockVisual}
-                </div>
-            </td>
             <td style="text-align: center; vertical-align: middle; min-width: 320px;">
     <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
         
-        <button onclick="window.abrirModalEditar('${m.id}')" 
+        <button onclick="window.abrirModalEditar('${m._id || m.id}')" 
                 style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
                 title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
             <i class="fas fa-edit"></i> EDITAR
         </button>
         
-        <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" 
+        <button onclick="window.verHistorial('${m._id || m.id}', '${m.nombre}')" 
                 style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);"
                 title="Ver movimientos de stock e historial de precios">
             <i class="fas fa-history"></i> HISTORIAL
         </button>
         
-        <button onclick="window.eliminarMaterial('${m.id}')" 
+        <button onclick="window.eliminarMaterial('${m._id || m.id}')" 
                 style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);"
                 title="Eliminar este material permanentemente">
             <i class="fas fa-trash"></i> ELIMINAR
@@ -814,32 +795,33 @@ window.prepararEdicionMaterial = function(id) {
 // Esta función ahora es inteligente: recibe el ID y busca el material
 // --- ACTIVACIÓN MAESTRA DE FUNCIONES GLOBALES ---
 
-window.abrirModalEditar = function(idRecibido) {
-    // 1. Limpiamos el ID (por si llega con comillas extra o espacios)
-    const idLimpio = String(idRecibido).trim();
-    console.log("🚀 Intentando editar ID:", idLimpio);
+// --- ACTIVACIÓN DE BOTONES ---
 
-    // 2. Buscamos el material en la lista global
+window.abrirModalEditar = function(idRecibido) {
+    const idBusqueda = String(idRecibido).trim();
+    console.log("🔍 Intentando editar material con ID:", idBusqueda);
+
+    // Buscamos el material en el array global que usa tu tabla
     const m = window.todosLosMateriales.find(mat => 
-        (mat.id === idLimpio || mat._id === idLimpio)
+        (String(mat._id) === idBusqueda || String(mat.id) === idBusqueda)
     );
 
     if (!m) {
-        console.error("❌ No se encontró el material con ID:", idLimpio, "en", window.todosLosMateriales);
-        alert("Error: No se encontró la información del material.");
+        console.error("❌ No se encontró el material en window.todosLosMateriales");
         return;
     }
 
-    console.log("✅ Material encontrado:", m.nombre);
+    // Guardamos el ID para la función de guardar cambios
+    window.materialEditandoId = m._id || m.id;
 
-    // 3. Llenamos el modal (Usando tus IDs exactos del ARCHIVO.docx)
-    window.materialEditandoId = m.id || m._id;
-    
-    if(document.getElementById('matId')) document.getElementById('matId').value = m.id || m._id;
+    // Llenamos el modal (IDs exactos de tu HTML)
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre || '';
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria || '';
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina || m.precio_m2_costo || 0;
+    
+    // AQUÍ EL PUNTO DE REORDEN
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo || 0;
+    
     if(document.getElementById('matAncho')) document.getElementById('matAncho').value = m.ancho_lamina_cm || 0;
     if(document.getElementById('matLargo')) document.getElementById('matLargo').value = m.largo_lamina_cm || 0;
     
@@ -847,26 +829,7 @@ window.abrirModalEditar = function(idRecibido) {
         document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     }
 
-    // 4. Mostramos el modal
+    // Mostramos el modal
     const modal = document.getElementById('modalNuevoMaterial');
-    if(modal) {
-        modal.style.display = 'flex';
-        console.log("✨ Modal desplegado con éxito");
-    }
-};
-
-// --- MANTENIMIENTO DE SELECTORES ---
-window.actualizarSelectProveedores = function() {
-    const select = document.getElementById('proveedorSelect');
-    if (select && window.todosLosProveedores.length > 0) {
-        select.innerHTML = '<option value="">-- Seleccionar Proveedor --</option>' + 
-            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${p.nombre || 'S/N'}</option>`).join('');
-    }
-};
-
-window.actualizarDatalistMateriales = function() {
-    const lista = document.getElementById('listaMateriales');
-    if (lista) {
-        lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
-    }
+    if(modal) modal.style.display = 'flex';
 };
