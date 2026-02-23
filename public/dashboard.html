@@ -371,5 +371,31 @@
         }
     }
 </script>
+<div id="modalHistorialPrecios" class="modal" style="display: none; align-items: center; justify-content: center; z-index: 10001;">
+    <div class="modal-content" style="width: 90%; max-width: 550px; border-radius: 12px; overflow: hidden; border: none; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+        <div class="modal-header" style="background: #7c3aed; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-history"></i>
+                <span style="font-weight: bold; letter-spacing: 0.5px;">HISTORIAL DE MOVIMIENTOS</span>
+            </div>
+            <span id="historialMaterialNombre" style="font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 15px;"></span>
+        </div>
+        <div class="modal-body" style="padding: 0; background: white;">
+            <div id="listaHistorialPrecios" style="max-height: 450px; overflow-y: auto;">
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    <i class="fas fa-circle-notch fa-spin" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                    Cargando movimientos...
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 15px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: right;">
+            <button onclick="document.getElementById('modalHistorialPrecios').style.display='none'" 
+                    style="background: #64748b; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s;">
+                CERRAR
+            </button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
