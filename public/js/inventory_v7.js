@@ -891,7 +891,7 @@ window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
     const id = modal.dataset.id;
     
-    // 1. Mapeo de datos (IDÉNTICO a lo que el servidor ya lee en los GET)
+    // 1. Recolectamos solo los datos básicos de gestión
     const materialData = {
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
@@ -900,45 +900,36 @@ window.guardarMaterial = async function() {
         stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
     };
 
-    if (!materialData.nombre) return alert("Escribe el nombre.");
+    // 💉 CIRUGÍA DE PROTECCIÓN:
+    // Eliminamos cualquier propiedad de stock para que el proceso de "Editar" 
+    // no toque los niveles de inventario existentes en la base de datos.
+    delete materialData.stock_actual;
+    delete materialData.cantidad;
+
+    if (!materialData.nombre) return alert("⚠️ El nombre es obligatorio.");
 
     try {
-        // 2. DETECCIÓN AUTOMÁTICA DE RUTA (Sin errores de barra /)
         let base = window.API_URL || "";
         if (base.endsWith('/')) base = base.slice(0, -1);
         
-        // Probamos con la ruta plural 'materials' que es el estándar de tu sistema
         const url = id ? `${base}/materials/${id}` : `${base}/materials`;
         const metodo = id ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
+        const response = await fetch(url, {
             method: metodo,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(materialData)
         });
 
-        // 3. LA PRUEBA DE FUEGO
-        if (res.ok) {
-            alert("✅ ACTUALIZADO");
+        if (response.ok) {
+            alert("✅ Cambios guardados sin afectar el stock.");
             modal.style.display = 'none';
-            location.reload(); // Recarga limpia para forzar ver el cambio
+            location.reload(); 
         } else {
-            // Si falla, intentamos la ruta en SINGULAR (algunos servidores usan /material)
-            const urlSingular = id ? `${base}/material/${id}` : `${base}/material`;
-            const res2 = await fetch(urlSingular, {
-                method: metodo,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(materialData)
-            });
-
-            if (res2.ok) {
-                alert("✅ ACTUALIZADO (Ruta Singular)");
-                location.reload();
-            } else {
-                alert(`❌ ERROR CRÍTICO: El servidor no acepta cambios en /materials ni en /material. Contacta al administrador del Backend.`);
-            }
+            alert("❌ Error al procesar los datos en el servidor.");
         }
-    } catch (err) {
-        alert("❌ Error de red: El servidor no responde.");
+    } catch (error) {
+        console.error("Error de red:", error);
+        alert("❌ Error de conexión con el servidor.");
     }
 };
