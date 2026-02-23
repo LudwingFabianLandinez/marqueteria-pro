@@ -889,10 +889,12 @@ window.verHistorial = async function(id, nombre) {
 
 window.guardarMaterial = async function() {
     try {
-        const id = document.getElementById('modalNuevoMaterial').dataset.id;
+        const modal = document.getElementById('modalNuevoMaterial');
+        const id = modal.dataset.id;
         
+        // Datos con los nombres exactos que tu servidor ya acepta en otros modales
         const materialData = {
-            nombre: document.getElementById('matNombre').value,
+            nombre: document.getElementById('matNombre').value.trim(),
             ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
             largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
@@ -901,19 +903,21 @@ window.guardarMaterial = async function() {
 
         if (!materialData.nombre) return alert("⚠️ El nombre es obligatorio");
 
-        // LIMPIEZA DE URL: Evitamos el error del <!DOCTYPE
-        let baseUrl = window.API_URL;
-        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-        let url = `${baseUrl}/materials`;
+        // CONSTRUCCIÓN MANUAL DE URL PARA EVITAR EL ERROR DE RUTA
+        // Usamos una ruta relativa que es más segura en servidores tipo Render/Vercel
+        let url = '/api/materials'; 
         let metodo = 'POST';
 
         if (id) {
-            url = `${url}/${id}`;
+            url = `/api/materials/${id}`;
             metodo = 'PUT';
         }
 
-        console.log(`🚀 Enviando a: ${url} método: ${metodo}`);
+        // Si tu API_URL es absoluta (ej: https://.../api), la usamos:
+        if (window.API_URL) {
+            let base = window.API_URL.endsWith('/') ? window.API_URL.slice(0, -1) : window.API_URL;
+            url = id ? `${base}/materials/${id}` : `${base}/materials`;
+        }
 
         const response = await fetch(url, {
             method: metodo,
@@ -921,25 +925,19 @@ window.guardarMaterial = async function() {
             body: JSON.stringify(materialData)
         });
 
-        // Verificamos si la respuesta es HTML (error) antes de convertir a JSON
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            const resultado = await response.json();
-            if (response.ok || resultado.success) {
-                alert("✅ ¡Guardado con éxito!");
-                document.getElementById('modalNuevoMaterial').style.display = 'none';
-                if (window.fetchInventory) window.fetchInventory();
-            } else {
-                alert("❌ Error: " + (resultado.message || "Fallo en el servidor"));
-            }
+        if (response.ok) {
+            alert("✅ ¡Guardado con éxito!");
+            modal.style.display = 'none';
+            // En lugar de llamar a una función que puede fallar, recargamos la página para asegurar ver el cambio
+            location.reload(); 
         } else {
-            // Si el servidor manda HTML, mostramos un error más claro
-            console.error("El servidor respondió con HTML en vez de JSON");
-            alert("❌ Error del servidor: La ruta de guardado es incorrecta o el servidor está caído.");
+            const errorData = await response.text();
+            console.error("Respuesta error:", errorData);
+            alert("❌ El servidor rechazó el guardado. Es posible que la ruta /materials no esté habilitada para edición.");
         }
 
     } catch (error) {
-        console.error("Error crítico:", error);
-        alert("❌ Error de red: No se pudo conectar con el servidor.");
+        console.error("Error de red:", error);
+        alert("❌ Error de conexión. Revisa que el servidor esté encendido.");
     }
 };
