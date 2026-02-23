@@ -696,18 +696,52 @@ window.verHistorial = async function(id, nombre) {
         const resultado = await window.API.getHistory(id);
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedorHistorial = document.getElementById('listaHistorialPrecios');
-        if (document.getElementById('historialMaterialNombre')) document.getElementById('historialMaterialNombre').innerText = nombre;
+        
+        if (document.getElementById('historialMaterialNombre')) {
+            document.getElementById('historialMaterialNombre').innerText = nombre;
+        }
+
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        
         if (Array.isArray(datos) && datos.length > 0) {
             const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-            contenedorHistorial.innerHTML = datos.map(h => `
-                <div class="history-item" style="padding: 10px; font-size: 0.8rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between;">
-                    <div><strong>${h.proveedor?.nombre || 'Movimiento'}</strong><div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div></div>
-                    <div><span style="font-weight: bold; color: #10b981;">${formateador.format(h.costo_unitario || h.costo_total || 0)}</span></div>
-                </div>`).join('');
-        } else { contenedorHistorial.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`; }
-        if (modal) modal.style.display = 'block';
-    } catch (error) { console.error("Error historial:", error); }
+            
+            contenedorHistorial.innerHTML = datos.map(h => {
+                // Lógica para detectar el tipo de movimiento y color
+                const esEntrada = h.cantidad > 0 || h.tipo === 'compra';
+                const colorMovimiento = esEntrada ? '#10b981' : '#ef4444'; // Verde entrada, Rojo salida
+                const signo = esEntrada ? '+' : '';
+                const tipoTexto = h.tipo?.toUpperCase() || (esEntrada ? 'COMPRA' : 'VENTA/CONSUMO');
+
+                return `
+                    <div class="history-item" style="padding: 12px; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: bold; color: #1e293b;">${tipoTexto}</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">${h.proveedor?.nombre || h.referencia || 'Sistema'}</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 800; color: ${colorMovimiento}; font-size: 0.9rem;">
+                                ${signo}${h.cantidad || 0} <span style="font-size: 0.7rem;">unid/m2</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: #64748b;">
+                                ${formateador.format(h.costo_unitario || h.costo_total || 0)}
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+        } else { 
+            contenedorHistorial.innerHTML = `
+                <div style="text-align:center; padding:30px; color:#94a3b8;">
+                    <i class="fas fa-history" style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.3;"></i>
+                    No se han registrado movimientos para este material.
+                </div>`; 
+        }
+        
+        if (modal) modal.style.display = 'flex'; // Usamos flex para centrarlo mejor
+    } catch (error) { 
+        console.error("❌ Error al cargar historial:", error); 
+    }
 };
 
     window.eliminarMaterial = async function(id) {
@@ -755,17 +789,26 @@ window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
 window.prepararEdicionMaterial = function(id) {
     const m = window.todosLosMateriales.find(mat => mat.id === id);
     if (!m) return;
+    
+    // GUARDAR ID PARA EL GUARDADO FINAL
+    window.materialEditandoId = m.id; 
+
     if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
     if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
+    
+    // AQUÍ SE ACTIVA EL PUNTO DE REORDEN
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo;
+    
     if(document.getElementById('matAncho')) document.getElementById('matAncho').value = m.ancho_lamina_cm;
     if(document.getElementById('matLargo')) document.getElementById('matLargo').value = m.largo_lamina_cm;
     if(document.getElementById('proveedorSelect')) document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
+    
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) modal.style.display = 'flex';
 };
+window.abrirModalEditar = (m) => window.prepararEdicionMaterial(m.id);
 
 function actualizarSelectProveedores() {
     const select = document.getElementById('proveedorSelect');
