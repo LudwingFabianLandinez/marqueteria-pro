@@ -901,32 +901,45 @@ window.guardarMaterial = async function() {
 
         if (!materialData.nombre) return alert("⚠️ El nombre es obligatorio");
 
-        let url = `${window.API_URL}/materials`;
-        let metodo = 'POST'; // Para crear nuevo
+        // LIMPIEZA DE URL: Evitamos el error del <!DOCTYPE
+        let baseUrl = window.API_URL;
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+        let url = `${baseUrl}/materials`;
+        let metodo = 'POST';
 
         if (id) {
-            url = `${window.API_URL}/materials/${id}`;
-            metodo = 'PUT'; // Para editar existente
+            url = `${url}/${id}`;
+            metodo = 'PUT';
         }
 
-        // Enviamos directamente al servidor sin depender de window.API.createMaterial
+        console.log(`🚀 Enviando a: ${url} método: ${metodo}`);
+
         const response = await fetch(url, {
             method: metodo,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(materialData)
         });
 
-        const resultado = await response.json();
-
-        if (response.ok || resultado.success) {
-            alert("✅ ¡Guardado con éxito!");
-            document.getElementById('modalNuevoMaterial').style.display = 'none';
-            if (window.fetchInventory) window.fetchInventory();
+        // Verificamos si la respuesta es HTML (error) antes de convertir a JSON
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            const resultado = await response.json();
+            if (response.ok || resultado.success) {
+                alert("✅ ¡Guardado con éxito!");
+                document.getElementById('modalNuevoMaterial').style.display = 'none';
+                if (window.fetchInventory) window.fetchInventory();
+            } else {
+                alert("❌ Error: " + (resultado.message || "Fallo en el servidor"));
+            }
         } else {
-            alert("❌ Error del servidor: " + (resultado.message || "No se pudo guardar"));
+            // Si el servidor manda HTML, mostramos un error más claro
+            console.error("El servidor respondió con HTML en vez de JSON");
+            alert("❌ Error del servidor: La ruta de guardado es incorrecta o el servidor está caído.");
         }
+
     } catch (error) {
         console.error("Error crítico:", error);
-        alert("❌ Error de conexión: " + error.message);
+        alert("❌ Error de red: No se pudo conectar con el servidor.");
     }
 };
