@@ -104,10 +104,10 @@ async function procesarCotizacion() {
         .map(id => document.getElementById(id))
         .filter(el => el && el.value !== "")
         .map(el => ({
-            id: el.value,
-            nombre: el.options[el.selectedIndex].text.split('(')[0].trim(),
-            costoUnitario: parseFloat(el.options[el.selectedIndex].dataset.costo) || 0
-        }));
+        id: el.value,
+        nombre: el.options[el.selectedIndex].text.split('(')[0].trim(),
+        costoUnitario: parseFloat(el.options[el.selectedIndex].dataset.costo) || 0
+    }));
 
     if (!ancho || !largo || materialesSeleccionados.length === 0) {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
@@ -281,26 +281,33 @@ async function facturarVenta() {
 
     if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
 
-    // Sincronización con InvoiceSchema: cliente { nombre, telefono }, totalFactura, totalPagado
+    // --- PROCESAMIENTO ROBUSTO DE ITEMS ---
+    const itemsParaEnviar = (datosCotizacionActual.detalles?.materiales || []).map(m => {
+        // Aseguramos que el nombre y costo existan sí o sí
+        const nombreMaterial = m.nombre || "Material";
+        const costoValido = parseFloat(m.costoUnitario || 0);
+
+        return {
+            productoId: m.id || m._id,
+            descripcion: nombreMaterial.toUpperCase(), // Forzamos la descripción que busca el reporte
+            nombre: nombreMaterial.toUpperCase(),
+            materialNombre: nombreMaterial.toUpperCase(),
+            ancho: datosCotizacionActual.anchoOriginal,
+            largo: datosCotizacionActual.largoOriginal,
+            area_m2: datosCotizacionActual.areaFinal,
+            cantidad: 1, // Una unidad de este material para esta obra
+            costoBase: costoValido, // Lo que busca history.js para multiplicar x3
+            costo_base_unitario: costoValido
+        };
+    });
+
     const facturaData = {
         cliente: {
             nombre: nombre,
             telefono: tel
         },
         medidas: datosCotizacionActual.detalles?.medidas || '--',
-        items: (datosCotizacionActual.detalles?.materiales || []).map(m => ({
-            productoId: m.id || m._id,
-            // --- AQUÍ ESTÁ EL CAMBIO ---
-            descripcion: m.nombre, 
-            nombre: m.nombre,
-            materialNombre: m.nombre, 
-            // ---------------------------
-            ancho: datosCotizacionActual.anchoOriginal,
-            largo: datosCotizacionActual.largoOriginal,
-            area_m2: datosCotizacionActual.areaFinal,
-            costoBase: m.costoUnitario || 0, // Esto es para el reporte
-            costo_base_unitario: m.costoUnitario || 0
-        })), 
+        items: itemsParaEnviar, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         totalPagado: abono,
@@ -319,7 +326,7 @@ async function facturarVenta() {
 
         const contentType = response.headers.get("content-type");
         if (!response.ok || !contentType || !contentType.includes("application/json")) {
-             throw new Error("El servidor no respondió correctamente. Revisa la ruta.");
+             throw new Error("El servidor no respondió correctamente.");
         }
 
         const result = await response.json();
