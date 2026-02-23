@@ -396,15 +396,13 @@ function renderTable(materiales) {
             <td style="text-align: center; vertical-align: middle; min-width: 320px;">
     <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
         
-        // EDITAR
-        <button class="btn-edit-trigger" data-id="${m.id || m._id}"
+        <button onclick="window.abrirModalEditar('${m.id || m._id}')" 
                 style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
                 title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
-                <i class="fas fa-edit"></i> EDITAR
+            <i class="fas fa-edit"></i> EDITAR
         </button>
-
-        // HISTORIAL
-        <button class="btn-history-trigger" data-id="${m.id || m._id}" data-nombre="${m.nombre}"
+        
+        <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" 
                 style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);"
                 title="Ver movimientos de stock e historial de precios">
             <i class="fas fa-history"></i> HISTORIAL
@@ -420,12 +418,6 @@ function renderTable(materiales) {
 </td>
         `;
         cuerpoTabla.appendChild(fila);
-        // CONEXIÓN DIRECTA (Esto despierta los botones)
-        const btnEdit = fila.querySelector('.btn-edit-trigger');
-        if(btnEdit) btnEdit.onclick = () => window.abrirModalEditar(m.id || m._id);
-
-        const btnHist = fila.querySelector('.btn-history-trigger');
-        if(btnHist) btnHist.onclick = () => window.verHistorial(m.id || m._id, m.nombre);
     });
 }
 
