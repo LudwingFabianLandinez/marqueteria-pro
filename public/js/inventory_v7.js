@@ -396,7 +396,7 @@ function renderTable(materiales) {
             <td style="text-align: center; vertical-align: middle; min-width: 320px;">
     <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
         
-        <button onclick="window.abrirModalEditar('${m.id}')" 
+        <button onclick="window.abrirModalEditar('${m.id || m._id}')" 
                 style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
                 title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
             <i class="fas fa-edit"></i> EDITAR
@@ -870,6 +870,10 @@ window.actualizarDatalistMateriales = function() {
         lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
     }
 };
+
+
+
+
 window.verHistorial = async function(id, nombre) {
     console.log("📜 Abriendo historial para:", nombre);
     try {
