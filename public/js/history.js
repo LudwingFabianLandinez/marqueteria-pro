@@ -95,78 +95,83 @@ async function generarReporteDiario() {
         let totalCostoMateriales = 0;
         let totalManoObra = 0;
 
-        let filasHTML = "";
-        facturasHoy.forEach(f => {
+        let filasHTML = facturasHoy.map(f => {
             const vOT = (typeof formatearNumeroOT === 'function') ? formatearNumeroOT(f) : (f.numeroFactura || 'S/N');
             const vCliente = (f.cliente?.nombre || f.clienteNombre || "Cliente Genérico").toUpperCase();
-            const vDetalle = f.medidas || "Medidas N/A";
             
             const vVenta = Number(f.totalFactura || f.total) || 0;
             const cMat = Number(f.costo_materiales_total) || 0;
             const cMO = Number(f.mano_obra_total || f.manoObraTotal) || 0;
             
-            const costoEstimadoMat = cMat > 0 ? cMat : (vVenta - cMO) / 3;
-            const vUtilidad = vVenta - (costoEstimadoMat + cMO);
+            // Lógica de costos
+            const costoMat = cMat > 0 ? cMat : (vVenta - cMO) / 3;
+            const sugeridoX3 = costoMat * 3;
+            const vUtilidad = vVenta - (costoMat + cMO);
 
+            // Sumatorias para el pie de página
             totalVentas += vVenta;
             utilidadTotal += vUtilidad;
-            totalCostoMateriales += costoEstimadoMat;
+            totalCostoMateriales += costoMat;
             totalManoObra += cMO;
 
-            filasHTML += `
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 12px;">
+            return `
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 0.85rem;">
+                    <td style="padding: 10px;">
                         <div style="font-weight: bold; color: #1e3a8a;">${vOT}</div>
-                        <div style="font-size: 0.8rem; color: #64748b;">${vCliente}</div>
+                        <div style="font-size: 0.75rem; color: #64748b;">${vCliente}</div>
                     </td>
-                    <td style="padding: 12px; font-size: 0.85rem; color: #475569;">${vDetalle}</td>
-                    <td style="padding: 12px; text-align: right; color: #444;">
-                        <div style="font-size: 0.75rem;">Mat: ${formatter.format(costoEstimadoMat)}</div>
-                        <div style="font-size: 0.75rem;">M.O: ${formatter.format(cMO)}</div>
+                    <td style="padding: 10px; text-align: center; color: #475569;">
+                        ${formatter.format(costoMat)}
                     </td>
-                    <td style="padding: 12px; text-align: right; font-weight: bold; color: #15803d;">
+                    <td style="padding: 10px; text-align: center; color: #1e3a8a; font-weight: bold;">
+                        ${formatter.format(sugeridoX3)}
+                    </td>
+                    <td style="padding: 10px; text-align: center; color: #64748b;">
+                        ${formatter.format(cMO)}
+                    </td>
+                    <td style="padding: 10px; text-align: right; font-weight: bold; color: #15803d;">
                         ${formatter.format(vVenta)}
                     </td>
+                    <td style="padding: 10px; text-align: right; font-weight: bold; color: #1e3a8a; background: #f0fdf4;">
+                        ${formatter.format(vUtilidad)}
+                    </td>
                 </tr>`;
-        });
+        }).join('');
 
         const htmlReporte = `
-            <div style="font-family: Arial, sans-serif; padding: 30px; color: #1e293b; max-width: 800px; margin: auto;">
-                <div style="text-align: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 15px; margin-bottom: 20px;">
-                    <h1 style="color: #1e3a8a; font-size: 22px; margin: 0;">MARQUETERÍA LA CHICA MORALES</h1>
-                    <h2 style="color: #64748b; font-size: 16px; margin: 5px 0;">Reporte Financiero Diario</h2>
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 1000px; margin: auto; background: white;">
+                <div style="text-align: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
+                    <h1 style="color: #1e3a8a; font-size: 20px; margin: 0; text-transform: uppercase;">Análisis de Costos y Rentabilidad - Hoy</h1>
+                    <p style="color: #64748b; font-size: 14px; margin: 5px 0;">${hoyDate.toLocaleDateString()}</p>
                 </div>
 
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                     <thead>
-                        <tr style="background: #1e3a8a; color: white; font-size: 0.9rem;">
-                            <th style="padding: 10px; text-align: left;">ORDEN / CLIENTE</th>
-                            <th style="padding: 10px; text-align: left;">DETALLE</th>
-                            <th style="padding: 10px; text-align: right;">DESGLOSE</th>
-                            <th style="padding: 10px; text-align: right;">VENTA</th>
+                        <tr style="background: #1e3a8a; color: white; font-size: 0.75rem;">
+                            <th style="padding: 10px; text-align: left;">OT / CLIENTE</th>
+                            <th style="padding: 10px; text-align: center;">COSTO MAT.</th>
+                            <th style="padding: 10px; text-align: center;">SUGERIDO (x3)</th>
+                            <th style="padding: 10px; text-align: center;">M. OBRA</th>
+                            <th style="padding: 10px; text-align: right;">P. VENTA</th>
+                            <th style="padding: 10px; text-align: right;">UTILIDAD</th>
                         </tr>
                     </thead>
                     <tbody>${filasHTML}</tbody>
+                    <tfoot>
+                        <tr style="background: #f8fafc; font-weight: bold; border-top: 2px solid #1e3a8a;">
+                            <td style="padding: 10px;">TOTALES</td>
+                            <td style="padding: 10px; text-align: center;">${formatter.format(totalCostoMateriales)}</td>
+                            <td style="padding: 10px; text-align: center; color: #1e3a8a;">${formatter.format(totalCostoMateriales * 3)}</td>
+                            <td style="padding: 10px; text-align: center;">${formatter.format(totalManoObra)}</td>
+                            <td style="padding: 10px; text-align: right; color: #15803d;">${formatter.format(totalVentas)}</td>
+                            <td style="padding: 10px; text-align: right; color: #1e3a8a; background: #f0fdf4;">${formatter.format(utilidadTotal)}</td>
+                        </tr>
+                    </tfoot>
                 </table>
 
-                <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 20px;">
-                    <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 0.7rem; color: #64748b; font-weight: bold;">VENTAS</span>
-                        <p style="margin: 5px 0; font-size: 1.1rem; font-weight: bold;">${formatter.format(totalVentas)}</p>
-                    </div>
-                    <div style="flex: 1; background: #fff1f2; padding: 15px; border-radius: 8px; border: 1px solid #fecdd3; text-align: center;">
-                        <span style="font-size: 0.7rem; color: #be123c; font-weight: bold;">COSTOS</span>
-                        <p style="margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #be123c;">${formatter.format(totalCostoMateriales + totalManoObra)}</p>
-                    </div>
-                    <div style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 2px solid #22c55e; text-align: center;">
-                        <span style="font-size: 0.7rem; color: #15803d; font-weight: bold;">UTILIDAD</span>
-                        <p style="margin: 5px 0; font-size: 1.3rem; font-weight: bold; color: #15803d;">${formatter.format(utilidadTotal)}</p>
-                    </div>
-                </div>
-
-                <div style="margin-top: 30px; text-align: center;" class="no-print">
-                    <button onclick="window.print()" style="padding: 10px 20px; background: #1e3a8a; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimir</button>
-                    <button onclick="window.close()" style="padding: 10px 20px; background: #64748b; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Cerrar</button>
+                <div style="text-align: center; margin-top: 20px;" class="no-print">
+                    <button onclick="window.print()" style="padding: 10px 25px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Imprimir Análisis</button>
+                    <button onclick="window.close()" style="padding: 10px 25px; background: #64748b; color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 10px;">Cerrar</button>
                 </div>
             </div>`;
 
