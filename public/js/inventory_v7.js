@@ -534,94 +534,91 @@ function configurarEventos() {
 // Reemplaza tu bloque formCompra.onsubmit con este corregido:
 const formCompra = document.getElementById('formNuevaCompra');
     if (formCompra) {
-    formCompra.onsubmit = async (e) => {
-        e.preventDefault();
+        formCompra.onsubmit = async function(e) {
+            e.preventDefault();
 
-        // 1. Identificar el botón
-        const btn = e.target.querySelector('button[type="submit"]');
-        if (btn) { 
-            btn.disabled = true; 
-            btn.innerHTML = 'GUARDANDO...'; 
-        }
-
-        
-        // --- REEMPLAZA DESDE EL TRY { HASTA EL CIERRE DEL CATCH/FINALLY ---
-        try {
-            const selectMat = document.getElementById('compraMaterial');
-            const inputNuevo = document.getElementById('nombreNuevoMaterial');
-            const inputCant = document.getElementById('compraCantidad');
-            const inputCosto = document.getElementById('compraCosto');
-            const inputLargo = document.getElementById('compraLargo');
-            const inputAncho = document.getElementById('compraAncho');
-
-            let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
-            
-            // Formato: Molduras en MAYÚS, el resto (Lona, Tela) como lo escribas
-            const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
-            let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
-
-            const cant = parseFloat(inputCant.value) || 0;
-            const costo = parseFloat(inputCosto.value) || 0;
-            let unidadFinal = esMoldura ? "ml" : "m²";
-            
-            // Cálculo de stock: 2.90 para molduras, área para m² (como tu lona)
-            let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
-
-            // ACTUALIZACIÓN DE ARRAY GLOBAL
-            if (!window.todosLosMateriales) window.todosLosMateriales = [];
-            let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
-
-            if (existente) {
-                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                existente.precio_total_lamina = costo;
-                existente.nombre = nombreReal;
-            } else {
-                const nuevoId = `MAT-${Date.now()}`;
-                existente = {
-                    id: nuevoId,
-                    nombre: nombreReal,
-                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                    tipo: unidadFinal,
-                    stock_actual: stockASumar,
-                    precio_total_lamina: costo,
-                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
-                };
-                window.todosLosMateriales.unshift(existente);
+            // 1. Identificar el botón y el formulario
+            const formulario = e.target;
+            const btn = formulario.querySelector('button[type="submit"]');
+            if (btn) { 
+                btn.disabled = true; 
+                btn.innerHTML = 'GUARDANDO...'; 
             }
 
-            // --- LA "CAJA DE SEGURIDAD" (Esto evita que la lona se borre al refrescar) ---
-            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            // Quitamos lo viejo, ponemos lo nuevo
-            pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
-            pendientes.push(existente);
-            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+            try {
+                const selectMat = document.getElementById('compraMaterial');
+                const inputNuevo = document.getElementById('nombreNuevoMaterial');
+                const inputCant = document.getElementById('compraCantidad');
+                const inputCosto = document.getElementById('compraCosto');
+                const inputLargo = document.getElementById('compraLargo');
+                const inputAncho = document.getElementById('compraAncho');
 
-            // Limpieza de lista negra
-            let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-            eliminados = eliminados.filter(id => id !== String(existente.id));
-            localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+                let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
+                
+                // Formato: Molduras en MAYÚS, el resto (Lona, Tela) como lo escribas
+                const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
+                let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
-            // FINALIZAR
-            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-            renderTable(window.todosLosMateriales);
-            
-            alert(`✅ Registrado: ${nombreReal}`);
-            const modal = document.getElementById('modalCompra');
-            if(modal) modal.style.display = 'none';
-            formulario.reset();
+                const cant = parseFloat(inputCant.value) || 0;
+                const costo = parseFloat(inputCosto.value) || 0;
+                let unidadFinal = esMoldura ? "ml" : "m²";
+                
+                // Cálculo de stock: 2.90 para molduras, área para m² (como tu lona)
+                let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
 
-        } catch (error) {
-            console.error("❌ Error:", error);
-            alert("Error: " + error.message);
-        } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
-        }
+                // ACTUALIZACIÓN DE ARRAY GLOBAL
+                if (!window.todosLosMateriales) window.todosLosMateriales = [];
+                let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
+
+                if (existente) {
+                    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                    existente.precio_total_lamina = costo;
+                    existente.nombre = nombreReal;
+                } else {
+                    const nuevoId = `MAT-${Date.now()}`;
+                    existente = {
+                        id: nuevoId,
+                        nombre: nombreReal,
+                        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                        tipo: unidadFinal,
+                        stock_actual: stockASumar,
+                        precio_total_lamina: costo,
+                        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
+                    };
+                    window.todosLosMateriales.unshift(existente);
+                }
+
+                // --- LA "CAJA DE SEGURIDAD" (Esto evita que la lona se borre al refrescar) ---
+                let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+                // Quitamos lo viejo de este material específico y ponemos lo nuevo
+                pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
+                pendientes.push(existente);
+                localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+
+                // Limpieza de lista negra (Para que no se oculte al refrescar)
+                let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+                eliminados = eliminados.filter(id => id !== String(existente.id));
+                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+
+                // FINALIZAR Y RENDERIZAR
+                localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+                renderTable(window.todosLosMateriales);
+                
+                alert(`✅ Registrado: ${nombreReal}`);
+                const modal = document.getElementById('modalCompra');
+                if(modal) modal.style.display = 'none';
+                formulario.reset();
+
+            } catch (error) {
+                console.error("❌ Error:", error);
+                alert("Error: " + error.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
+            }
+        }; 
     }
-    }; // Aquí cierra el onsubmit
-} // Aquí cierra el if (formCompra)
-
-
+}
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
