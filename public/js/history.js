@@ -70,6 +70,7 @@ async function fetchInvoices() {
 async function generarReporteDiario() {
     try {
         const facturasAReportar = todasLasFacturas;
+        const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
@@ -78,7 +79,7 @@ async function generarReporteDiario() {
         let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
-                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
                 th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; text-transform: uppercase; }
                 td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
@@ -99,9 +100,8 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
-            htmlContenido += `
-            <div class="ot-card">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+            htmlContenido += `<div class="ot-card">
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom:10px;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
                     <span style="color:#64748b">CLIENTE:</span> <strong>${(f.clienteNombre || "S/N").toUpperCase()}</strong></div>
                     <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${new Date(f.fecha).toLocaleDateString()}</div>
@@ -118,14 +118,23 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                // --- AJUSTE QUIRÚRGICO DE NOMBRE ---
-                // Buscamos en orden: nombre -> material -> descripcion
-                const nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
-                
                 const area = Number(item.area_m2 || item.area || 1);
                 const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || 0);
                 
-                const costoFila = (costoBaseUnitario > 0) ? (costoBaseUnitario * area) : 0;
+                // --- MOTOR TRADUCTOR ---
+                // Si el nombre dice "MATERIAL", lo buscamos en el inventario comparando el COSTO
+                let nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
+                
+                if (nombreReal === "MATERIAL" && costoBaseUnitario > 0) {
+                    const materialCoincidente = inventarioLocal.find(inv => 
+                        Math.abs(Number(inv.costo_m2 || inv.precio_m2_costo) - costoBaseUnitario) < 10
+                    );
+                    if (materialCoincidente) {
+                        nombreReal = materialCoincidente.nombre.toUpperCase();
+                    }
+                }
+
+                const costoFila = costoBaseUnitario * area;
                 const sugeridoFila = costoFila * 3;
 
                 sumaCostoMateriales += costoFila;
@@ -143,8 +152,7 @@ async function generarReporteDiario() {
             const totalOrden = sumaMaterialesX3 + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales;
 
-            htmlContenido += `
-                    </tbody>
+            htmlContenido += `</tbody>
                     <tfoot class="tfoot-sumas">
                         <tr>
                             <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
@@ -153,14 +161,12 @@ async function generarReporteDiario() {
                         </tr>
                     </tfoot>
                 </table>
-
                 <div class="resumen-grid">
                     <div><span class="label-resumen">SUMA COSTOS MATERIALES</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
                     <div><span class="label-resumen">SUMA COSTOS MATERIALES (X3)</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
                     <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObra)}</span></div>
                     <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
                 </div>
-
                 <div class="footer-rentabilidad">
                     <span class="rentabilidad-texto">RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadReal)} ✅</span>
                 </div>
