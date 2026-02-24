@@ -145,41 +145,19 @@
                 </div>
                 <div class="input-group">
     <label style="font-size: 0.85em; color: #1e3a8a; font-weight: 800;">
-        <i class="fas fa-search"></i> Buscar Moldura (Código)
+        <i class="fas fa-search"></i> Marco / Moldura (Escriba Código)
     </label>
     <input type="text" 
            list="lista-molduras" 
            id="input-moldura" 
            class="form-control" 
-           placeholder="Escribe código (Ej: K 2312)..." 
+           placeholder="Ej: K 2312..." 
            oninput="sincronizarBuscadorMoldura(this.value)"
-           style="margin-bottom: 5px; border: 2px solid #3498db; background: #fff; width: 100%; padding: 12px; border-radius: 8px; box-sizing: border-box;">
+           style="border: 2px solid #3498db; background: #fff; width: 100%; padding: 12px; border-radius: 8px; box-sizing: border-box; font-weight: bold;">
     
     <datalist id="lista-molduras"></datalist>
 
-    <label style="font-size: 0.75em; opacity: 0.8;">Selección de respaldo (Lista):</label>
-    <select id="materialOtroId" class="mat-selector">
-        <option value="">-- Ninguno --</option>
-    </select>
-</div>
-
-<div class="input-group">
-    <label style="font-size: 0.85em;">Foam Board</label>
-    <select id="materialFoamId" class="mat-selector">
-        <option value="">-- Ninguno --</option>
-    </select>
-</div>
-
-<div class="input-group">
-    <label style="font-size: 0.85em;">Tela / Lona</label>
-    <select id="materialTelaId" class="mat-selector">
-        <option value="">-- Ninguno --</option>
-    </select>
-</div>
-
-<div class="input-group" style="grid-column: span 2;">
-    <label style="font-size: 0.85em;">Acabado Especial (Chapilla)</label>
-    <select id="materialChapillaId" class="mat-selector">
+    <select id="materialOtroId" style="display: none;">
         <option value="">-- Ninguno --</option>
     </select>
 </div>
