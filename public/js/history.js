@@ -70,13 +70,12 @@ async function fetchInvoices() {
 async function generarReporteDiario() {
     try {
         const facturasAReportar = todasLasFacturas;
-        const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
 
         const nuevaVentana = window.open('', '_blank');
-        let htmlContenido = `<html><head><title>Auditoría - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
                 .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
@@ -87,7 +86,8 @@ async function generarReporteDiario() {
                 .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; margin-top: 15px; }
                 .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 5px; }
                 .val-resumen { font-size: 1.1rem; font-weight: 800; color: #1e293b; }
-                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; font-size: 1.1rem; }
+                .footer-rentabilidad { background: #f0fdf4; padding: 15px; border-radius: 5px; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
+                .rentabilidad-texto { color: #15803d; font-weight: bold; font-size: 1.1rem; }
             </style>
         </head><body>
             <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD</h1>`;
@@ -118,32 +118,26 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase().trim();
+                const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase();
                 const area = Number(item.area_m2 || item.area || 1);
                 
-                // --- RESCATE INDIVIDUAL ---
-                // Priorizamos el costo que viene en el item, si es 0, buscamos específicamente
-                let costoBaseUnit = Number(item.costoBase || item.precioUnitario || 0);
+                // --- EXTRACCIÓN DIRECTA ---
+                // Leemos el costo que la factura ya tiene guardado internamente
+                const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || 0);
                 
-                if (costoBaseUnit === 0) {
-                    const m = inventarioLocal.find(inv => inv.nombre.toUpperCase().trim() === nombreItem);
-                    if (m) {
-                        costoBaseUnit = Number(m.costo_m2 || m.precio_m2_costo || 0);
-                    }
-                }
+                // Si el item ya trae el costo calculado (como en OT-00033), lo usamos, si no, lo calculamos
+                const costoFila = (costoBaseUnitario > 0) ? (costoBaseUnitario * area) : 0;
+                const sugeridoFila = costoFila * 3;
 
-                const costoProporcional = costoBaseUnit * area;
-                const sugeridoProporcional = costoProporcional * 3;
-
-                sumaCostoMateriales += costoProporcional;
-                sumaMaterialesX3 += sugeridoProporcional;
+                sumaCostoMateriales += costoFila;
+                sumaMaterialesX3 += sugeridoFila;
 
                 htmlContenido += `
                     <tr>
                         <td style="text-align:left; font-weight:600;">${nombreItem}</td>
                         <td>${area.toFixed(3)} ${medidaTexto}</td>
-                        <td>${formatter.format(costoProporcional)}</td>
-                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoProporcional)}</td>
+                        <td>${formatter.format(costoFila)}</td>
+                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
                     </tr>`;
             });
 
@@ -168,8 +162,8 @@ async function generarReporteDiario() {
                     <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
                 </div>
 
-                <div class="alerta-positiva">
-                    RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadReal)} ✅
+                <div class="footer-rentabilidad">
+                    <span class="rentabilidad-texto">RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadReal)} ✅</span>
                 </div>
             </div>`;
         });
