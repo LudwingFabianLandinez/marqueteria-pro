@@ -278,80 +278,35 @@ function imprimirResumen() {
 }
 
 // --- FUNCIÓN ACTUALIZADA CON GANCHOS PARA MODELO 13.1.0 ---
-async function facturarVenta() {
-    if (!datosCotizacionActual) return;
-    const nombre = document.getElementById('nombreCliente').value.trim();
-    const tel = document.getElementById('telCliente').value.trim() || "N/A";
-    const abono = parseFloat(document.getElementById('abonoInicial').value) || 0;
-    const btnVenta = document.getElementById('btnFinalizarVenta');
-
-    if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
-
-    // --- AQUÍ ESTÁ EL RESCATE DE DATOS REALES ---
+// --- RESCATE UNIVERSAL (Sin IDs, sin clases específicas) ---
     const itemsProcesados = [];
     
-    // Lista de IDs de los selectores que tienes en tu dashboard.html
-    const selectoresIds = ['materialId', 'respaldoId', 'paspartuId', 'marcoId', 'foamboardId', 'telaId', 'chapillaId'];
+    // Buscamos TODOS los selects que estén dentro del contenedor de materiales
+    // Esto asegura que si hay 4, 5 o 10 materiales, los agarre todos.
+    const todosLosSelects = document.querySelectorAll('select');
 
-    selectoresIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.value && el.selectedIndex > 0) {
-            const opcionSeleccionada = el.options[el.selectedIndex];
+    todosLosSelects.forEach(select => {
+        // Solo nos interesan los que tengan un material seleccionado
+        if (select.value && select.selectedIndex > 0) {
+            const opcion = select.options[select.selectedIndex];
             
-            // Extraemos el nombre limpiando el (Stock)
-            const nombreLimpio = opcionSeleccionada.text.split('(')[0].trim().toUpperCase();
-            
-            // Extraemos el costo que inyectamos en el 'llenar'
-            const costoExtraido = parseFloat(opcionSeleccionada.dataset.costo) || 0;
+            // Si la opción no tiene costo, es que es un select de otra cosa (como el cliente)
+            // Por eso validamos que tenga el data-costo que inyectamos antes
+            if (opcion.dataset.costo !== undefined) {
+                const nombreReal = opcion.text.split('(')[0].trim().toUpperCase();
+                const costoReal = parseFloat(opcion.dataset.costo) || 0;
 
-            itemsProcesados.push({
-                productoId: el.value,
-                descripcion: nombreLimpio,
-                nombre: nombreLimpio,
-                materialNombre: nombreLimpio,
-                ancho: datosCotizacionActual.anchoOriginal,
-                largo: datosCotizacionActual.largoOriginal,
-                area_m2: datosCotizacionActual.areaFinal,
-                cantidad: 1,
-                costoBase: costoExtraido,
-                costo_base_unitario: costoExtraido
-            });
+                itemsProcesados.push({
+                    productoId: select.value,
+                    descripcion: nombreReal,
+                    nombre: nombreReal,
+                    costoBase: costoReal,
+                    costo_base_unitario: costoReal,
+                    cantidad: 1,
+                    ancho: datosCotizacionActual.anchoOriginal || 0,
+                    largo: datosCotizacionActual.largoOriginal || 0,
+                    area_m2: datosCotizacionActual.areaFinal || 0
+                });
+            }
         }
     });
-
-    const facturaData = {
-        cliente: { nombre: nombre, telefono: tel },
-        medidas: datosCotizacionActual.detalles?.medidas || '--',
-        items: itemsProcesados, // <--- Usamos los datos rescatados directamente del HTML
-        mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
-        totalFactura: datosCotizacionActual.precioSugeridoCliente,
-        totalPagado: abono,
-        fecha: new Date()
-    };
-
-    try {
-        btnVenta.disabled = true;
-        btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-        
-        const response = await fetch('/.netlify/functions/server/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(facturaData)
-        });
-
-        if (!response.ok) throw new Error("Error en el servidor al guardar.");
-
-        const result = await response.json();
-        if (result.success) {
-            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Registrada'}`);
-            window.location.href = "/history.html"; 
-        } else {
-            throw new Error(result.error || "No se pudo registrar la venta.");
-        }
-    } catch (error) { 
-        console.error("Error en facturación:", error);
-        alert("🚨 ERROR: " + error.message);
-        btnVenta.disabled = false;
-        btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
-    }
-}
