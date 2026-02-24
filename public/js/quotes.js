@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...(cat.marcos || []), ...(cat.foam || []), ...(cat.tela || []), ...(cat.chapilla || [])
             ];
 
-           const llenar = (select, lista, esMarco = false) => {
+            const llenar = (select, lista, esMarco = false) => {
                 if (!select) return;
                 if (!lista || lista.length === 0) {
                     select.innerHTML = `<option value="">-- No disponible --</option>`;
@@ -43,9 +43,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
                 
-                // Preparar el datalist solo si es la sección de Marcos/Molduras
+                // --- CONEXIÓN QUIRÚRGICA CON EL DATALIST ---
                 const datalist = document.getElementById('lista-molduras');
-                if (esMarco && datalist) datalist.innerHTML = '';
+                if (esMarco && datalist) {
+                    datalist.innerHTML = ''; // Limpiar antes de llenar
+                }
 
                 lista.forEach(m => {
                     const stock = m.stock_actual || m.stock_actual_m2 || 0;
@@ -61,35 +63,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // PRIORIDAD DE PRECIO: Si es ML busca precio_ml, si no, busca m2
+                    // PRIORIDAD DE PRECIO: Buscamos el valor correcto según la unidad
                     const precioDetectado = esML ? (m.precio_ml || m.costo_base || m.costoUnitario || 0) : (m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0);
                     
                     option.dataset.costo = precioDetectado;
-                    option.dataset.unidad = esML ? 'ML' : 'M2'; // Blindaje para el cálculo posterior
+                    option.dataset.unidad = esML ? 'ML' : 'M2';
                     
-                    option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
+                    const nombreMayuscula = m.nombre.toUpperCase();
+                    option.textContent = `${nombreMayuscula} ${avisoStock}`;
                     select.appendChild(option);
 
-                    // Si es marco, alimentar el buscador inteligente
+                    // ALIMENTAR EL BUSCADOR (DATALIST)
                     if (esMarco && datalist) {
                         const optBusqueda = document.createElement('option');
-                        optBusqueda.value = m.nombre.toUpperCase();
+                        // Aquí ponemos el nombre con el stock para que lo veas al buscar
+                        optBusqueda.value = nombreMayuscula; 
                         optBusqueda.dataset.id = m._id || m.id;
                         datalist.appendChild(optBusqueda);
                     }
                 });
             };
 
-            // LLAMADAS QUIRÚRGICAS (Solo el Marco lleva el 'true' para el buscador)
+            // LLAMADAS QUIRÚRGICAS
             llenar(selects.Vidrio, cat.vidrios);
             llenar(selects.Respaldo, cat.respaldos);
             llenar(selects.Paspartu, cat.paspartu);
-            llenar(selects.Marco, cat.marcos, true); // <--- ACTIVADOR DE BUSCADOR Y ML
+            llenar(selects.Marco, cat.marcos, true); // <--- ACTIVADOR DE MOLDURAS
             llenar(selects.Foam, cat.foam);
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Materiales cargados con Buscador Inteligente y Soporte ML");
+            console.log("✅ Buscador sincronizado con " + (cat.marcos ? cat.marcos.length : 0) + " molduras.");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
