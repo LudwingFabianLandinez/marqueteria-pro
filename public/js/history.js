@@ -76,91 +76,94 @@ async function generarReporteDiario() {
         });
 
         const nuevaVentana = window.open('', '_blank');
-        let htmlContenido = `<html><head><title>Auditoría - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
-                body { font-family: 'Segoe UI', sans-serif; padding: 30px; color: #1e293b; background: #f1f5f9; }
-                .ot-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                table { width: 100%; border-collapse: collapse; }
-                th { background: #1e3a8a; color: white; padding: 10px; font-size: 0.8rem; text-transform: uppercase; }
-                td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-                .resumen-financiero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
-                .valor-alerta { color: #dc2626; font-weight: 800; } /* Rojo si cobraste menos de lo sugerido */
-                .valor-exito { color: #15803d; font-weight: 800; }
+                body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
+                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; }
+                td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
+                .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; }
+                .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; }
+                .val-resumen { font-size: 1.1rem; font-weight: 800; display: block; }
+                .alerta-negativa { color: #e11d48; background: #fff1f2; padding: 10px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #fecaca; }
+                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 10px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
             </style>
-        </head><body>`;
+        </head><body>
+            <h1 style="text-align:center; color:#1e3a8a;">AUDITORÍA DE RENTABILIDAD</h1>`;
 
         facturasAReportar.forEach(f => {
-            const items = f.items || [];
-            let sumaCostoX3OT = 0;
-            let sumaCostoBaseOT = 0;
-
-            // 1. Calculamos la Mano de Obra (Diferencia entre total y lo que suman los items)
-            // Si no está guardada explícitamente, la detectamos
-            const valorTotalFactura = Number(f.totalFactura || f.total || 0);
+            let sumaCostoBase = 0;
+            let sumaSugeridoX3 = 0;
+            // Rescatamos mano de obra de cualquier campo posible
+            const manoObraRegistrada = Number(f.manoObra || f.mano_obra_total || f.mano_obra || 0);
+            const totalCobrado = Number(f.totalFactura || f.total || 0);
 
             htmlContenido += `
             <div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                    <div><strong>${formatearNumeroOT(f)}</strong><br>CLIENTE: ${(f.clienteNombre || "S/N").toUpperCase()}</div>
-                    <div style="text-align:right">FECHA: ${new Date(f.fecha).toLocaleDateString()}</div>
+                    <div><strong style="font-size:1.3rem;">${formatearNumeroOT(f)}</strong><br>CLIENTE: ${(f.cliente?.nombre || f.clienteNombre || "S/N").toUpperCase()}</div>
+                    <div style="text-align:right;">FECHA: ${new Date(f.fecha).toLocaleDateString()}</div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Material</th>
-                            <th style="text-align:center;">Medida (m²/ml)</th>
-                            <th style="text-align:center;">Costo Unit.</th>
-                            <th style="text-align:center;">Sugerido (x3)</th>
-                            <th style="text-align:center;">Subtotal Sugerido</th>
+                            <th style="text-align:left;">Material</th>
+                            <th>Medida (m²/ML)</th>
+                            <th>Costo Base Unit.</th>
+                            <th>Sugerido (x3)</th>
+                            <th>Subtotal Sugerido</th>
                         </tr>
                     </thead>
                     <tbody>`;
 
-            items.forEach(item => {
-                // RESCATE DE NOMBRE: Probamos todas las rutas posibles
-                const nombre = (item.descripcion || item.nombre || item.material || "Material no especificado").toUpperCase();
+            (f.items || []).forEach(item => {
+                // 1. RESCATE DE NOMBRE
+                const nombreItem = (item.descripcion || item.nombre || item.material || "MATERIAL NO ESPECIFICADO").toUpperCase();
                 
-                // MEDIDA: Buscamos el área o cantidad guardada
-                const medida = item.area || item.cantidad || 1;
+                // 2. RESCATE DE MEDIDA
+                const medida = Number(item.area_m2 || item.area || item.cantidad || 1);
                 
-                // COSTO:
-                let cBase = Number(item.costoBase || 0);
+                // 3. SUPER RESCATE DE COSTO (Factura -> Inventario)
+                let cBase = Number(item.costoBase || item.costo_base_unitario || item.costo_m2_base || 0);
+
                 if (cBase === 0) {
-                    const mInv = inventarioLocal.find(m => (m.nombre || "").toLowerCase().trim() === nombre.toLowerCase().trim());
-                    if (mInv) cBase = Number(mInv.costo_m2 || mInv.precio_m2_costo || 0);
+                    const mInv = inventarioLocal.find(m => 
+                        (m.nombre || "").toLowerCase().trim() === nombreItem.toLowerCase().trim()
+                    );
+                    if (mInv) cBase = Number(mInv.costo_m2 || mInv.precio_m2_costo || mInv.costo || 0);
                 }
 
                 const sugeridoU = cBase * 3;
                 const sugeridoT = sugeridoU * medida;
                 
-                sumaCostoBaseOT += (cBase * medida);
-                sumaCostoX3OT += sugeridoT;
+                sumaCostoBase += (cBase * medida);
+                sumaSugeridoX3 += sugeridoT;
 
                 htmlContenido += `
                     <tr>
-                        <td>${nombre}</td>
-                        <td style="text-align:center;">${medida.toFixed(2)}</td>
-                        <td style="text-align:center;">${formatter.format(cBase)}</td>
-                        <td style="text-align:center;">${formatter.format(sugeridoU)}</td>
-                        <td style="text-align:center; background:#f0fdf4;"><strong>${formatter.format(sugeridoT)}</strong></td>
+                        <td style="text-align:left; font-weight:600;">${nombreItem}</td>
+                        <td>${medida.toFixed(3)}</td>
+                        <td>${formatter.format(cBase)}</td>
+                        <td>${formatter.format(sugeridoU)}</td>
+                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoT)}</td>
                     </tr>`;
             });
 
-            // Supongamos que la Mano de Obra se calcula por la diferencia o se lee de la factura
-            const manoObra = f.manoObra || 35000; // Aquí podrías poner f.manoObra si lo guardas
-            const totalSugeridoFinal = sumaCostoX3OT + manoObra;
-            const diferencia = valorTotalFactura - totalSugeridoFinal;
+            const totalSugeridoFinal = sumaSugeridoX3 + manoObraRegistrada;
+            const diferencia = totalCobrado - totalSugeridoFinal;
 
             htmlContenido += `</tbody></table>
-                <div class="resumen-financiero">
-                    <div><span style="font-size:0.7rem">COSTO MATERIALES</span><br><strong>${formatter.format(sumaCostoBaseOT)}</strong></div>
-                    <div><span style="font-size:0.7rem">MANO DE OBRA (MANUAL)</span><br><strong>${formatter.format(manoObra)}</strong></div>
-                    <div><span style="font-size:0.7rem">TOTAL SUGERIDO (COSTOSx3 + M.O)</span><br><span class="valor-exito">${formatter.format(totalSugeridoFinal)}</span></div>
+                <div class="resumen-grid">
+                    <div><span class="label-resumen">Costo Materiales</span><span class="val-resumen">${formatter.format(sumaCostoBase)}</span></div>
+                    <div><span class="label-resumen">Sugerido Mat. (x3)</span><span class="val-resumen">${formatter.format(sumaSugeridoX3)}</span></div>
+                    <div><span class="label-resumen">Mano de Obra</span><span class="val-resumen">${formatter.format(manoObraRegistrada)}</span></div>
+                    <div><span class="label-resumen">Total Sugerido</span><span class="val-resumen" style="color:#1e3a8a;">${formatter.format(totalSugeridoFinal)}</span></div>
                 </div>
-                <div style="margin-top:15px; text-align:right; font-size:1.2rem; border-top: 2px solid #1e3a8a; padding-top:10px;">
-                    VALOR COBRADO EN FACTURA: <strong>${formatter.format(valorTotalFactura)}</strong><br>
-                    <span style="font-size:0.9rem; color: ${diferencia < 0 ? '#dc2626' : '#15803d'}">
-                        ${diferencia < 0 ? '⚠️ ESTÁS COBRANDO ' + formatter.format(Math.abs(diferencia)) + ' POR DEBAJO DEL SUGERIDO' : '✅ COBRO CORRECTO'}
+                <div class="${diferencia < -500 ? 'alerta-negativa' : 'alerta-positiva'}">
+                    VALOR COBRADO EN FACTURA: ${formatter.format(totalCobrado)} <br>
+                    <span style="font-size:0.85rem;">
+                        ${diferencia < -500 ? '⚠️ ATENCIÓN: Se cobraron ' + formatter.format(Math.abs(diferencia)) + ' por debajo del precio sugerido.' : '✅ La venta cubre los costos y el margen x3.'}
                     </span>
                 </div>
             </div>`;
@@ -169,7 +172,7 @@ async function generarReporteDiario() {
         htmlContenido += `</body></html>`;
         nuevaVentana.document.write(htmlContenido);
         nuevaVentana.document.close();
-    } catch (e) { console.error(e); }
+    } catch (error) { console.error("Error en reporte:", error); }
 }
 
 // --- 4. EXPORTAR A EXCEL (INTACTO) ---
