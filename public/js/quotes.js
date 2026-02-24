@@ -287,34 +287,42 @@ async function facturarVenta() {
 
     if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
 
-    // --- PROCESAMIENTO ROBUSTO DE ITEMS ---
-    const itemsParaEnviar = (datosCotizacionActual.detalles?.materiales || []).map(m => {
-    // --- CAMBIO CLAVE AQUÍ ---
-    // Buscamos primero en 'costo_m2' porque así se llama en tu inventario
-    const costoValido = parseFloat(m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0);
-    const nombreMaterial = m.nombre || "Material";
+    // --- AQUÍ ESTÁ EL RESCATE DE DATOS REALES ---
+    const itemsProcesados = [];
+    
+    // Lista de IDs de los selectores que tienes en tu dashboard.html
+    const selectoresIds = ['materialId', 'respaldoId', 'paspartuId', 'marcoId', 'foamboardId', 'telaId', 'chapillaId'];
 
-    return {
-        productoId: m.id || m._id,
-        descripcion: nombreMaterial.toUpperCase(), 
-        nombre: nombreMaterial.toUpperCase(),
-        materialNombre: nombreMaterial.toUpperCase(),
-        ancho: datosCotizacionActual.anchoOriginal,
-        largo: datosCotizacionActual.largoOriginal,
-        area_m2: datosCotizacionActual.areaFinal,
-        cantidad: 1, 
-        costoBase: costoValido, 
-        costo_base_unitario: costoValido
-    };
-});
+    selectoresIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.value && el.selectedIndex > 0) {
+            const opcionSeleccionada = el.options[el.selectedIndex];
+            
+            // Extraemos el nombre limpiando el (Stock)
+            const nombreLimpio = opcionSeleccionada.text.split('(')[0].trim().toUpperCase();
+            
+            // Extraemos el costo que inyectamos en el 'llenar'
+            const costoExtraido = parseFloat(opcionSeleccionada.dataset.costo) || 0;
+
+            itemsProcesados.push({
+                productoId: el.value,
+                descripcion: nombreLimpio,
+                nombre: nombreLimpio,
+                materialNombre: nombreLimpio,
+                ancho: datosCotizacionActual.anchoOriginal,
+                largo: datosCotizacionActual.largoOriginal,
+                area_m2: datosCotizacionActual.areaFinal,
+                cantidad: 1,
+                costoBase: costoExtraido,
+                costo_base_unitario: costoExtraido
+            });
+        }
+    });
 
     const facturaData = {
-        cliente: {
-            nombre: nombre,
-            telefono: tel
-        },
+        cliente: { nombre: nombre, telefono: tel },
         medidas: datosCotizacionActual.detalles?.medidas || '--',
-        items: itemsParaEnviar, 
+        items: itemsProcesados, // <--- Usamos los datos rescatados directamente del HTML
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         totalFactura: datosCotizacionActual.precioSugeridoCliente,
         totalPagado: abono,
@@ -331,14 +339,11 @@ async function facturarVenta() {
             body: JSON.stringify(facturaData)
         });
 
-        const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
-             throw new Error("El servidor no respondió correctamente.");
-        }
+        if (!response.ok) throw new Error("Error en el servidor al guardar.");
 
         const result = await response.json();
         if (result.success) {
-            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || result.data?.numeroFactura || 'Registrada'}`);
+            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Registrada'}`);
             window.location.href = "/history.html"; 
         } else {
             throw new Error(result.error || "No se pudo registrar la venta.");
