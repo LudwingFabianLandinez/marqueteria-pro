@@ -221,4 +221,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.4.35 - Normalización y Stock Garantizado (Rescate de Emergencia).");
+console.log("🛡️ API v13.4.35 - Normalización y Stock Garantizado (Rescate de Emergencia).");console.log('?? FUERZA BRUTA: v13.7.0');
