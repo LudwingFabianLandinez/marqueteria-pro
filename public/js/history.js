@@ -69,42 +69,49 @@ async function fetchInvoices() {
 // --- 3. REPORTE DE AUDITORÍA DETALLADO (PUNTOS 1 AL 5 CORREGIDO) ---
 async function generarReporteDiario() {
     try {
-        const facturasAReportar = todasLasFacturas;
-        const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
-        const formatter = new Intl.NumberFormat('es-CO', { 
-            style: 'currency', currency: 'COP', maximumFractionDigits: 0 
+        const fechaInput = prompt("Ingrese la fecha (AAAA-MM-DD):", new Date().toISOString().split('T')[0]);
+        if (!fechaInput) return;
+
+        const buscada = fechaInput.replace(/-/g, "");
+        const facturasAReportar = todasLasFacturas.filter(f => {
+            if (!f.fecha) return false;
+            const p = f.fecha.split('/');
+            return p.length === 3 && `${p[2]}${p[1].padStart(2, '0')}${p[0].padStart(2, '0')}` === buscada;
         });
 
+        if (facturasAReportar.length === 0) return alert("No hay ventas para esta fecha.");
+
+        const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
+        const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
         const nuevaVentana = window.open('', '_blank');
-        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Reporte - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
                 .no-print { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
-                .btn { padding: 10px 15px; cursor: pointer; border-radius: 5px; border: none; color: white; font-weight: bold; text-transform: uppercase; }
-                .header-container { text-align: center; margin-bottom: 30px; border-bottom: 4px solid #1e3a8a; padding-bottom: 10px; }
+                .btn { padding: 10px 15px; cursor: pointer; border-radius: 5px; border: none; color: white; font-weight: bold; }
+                .header-marca { text-align: center; border-bottom: 4px solid #1e3a8a; margin-bottom: 30px; padding-bottom: 10px; }
                 .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-                th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; text-transform: uppercase; }
+                th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; }
                 td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
                 .tfoot-sumas td { background: #f8fafc; font-weight: 800; color: #1e3a8a; border-top: 2px solid #1e3a8a; }
                 .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; margin-top: 15px; }
-                .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 5px; }
-                .val-resumen { font-size: 1.1rem; font-weight: 800; color: #1e293b; }
-                .footer-rentabilidad { background: #f0fdf4; padding: 15px; border-radius: 5px; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
-                .rentabilidad-texto { color: #15803d; font-weight: bold; font-size: 1.2rem; }
+                .label-resumen { font-size: 0.7rem; color: #64748b; font-weight: bold; display: block; }
+                .val-resumen { font-size: 1.1rem; font-weight: 800; }
+                .footer-rentabilidad { background: #f0fdf4; padding: 15px; text-align: right; border: 1px solid #bbf7d0; margin-top: 10px; }
                 @media print { .no-print { display: none; } }
             </style>
         </head><body>
             <div class="no-print">
-                <button class="btn" style="background: #64748b;" onclick="window.close()">← REGRESAR</button>
-                <button class="btn" style="background: #1e3a8a;" onclick="window.print()">🖨️ IMPRIMIR</button>
-                <button class="btn" style="background: #16a34a;" onclick="exportarExcel()">📊 EXCEL</button>
+                <button class="btn" style="background:#64748b" onclick="window.close()">← REGRESAR</button>
+                <button class="btn" style="background:#1e3a8a" onclick="window.print()">🖨️ IMPRIMIR</button>
+                <button class="btn" style="background:#16a34a" onclick="exportarExcel()">📊 EXCEL</button>
             </div>
-
-            <div class="header-container">
-                <h1 style="color:#1e3a8a; margin:0;">MARQUETERIA LA CHICA MORALES</h1>
-                <h2 style="color:#64748b; margin:5px 0;">REPORTE DE VENTAS</h2>
-                <p><strong>FECHA:</strong> ${new Date().toLocaleDateString()}</p>
+            <div class="header-marca">
+                <h1>MARQUETERIA LA CHICA MORALES</h1>
+                <h2>REPORTE DE VENTAS</h2>
+                <p><strong>FECHA:</strong> ${fechaInput}</p>
             </div>`;
 
         facturasAReportar.forEach(f => {
@@ -112,50 +119,41 @@ async function generarReporteDiario() {
             let sumaMaterialesX3 = 0;
             const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
-            const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
-            
-            // CORRECCIÓN DE NOMBRE PARA QUITAR EL S/N
             const nombreCliente = (f.cliente?.nombre || f.clienteNombre || "CLIENTE GENERAL").toUpperCase();
 
             htmlContenido += `<div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom:10px;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
-                    <span style="color:#64748b">CLIENTE:</span> <strong>${nombreCliente}</strong></div>
-                    <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${f.fecha || '---'}</div>
+                    <span>CLIENTE: <strong>${nombreCliente}</strong></span></div>
+                    <div><strong>FECHA OT:</strong> ${f.fecha}</div>
                 </div>
                 <table>
-                    <thead>
-                        <tr>
-                            <th style="text-align:left;">Descripción Material</th>
-                            <th>Medida Usada (m²)</th>
-                            <th>Costo por Medida</th>
-                            <th>Subtotal Material (x3)</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Descripción Material</th><th>Medida (m²)</th><th>Costo Base</th><th>Subtotal (x3)</th></tr></thead>
                     <tbody>`;
 
             (f.items || []).forEach(item => {
                 const area = Number(item.area_m2 || item.area || 1);
-                const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || 0);
+                // BUSQUEDA AGRESIVA DE COSTO (para evitar el $0)
+                const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || item.costo || 0);
                 
                 let nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
                 
-                if (nombreReal === "MATERIAL" && costoBaseUnitario > 0) {
-                    const materialCoincidente = inventarioLocal.find(inv => 
+                // Traductor de nombres por costo si viene como "MATERIAL"
+                if ((nombreReal === "MATERIAL" || nombreReal === "") && costoBaseUnitario > 0) {
+                    const match = inventarioLocal.find(inv => 
                         Math.abs(Number(inv.costo_m2 || inv.precio_m2_costo) - costoBaseUnitario) < 10
                     );
-                    if (materialCoincidente) nombreReal = materialCoincidente.nombre.toUpperCase();
+                    if (match) nombreReal = match.nombre.toUpperCase();
                 }
 
                 const costoFila = costoBaseUnitario * area;
                 const sugeridoFila = costoFila * 3;
-
                 sumaCostoMateriales += costoFila;
                 sumaMaterialesX3 += sugeridoFila;
 
                 htmlContenido += `<tr>
                     <td style="text-align:left; font-weight:600;">${nombreReal}</td>
-                    <td>${area.toFixed(3)} ${medidaTexto}</td>
+                    <td>${area.toFixed(3)}</td>
                     <td>${formatter.format(costoFila)}</td>
                     <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
                 </tr>`;
@@ -166,41 +164,34 @@ async function generarReporteDiario() {
 
             htmlContenido += `</tbody>
                     <tfoot class="tfoot-sumas">
-                        <tr>
-                            <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
-                            <td>${formatter.format(sumaCostoMateriales)}</td>
-                            <td>${formatter.format(sumaMaterialesX3)}</td>
-                        </tr>
+                        <tr><td colspan="2" style="text-align:right;">TOTALES:</td><td>${formatter.format(sumaCostoMateriales)}</td><td>${formatter.format(sumaMaterialesX3)}</td></tr>
                     </tfoot>
                 </table>
                 <div class="resumen-grid">
-                    <div><span class="label-resumen">SUMA COSTOS</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
-                    <div><span class="label-resumen">MATERIAL (X3)</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
-                    <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObra)}</span></div>
-                    <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
+                    <div><span class="label-resumen">COSTO</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
+                    <div><span class="label-resumen">X3</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
+                    <div><span class="label-resumen">MANO OBRA</span><span class="val-resumen">${formatter.format(manoObra)}</span></div>
+                    <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL</span><span class="val-resumen" style="color:#1e3a8a;">${formatter.format(totalOrden)}</span></div>
                 </div>
                 <div class="footer-rentabilidad">
-                    <span class="rentabilidad-texto">RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadReal)} ✅</span>
+                    <span style="color:#15803d; font-weight:bold; font-size:1.2rem;">RENTABILIDAD: ${formatter.format(rentabilidadReal)} ✅</span>
                 </div>
             </div>`;
         });
 
-        htmlContenido += `
-            <script>
-                function exportarExcel() {
-                    var html = document.body.innerHTML;
-                    var blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                    var a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = 'Reporte_Ventas_Chica_Morales.xls';
-                    a.click();
-                }
-            </script>
-        </body></html>`;
+        htmlContenido += `<script>
+            function exportarExcel() {
+                const blob = new Blob([document.body.innerText], { type: 'application/vnd.ms-excel' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'Reporte_LaChicaMorales.xls';
+                a.click();
+            }
+        </script></body></html>`;
 
         nuevaVentana.document.write(htmlContenido);
         nuevaVentana.document.close();
-    } catch (e) { console.error(e); }
+    } catch (e) { alert("Error: " + e.message); }
 }
 
 // --- 4. EXPORTAR A EXCEL (INTACTO) ---
