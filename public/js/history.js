@@ -99,8 +99,7 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
-            htmlContenido += `
-            <div class="ot-card">
+            htmlContenido += `<div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
                     <span style="color:#64748b">CLIENTE:</span> <strong>${(f.clienteNombre || "S/N").toUpperCase()}</strong></div>
@@ -118,14 +117,12 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase();
-                const area = Number(item.area_m2 || item.area || 1);
+                // --- CAMBIO CLAVE: Prioridad de nombres ---
+                const nombreItem = (item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
                 
-                // --- EXTRACCIÓN DIRECTA ---
-                // Leemos el costo que la factura ya tiene guardado internamente
+                const area = Number(item.area_m2 || item.area || 1);
                 const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || 0);
                 
-                // Si el item ya trae el costo calculado (como en OT-00033), lo usamos, si no, lo calculamos
                 const costoFila = (costoBaseUnitario > 0) ? (costoBaseUnitario * area) : 0;
                 const sugeridoFila = costoFila * 3;
 
@@ -144,8 +141,7 @@ async function generarReporteDiario() {
             const totalOrden = sumaMaterialesX3 + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales;
 
-            htmlContenido += `
-                    </tbody>
+            htmlContenido += `</tbody>
                     <tfoot class="tfoot-sumas">
                         <tr>
                             <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
