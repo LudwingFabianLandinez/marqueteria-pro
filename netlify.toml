@@ -1,23 +1,16 @@
-# SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
-# Configuración de Despliegue - Versión de Estabilidad v13.3.99
-
 [build]
-  # CAMBIO CLAVE: Si tus archivos están en la raíz, publish debe ser "."
-  publish = "."
-  # Carpeta donde Netlify busca el backend (server.js)
+  # CAMBIO VITAL: Tus archivos HTML viven dentro de 'public'
+  publish = "public"
   functions = "netlify/functions"
 
-# --- REGLAS DE REDIRECCIÓN (Blindaje Anti-404) ---
-
-# 1. Túnel Maestro: Conecta /api/* con tu función server.js
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# 2. Manejo de SPA: Evita errores al recargar la página
+# Si alguien entra a la raíz, mándalo al dashboard que está en public
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/dashboard.html"
   status = 200
