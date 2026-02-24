@@ -42,21 +42,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
-                lista.forEach(m => {
-                    const stock = m.stock_actual || m.stock_actual_m2 || 0;
-                    const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
-                    const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
-                    
-                    const option = document.createElement('option');
-                    option.value = m._id || m.id;
-                    option.style = color;
+                Script
+lista.forEach(m => {
+    const stock = m.stock_actual || m.stock_actual_m2 || 0;
+    const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
+    const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
+    
+    const option = document.createElement('option');
+    option.value = m._id || m.id;
+    option.style = color;
 
-                    const precioDetectado = m.costo_m2 || m.precio_m2_costo || 0;
-                    
-                    option.dataset.costo = precioDetectado;
-                    option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
-                    
-                    select.appendChild(option);
+    // --- MEJORA AQUÍ: Buscamos en todas las etiquetas posibles del servidor ---
+    const precioDetectado = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || m.costo || 0;
+    
+    option.dataset.costo = precioDetectado;
+    option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
+    
+    select.appendChild(option);
                 });
             };
 
