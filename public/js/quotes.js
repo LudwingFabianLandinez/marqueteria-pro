@@ -29,38 +29,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (result.success) {
             const cat = result.data;
             
-            // Guardamos el inventario completo
-            materialesOriginales = [
-                ...(cat.vidrios || []), ...(cat.respaldos || []), ...(cat.paspartu || []), 
-                ...(cat.marcos || []), ...(cat.foam || []), ...(cat.tela || []), ...(cat.chapilla || [])
+            // 1. UNIFICACIÓN TOTAL: Metemos todo en una sola bolsa para que nada se pierda
+            const inventarioCompleto = [
+                ...(cat.vidrios || []), 
+                ...(cat.respaldos || []), 
+                ...(cat.paspartu || []), 
+                ...(cat.marcos || []), 
+                ...(cat.molduras || []), // Por si el servidor lo llama así
+                ...(cat.foam || []), 
+                ...(cat.tela || []), 
+                ...(cat.chapilla || [])
             ];
 
-            const llenar = (select, lista, esSeccionMarco = false) => {
+            // Guardamos para respaldo global
+            materialesOriginales = inventarioCompleto;
+
+            const datalist = document.getElementById('lista-molduras');
+            if (datalist) datalist.innerHTML = '';
+
+            // 2. FUNCIÓN DE LLENADO INTELIGENTE
+            const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
-
-                // --- CONEXIÓN CON EL BUSCADOR (DATALIST) ---
-                const datalist = document.getElementById('lista-molduras');
+                select.innerHTML = `<option value="">-- Seleccionar --</option>`;
                 
-                // Si es la sección de marcos, limpiamos la lista de búsqueda para empezar
-                if (esSeccionMarco && datalist) {
-                    datalist.innerHTML = '';
-                    console.log("📦 Iniciando búsqueda 'Cazadora' de molduras...");
-                }
+                // Filtramos del bulto total lo que corresponde a este select
+                const listaFiltrada = inventarioCompleto.filter(filtroBusqueda);
 
-                if (!lista || lista.length === 0) {
+                if (listaFiltrada.length === 0) {
                     select.innerHTML = `<option value="">-- No disponible --</option>`;
                     return;
                 }
                 
-                select.innerHTML = `<option value="">-- Seleccionar --</option>`;
-                
-                lista.forEach(m => {
+                listaFiltrada.forEach(m => {
                     const stock = m.stock_actual || m.stock_actual_m2 || 0;
                     const unidad = (m.unidad || "").toUpperCase();
-                    const nombreMayuscula = m.nombre.toUpperCase();
+                    const nombreM = m.nombre.toUpperCase();
                     
-                    // LÓGICA CAZADORA: Es ML si la unidad lo dice, si es la sección marcos o si el nombre incluye MOLDURA
-                    const esML = unidad === 'ML' || esSeccionMarco || nombreMayuscula.includes("MOLDURA");
+                    // Detectamos si es ML por unidad o por palabra clave
+                    const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
                     
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${esML ? 'ML' : 'm²'})`;
@@ -70,37 +76,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // PRIORIDAD DE PRECIO: Según la unidad detectada
-                    const precioDetectado = esML ? (m.precio_ml || m.costo_base || m.costoUnitario || 0) : (m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0);
+                    const precio = esML ? (m.precio_ml || m.costo_base || 0) : (m.costo_m2 || m.precio_m2_costo || 0);
                     
-                    option.dataset.costo = precioDetectado;
+                    option.dataset.costo = precio;
                     option.dataset.unidad = esML ? 'ML' : 'M2';
-                    
-                    option.textContent = `${nombreMayuscula} ${avisoStock}`;
+                    option.textContent = `${nombreM} ${avisoStock}`;
                     select.appendChild(option);
 
-                    // FUERZA BRUTA: Si detectamos que es moldura por cualquier vía, va al buscador
-                    if (esML && datalist) {
+                    // Si es moldura y estamos en la sección de marcos, al buscador de una!
+                    if (esML && datalist && esParaBuscador) {
                         const optBusqueda = document.createElement('option');
-                        optBusqueda.value = nombreMayuscula; 
+                        optBusqueda.value = nombreM; 
                         datalist.appendChild(optBusqueda);
                     }
                 });
             };
 
-            // LLAMADAS QUIRÚRGICAS (Mantenemos todos tus materiales intactos)
-            llenar(selects.Vidrio, cat.vidrios);        // Sección M2
-            llenar(selects.Respaldo, cat.respaldos);    // Sección M2
-            llenar(selects.Paspartu, cat.paspartu);     // Sección M2
-            llenar(selects.Marco, cat.marcos, true);    // SECCIÓN MOLDURAS (Activa el radar ML)
-            llenar(selects.Foam, cat.foam);             // Sección M2
-            llenar(selects.Tela, cat.tela);             // Sección M2
-            llenar(selects.Chapilla, cat.chapilla);     // Sección M2
+            // 3. REPARTO QUIRÚRGICO (Basado en el nombre del producto)
+            llenar(selects.Vidrio, m => m.nombre.toUpperCase().includes("VIDRIO"));
+            llenar(selects.Respaldo, m => m.nombre.toUpperCase().includes("RESPALDO") || m.nombre.toUpperCase().includes("MDF"));
+            llenar(selects.Paspartu, m => m.nombre.toUpperCase().includes("PASPARTU"));
             
-            console.log("✅ Fuerza Bruta aplicada: Buscando molduras en todo el inventario.");
+            // Esta es la clave: busca cualquier cosa que diga MOLDURA o sea ML en TODO el inventario
+            llenar(selects.Marco, m => m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().includes("MARCO") || m.unidad === 'ML', true);
+            
+            llenar(selects.Foam, m => m.nombre.toUpperCase().includes("FOAM"));
+            llenar(selects.Tela, m => m.nombre.toUpperCase().includes("TELA") || m.nombre.toUpperCase().includes("LONA"));
+            llenar(selects.Chapilla, m => m.nombre.toUpperCase().includes("CHAPILLA"));
+            
+            console.log("🚀 Reconstrucción terminada. Buscador alimentado con todas las molduras detectadas.");
         }
     } catch (error) {
-        console.error("🚨 Error cargando materiales:", error);
+        console.error("🚨 Error en la reconstrucción:", error);
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Error de conexión</option>'; });
     }
 });
