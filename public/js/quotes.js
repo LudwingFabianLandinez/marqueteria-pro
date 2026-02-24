@@ -26,23 +26,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
-        // --- RADAR DE DIAGNÓSTICO (ACTUALIZADO PARA LISTA MAESTRA) ---
+        // --- RADAR DE DIAGNÓSTICO ---
         console.log("📡 DATOS LLEGANDO DEL SERVIDOR:", result);
 
         if (result.success) {
             const cat = result.data;
             
-            // 1. UNIFICACIÓN TOTAL MEJORADA
-            const inventarioCompleto = cat.todos || [
-                ...(cat.vidrios || []), 
-                ...(cat.respaldos || []), 
-                ...(cat.paspartu || []), 
-                ...(cat.marcos || []), 
-                ...(cat.molduras || []), 
-                ...(cat.foam || []), 
-                ...(cat.tela || []), 
-                ...(cat.chapilla || [])
-            ];
+            // 1. UNIFICACIÓN TOTAL MEJORADA (Usamos 'todos' que viene del servidor)
+            const inventarioCompleto = cat.todos || [];
 
             // ALERT DE VERIFICACIÓN (Radar de la K 2312)
             const busquedaCritica = inventarioCompleto.filter(m => 
@@ -60,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const datalist = document.getElementById('lista-molduras');
             if (datalist) datalist.innerHTML = '';
 
-            // 2. FUNCIÓN DE LLENADO INTELIGENTE (AHORA CON ESCUDO ANTIFANTASMAS)
+            // 2. FUNCIÓN DE LLENADO INTELIGENTE (VEREDICTO V13.5)
             const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
@@ -73,27 +64,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 listaFiltrada.forEach(m => {
-                    // --- EL ESCUDO: Si no tiene nombre o es un registro basura, lo saltamos ---
+                    // --- EL ESCUDO ANTIFANTASMAS ---
                     if (!m.nombre || m.nombre.trim() === "" || m.nombre.includes("undefined")) return;
 
-                    const stock = m.stock_actual || m.stock_actual_m2 || 0;
-                    const unidad = (m.unidad || "").toUpperCase();
+                    const stock = m.stock_actual || 0;
+                    // REFUERZO: Si m.unidad no existe, usamos m.tipo (que es el campo real de la DB)
+                    const unidad = (m.unidad || m.tipo || "m2").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
                     
                     const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
                     
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
-                    const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${esML ? 'ML' : 'm²'})`;
+                    const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${unidad})`;
                     
                     const option = document.createElement('option');
                     option.id = `opt-${m._id || m.id}`;
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    const precio = esML ? (m.precio_ml || m.costo_base || 0) : (m.costo_m2 || m.precio_m2_costo || 0);
+                    // Ajuste de costo: Usamos costo_base que ya calculó el server
+                    const precio = m.costo_base || m.costo_m2 || m.precio_m2_costo || 0;
                     
                     option.dataset.costo = precio;
-                    option.dataset.unidad = esML ? 'ML' : 'M2';
+                    option.dataset.unidad = unidad;
                     option.textContent = `${nombreM} ${avisoStock}`;
                     select.appendChild(option);
 
@@ -105,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             };
 
-            // 3. REPARTO QUIRÚRGICO (MANTENIDO)
+            // 3. REPARTO QUIRÚRGICO (MANTENIDO Y REFORZADO)
             llenar(selects.Vidrio, m => {
                 const n = (m.nombre || "").toUpperCase();
                 return n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM");
@@ -121,31 +114,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
             });
             
-            // Búsqueda en todo el inventario para marcos (Radar ML activo y K 2312 blindada)
-            // --- FILTRO UNIVERSAL DE MOLDURAS (TODO EL INVENTARIO) ---
+            // MARCOS (Radar ML activo y K 2312 blindada)
             llenar(selects.Marco, m => {
                 const n = (m.nombre || "").toUpperCase();
-                const u = (m.unidad || "").toUpperCase();
+                const u = (m.unidad || m.tipo || "").toUpperCase();
                 const c = (m.categoria || "").toUpperCase();
 
-                // REGLA DE ORO: Si dice MOLDURA, MARCO, MADERA o su unidad es ML, es un MARCO.
-                const esMolduraPorNombre = n.includes("MOLDURA") || n.includes("MARCO") || n.includes("MADERA");
+                const esMolduraPorNombre = n.includes("MOLDURA") || n.includes("MARCO") || n.includes("MADERA") || n.includes("2312");
                 const esMolduraPorUnidad = u === "ML";
                 const esMolduraPorCategoria = c.includes("MOLDURA") || c.includes("MARCO");
 
                 return esMolduraPorNombre || esMolduraPorUnidad || esMolduraPorCategoria;
             }, true);
             
-            llenar(selects.Foam, m => m.nombre.toUpperCase().includes("FOAM"));
+            llenar(selects.Foam, m => (m.nombre || "").toUpperCase().includes("FOAM"));
             
             llenar(selects.Tela, m => {
-                const n = m.nombre.toUpperCase();
+                const n = (m.nombre || "").toUpperCase();
                 return n.includes("TELA") || n.includes("LONA") || n.includes("CANVAS");
             });
             
-            llenar(selects.Chapilla, m => m.nombre.toUpperCase().includes("CHAPILLA"));
+            llenar(selects.Chapilla, m => (m.nombre || "").toUpperCase().includes("CHAPILLA"));
             
-            console.log("🚀 Sincronización terminada. Usando lista maestra 'todos'. Total:", inventarioCompleto.length);
+            console.log("🚀 Sincronización terminada. Total:", inventarioCompleto.length);
         }
     } catch (error) {
         console.error("🚨 Error en la reconstrucción:", error);

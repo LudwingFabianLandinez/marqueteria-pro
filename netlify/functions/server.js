@@ -66,62 +66,64 @@ const router = express.Router();
 try {
     // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS (INTACTA) ---
     router.get('/quotes/materials', async (req, res) => {
-        try {
-            // Traemos todo lo que no esté inactivo
-            const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).sort({ nombre: 1 }).lean();
-            
-            console.log("📦 Total materiales recuperados para cotización:", materiales.length);
-            
-            const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
-            
-            const materialesMapeados = materiales.map(m => ({
-                ...m, 
-                costo_m2: m.costo_m2 || m.precio_m2_costo || 0, 
-                id: m._id 
-            }));
+    try {
+        // REFUERZO: Traemos todo lo que no esté inactivo Y que tenga nombre (elimina fantasmas)
+        const materiales = await Material.find({ 
+            estado: { $ne: 'Inactivo' },
+            nombre: { $exists: true, $ne: "" } 
+        }).sort({ nombre: 1 }).lean();
+        
+        console.log("📦 Total materiales reales recuperados:", materiales.length);
+        
+        const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
+        
+        const materialesMapeados = materiales.map(m => ({
+            ...m, 
+            costo_m2: m.costo_m2 || m.precio_m2_costo || 0, 
+            id: m._id,
+            // SINCRONIZACIÓN: Forzamos que 'unidad' sea lo que diga el campo 'tipo'
+            unidad: (m.tipo || "m2").toLowerCase() 
+        }));
 
-            const data = {
-                vidrios: materialesMapeados.filter(m => {
-                    const n = normalizar(m.nombre); const c = normalizar(m.categoria);
-                    return n.includes('vidrio') || n.includes('espejo') || c.includes('vidrio');
-                }),
-                respaldos: materialesMapeados.filter(m => {
-                    const n = normalizar(m.nombre);
-                    return n.includes('mdf') || n.includes('respaldo') || n.includes('triplex') || n.includes('celtex');
-                }),
-                marcos: materialesMapeados.filter(m => {
-                    const n = normalizar(m.nombre); 
-                    const c = normalizar(m.categoria);
-                    const u = normalizar(m.unidad);
-                    
-                    // BLINDAJE TOTAL:
-                    // 1. Por categoría (marco)
-                    // 2. Por nombre (marco, moldura, madera)
-                    // 3. Por unidad (ml)
-                    // 4. POR CÓDIGO CRÍTICO (2312) para asegurar la MP K 2312
-                    return c.includes('marco') || 
-                           n.includes('marco') || 
-                           n.includes('moldura') || 
-                           n.includes('madera') || 
-                           n.includes('2312') || // <--- REFUERZO DIRECTO
-                           u === 'ml';
-                }),
-                paspartu: materialesMapeados.filter(m => {
-                    const n = normalizar(m.nombre);
-                    return n.includes('paspartu') || n.includes('passepartout') || n.includes('cartulina');
-                }),
-                foam: materialesMapeados.filter(m => normalizar(m.nombre).includes('foam')),
-                tela: materialesMapeados.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
-                chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla')),
-                todos: materialesMapeados 
-            };
-            
-            res.json({ success: true, count: materiales.length, data });
-        } catch (error) {
-            console.error("🚨 Error en server.js:", error.message);
-            res.status(500).json({ success: false, error: error.message });
-        }
-    });
+        const data = {
+            vidrios: materialesMapeados.filter(m => {
+                const n = normalizar(m.nombre); const c = normalizar(m.categoria);
+                return n.includes('vidrio') || n.includes('espejo') || c.includes('vidrio');
+            }),
+            respaldos: materialesMapeados.filter(m => {
+                const n = normalizar(m.nombre);
+                return n.includes('mdf') || n.includes('respaldo') || n.includes('triplex') || n.includes('celtex');
+            }),
+            marcos: materialesMapeados.filter(m => {
+                const n = normalizar(m.nombre); 
+                const c = normalizar(m.categoria);
+                const u = normalizar(m.unidad); // Ahora sí viene de m.tipo
+                
+                // BLINDAJE TOTAL:
+                return c.includes('marco') || 
+                       c.includes('moldura') ||
+                       n.includes('marco') || 
+                       n.includes('moldura') || 
+                       n.includes('madera') || 
+                       n.includes('2312') || 
+                       u === 'ml'; // <--- El salvavidas para la MP K 2312
+            }),
+            paspartu: materialesMapeados.filter(m => {
+                const n = normalizar(m.nombre);
+                return n.includes('paspartu') || n.includes('passepartout') || n.includes('cartulina');
+            }),
+            foam: materialesMapeados.filter(m => normalizar(m.nombre).includes('foam')),
+            tela: materialesMapeados.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
+            chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla')),
+            todos: materialesMapeados 
+        };
+        
+        res.json({ success: true, count: materiales.length, data });
+    } catch (error) {
+        console.error("🚨 Error en server.js:", error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
     // --- MOTOR DE CÁLCULO (INTACTO) ---
     router.post('/quotes', async (req, res) => {
