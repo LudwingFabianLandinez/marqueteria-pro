@@ -125,17 +125,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             
             // Búsqueda en todo el inventario para marcos (Radar ML activo y K 2312 blindada)
+            // --- FILTRO UNIVERSAL DE MOLDURAS (TODO EL INVENTARIO) ---
             llenar(selects.Marco, m => {
-                // Quitamos espacios extra y pasamos a Mayúsculas
-                const n = (m.nombre || "").toString().toUpperCase().trim();
-                const u = (m.unidad || "").toString().toUpperCase().trim();
-                
-                // Buscamos el número directamente (es lo más seguro)
-                const tieneNumero = n.includes("2312");
-                const esMoldura = n.includes("MOLDURA") || n.includes("MARCO");
-                const esML = u === 'ML';
+                const n = (m.nombre || "").toUpperCase();
+                const u = (m.unidad || "").toUpperCase();
+                const c = (m.categoria || "").toUpperCase();
 
-                return tieneNumero || esMoldura || esML;
+                // REGLA DE ORO: Si dice MOLDURA, MARCO, MADERA o su unidad es ML, es un MARCO.
+                const esMolduraPorNombre = n.includes("MOLDURA") || n.includes("MARCO") || n.includes("MADERA");
+                const esMolduraPorUnidad = u === "ML";
+                const esMolduraPorCategoria = c.includes("MOLDURA") || c.includes("MARCO");
+
+                return esMolduraPorNombre || esMolduraPorUnidad || esMolduraPorCategoria;
             }, true);
             
             llenar(selects.Foam, m => m.nombre.toUpperCase().includes("FOAM"));
