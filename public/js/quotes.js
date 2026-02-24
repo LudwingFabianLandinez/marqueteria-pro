@@ -36,6 +36,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const llenar = (select, lista, esMarco = false) => {
                 if (!select) return;
+
+                // --- CONEXIÓN QUIRÚRGICA CON EL DATALIST ---
+                const datalist = document.getElementById('lista-molduras');
+                
+                if (esMarco && datalist) {
+                    datalist.innerHTML = ''; // Limpiamos buscador antes de llenar
+                    console.log("📦 Analizando molduras para el buscador...");
+                    console.table(lista); // <--- MIRA ESTO EN LA CONSOLA (F12)
+                }
+
                 if (!lista || lista.length === 0) {
                     select.innerHTML = `<option value="">-- No disponible --</option>`;
                     return;
@@ -43,23 +53,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
                 
-                // --- CONEXIÓN QUIRÚRGICA CON EL DATALIST ---
-                const datalist = document.getElementById('lista-molduras');
-                if (esMarco && datalist) {
-                    datalist.innerHTML = ''; // Limpiar antes de llenar
-                }
-
                 lista.forEach(m => {
                     const stock = m.stock_actual || m.stock_actual_m2 || 0;
                     const unidad = (m.unidad || "").toUpperCase();
-                    
-                    // CRITERIO: Es ML si la unidad es ML o si viene de la categoría marcos
                     const esML = unidad === 'ML' || esMarco;
                     
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${esML ? 'ML' : 'm²'})`;
                     
                     const option = document.createElement('option');
+                    option.id = `opt-${m._id || m.id}`;
                     option.value = m._id || m.id;
                     option.style = color;
 
@@ -76,24 +79,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // ALIMENTAR EL BUSCADOR (DATALIST)
                     if (esMarco && datalist) {
                         const optBusqueda = document.createElement('option');
-                        // Aquí ponemos el nombre con el stock para que lo veas al buscar
+                        // Usamos solo el nombre para que el autocompletado sea limpio
                         optBusqueda.value = nombreMayuscula; 
-                        optBusqueda.dataset.id = m._id || m.id;
                         datalist.appendChild(optBusqueda);
                     }
                 });
             };
 
-            // LLAMADAS QUIRÚRGICAS
+            // LLAMADAS QUIRÚRGICAS (Sin omitir nada de tus materiales previos)
             llenar(selects.Vidrio, cat.vidrios);
             llenar(selects.Respaldo, cat.respaldos);
             llenar(selects.Paspartu, cat.paspartu);
-            llenar(selects.Marco, cat.marcos, true); // <--- ACTIVADOR DE MOLDURAS
+            llenar(selects.Marco, cat.marcos, true); // <--- MOLDURAS (ML + Buscador)
             llenar(selects.Foam, cat.foam);
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Buscador sincronizado con " + (cat.marcos ? cat.marcos.length : 0) + " molduras.");
+            console.log("✅ Sincronización completa: M2 y ML listos.");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
