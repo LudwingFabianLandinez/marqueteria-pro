@@ -67,11 +67,17 @@ try {
     // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS (INTACTA) ---
     router.get('/quotes/materials', async (req, res) => {
         try {
+            // Traemos todo lo que no esté inactivo
             const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).sort({ nombre: 1 }).lean();
+            
             console.log("📦 Total materiales recuperados para cotización:", materiales.length);
+            
             const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
+            
             const materialesMapeados = materiales.map(m => ({
-                ...m, costo_m2: m.costo_m2 || m.precio_m2_costo || 0, id: m._id 
+                ...m, 
+                costo_m2: m.costo_m2 || m.precio_m2_costo || 0, 
+                id: m._id 
             }));
 
             const data = {
@@ -84,8 +90,11 @@ try {
                     return n.includes('mdf') || n.includes('respaldo') || n.includes('triplex') || n.includes('celtex');
                 }),
                 marcos: materialesMapeados.filter(m => {
-                    const n = normalizar(m.nombre); const c = normalizar(m.categoria);
-                    return c.includes('marco') || n.includes('marco') || n.includes('moldura') || n.includes('madera');
+                    const n = normalizar(m.nombre); 
+                    const c = normalizar(m.categoria);
+                    const u = normalizar(m.unidad); // <--- AGREGAMOS UNIDAD
+                    // BLINDAJE: Si es unidad 'ml', si dice 'marco', 'moldura' o 'madera', entra.
+                    return c.includes('marco') || n.includes('marco') || n.includes('moldura') || n.includes('madera') || u === 'ml';
                 }),
                 paspartu: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre);
@@ -94,10 +103,12 @@ try {
                 foam: materialesMapeados.filter(m => normalizar(m.nombre).includes('foam')),
                 tela: materialesMapeados.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
                 chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla')),
-                todos: materialesMapeados // <--- ESTA ES LA BOLSA DE EMERGENCIA
+                todos: materialesMapeados // Bolsa de emergencia intacta
             };
+            
             res.json({ success: true, count: materiales.length, data });
         } catch (error) {
+            console.error("🚨 Error en server.js:", error.message);
             res.status(500).json({ success: false, error: error.message });
         }
     });
