@@ -277,21 +277,23 @@ function imprimirResumen() {
     setTimeout(() => { ventana.print(); ventana.close(); }, 500);
 }
 
-// --- FUNCIÓN ACTUALIZADA CON GANCHOS PARA MODELO 13.1.0 ---
-// --- RESCATE UNIVERSAL (Sin IDs, sin clases específicas) ---
-    const itemsProcesados = [];
+window.facturarVenta = async function() {
+    if (!datosCotizacionActual) return;
     
-    // Buscamos TODOS los selects que estén dentro del contenedor de materiales
-    // Esto asegura que si hay 4, 5 o 10 materiales, los agarre todos.
+    // 1. Definir variables básicas
+    const nombre = document.getElementById('nombreCliente')?.value.trim();
+    const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
+    const btnVenta = document.getElementById('btnFinalizarVenta');
+
+    if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
+
+    // --- AQUÍ COLOCAS EL CÓDIGO QUE ME PASASTE (El Rescate Universal) ---
+    const itemsProcesados = [];
     const todosLosSelects = document.querySelectorAll('select');
 
     todosLosSelects.forEach(select => {
-        // Solo nos interesan los que tengan un material seleccionado
         if (select.value && select.selectedIndex > 0) {
             const opcion = select.options[select.selectedIndex];
-            
-            // Si la opción no tiene costo, es que es un select de otra cosa (como el cliente)
-            // Por eso validamos que tenga el data-costo que inyectamos antes
             if (opcion.dataset.costo !== undefined) {
                 const nombreReal = opcion.text.split('(')[0].trim().toUpperCase();
                 const costoReal = parseFloat(opcion.dataset.costo) || 0;
@@ -310,3 +312,32 @@ function imprimirResumen() {
             }
         }
     });
+    // --- FIN DEL CÓDIGO QUE ME PASASTE ---
+
+    // 2. Preparar el envío (La maleta de datos)
+    const facturaData = {
+        cliente: { nombre: nombre, telefono: "N/A" },
+        items: itemsProcesados, // <--- Aquí ya van tus 4 materiales
+        totalFactura: datosCotizacionActual.precioSugeridoCliente,
+        totalPagado: abono,
+        fecha: new Date()
+    };
+
+    // 3. Enviar al servidor
+    try {
+        if(btnVenta) btnVenta.disabled = true;
+        const response = await fetch('/.netlify/functions/server/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(facturaData)
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert("✅ VENTA GUARDADA");
+            window.location.href = "/history.html";
+        }
+    } catch (error) {
+        alert("Error: " + error.message);
+        if(btnVenta) btnVenta.disabled = false;
+    }
+};
