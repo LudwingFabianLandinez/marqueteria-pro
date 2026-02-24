@@ -92,7 +92,8 @@ try {
                 }),
                 foam: materialesMapeados.filter(m => normalizar(m.nombre).includes('foam')),
                 tela: materialesMapeados.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
-                chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla'))
+                chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla')),
+                todos: materialesMapeados // <--- ESTA ES LA BOLSA DE EMERGENCIA
             };
             res.json({ success: true, count: materiales.length, data });
         } catch (error) {
