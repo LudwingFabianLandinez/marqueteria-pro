@@ -115,10 +115,18 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
-            // MEJORA QUIRÚRGICA: Nombre del cliente real (si no existe, busca en cliente.nombre)
-            const nombreCliente = (f.cliente?.nombre || f.clienteNombre || "CLIENTE GENERAL").toUpperCase();
-            
-            // LIMPIEZA DE FECHA: Tomamos solo la parte de la fecha si viene con el código T00:00...
+            // BÚSQUEDA AGRESIVA DEL CLIENTE PARA EVITAR "CLIENTE GENERAL"
+            let nombreCliente = "CLIENTE GENERAL";
+            if (f.cliente && typeof f.cliente === 'object' && f.cliente.nombre) {
+                nombreCliente = f.cliente.nombre;
+            } else if (f.clienteNombre) {
+                nombreCliente = f.clienteNombre;
+            } else if (typeof f.cliente === 'string' && f.cliente.trim() !== "") {
+                nombreCliente = f.cliente;
+            }
+            nombreCliente = nombreCliente.toUpperCase();
+
+            // LIMPIEZA DE FECHA: Eliminamos el código T04:16...
             const fechaLimpia = f.fecha ? f.fecha.split('T')[0] : '---';
 
             htmlContenido += `<div class="ot-card">
