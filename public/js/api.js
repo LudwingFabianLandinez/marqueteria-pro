@@ -59,7 +59,7 @@ window.API = {
         const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
         
         try {
-            console.log(`🚀 Conectando v13.4.35: ${url}`);
+            console.log(`🚀 Conectando v13.7.0 - VEREDICTO FINAL: ${url}`);
             const response = await fetch(url, {
                 ...options,
                 headers: {
