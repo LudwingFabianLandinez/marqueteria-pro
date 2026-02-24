@@ -70,7 +70,6 @@ async function fetchInvoices() {
 async function generarReporteDiario() {
     try {
         const facturasAReportar = todasLasFacturas;
-        const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
@@ -79,7 +78,7 @@ async function generarReporteDiario() {
         let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
-                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
                 th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; text-transform: uppercase; }
                 td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
@@ -88,7 +87,7 @@ async function generarReporteDiario() {
                 .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 5px; }
                 .val-resumen { font-size: 1.1rem; font-weight: 800; color: #1e293b; }
                 .footer-rentabilidad { background: #f0fdf4; padding: 15px; border-radius: 5px; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
-                .rentabilidad-texto { color: #15803d; font-weight: bold; font-size: 1.1rem; }
+                .rentabilidad-texto { color: #15803d; font-weight: bold; font-size: 1.2rem; }
             </style>
         </head><body>
             <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD</h1>`;
@@ -100,7 +99,8 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
-            htmlContenido += `<div class="ot-card">
+            htmlContenido += `
+            <div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
                     <span style="color:#64748b">CLIENTE:</span> <strong>${(f.clienteNombre || "S/N").toUpperCase()}</strong></div>
@@ -119,15 +119,9 @@ async function generarReporteDiario() {
 
             (f.items || []).forEach(item => {
                 // --- AJUSTE QUIRÚRGICO DE NOMBRE ---
-                // Buscamos el nombre real. Si el campo dice "MATERIAL", probamos con otros campos del objeto
-                let nombreReal = item.nombre || item.producto || item.material || item.descripcion || "MATERIAL";
+                // Buscamos en orden: nombre -> material -> descripcion
+                const nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
                 
-                // Si el nombre sigue siendo "MATERIAL", intentamos rescatarlo del inventario usando el ID o el costo
-                if (nombreReal.toUpperCase() === "MATERIAL" && item.id) {
-                    const deInventario = inventarioLocal.find(inv => inv.id === item.id);
-                    if (deInventario) nombreReal = deInventario.nombre;
-                }
-
                 const area = Number(item.area_m2 || item.area || 1);
                 const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || 0);
                 
@@ -139,7 +133,7 @@ async function generarReporteDiario() {
 
                 htmlContenido += `
                     <tr>
-                        <td style="text-align:left; font-weight:600;">${nombreReal.toUpperCase()}</td>
+                        <td style="text-align:left; font-weight:600;">${nombreReal}</td>
                         <td>${area.toFixed(3)} ${medidaTexto}</td>
                         <td>${formatter.format(costoFila)}</td>
                         <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
@@ -149,7 +143,8 @@ async function generarReporteDiario() {
             const totalOrden = sumaMaterialesX3 + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales;
 
-            htmlContenido += `</tbody>
+            htmlContenido += `
+                    </tbody>
                     <tfoot class="tfoot-sumas">
                         <tr>
                             <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
