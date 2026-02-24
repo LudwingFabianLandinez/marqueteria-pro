@@ -76,7 +76,7 @@ async function generarReporteDiario() {
         });
 
         const nuevaVentana = window.open('', '_blank');
-        let htmlContenido = `<html><head><title>Auditoría - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
                 .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -87,28 +87,27 @@ async function generarReporteDiario() {
                 .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; margin-top: 15px; }
                 .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 5px; }
                 .val-resumen { font-size: 1.1rem; font-weight: 800; color: #1e293b; }
-                .alerta-negativa { color: #e11d48; background: #fff1f2; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #fecaca; }
-                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
-                @media print { .no-print { display: none; } body { background: white; padding: 10px; } .ot-card { box-shadow: none; border: 1px solid #eee; } }
+                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; display: flex; justify-content: space-between; align-items: center; }
+                .alerta-negativa { color: #e11d48; background: #fff1f2; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #fecaca; display: flex; justify-content: space-between; align-items: center; }
+                .rentabilidad-badge { background: #1e3a8a; color: white; padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; }
             </style>
         </head><body>
-            <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD</h1>`;
+            <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD DETALLADA</h1>`;
 
         facturasAReportar.forEach(f => {
             let sumaCostoRealMedida = 0;
             let sumaSugeridoRealMedida = 0;
             const manoObraRegistrada = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
+            // Capturamos el texto de medidas (ej: 70 x 100)
+            const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
             htmlContenido += `
             <div class="ot-card">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
-                    <span style="color:#64748b">CLIENTE:</span> <strong>${(f.clienteNombre || f.cliente?.nombre || "S/N").toUpperCase()}</strong></div>
-                    <div style="text-align:right; color:#64748b">
-                        <strong>MEDIDAS:</strong> ${f.medidas || '--'}<br>
-                        <strong>FECHA:</strong> ${new Date(f.fecha).toLocaleDateString()}
-                    </div>
+                    <span style="color:#64748b">CLIENTE:</span> <strong>${(f.clienteNombre || "S/N").toUpperCase()}</strong></div>
+                    <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${new Date(f.fecha).toLocaleDateString()}</div>
                 </div>
                 <table>
                     <thead>
@@ -123,31 +122,31 @@ async function generarReporteDiario() {
 
             (f.items || []).forEach(item => {
                 const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase().trim();
-                const medida = Number(item.area_m2 || item.area || 1);
+                const areaNum = Number(item.area_m2 || item.area || 1);
                 
-                // Motor de rescate de costo
-                let cBaseM2 = Number(item.costoBase || item.costo_base_unitario || 0);
+                let cBaseM2 = Number(item.costoBase || 0);
                 if (cBaseM2 === 0) {
                     const mInv = inventarioLocal.find(m => (m.nombre || "").toUpperCase().trim() === nombreItem);
                     cBaseM2 = mInv ? Number(mInv.costo_m2 || mInv.precio_m2_costo || 0) : 0;
                 }
 
-                const costoRealDeEstaObra = cBaseM2 * medida; 
-                const sugeridoRealDeEstaObra = costoRealDeEstaObra * 3;
+                const costoReal = cBaseM2 * areaNum; 
+                const sugeridoX3 = costoReal * 3;
 
-                sumaCostoRealMedida += costoRealDeEstaObra;
-                sumaSugeridoRealMedida += sugeridoRealDeEstaObra;
+                sumaCostoRealMedida += costoReal;
+                sumaSugeridoRealMedida += sugeridoX3;
 
                 htmlContenido += `
                     <tr>
                         <td style="text-align:left; font-weight:600;">${nombreItem}</td>
-                        <td>${medida.toFixed(3)}</td>
-                        <td>${formatter.format(costoRealDeEstaObra)}</td>
-                        <td style="background:#f0fdf4; font-weight:bold; color:#166534;">${formatter.format(sugeridoRealDeEstaObra)}</td>
+                        <td>${areaNum.toFixed(3)} ${medidaTexto}</td>
+                        <td>${formatter.format(costoReal)}</td>
+                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoX3)}</td>
                     </tr>`;
             });
 
-            const valorTotalSugerido = sumaSugeridoRealMedida + manoObraRegistrada;
+            const totalOrden = sumaSugeridoRealMedida + manoObraRegistrada;
+            const rentabilidadCalculada = totalCobrado - sumaCostoRealMedida;
 
             htmlContenido += `
                     </tbody>
@@ -161,29 +160,20 @@ async function generarReporteDiario() {
                 </table>
 
                 <div class="resumen-grid">
-                    <div>
-                        <span class="label-resumen">SUMA COSTOS MATERIALES</span>
-                        <span class="val-resumen">${formatter.format(sumaCostoRealMedida)}</span>
-                    </div>
-                    <div>
-                        <span class="label-resumen">SUMA COSTOS MATERIALES (X3)</span>
-                        <span class="val-resumen">${formatter.format(sumaSugeridoRealMedida)}</span>
-                    </div>
-                    <div>
-                        <span class="label-resumen">MANO DE OBRA</span>
-                        <span class="val-resumen">${formatter.format(manoObraRegistrada)}</span>
-                    </div>
-                    <div>
-                        <span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span>
-                        <span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(valorTotalSugerido)}</span>
-                    </div>
+                    <div><span class="label-resumen">SUMA COSTOS MATERIALES</span><span class="val-resumen">${formatter.format(sumaCostoRealMedida)}</span></div>
+                    <div><span class="label-resumen">SUMA COSTOS MATERIALES (X3)</span><span class="val-resumen">${formatter.format(sumaSugeridoRealMedida)}</span></div>
+                    <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObraRegistrada)}</span></div>
+                    <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
                 </div>
 
-                <div class="${totalCobrado < (valorTotalSugerido - 100) ? 'alerta-negativa' : 'alerta-positiva'}">
-                    VALOR COBRADO EN FACTURA: <strong>${formatter.format(totalCobrado)}</strong> <br>
-                    <span style="font-size:0.85rem;">
-                        ${totalCobrado < (valorTotalSugerido - 100) ? '⚠️ COBRO INFERIOR AL TOTAL ORDEN' : '✅ RENTABILIDAD SEGÚN REGLA X3'}
-                    </span>
+                <div class="${totalCobrado < (totalOrden - 100) ? 'alerta-negativa' : 'alerta-positiva'}">
+                    <div>
+                        <span class="rentabilidad-badge">RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadCalculada)}</span>
+                    </div>
+                    <div>
+                        VALOR COBRADO EN FACTURA: <strong>${formatter.format(totalCobrado)}</strong>
+                        <span style="margin-left:10px;">${totalCobrado < (totalOrden - 100) ? '❌' : '✅'}</span>
+                    </div>
                 </div>
             </div>`;
         });
@@ -191,10 +181,7 @@ async function generarReporteDiario() {
         htmlContenido += `</body></html>`;
         nuevaVentana.document.write(htmlContenido);
         nuevaVentana.document.close();
-    } catch (e) { 
-        console.error("Error al generar el reporte:", e);
-        alert("Hubo un error al generar el reporte. Revisa la consola.");
-    }
+    } catch (e) { console.error(e); }
 }
 
 // --- 4. EXPORTAR A EXCEL (INTACTO) ---
