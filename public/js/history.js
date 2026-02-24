@@ -80,90 +80,92 @@ async function generarReporteDiario() {
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
                 .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
                 th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; }
                 td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
-                .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; }
+                .tfoot-sumas td { background: #f1f5f9; font-weight: 800; color: #1e3a8a; border-top: 2px solid #1e3a8a; }
+                .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; margin-top: 15px; }
                 .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; }
                 .val-resumen { font-size: 1.1rem; font-weight: 800; display: block; }
-                .alerta-negativa { color: #e11d48; background: #fff1f2; padding: 10px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #fecaca; }
-                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 10px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
+                .alerta-negativa { color: #e11d48; background: #fff1f2; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #fecaca; }
+                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
             </style>
         </head><body>
-            <h1 style="text-align:center; color:#1e3a8a;">AUDITORÍA DE RENTABILIDAD</h1>`;
+            <h1 style="text-align:center; color:#1e3a8a;">AUDITORÍA DE RENTABILIDAD POR MEDIDA</h1>`;
 
         facturasAReportar.forEach(f => {
-            let sumaCostoBase = 0;
-            let sumaSugeridoX3 = 0;
-            // Rescatamos mano de obra de cualquier campo posible
-            const manoObraRegistrada = Number(f.manoObra || f.mano_obra_total || f.mano_obra || 0);
+            let sumaCostoRealMedida = 0;
+            let sumaSugeridoRealMedida = 0;
+            const manoObraRegistrada = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
 
             htmlContenido += `
             <div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                    <div><strong style="font-size:1.3rem;">${formatearNumeroOT(f)}</strong><br>CLIENTE: ${(f.cliente?.nombre || f.clienteNombre || "S/N").toUpperCase()}</div>
-                    <div style="text-align:right;">FECHA: ${new Date(f.fecha).toLocaleDateString()}</div>
+                    <div><strong style="font-size:1.3rem;">${formatearNumeroOT(f)}</strong><br>CLIENTE: ${(f.clienteNombre || "S/N").toUpperCase()}</div>
+                    <div style="text-align:right;">MEDIDAS: ${f.medidas || '--'} | FECHA: ${new Date(f.fecha).toLocaleDateString()}</div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th style="text-align:left;">Material</th>
-                            <th>Medida (m²/ML)</th>
-                            <th>Costo Base Unit.</th>
-                            <th>Sugerido (x3)</th>
-                            <th>Subtotal Sugerido</th>
+                            <th style="text-align:left;">Descripción Material</th>
+                            <th>Medida Usada (m²)</th>
+                            <th>Costo por Medida</th>
+                            <th>Subtotal Material (x3)</th>
                         </tr>
                     </thead>
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                // 1. RESCATE DE NOMBRE
-                const nombreItem = (item.descripcion || item.nombre || item.material || "MATERIAL NO ESPECIFICADO").toUpperCase();
+                const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase();
+                const medida = Number(item.area_m2 || item.area || 1);
                 
-                // 2. RESCATE DE MEDIDA
-                const medida = Number(item.area_m2 || item.area || item.cantidad || 1);
-                
-                // 3. SUPER RESCATE DE COSTO (Factura -> Inventario)
-                let cBase = Number(item.costoBase || item.costo_base_unitario || item.costo_m2_base || 0);
-
-                if (cBase === 0) {
-                    const mInv = inventarioLocal.find(m => 
-                        (m.nombre || "").toLowerCase().trim() === nombreItem.toLowerCase().trim()
-                    );
-                    if (mInv) cBase = Number(mInv.costo_m2 || mInv.precio_m2_costo || mInv.costo || 0);
+                // Buscamos el costo base (por m2)
+                let cBaseM2 = Number(item.costoBase || 0);
+                if (cBaseM2 === 0) {
+                    const mInv = inventarioLocal.find(m => (m.nombre || "").toLowerCase().trim() === nombreItem.toLowerCase().trim());
+                    cBaseM2 = mInv ? Number(mInv.costo_m2 || mInv.precio_m2_costo || 0) : 0;
                 }
 
-                const sugeridoU = cBase * 3;
-                const sugeridoT = sugeridoU * medida;
-                
-                sumaCostoBase += (cBase * medida);
-                sumaSugeridoX3 += sugeridoT;
+                // CÁLCULO POR LA MEDIDA REAL (Ej: 0.70 m2)
+                const costoRealDeEstaObra = cBaseM2 * medida; 
+                const sugeridoRealDeEstaObra = costoRealDeEstaObra * 3;
+
+                sumaCostoRealMedida += costoRealDeEstaObra;
+                sumaSugeridoRealMedida += sugeridoRealDeEstaObra;
 
                 htmlContenido += `
                     <tr>
                         <td style="text-align:left; font-weight:600;">${nombreItem}</td>
                         <td>${medida.toFixed(3)}</td>
-                        <td>${formatter.format(cBase)}</td>
-                        <td>${formatter.format(sugeridoU)}</td>
-                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoT)}</td>
+                        <td>${formatter.format(costoRealDeEstaObra)}</td>
+                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoRealDeEstaObra)}</td>
                     </tr>`;
             });
 
-            const totalSugeridoFinal = sumaSugeridoX3 + manoObraRegistrada;
-            const diferencia = totalCobrado - totalSugeridoFinal;
+            // Fila de Sumatorias al pie de la tabla
+            htmlContenido += `
+                    </tbody>
+                    <tfoot class="tfoot-sumas">
+                        <tr>
+                            <td colspan="2" style="text-align:right;">TOTALES POR MATERIALES:</td>
+                            <td>${formatter.format(sumaCostoRealMedida)}</td>
+                            <td>${formatter.format(sumaSugeridoRealMedida)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
 
-            htmlContenido += `</tbody></table>
                 <div class="resumen-grid">
-                    <div><span class="label-resumen">Costo Materiales</span><span class="val-resumen">${formatter.format(sumaCostoBase)}</span></div>
-                    <div><span class="label-resumen">Sugerido Mat. (x3)</span><span class="val-resumen">${formatter.format(sumaSugeridoX3)}</span></div>
+                    <div><span class="label-resumen">Suma Costos Reales</span><span class="val-resumen">${formatter.format(sumaCostoRealMedida)}</span></div>
+                    <div><span class="label-resumen">Sugerido Mat. (x3)</span><span class="val-resumen">${formatter.format(sumaSugeridoRealMedida)}</span></div>
                     <div><span class="label-resumen">Mano de Obra</span><span class="val-resumen">${formatter.format(manoObraRegistrada)}</span></div>
-                    <div><span class="label-resumen">Total Sugerido</span><span class="val-resumen" style="color:#1e3a8a;">${formatter.format(totalSugeridoFinal)}</span></div>
+                    <div><span class="label-resumen">TOTAL SUGERIDO (Venta)</span><span class="val-resumen" style="color:#1e3a8a;">${formatter.format(sumaSugeridoRealMedida + manoObraRegistrada)}</span></div>
                 </div>
-                <div class="${diferencia < -500 ? 'alerta-negativa' : 'alerta-positiva'}">
+
+                <div class="${totalCobrado < (sumaSugeridoRealMedida + manoObraRegistrada - 100) ? 'alerta-negativa' : 'alerta-positiva'}">
                     VALOR COBRADO EN FACTURA: ${formatter.format(totalCobrado)} <br>
                     <span style="font-size:0.85rem;">
-                        ${diferencia < -500 ? '⚠️ ATENCIÓN: Se cobraron ' + formatter.format(Math.abs(diferencia)) + ' por debajo del precio sugerido.' : '✅ La venta cubre los costos y el margen x3.'}
+                        ${totalCobrado < (sumaSugeridoRealMedida + manoObraRegistrada - 100) ? '⚠️ COBRO INFERIOR AL SUGERIDO' : '✅ RENTABILIDAD CORRECTA'}
                     </span>
                 </div>
             </div>`;
@@ -172,7 +174,7 @@ async function generarReporteDiario() {
         htmlContenido += `</body></html>`;
         nuevaVentana.document.write(htmlContenido);
         nuevaVentana.document.close();
-    } catch (error) { console.error("Error en reporte:", error); }
+    } catch (e) { console.error(e); }
 }
 
 // --- 4. EXPORTAR A EXCEL (INTACTO) ---
