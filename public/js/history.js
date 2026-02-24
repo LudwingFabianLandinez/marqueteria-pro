@@ -70,6 +70,7 @@ async function fetchInvoices() {
 async function generarReporteDiario() {
     try {
         const facturasAReportar = todasLasFacturas;
+        const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
@@ -117,9 +118,16 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                // --- CAMBIO CLAVE: Prioridad de nombres ---
-                const nombreItem = (item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
+                // --- AJUSTE QUIRÚRGICO DE NOMBRE ---
+                // Buscamos el nombre real. Si el campo dice "MATERIAL", probamos con otros campos del objeto
+                let nombreReal = item.nombre || item.producto || item.material || item.descripcion || "MATERIAL";
                 
+                // Si el nombre sigue siendo "MATERIAL", intentamos rescatarlo del inventario usando el ID o el costo
+                if (nombreReal.toUpperCase() === "MATERIAL" && item.id) {
+                    const deInventario = inventarioLocal.find(inv => inv.id === item.id);
+                    if (deInventario) nombreReal = deInventario.nombre;
+                }
+
                 const area = Number(item.area_m2 || item.area || 1);
                 const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || 0);
                 
@@ -131,7 +139,7 @@ async function generarReporteDiario() {
 
                 htmlContenido += `
                     <tr>
-                        <td style="text-align:left; font-weight:600;">${nombreItem}</td>
+                        <td style="text-align:left; font-weight:600;">${nombreReal.toUpperCase()}</td>
                         <td>${area.toFixed(3)} ${medidaTexto}</td>
                         <td>${formatter.format(costoFila)}</td>
                         <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
