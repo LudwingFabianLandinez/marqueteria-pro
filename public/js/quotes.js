@@ -126,8 +126,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Búsqueda en todo el inventario para marcos (Radar ML activo y K 2312 blindada)
             llenar(selects.Marco, m => {
-                const n = m.nombre.toUpperCase();
-                return n.includes("MOLDURA") || n.includes("MARCO") || m.unidad === 'ML' || n.includes("2312");
+                // Quitamos espacios extra y pasamos a Mayúsculas
+                const n = (m.nombre || "").toString().toUpperCase().trim();
+                const u = (m.unidad || "").toString().toUpperCase().trim();
+                
+                // Buscamos el número directamente (es lo más seguro)
+                const tieneNumero = n.includes("2312");
+                const esMoldura = n.includes("MOLDURA") || n.includes("MARCO");
+                const esML = u === 'ML';
+
+                return tieneNumero || esMoldura || esML;
             }, true);
             
             llenar(selects.Foam, m => m.nombre.toUpperCase().includes("FOAM"));
