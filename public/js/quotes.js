@@ -26,22 +26,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
+        // --- RADAR DE DIAGNÓSTICO INICIAL ---
+        console.log("📡 DATOS LLEGANDO DEL SERVIDOR:", result);
+
         if (result.success) {
             const cat = result.data;
             
-            // 1. UNIFICACIÓN TOTAL: Metemos todo en una sola bolsa para que nada se pierda
+            // 1. UNIFICACIÓN TOTAL: Metemos todo en una sola bolsa
             const inventarioCompleto = [
                 ...(cat.vidrios || []), 
                 ...(cat.respaldos || []), 
                 ...(cat.paspartu || []), 
                 ...(cat.marcos || []), 
-                ...(cat.molduras || []), // Por si el servidor lo llama así
+                ...(cat.molduras || []), 
                 ...(cat.foam || []), 
                 ...(cat.tela || []), 
                 ...(cat.chapilla || [])
             ];
 
-            // Guardamos para respaldo global
+            // ALERT DE VERIFICACIÓN: Esto te dirá si la moldura existe en el bulto
+            const busquedaCritica = inventarioCompleto.filter(m => 
+                m.nombre.toUpperCase().includes("K 2312") || 
+                m.nombre.toUpperCase().includes("2312")
+            );
+
+            if (busquedaCritica.length === 0) {
+                alert("🚨 ALERTA: La moldura 'K 2312' NO existe en los datos que envió el servidor. Por eso no sale en el listado.");
+            } else {
+                console.log("✅ MOLDURA K 2312 ENCONTRADA EN EL INVENTARIO:", busquedaCritica);
+            }
+
             materialesOriginales = inventarioCompleto;
 
             const datalist = document.getElementById('lista-molduras');
@@ -52,7 +66,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
                 
-                // Filtramos del bulto total lo que corresponde a este select
                 const listaFiltrada = inventarioCompleto.filter(filtroBusqueda);
 
                 if (listaFiltrada.length === 0) {
@@ -65,7 +78,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const unidad = (m.unidad || "").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
                     
-                    // Detectamos si es ML por unidad o por palabra clave
                     const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
                     
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
@@ -83,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.textContent = `${nombreM} ${avisoStock}`;
                     select.appendChild(option);
 
-                    // Si es moldura y estamos en la sección de marcos, al buscador de una!
                     if (esML && datalist && esParaBuscador) {
                         const optBusqueda = document.createElement('option');
                         optBusqueda.value = nombreM; 
@@ -97,14 +108,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             llenar(selects.Respaldo, m => m.nombre.toUpperCase().includes("RESPALDO") || m.nombre.toUpperCase().includes("MDF"));
             llenar(selects.Paspartu, m => m.nombre.toUpperCase().includes("PASPARTU"));
             
-            // Esta es la clave: busca cualquier cosa que diga MOLDURA o sea ML en TODO el inventario
+            // Búsqueda en todo el inventario para marcos
             llenar(selects.Marco, m => m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().includes("MARCO") || m.unidad === 'ML', true);
             
             llenar(selects.Foam, m => m.nombre.toUpperCase().includes("FOAM"));
             llenar(selects.Tela, m => m.nombre.toUpperCase().includes("TELA") || m.nombre.toUpperCase().includes("LONA"));
             llenar(selects.Chapilla, m => m.nombre.toUpperCase().includes("CHAPILLA"));
             
-            console.log("🚀 Reconstrucción terminada. Buscador alimentado con todas las molduras detectadas.");
+            console.log("🚀 Sincronización terminada. Inventario total procesado:", inventarioCompleto.length);
         }
     } catch (error) {
         console.error("🚨 Error en la reconstrucción:", error);
