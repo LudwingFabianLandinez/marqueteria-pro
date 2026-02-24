@@ -396,7 +396,12 @@
         if(matSelect) {
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
-            opciones += inventario.map(m => `<option value="${m._id || m.id}">${m.nombre}</option>`).join('');
+            // Añadimos el data-costo para que el cotizador pueda leerlo después
+opciones += inventario.map(m => `
+    <option value="${m._id || m.id}" data-costo="${m.costoUnitario || 0}">
+        ${m.nombre.toUpperCase()}
+    </option>
+`).join('');
             matSelect.innerHTML = opciones;
         }
     };
