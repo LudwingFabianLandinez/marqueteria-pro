@@ -158,13 +158,23 @@ async function generarReporteDiario() {
                 const cant = Number(item.cantidad || 1);
                 
                 // --- LÓGICA DE RESCATE DE COSTOS ---
-                let cBaseU = Number(item.costoBase || 0);
-                if (cBaseU === 0) {
-                    const mInv = inventarioLocal.find(m => 
-                        m.nombre.toLowerCase() === (item.descripcion || item.nombre || "").toLowerCase()
-                    );
-                    if (mInv) cBaseU = Number(mInv.costo || mInv.costoBase || 0);
-                }
+                // 1. Intentamos sacar el costo de la factura (probamos todos los nombres posibles)
+let cBaseU = Number(item.costoBase || item.costo_base_unitario || item.costo_m2_base || 0);
+
+// 2. Si no lo encontramos, lo buscamos en el inventario local
+if (cBaseU === 0) {
+    const mInv = inventarioLocal.find(m => {
+        // Usamos .trim() para ignorar espacios invisibles que dañan la comparación
+        const nombreInventario = (m.nombre || "").toLowerCase().trim();
+        const nombreEnFactura = (item.descripcion || item.nombre || "").toLowerCase().trim();
+        return nombreInventario === nombreEnFactura;
+    });
+
+    if (mInv) {
+        // Extraemos el costo del inventario usando cualquier nombre que tenga en la base de datos
+        cBaseU = Number(mInv.costo_m2 || mInv.precio_m2_costo || mInv.costo || 0);
+    }
+}
 
                 const cBaseT = cBaseU * cant;
                 const cX3U = cBaseU * 3;
