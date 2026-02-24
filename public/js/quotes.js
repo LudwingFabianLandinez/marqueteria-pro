@@ -34,10 +34,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...(cat.marcos || []), ...(cat.foam || []), ...(cat.tela || []), ...(cat.chapilla || [])
             ];
 
-            const llenar = (select, lista) => {
+           const llenar = (select, lista) => {
     if (!select) return;
-    
-    // Si hay error o está vacío, mostramos el aviso
     if (!lista || lista.length === 0) {
         select.innerHTML = `<option value="">-- No disponible --</option>`;
         return;
@@ -46,6 +44,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     select.innerHTML = `<option value="">-- Seleccionar --</option>`;
     
     lista.forEach(m => {
+        // --- ESTA ES LA LÍNEA QUE DEBES AÑADIR ---
+        console.log("IDENTIFICANDO MATERIAL:", m.nombre, "| COSTO:", m.costo_m2, m.precio_m2_costo, m.costoUnitario);
+        // -----------------------------------------
+
         const stock = m.stock_actual || m.stock_actual_m2 || 0;
         const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
         const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
@@ -54,10 +56,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         option.value = m._id || m.id;
         option.style = color;
 
-        // --- REVISIÓN DE COSTO (Aquí estaba el error de conexión) ---
-        const costoDetectado = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
+        // Aquí es donde el código decide qué número usar:
+        const precioDetectado = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
         
-        option.dataset.costo = costoDetectado; 
+        option.dataset.costo = precioDetectado; 
         option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
         
         select.appendChild(option);
