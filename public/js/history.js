@@ -69,41 +69,19 @@ async function fetchInvoices() {
 // --- 3. REPORTE DE AUDITORÍA DETALLADO (PUNTOS 1 AL 5 CORREGIDO) ---
 async function generarReporteDiario() {
     try {
-        // Pedimos la fecha para filtrar
-        const fechaInput = prompt("Ingrese la fecha (AAAA-MM-DD):", new Date().toISOString().split('T')[0]);
-        if (!fechaInput) return;
-
-        const buscada = fechaInput.replace(/-/g, "");
-
-        // Filtramos las facturas por la fecha ingresada
-        const facturasAReportar = todasLasFacturas.filter(f => {
-            if (!f.fecha) return false;
-            const p = f.fecha.split('/');
-            if (p.length < 3) return false;
-            const fechaNormalizada = `${p[2]}${p[1].padStart(2, '0')}${p[0].padStart(2, '0')}`;
-            return fechaNormalizada === buscada;
-        });
-
-        if (facturasAReportar.length === 0) {
-            alert("No hay ventas registradas para: " + fechaInput);
-            return;
-        }
-
+        const facturasAReportar = todasLasFacturas;
         const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
 
         const nuevaVentana = window.open('', '_blank');
-        
-        let htmlContenido = `<html><head><title>Reporte - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
-                .header-marca { text-align: center; border-bottom: 4px solid #1e3a8a; margin-bottom: 30px; padding-bottom: 10px; }
-                .header-marca h1 { margin: 0; color: #1e3a8a; font-size: 2rem; }
-                .header-marca h2 { margin: 5px 0; color: #64748b; font-size: 1.2rem; }
-                .no-print { display: flex; gap: 10px; justify-content: center; margin-bottom: 25px; }
-                .btn { padding: 10px 20px; cursor: pointer; border-radius: 8px; font-weight: bold; color: white; border: none; text-transform: uppercase; }
+                .no-print { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+                .btn { padding: 10px 15px; cursor: pointer; border-radius: 5px; border: none; color: white; font-weight: bold; text-transform: uppercase; }
+                .header-container { text-align: center; margin-bottom: 30px; border-bottom: 4px solid #1e3a8a; padding-bottom: 10px; }
                 .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
                 th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; text-transform: uppercase; }
@@ -118,17 +96,16 @@ async function generarReporteDiario() {
             </style>
         </head><body>
             <div class="no-print">
-                <button class="btn" style="background:#64748b" onclick="window.close()">← REGRESAR</button>
-                <button class="btn" style="background:#1e3a8a" onclick="window.print()">🖨️ IMPRIMIR</button>
-                <button class="btn" style="background:#16a34a" onclick="exportarExcel()">📊 EXCEL</button>
+                <button class="btn" style="background: #64748b;" onclick="window.close()">← REGRESAR</button>
+                <button class="btn" style="background: #1e3a8a;" onclick="window.print()">🖨️ IMPRIMIR</button>
+                <button class="btn" style="background: #16a34a;" onclick="exportarExcel()">📊 EXCEL</button>
             </div>
 
-            <div class="header-marca">
-                <h1>MARQUETERIA LA CHICA MORALES</h1>
-                <h2>REPORTE DE VENTAS</h2>
-                <p><strong>FECHA:</strong> ${fechaInput}</p>
-            </div>
-            <div id="area-reporte">`;
+            <div class="header-container">
+                <h1 style="color:#1e3a8a; margin:0;">MARQUETERIA LA CHICA MORALES</h1>
+                <h2 style="color:#64748b; margin:5px 0;">REPORTE DE VENTAS</h2>
+                <p><strong>FECHA:</strong> ${new Date().toLocaleDateString()}</p>
+            </div>`;
 
         facturasAReportar.forEach(f => {
             let sumaCostoMateriales = 0;
@@ -137,14 +114,14 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
             
-            // --- RASTREADOR DE NOMBRE CLIENTE ---
-            const nombreCliente = (f.clienteNombre || (f.cliente && f.cliente.nombre) || "CLIENTE GENERAL").toUpperCase();
+            // CORRECCIÓN DE NOMBRE PARA QUITAR EL S/N
+            const nombreCliente = (f.cliente?.nombre || f.clienteNombre || "CLIENTE GENERAL").toUpperCase();
 
             htmlContenido += `<div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom:10px;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
                     <span style="color:#64748b">CLIENTE:</span> <strong>${nombreCliente}</strong></div>
-                    <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${f.fecha}</div>
+                    <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${f.fecha || '---'}</div>
                 </div>
                 <table>
                     <thead>
@@ -172,6 +149,7 @@ async function generarReporteDiario() {
 
                 const costoFila = costoBaseUnitario * area;
                 const sugeridoFila = costoFila * 3;
+
                 sumaCostoMateriales += costoFila;
                 sumaMaterialesX3 += sugeridoFila;
 
@@ -196,8 +174,8 @@ async function generarReporteDiario() {
                     </tfoot>
                 </table>
                 <div class="resumen-grid">
-                    <div><span class="label-resumen">COSTO MATERIAL</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
-                    <div><span class="label-resumen">VENTA SUGERIDA</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
+                    <div><span class="label-resumen">SUMA COSTOS</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
+                    <div><span class="label-resumen">MATERIAL (X3)</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
                     <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObra)}</span></div>
                     <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
                 </div>
@@ -207,15 +185,14 @@ async function generarReporteDiario() {
             </div>`;
         });
 
-        htmlContenido += `</div>
+        htmlContenido += `
             <script>
                 function exportarExcel() {
-                    var html = document.getElementById('area-reporte').innerHTML;
+                    var html = document.body.innerHTML;
                     var blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                    var url = URL.createObjectURL(blob);
                     var a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'Ventas_Chica_Morales_${fechaInput}.xls';
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'Reporte_Ventas_Chica_Morales.xls';
                     a.click();
                 }
             </script>
