@@ -69,17 +69,37 @@ async function fetchInvoices() {
 // --- 3. REPORTE DE AUDITORÍA DETALLADO (PUNTOS 1 AL 5 CORREGIDO) ---
 async function generarReporteDiario() {
     try {
-        const facturasAReportar = todasLasFacturas;
+        // --- 1. FILTRO POR FECHA ---
+        const fechaFiltro = prompt("Ingrese la fecha a reportar (AAAA-MM-DD) o deje vacío para ver todo:", 
+                            new Date().toISOString().split('T')[0]);
+        
+        const facturasAReportar = fechaFiltro 
+            ? todasLasFacturas.filter(f => f.fecha.includes(fechaFiltro))
+            : todasLasFacturas;
+
+        if (facturasAReportar.length === 0) {
+            alert("No hay ventas registradas para esa fecha.");
+            return;
+        }
+
         const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
 
         const nuevaVentana = window.open('', '_blank');
-        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
+        
+        let htmlContenido = `<html><head><title>Reporte de Ventas - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
-                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+                .header-brand { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #1e3a8a; padding-bottom: 20px; }
+                .header-brand h1 { margin: 0; color: #1e3a8a; font-size: 2.2rem; }
+                .header-brand h2 { margin: 5px 0; color: #64748b; font-size: 1.4rem; text-transform: uppercase; }
+                .no-print-zone { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+                .btn-accion { padding: 10px 20px; cursor: pointer; border-radius: 8px; font-weight: bold; border: none; transition: 0.3s; }
+                .btn-regresar { background: #64748b; color: white; }
+                .btn-excel { background: #16a34a; color: white; }
+                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; position: relative; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
                 th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; text-transform: uppercase; }
                 td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
@@ -89,9 +109,19 @@ async function generarReporteDiario() {
                 .val-resumen { font-size: 1.1rem; font-weight: 800; color: #1e293b; }
                 .footer-rentabilidad { background: #f0fdf4; padding: 15px; border-radius: 5px; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; }
                 .rentabilidad-texto { color: #15803d; font-weight: bold; font-size: 1.2rem; }
+                @media print { .no-print-zone { display: none; } body { padding: 10px; background: white; } }
             </style>
         </head><body>
-            <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD</h1>`;
+            <div class="no-print-zone">
+                <button class="btn-accion btn-regresar" onclick="window.close()">← REGRESAR A VENTAS</button>
+                <button class="btn-accion btn-excel" onclick="window.print()">IMPRIMIR REPORTE</button>
+            </div>
+
+            <div class="header-brand">
+                <h1>MARQUETERIA LA CHICA MORALES</h1>
+                <h2>VENTAS GENERADAS</h2>
+                <p>Fecha de reporte: ${fechaFiltro || 'Histórico Completo'}</p>
+            </div>`;
 
         facturasAReportar.forEach(f => {
             let sumaCostoMateriales = 0;
@@ -99,11 +129,14 @@ async function generarReporteDiario() {
             const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
+            
+            // --- CORRECCIÓN NOMBRE CLIENTE ---
+            const clienteFinal = f.clienteNombre || (f.cliente && f.cliente.nombre) || "S/N";
 
             htmlContenido += `<div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom:10px;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
-                    <span style="color:#64748b">CLIENTE:</span> <strong>${(f.clienteNombre || "S/N").toUpperCase()}</strong></div>
+                    <span style="color:#64748b">CLIENTE:</span> <strong>${clienteFinal.toUpperCase()}</strong></div>
                     <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${new Date(f.fecha).toLocaleDateString()}</div>
                 </div>
                 <table>
@@ -121,17 +154,13 @@ async function generarReporteDiario() {
                 const area = Number(item.area_m2 || item.area || 1);
                 const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || 0);
                 
-                // --- MOTOR TRADUCTOR ---
-                // Si el nombre dice "MATERIAL", lo buscamos en el inventario comparando el COSTO
                 let nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
                 
                 if (nombreReal === "MATERIAL" && costoBaseUnitario > 0) {
                     const materialCoincidente = inventarioLocal.find(inv => 
                         Math.abs(Number(inv.costo_m2 || inv.precio_m2_costo) - costoBaseUnitario) < 10
                     );
-                    if (materialCoincidente) {
-                        nombreReal = materialCoincidente.nombre.toUpperCase();
-                    }
+                    if (materialCoincidente) nombreReal = materialCoincidente.nombre.toUpperCase();
                 }
 
                 const costoFila = costoBaseUnitario * area;
@@ -154,11 +183,7 @@ async function generarReporteDiario() {
 
             htmlContenido += `</tbody>
                     <tfoot class="tfoot-sumas">
-                        <tr>
-                            <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
-                            <td>${formatter.format(sumaCostoMateriales)}</td>
-                            <td>${formatter.format(sumaMaterialesX3)}</td>
-                        </tr>
+                        <tr><td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td><td>${formatter.format(sumaCostoMateriales)}</td><td>${formatter.format(sumaMaterialesX3)}</td></tr>
                     </tfoot>
                 </table>
                 <div class="resumen-grid">
