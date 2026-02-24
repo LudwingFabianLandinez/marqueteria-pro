@@ -397,11 +397,11 @@
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
             // Añadimos el data-costo para que el cotizador pueda leerlo después
-opciones += inventario.map(m => `
-    <option value="${m._id || m.id}" data-costo="${m.costoUnitario || 0}">
-        ${m.nombre.toUpperCase()}
-    </option>
-`).join('');
+opciones += inventario.map(m => {
+    // Detectamos el costo sin importar cómo se llame en tu base de datos
+    const costo = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
+    return `<option value="${m._id || m.id}" data-costo="${costo}">${m.nombre.toUpperCase()}</option>`;
+}).join('');
             matSelect.innerHTML = opciones;
         }
     };
