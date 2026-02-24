@@ -67,7 +67,8 @@ try {
     // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS (INTACTA) ---
     router.get('/quotes/materials', async (req, res) => {
         try {
-            const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).lean();
+            const materiales = await Material.find({ estado: { $ne: 'Inactivo' } }).sort({ nombre: 1 }).lean();
+            console.log("📦 Total materiales recuperados para cotización:", materiales.length);
             const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
             const materialesMapeados = materiales.map(m => ({
                 ...m, costo_m2: m.costo_m2 || m.precio_m2_costo || 0, id: m._id 

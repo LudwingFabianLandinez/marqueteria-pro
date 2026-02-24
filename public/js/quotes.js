@@ -26,14 +26,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
-        // --- RADAR DE DIAGNÓSTICO INICIAL ---
+        // --- RADAR DE DIAGNÓSTICO (ACTUALIZADO PARA LISTA MAESTRA) ---
         console.log("📡 DATOS LLEGANDO DEL SERVIDOR:", result);
 
         if (result.success) {
             const cat = result.data;
             
-            // 1. UNIFICACIÓN TOTAL: Metemos todo en una sola bolsa
-            const inventarioCompleto = [
+            // 1. UNIFICACIÓN TOTAL MEJORADA: Ahora usamos 'cat.todos' del servidor
+            // Si por alguna razón 'cat.todos' no viene, usamos el bulto anterior por seguridad
+            const inventarioCompleto = cat.todos || [
                 ...(cat.vidrios || []), 
                 ...(cat.respaldos || []), 
                 ...(cat.paspartu || []), 
@@ -44,16 +45,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...(cat.chapilla || [])
             ];
 
-            // ALERT DE VERIFICACIÓN: Esto te dirá si la moldura existe en el bulto
+            // ALERT DE VERIFICACIÓN (Radar de la K 2312)
             const busquedaCritica = inventarioCompleto.filter(m => 
                 m.nombre.toUpperCase().includes("K 2312") || 
                 m.nombre.toUpperCase().includes("2312")
             );
 
             if (busquedaCritica.length === 0) {
-                alert("🚨 ALERTA: La moldura 'K 2312' NO existe en los datos que envió el servidor. Por eso no sale en el listado.");
+                alert("🚨 ALERTA: La moldura 'K 2312' SIGUE SIN LLEGAR. Revisa que esté activa en la Base de Datos.");
             } else {
-                console.log("✅ MOLDURA K 2312 ENCONTRADA EN EL INVENTARIO:", busquedaCritica);
+                console.log("✅ MOLDURA K 2312 DETECTADA EN LISTA MAESTRA:", busquedaCritica);
             }
 
             materialesOriginales = inventarioCompleto;
@@ -61,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const datalist = document.getElementById('lista-molduras');
             if (datalist) datalist.innerHTML = '';
 
-            // 2. FUNCIÓN DE LLENADO INTELIGENTE
+            // 2. FUNCIÓN DE LLENADO INTELIGENTE (MANTENIDA AL 100%)
             const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
@@ -103,19 +104,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             };
 
-            // 3. REPARTO QUIRÚRGICO (Basado en el nombre del producto)
-            llenar(selects.Vidrio, m => m.nombre.toUpperCase().includes("VIDRIO"));
-            llenar(selects.Respaldo, m => m.nombre.toUpperCase().includes("RESPALDO") || m.nombre.toUpperCase().includes("MDF"));
-            llenar(selects.Paspartu, m => m.nombre.toUpperCase().includes("PASPARTU"));
+            // 3. REPARTO QUIRÚRGICO (AMPLIADO PARA RECUPERAR TODO EL INVENTARIO)
             
-            // Búsqueda en todo el inventario para marcos
-            llenar(selects.Marco, m => m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().includes("MARCO") || m.unidad === 'ML', true);
+            // Vidrios: Ahora incluye 3mm y Espejos
+            llenar(selects.Vidrio, m => {
+                const n = m.nombre.toUpperCase();
+                return n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM");
+            });
+
+            // Respaldos: Incluye MDF, Cartón y Celtex
+            llenar(selects.Respaldo, m => {
+                const n = m.nombre.toUpperCase();
+                return n.includes("RESPALDO") || n.includes("MDF") || n.includes("CARTON") || n.includes("CELTEX");
+            });
+
+            // Paspartu: Ahora captura Passepartout (escritura francesa) y Cartulinas
+            llenar(selects.Paspartu, m => {
+                const n = m.nombre.toUpperCase();
+                return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
+            });
+            
+            // Búsqueda en todo el inventario para marcos (Radar ML activo y K 2312 blindada)
+            llenar(selects.Marco, m => {
+                const n = m.nombre.toUpperCase();
+                return n.includes("MOLDURA") || n.includes("MARCO") || m.unidad === 'ML' || n.includes("2312");
+            }, true);
             
             llenar(selects.Foam, m => m.nombre.toUpperCase().includes("FOAM"));
-            llenar(selects.Tela, m => m.nombre.toUpperCase().includes("TELA") || m.nombre.toUpperCase().includes("LONA"));
+            
+            llenar(selects.Tela, m => {
+                const n = m.nombre.toUpperCase();
+                return n.includes("TELA") || n.includes("LONA") || n.includes("CANVAS");
+            });
+            
             llenar(selects.Chapilla, m => m.nombre.toUpperCase().includes("CHAPILLA"));
             
-            console.log("🚀 Sincronización terminada. Inventario total procesado:", inventarioCompleto.length);
+            console.log("🚀 Sincronización terminada. Usando lista maestra 'todos'. Total:", inventarioCompleto.length);
         }
     } catch (error) {
         console.error("🚨 Error en la reconstrucción:", error);
