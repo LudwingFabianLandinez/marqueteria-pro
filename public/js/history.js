@@ -76,9 +76,7 @@ async function generarReporteDiario() {
             return;
         }
 
-        // Recuperamos el inventario local para rescatar costos faltantes
         const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
-
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
@@ -143,12 +141,11 @@ async function generarReporteDiario() {
                 <table>
                     <thead>
                         <tr>
-                            <th>Descripción Material</th>
+                            <th style="text-align: left;">Descripción Material</th>
                             <th style="text-align: center;">Cant.</th>
                             <th style="text-align: center;">Costo Base Unit.</th>
-                            <th style="text-align: center;">Costo Base Total</th>
                             <th style="text-align: center;">Costo x 3 Unit.</th>
-                            <th style="text-align: center;">Costo x 3 Total</th>
+                            <th style="text-align: center;">Subtotal (x3)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -157,40 +154,36 @@ async function generarReporteDiario() {
             items.forEach(item => {
                 const cant = Number(item.cantidad || 1);
                 
-                // --- LÓGICA DE RESCATE DE COSTOS ---
-                // 1. Intentamos sacar el costo de la factura (probamos todos los nombres posibles)
-let cBaseU = Number(item.costoBase || item.costo_base_unitario || item.costo_m2_base || 0);
+                // --- 1. RESCATE DEL NOMBRE DEL MATERIAL ---
+                const nombreMaterial = (item.descripcion || item.nombre || item.materialNombre || 'Material').toUpperCase();
 
-// 2. Si no lo encontramos, lo buscamos en el inventario local
-if (cBaseU === 0) {
-    const mInv = inventarioLocal.find(m => {
-        // Usamos .trim() para ignorar espacios invisibles que dañan la comparación
-        const nombreInventario = (m.nombre || "").toLowerCase().trim();
-        const nombreEnFactura = (item.descripcion || item.nombre || "").toLowerCase().trim();
-        return nombreInventario === nombreEnFactura;
-    });
+                // --- 2. LÓGICA DE RESCATE DE COSTOS ---
+                let cBaseU = Number(item.costoBase || item.costo_base_unitario || item.costo_m2_base || 0);
 
-    if (mInv) {
-        // Extraemos el costo del inventario usando cualquier nombre que tenga en la base de datos
-        cBaseU = Number(mInv.costo_m2 || mInv.precio_m2_costo || mInv.costo || 0);
-    }
-}
+                if (cBaseU === 0) {
+                    const mInv = inventarioLocal.find(m => {
+                        const nombreInv = (m.nombre || "").toLowerCase().trim();
+                        const nombreItem = nombreMaterial.toLowerCase().trim();
+                        return nombreInv === nombreItem;
+                    });
+                    if (mInv) {
+                        cBaseU = Number(mInv.costo_m2 || mInv.precio_m2_costo || mInv.costo || 0);
+                    }
+                }
 
-                const cBaseT = cBaseU * cant;
                 const cX3U = cBaseU * 3;
-                const cX3T = cX3U * cant;
+                const cX3TotalItem = cX3U * cant;
 
-                sumaCostoBaseOT += cBaseT;
-                sumaCostoX3OT += cX3T;
+                sumaCostoBaseOT += (cBaseU * cant);
+                sumaCostoX3OT += cX3TotalItem;
 
                 htmlContenido += `
                     <tr>
-                        <td style="font-weight: 600;">${(item.descripcion || item.nombre || 'Material').toUpperCase()}</td>
+                        <td style="font-weight: 600;">${nombreMaterial}</td>
                         <td style="text-align: center;">${cant}</td>
                         <td style="text-align: center;" class="col-costo">${formatter.format(cBaseU)}</td>
-                        <td style="text-align: center;" class="col-costo"><strong>${formatter.format(cBaseT)}</strong></td>
                         <td style="text-align: center;" class="col-x3">${formatter.format(cX3U)}</td>
-                        <td style="text-align: center;" class="col-x3"><strong>${formatter.format(cX3T)}</strong></td>
+                        <td style="text-align: center;" class="col-x3"><strong>${formatter.format(cX3TotalItem)}</strong></td>
                     </tr>
                 `;
             });
@@ -200,16 +193,16 @@ if (cBaseU === 0) {
                 </table>
                 <div class="footer-ot">
                     <div class="total-item">
-                        <span class="total-label">Suma de Costos (Materiales)</span>
+                        <span class="total-label">Costo Total Materiales (Base)</span>
                         <span class="total-val" style="color: #64748b;">${formatter.format(sumaCostoBaseOT)}</span>
                     </div>
                     <div class="total-item">
-                        <span class="total-label">Suma de Costos x 3 (OT)</span>
+                        <span class="total-label">Costo Total x 3 (Sugerido OT)</span>
                         <span class="total-val" style="color: #15803d;">${formatter.format(sumaCostoX3OT)}</span>
                     </div>
                 </div>
                 <div style="text-align: right; margin-top: 15px; font-weight: 800; font-size: 1.1rem; color: #1e3a8a; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
-                    VALOR TOTAL VENTA: ${formatter.format(f.totalFactura || f.total)}
+                    VALOR TOTAL VENTA REAL: ${formatter.format(f.totalFactura || f.total)}
                 </div>
             </div>
             `;
