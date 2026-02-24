@@ -76,7 +76,7 @@ async function generarReporteDiario() {
         });
 
         const nuevaVentana = window.open('', '_blank');
-        let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Auditoría - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
                 .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
@@ -121,16 +121,15 @@ async function generarReporteDiario() {
                 const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase().trim();
                 const area = Number(item.area_m2 || item.area || 1);
                 
-                // --- MOTOR DE RESCATE MEJORADO ---
-                let costoBaseUnit = Number(item.costoBase || 0);
+                // --- RESCATE INDIVIDUAL ---
+                // Priorizamos el costo que viene en el item, si es 0, buscamos específicamente
+                let costoBaseUnit = Number(item.costoBase || item.precioUnitario || 0);
                 
                 if (costoBaseUnit === 0) {
-                    // Intento 1: Por nombre exacto
-                    let m = inventarioLocal.find(inv => inv.nombre.toUpperCase().trim() === nombreItem);
-                    // Intento 2: Si falla y el item se llama "MATERIAL", tomamos el primer costo disponible como referencia
-                    if (!m && nombreItem === "MATERIAL") m = inventarioLocal[0];
-                    
-                    costoBaseUnit = m ? Number(m.costo_m2 || m.precio_m2_costo || 0) : 0;
+                    const m = inventarioLocal.find(inv => inv.nombre.toUpperCase().trim() === nombreItem);
+                    if (m) {
+                        costoBaseUnit = Number(m.costo_m2 || m.precio_m2_costo || 0);
+                    }
                 }
 
                 const costoProporcional = costoBaseUnit * area;
