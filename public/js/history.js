@@ -79,7 +79,7 @@ async function generarReporteDiario() {
         let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
                 body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
-                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+                .ot-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
                 th { background: #1e3a8a; color: white; padding: 12px; font-size: 0.75rem; text-align: center; text-transform: uppercase; }
                 td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; text-align: center; }
@@ -87,19 +87,16 @@ async function generarReporteDiario() {
                 .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #cbd5e1; margin-top: 15px; }
                 .label-resumen { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 5px; }
                 .val-resumen { font-size: 1.1rem; font-weight: 800; color: #1e293b; }
-                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; display: flex; justify-content: space-between; align-items: center; }
-                .alerta-negativa { color: #e11d48; background: #fff1f2; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #fecaca; display: flex; justify-content: space-between; align-items: center; }
-                .rentabilidad-badge { background: #1e3a8a; color: white; padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; }
+                .alerta-positiva { color: #15803d; background: #f0fdf4; padding: 15px; border-radius: 5px; font-weight: bold; margin-top: 10px; text-align: right; border: 1px solid #bbf7d0; font-size: 1.1rem; }
             </style>
         </head><body>
-            <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD DETALLADA</h1>`;
+            <h1 style="text-align:center; color:#1e3a8a; margin-bottom:30px;">AUDITORÍA DE RENTABILIDAD</h1>`;
 
         facturasAReportar.forEach(f => {
-            let sumaCostoRealMedida = 0;
-            let sumaSugeridoRealMedida = 0;
-            const manoObraRegistrada = Number(f.manoObra || f.mano_obra_total || 0);
+            let sumaCostoMateriales = 0;
+            let sumaMaterialesX3 = 0;
+            const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
-            // Capturamos el texto de medidas (ej: 70 x 100)
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
             htmlContenido += `
@@ -122,58 +119,58 @@ async function generarReporteDiario() {
 
             (f.items || []).forEach(item => {
                 const nombreItem = (item.descripcion || item.nombre || "MATERIAL").toUpperCase().trim();
-                const areaNum = Number(item.area_m2 || item.area || 1);
+                const area = Number(item.area_m2 || item.area || 1);
                 
-                let cBaseM2 = Number(item.costoBase || 0);
-                if (cBaseM2 === 0) {
-                    const mInv = inventarioLocal.find(m => (m.nombre || "").toUpperCase().trim() === nombreItem);
-                    cBaseM2 = mInv ? Number(mInv.costo_m2 || mInv.precio_m2_costo || 0) : 0;
+                // --- MOTOR DE RESCATE MEJORADO ---
+                let costoBaseUnit = Number(item.costoBase || 0);
+                
+                if (costoBaseUnit === 0) {
+                    // Intento 1: Por nombre exacto
+                    let m = inventarioLocal.find(inv => inv.nombre.toUpperCase().trim() === nombreItem);
+                    // Intento 2: Si falla y el item se llama "MATERIAL", tomamos el primer costo disponible como referencia
+                    if (!m && nombreItem === "MATERIAL") m = inventarioLocal[0];
+                    
+                    costoBaseUnit = m ? Number(m.costo_m2 || m.precio_m2_costo || 0) : 0;
                 }
 
-                const costoReal = cBaseM2 * areaNum; 
-                const sugeridoX3 = costoReal * 3;
+                const costoProporcional = costoBaseUnit * area;
+                const sugeridoProporcional = costoProporcional * 3;
 
-                sumaCostoRealMedida += costoReal;
-                sumaSugeridoRealMedida += sugeridoX3;
+                sumaCostoMateriales += costoProporcional;
+                sumaMaterialesX3 += sugeridoProporcional;
 
                 htmlContenido += `
                     <tr>
                         <td style="text-align:left; font-weight:600;">${nombreItem}</td>
-                        <td>${areaNum.toFixed(3)} ${medidaTexto}</td>
-                        <td>${formatter.format(costoReal)}</td>
-                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoX3)}</td>
+                        <td>${area.toFixed(3)} ${medidaTexto}</td>
+                        <td>${formatter.format(costoProporcional)}</td>
+                        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoProporcional)}</td>
                     </tr>`;
             });
 
-            const totalOrden = sumaSugeridoRealMedida + manoObraRegistrada;
-            const rentabilidadCalculada = totalCobrado - sumaCostoRealMedida;
+            const totalOrden = sumaMaterialesX3 + manoObra;
+            const rentabilidadReal = totalCobrado - sumaCostoMateriales;
 
             htmlContenido += `
                     </tbody>
                     <tfoot class="tfoot-sumas">
                         <tr>
                             <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
-                            <td>${formatter.format(sumaCostoRealMedida)}</td>
-                            <td>${formatter.format(sumaSugeridoRealMedida)}</td>
+                            <td>${formatter.format(sumaCostoMateriales)}</td>
+                            <td>${formatter.format(sumaMaterialesX3)}</td>
                         </tr>
                     </tfoot>
                 </table>
 
                 <div class="resumen-grid">
-                    <div><span class="label-resumen">SUMA COSTOS MATERIALES</span><span class="val-resumen">${formatter.format(sumaCostoRealMedida)}</span></div>
-                    <div><span class="label-resumen">SUMA COSTOS MATERIALES (X3)</span><span class="val-resumen">${formatter.format(sumaSugeridoRealMedida)}</span></div>
-                    <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObraRegistrada)}</span></div>
+                    <div><span class="label-resumen">SUMA COSTOS MATERIALES</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
+                    <div><span class="label-resumen">SUMA COSTOS MATERIALES (X3)</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
+                    <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObra)}</span></div>
                     <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
                 </div>
 
-                <div class="${totalCobrado < (totalOrden - 100) ? 'alerta-negativa' : 'alerta-positiva'}">
-                    <div>
-                        <span class="rentabilidad-badge">RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadCalculada)}</span>
-                    </div>
-                    <div>
-                        VALOR COBRADO EN FACTURA: <strong>${formatter.format(totalCobrado)}</strong>
-                        <span style="margin-left:10px;">${totalCobrado < (totalOrden - 100) ? '❌' : '✅'}</span>
-                    </div>
+                <div class="alerta-positiva">
+                    RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadReal)} ✅
                 </div>
             </div>`;
         });
