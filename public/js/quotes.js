@@ -34,47 +34,62 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...(cat.marcos || []), ...(cat.foam || []), ...(cat.tela || []), ...(cat.chapilla || [])
             ];
 
-           const llenar = (select, lista) => {
-    if (!select) return;
-    if (!lista || lista.length === 0) {
-        select.innerHTML = `<option value="">-- No disponible --</option>`;
-        return;
-    }
-    
-    select.innerHTML = `<option value="">-- Seleccionar --</option>`;
-    
-    lista.forEach(m => {
-        // --- ESTA ES LA LÍNEA QUE DEBES AÑADIR ---
-        console.log("IDENTIFICANDO MATERIAL:", m.nombre, "| COSTO:", m.costo_m2, m.precio_m2_costo, m.costoUnitario);
-        // -----------------------------------------
+           const llenar = (select, lista, esMarco = false) => {
+                if (!select) return;
+                if (!lista || lista.length === 0) {
+                    select.innerHTML = `<option value="">-- No disponible --</option>`;
+                    return;
+                }
+                
+                select.innerHTML = `<option value="">-- Seleccionar --</option>`;
+                
+                // Preparar el datalist solo si es la sección de Marcos/Molduras
+                const datalist = document.getElementById('lista-molduras');
+                if (esMarco && datalist) datalist.innerHTML = '';
 
-        const stock = m.stock_actual || m.stock_actual_m2 || 0;
-        const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
-        const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
-        
-        const option = document.createElement('option');
-        option.value = m._id || m.id;
-        option.style = color;
+                lista.forEach(m => {
+                    const stock = m.stock_actual || m.stock_actual_m2 || 0;
+                    const unidad = (m.unidad || "").toUpperCase();
+                    
+                    // CRITERIO: Es ML si la unidad es ML o si viene de la categoría marcos
+                    const esML = unidad === 'ML' || esMarco;
+                    
+                    const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
+                    const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${esML ? 'ML' : 'm²'})`;
+                    
+                    const option = document.createElement('option');
+                    option.value = m._id || m.id;
+                    option.style = color;
 
-        // Aquí es donde el código decide qué número usar:
-        const precioDetectado = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
-        
-        option.dataset.costo = precioDetectado; 
-        option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
-        
-        select.appendChild(option);
-    });
-};
+                    // PRIORIDAD DE PRECIO: Si es ML busca precio_ml, si no, busca m2
+                    const precioDetectado = esML ? (m.precio_ml || m.costo_base || m.costoUnitario || 0) : (m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0);
+                    
+                    option.dataset.costo = precioDetectado;
+                    option.dataset.unidad = esML ? 'ML' : 'M2'; // Blindaje para el cálculo posterior
+                    
+                    option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
+                    select.appendChild(option);
 
+                    // Si es marco, alimentar el buscador inteligente
+                    if (esMarco && datalist) {
+                        const optBusqueda = document.createElement('option');
+                        optBusqueda.value = m.nombre.toUpperCase();
+                        optBusqueda.dataset.id = m._id || m.id;
+                        datalist.appendChild(optBusqueda);
+                    }
+                });
+            };
+
+            // LLAMADAS QUIRÚRGICAS (Solo el Marco lleva el 'true' para el buscador)
             llenar(selects.Vidrio, cat.vidrios);
             llenar(selects.Respaldo, cat.respaldos);
             llenar(selects.Paspartu, cat.paspartu);
-            llenar(selects.Marco, cat.marcos);
+            llenar(selects.Marco, cat.marcos, true); // <--- ACTIVADOR DE BUSCADOR Y ML
             llenar(selects.Foam, cat.foam);
             llenar(selects.Tela, cat.tela);
             llenar(selects.Chapilla, cat.chapilla);
             
-            console.log("✅ Materiales cargados con blindaje v13.1.7");
+            console.log("✅ Materiales cargados con Buscador Inteligente y Soporte ML");
         }
     } catch (error) {
         console.error("🚨 Error cargando materiales:", error);
@@ -106,14 +121,20 @@ async function procesarCotizacion() {
         'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
     ];
 
+    // Mapeo inteligente que rescata el costo y la UNIDAD (ML o M2)
     const materialesSeleccionados = selectsIds
-        .map(id => document.getElementById(id))
-        .filter(el => el && el.value !== "")
-        .map(el => ({
-        id: el.value,
-        nombre: el.options[el.selectedIndex].text.split('(')[0].trim(),
-        costoUnitario: parseFloat(el.options[el.selectedIndex].dataset.costo) || 0
-    }));
+        .map(id => {
+            const el = document.getElementById(id);
+            if (!el || el.value === "") return null;
+            const opcion = el.options[el.selectedIndex];
+            return {
+                id: el.value,
+                nombre: opcion.text.split('(')[0].trim(),
+                costoUnitario: parseFloat(opcion.dataset.costo) || 0,
+                unidad: opcion.dataset.unidad || 'M2' // Rescatamos la unidad del dataset
+            };
+        })
+        .filter(m => m !== null);
 
     if (!ancho || !largo || materialesSeleccionados.length === 0) {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
@@ -123,33 +144,32 @@ async function procesarCotizacion() {
     try {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
-        const response = await fetch('/.netlify/functions/server/quotes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                ancho, largo, 
-                materialesIds: materialesSeleccionados.map(m => m.id), 
-                manoObra: manoObraInput 
-            })
+        // Cálculo de medidas base
+        const areaCalculada = (ancho * largo) / 10000; // m²
+        const perimetroCalculado = ((ancho + largo) * 2) / 100; // ML (Metros Lineales)
+
+        let costoBaseLocal = 0;
+
+        // Lógica Híbrida: ML para Molduras, M2 para el resto
+        materialesSeleccionados.forEach(m => {
+            if (m.unidad === 'ML') {
+                costoBaseLocal += (m.costoUnitario * perimetroCalculado);
+                console.log(`📏 Calculando ML para ${m.nombre}: ${perimetroCalculado}m`);
+            } else {
+                costoBaseLocal += (m.costoUnitario * areaCalculada);
+                console.log(`🔳 Calculando M2 para ${m.nombre}: ${areaCalculada}m²`);
+            }
         });
 
-        const result = await response.json();
-        const areaCalculada = (ancho * largo) / 10000;
-        let dataFinal;
-
-        if (result.success && result.data) {
-            dataFinal = result.data;
-        } else {
-            let costoBaseLocal = 0;
-            materialesSeleccionados.forEach(m => {
-                costoBaseLocal += (m.costoUnitario * areaCalculada);
-            });
-            dataFinal = {
-                valor_materiales: costoBaseLocal,
-                area: areaCalculada,
-                detalles: { medidas: `${ancho} x ${largo} cm`, materiales: materialesSeleccionados }
-            };
-        }
+        // Simulamos respuesta de dataFinal para mantener compatibilidad con tu diseño
+        let dataFinal = {
+            valor_materiales: costoBaseLocal,
+            area: areaCalculada,
+            detalles: { 
+                medidas: `${ancho} x ${largo} cm`, 
+                materiales: materialesSeleccionados 
+            }
+        };
 
         dataFinal.detalles.materiales = materialesSeleccionados;
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
@@ -168,6 +188,24 @@ async function procesarCotizacion() {
         alert("Error al procesar la cotización.");
     } finally {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
+    }
+}
+
+// FUNCIÓN PARA EL BUSCADOR INTELIGENTE (Punto 2b)
+function sincronizarBuscadorMoldura(valor) {
+    const selectMarco = document.getElementById('materialOtroId');
+    const datalist = document.getElementById('lista-molduras');
+    
+    // Buscar si el valor escrito coincide con alguna opción del datalist
+    const opciones = datalist.options;
+    for (let i = 0; i < opciones.length; i++) {
+        if (opciones[i].value === valor.toUpperCase()) {
+            selectMarco.value = opciones[i].dataset.id;
+            // Opcional: disparar un efecto visual de que se seleccionó
+            selectMarco.style.backgroundColor = "#e0f2fe";
+            setTimeout(() => selectMarco.style.backgroundColor = "", 500);
+            return;
+        }
     }
 }
 
