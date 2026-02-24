@@ -35,32 +35,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             ];
 
             const llenar = (select, lista) => {
-                if (!select) return;
-                if (!lista || lista.length === 0) {
-                    select.innerHTML = `<option value="">-- No disponible --</option>`;
-                    return;
-                }
-                
-                select.innerHTML = `<option value="">-- Seleccionar --</option>`;
-                Script
-lista.forEach(m => {
-    const stock = m.stock_actual || m.stock_actual_m2 || 0;
-    const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
-    const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
+    if (!select) return;
     
-    const option = document.createElement('option');
-    option.value = m._id || m.id;
-    option.style = color;
+    // Si hay error o está vacío, mostramos el aviso
+    if (!lista || lista.length === 0) {
+        select.innerHTML = `<option value="">-- No disponible --</option>`;
+        return;
+    }
+    
+    select.innerHTML = `<option value="">-- Seleccionar --</option>`;
+    
+    lista.forEach(m => {
+        const stock = m.stock_actual || m.stock_actual_m2 || 0;
+        const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
+        const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} m²)`;
+        
+        const option = document.createElement('option');
+        option.value = m._id || m.id;
+        option.style = color;
 
-    // --- MEJORA AQUÍ: Buscamos en todas las etiquetas posibles del servidor ---
-    const precioDetectado = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || m.costo || 0;
-    
-    option.dataset.costo = precioDetectado;
-    option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
-    
-    select.appendChild(option);
-                });
-            };
+        // --- REVISIÓN DE COSTO (Aquí estaba el error de conexión) ---
+        const costoDetectado = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
+        
+        option.dataset.costo = costoDetectado; 
+        option.textContent = `${m.nombre.toUpperCase()} ${avisoStock}`;
+        
+        select.appendChild(option);
+    });
+};
 
             llenar(selects.Vidrio, cat.vidrios);
             llenar(selects.Respaldo, cat.respaldos);
