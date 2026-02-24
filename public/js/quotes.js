@@ -32,8 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (result.success) {
             const cat = result.data;
             
-            // 1. UNIFICACIÓN TOTAL MEJORADA: Ahora usamos 'cat.todos' del servidor
-            // Si por alguna razón 'cat.todos' no viene, usamos el bulto anterior por seguridad
+            // 1. UNIFICACIÓN TOTAL MEJORADA
             const inventarioCompleto = cat.todos || [
                 ...(cat.vidrios || []), 
                 ...(cat.respaldos || []), 
@@ -47,8 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // ALERT DE VERIFICACIÓN (Radar de la K 2312)
             const busquedaCritica = inventarioCompleto.filter(m => 
-                m.nombre.toUpperCase().includes("K 2312") || 
-                m.nombre.toUpperCase().includes("2312")
+                m.nombre && (m.nombre.toUpperCase().includes("K 2312") || m.nombre.toUpperCase().includes("2312"))
             );
 
             if (busquedaCritica.length === 0) {
@@ -62,7 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const datalist = document.getElementById('lista-molduras');
             if (datalist) datalist.innerHTML = '';
 
-            // 2. FUNCIÓN DE LLENADO INTELIGENTE (MANTENIDA AL 100%)
+            // 2. FUNCIÓN DE LLENADO INTELIGENTE (AHORA CON ESCUDO ANTIFANTASMAS)
             const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
@@ -75,6 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 listaFiltrada.forEach(m => {
+                    // --- EL ESCUDO: Si no tiene nombre o es un registro basura, lo saltamos ---
+                    if (!m.nombre || m.nombre.trim() === "" || m.nombre.includes("undefined")) return;
+
                     const stock = m.stock_actual || m.stock_actual_m2 || 0;
                     const unidad = (m.unidad || "").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
@@ -104,23 +105,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             };
 
-            // 3. REPARTO QUIRÚRGICO (AMPLIADO PARA RECUPERAR TODO EL INVENTARIO)
-            
-            // Vidrios: Ahora incluye 3mm y Espejos
+            // 3. REPARTO QUIRÚRGICO (MANTENIDO)
             llenar(selects.Vidrio, m => {
-                const n = m.nombre.toUpperCase();
+                const n = (m.nombre || "").toUpperCase();
                 return n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM");
             });
 
-            // Respaldos: Incluye MDF, Cartón y Celtex
             llenar(selects.Respaldo, m => {
-                const n = m.nombre.toUpperCase();
+                const n = (m.nombre || "").toUpperCase();
                 return n.includes("RESPALDO") || n.includes("MDF") || n.includes("CARTON") || n.includes("CELTEX");
             });
 
-            // Paspartu: Ahora captura Passepartout (escritura francesa) y Cartulinas
             llenar(selects.Paspartu, m => {
-                const n = m.nombre.toUpperCase();
+                const n = (m.nombre || "").toUpperCase();
                 return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
             });
             

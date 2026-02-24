@@ -92,9 +92,19 @@ try {
                 marcos: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre); 
                     const c = normalizar(m.categoria);
-                    const u = normalizar(m.unidad); // <--- AGREGAMOS UNIDAD
-                    // BLINDAJE: Si es unidad 'ml', si dice 'marco', 'moldura' o 'madera', entra.
-                    return c.includes('marco') || n.includes('marco') || n.includes('moldura') || n.includes('madera') || u === 'ml';
+                    const u = normalizar(m.unidad);
+                    
+                    // BLINDAJE TOTAL:
+                    // 1. Por categoría (marco)
+                    // 2. Por nombre (marco, moldura, madera)
+                    // 3. Por unidad (ml)
+                    // 4. POR CÓDIGO CRÍTICO (2312) para asegurar la MP K 2312
+                    return c.includes('marco') || 
+                           n.includes('marco') || 
+                           n.includes('moldura') || 
+                           n.includes('madera') || 
+                           n.includes('2312') || // <--- REFUERZO DIRECTO
+                           u === 'ml';
                 }),
                 paspartu: materialesMapeados.filter(m => {
                     const n = normalizar(m.nombre);
@@ -103,7 +113,7 @@ try {
                 foam: materialesMapeados.filter(m => normalizar(m.nombre).includes('foam')),
                 tela: materialesMapeados.filter(m => normalizar(m.nombre).includes('tela') || normalizar(m.nombre).includes('lona')),
                 chapilla: materialesMapeados.filter(m => normalizar(m.nombre).includes('chapilla')),
-                todos: materialesMapeados // Bolsa de emergencia intacta
+                todos: materialesMapeados 
             };
             
             res.json({ success: true, count: materiales.length, data });
