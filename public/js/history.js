@@ -105,7 +105,7 @@ async function generarReporteDiario() {
             <div style="text-align:center; margin-bottom:30px;">
                 <h1 style="color:#1e3a8a; margin:0;">MARQUETERIA LA CHICA MORALES</h1>
                 <h2 style="color:#64748b; margin:5px 0;">REPORTE DE VENTAS</h2>
-                <p><strong>FECHA:</strong> ${new Date().toLocaleDateString()}</p>
+                <p><strong>FECHA GENERACIÓN:</strong> ${new Date().toLocaleDateString()}</p>
             </div>`;
 
         facturasAReportar.forEach(f => {
@@ -115,14 +115,17 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
-            // MEJORA QUIRÚRGICA: Nombre del cliente real
+            // MEJORA QUIRÚRGICA: Nombre del cliente real (si no existe, busca en cliente.nombre)
             const nombreCliente = (f.cliente?.nombre || f.clienteNombre || "CLIENTE GENERAL").toUpperCase();
+            
+            // LIMPIEZA DE FECHA: Tomamos solo la parte de la fecha si viene con el código T00:00...
+            const fechaLimpia = f.fecha ? f.fecha.split('T')[0] : '---';
 
             htmlContenido += `<div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom:10px;">
                     <div><strong style="font-size:1.4rem; color:#1e3a8a;">${formatearNumeroOT(f)}</strong><br>
                     <span style="color:#64748b">CLIENTE:</span> <strong>${nombreCliente}</strong></div>
-                    <div style="text-align:right; color:#64748b"><strong>FECHA:</strong> ${f.fecha || '---'}</div>
+                    <div style="text-align:right; color:#64748b"><strong>FECHA OT:</strong> ${fechaLimpia}</div>
                 </div>
                 <table>
                     <thead>
@@ -137,12 +140,10 @@ async function generarReporteDiario() {
 
             (f.items || []).forEach(item => {
                 const area = Number(item.area_m2 || item.area || 1);
-                // Recuperamos el costo buscando en todas las variables posibles
                 const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || item.costo || 0);
                 
                 let nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
                 
-                // Traductor por costo si el nombre viene genérico
                 if (nombreReal === "MATERIAL" && costoBaseUnitario > 0) {
                     const match = inventarioLocal.find(inv => 
                         Math.abs(Number(inv.costo_m2 || inv.precio_m2_costo) - costoBaseUnitario) < 10
