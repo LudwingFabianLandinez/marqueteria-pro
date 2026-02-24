@@ -278,31 +278,45 @@ function imprimirResumen() {
 }
 
 window.facturarVenta = async function() {
-    if (!datosCotizacionActual) return;
+    if (!datosCotizacionActual) {
+        alert("⚠️ No hay una cotización activa para facturar.");
+        return;
+    }
     
-    // 1. Definir variables básicas
-    const nombre = document.getElementById('nombreCliente')?.value.trim();
-    const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
+    // 1. Captura de elementos de interfaz
+    const nombreInput = document.getElementById('nombreCliente');
+    const telInput = document.getElementById('telCliente');
+    const abonoInput = document.getElementById('abonoInicial');
     const btnVenta = document.getElementById('btnFinalizarVenta');
 
-    if (!nombre) { alert("⚠️ Ingresa el nombre del cliente."); return; }
+    const nombre = nombreInput?.value.trim();
+    const telefono = telInput?.value.trim() || "N/A";
+    const abono = parseFloat(abonoInput?.value) || 0;
 
-    // --- AQUÍ COLOCAS EL CÓDIGO QUE ME PASASTE (El Rescate Universal) ---
+    if (!nombre) {
+        alert("⚠️ Por favor, ingresa el nombre del cliente.");
+        nombreInput?.focus();
+        return;
+    }
+
+    // 2. Rescate Universal de Materiales (Atrapa los 4 o los que elijas)
     const itemsProcesados = [];
     const todosLosSelects = document.querySelectorAll('select');
 
     todosLosSelects.forEach(select => {
         if (select.value && select.selectedIndex > 0) {
             const opcion = select.options[select.selectedIndex];
+            
+            // Verificamos que sea un material con costo inyectado
             if (opcion.dataset.costo !== undefined) {
                 const nombreReal = opcion.text.split('(')[0].trim().toUpperCase();
                 const costoReal = parseFloat(opcion.dataset.costo) || 0;
 
                 itemsProcesados.push({
                     productoId: select.value,
-                    descripcion: nombreReal,
-                    nombre: nombreReal,
-                    costoBase: costoReal,
+                    descripcion: nombreReal, // <--- Etiqueta clave para el reporte
+                    nombre: nombreReal,      // <--- Respaldo
+                    costoBase: costoReal,    // <--- El reporte multiplica esto x3
                     costo_base_unitario: costoReal,
                     cantidad: 1,
                     ancho: datosCotizacionActual.anchoOriginal || 0,
@@ -312,32 +326,54 @@ window.facturarVenta = async function() {
             }
         }
     });
-    // --- FIN DEL CÓDIGO QUE ME PASASTE ---
 
-    // 2. Preparar el envío (La maleta de datos)
+    if (itemsProcesados.length === 0) {
+        alert("⚠️ No has seleccionado ningún material para la venta.");
+        return;
+    }
+
+    // 3. Estructura de datos final (La maleta)
     const facturaData = {
-        cliente: { nombre: nombre, telefono: "N/A" },
-        items: itemsProcesados, // <--- Aquí ya van tus 4 materiales
-        totalFactura: datosCotizacionActual.precioSugeridoCliente,
+        cliente: { 
+            nombre: nombre, 
+            telefono: telefono 
+        },
+        medidas: `${datosCotizacionActual.anchoOriginal || 0} x ${datosCotizacionActual.largoOriginal || 0}`,
+        items: itemsProcesados,
+        totalFactura: datosCotizacionActual.precioSugeridoCliente || 0,
         totalPagado: abono,
+        mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
         fecha: new Date()
     };
 
-    // 3. Enviar al servidor
+    // 4. Envío Quirúrgico al Servidor
     try {
-        if(btnVenta) btnVenta.disabled = true;
+        if (btnVenta) {
+            btnVenta.disabled = true;
+            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+        }
+
         const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(facturaData)
         });
+
         const result = await response.json();
+
         if (result.success) {
-            alert("✅ VENTA GUARDADA");
+            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}`);
             window.location.href = "/history.html";
+        } else {
+            throw new Error(result.error || "El servidor rechazó la venta.");
         }
+
     } catch (error) {
-        alert("Error: " + error.message);
-        if(btnVenta) btnVenta.disabled = false;
+        console.error("Error crítico en facturación:", error);
+        alert("🚨 ERROR AL GUARDAR: " + error.message);
+        if (btnVenta) {
+            btnVenta.disabled = false;
+            btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
+        }
     }
 };
