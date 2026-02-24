@@ -289,23 +289,24 @@ async function facturarVenta() {
 
     // --- PROCESAMIENTO ROBUSTO DE ITEMS ---
     const itemsParaEnviar = (datosCotizacionActual.detalles?.materiales || []).map(m => {
-        // Aseguramos que el nombre y costo existan sí o sí
-        const nombreMaterial = m.nombre || "Material";
-        const costoValido = parseFloat(m.costoUnitario || 0);
+    // --- CAMBIO CLAVE AQUÍ ---
+    // Buscamos primero en 'costo_m2' porque así se llama en tu inventario
+    const costoValido = parseFloat(m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0);
+    const nombreMaterial = m.nombre || "Material";
 
-        return {
-            productoId: m.id || m._id,
-            descripcion: nombreMaterial.toUpperCase(), // Forzamos la descripción que busca el reporte
-            nombre: nombreMaterial.toUpperCase(),
-            materialNombre: nombreMaterial.toUpperCase(),
-            ancho: datosCotizacionActual.anchoOriginal,
-            largo: datosCotizacionActual.largoOriginal,
-            area_m2: datosCotizacionActual.areaFinal,
-            cantidad: 1, // Una unidad de este material para esta obra
-            costoBase: costoValido, // Lo que busca history.js para multiplicar x3
-            costo_base_unitario: costoValido
-        };
-    });
+    return {
+        productoId: m.id || m._id,
+        descripcion: nombreMaterial.toUpperCase(), 
+        nombre: nombreMaterial.toUpperCase(),
+        materialNombre: nombreMaterial.toUpperCase(),
+        ancho: datosCotizacionActual.anchoOriginal,
+        largo: datosCotizacionActual.largoOriginal,
+        area_m2: datosCotizacionActual.areaFinal,
+        cantidad: 1, 
+        costoBase: costoValido, 
+        costo_base_unitario: costoValido
+    };
+});
 
     const facturaData = {
         cliente: {
