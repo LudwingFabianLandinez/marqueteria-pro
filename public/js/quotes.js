@@ -333,6 +333,7 @@ window.facturarVenta = async function() {
     }
 
     // 3. Estructura de datos final (La maleta)
+    // --- CAMBIO AQUÍ: Aseguramos que mano_obra_total se guarde ---
     const facturaData = {
         cliente: { 
             nombre: nombre, 
@@ -342,8 +343,10 @@ window.facturarVenta = async function() {
         items: itemsProcesados,
         totalFactura: datosCotizacionActual.precioSugeridoCliente || 0,
         totalPagado: abono,
+        // Usamos tanto f.manoObra como f.mano_obra_total por seguridad para el reporte
+        manoObra: datosCotizacionActual.valor_mano_obra || 0, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
-        fecha: new Date()
+        fecha: new Date().toISOString()
     };
 
     // 4. Envío Quirúrgico al Servidor

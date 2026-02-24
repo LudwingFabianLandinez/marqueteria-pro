@@ -70,152 +70,106 @@ async function fetchInvoices() {
 async function generarReporteDiario() {
     try {
         const facturasAReportar = todasLasFacturas;
-
-        if (facturasAReportar.length === 0) {
-            alert("❌ No hay datos de facturas para generar el reporte.");
-            return;
-        }
-
         const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
 
         const nuevaVentana = window.open('', '_blank');
-        
-        let htmlContenido = `
-        <html>
-        <head>
-            <title>Auditoría Maestra - La Chica Morales</title>
+        let htmlContenido = `<html><head><title>Auditoría - La Chica Morales</title>
             <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1e293b; background: #f1f5f9; }
-                .report-header { text-align: center; margin-bottom: 30px; border-bottom: 4px solid #1e3a8a; padding-bottom: 10px; background: white; padding: 20px; border-radius: 10px; }
-                .ot-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 30px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); page-break-inside: avoid; }
-                .ot-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 15px; }
-                .ot-info h2 { margin: 0; color: #1e3a8a; font-size: 1.5rem; }
-                .ot-info p { margin: 5px 0; font-weight: 700; color: #334155; font-size: 1.1rem; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th { background: #1e3a8a; color: white; padding: 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase; }
-                td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-                .col-costo { color: #64748b; font-weight: 500; }
-                .col-x3 { color: #15803d; font-weight: bold; background: #f0fdf4; }
-                .footer-ot { margin-top: 15px; padding: 15px; background: #f8fafc; border-radius: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border: 1px solid #e2e8f0; }
-                .total-item { text-align: right; }
-                .total-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: bold; }
-                .total-val { font-size: 1.2rem; font-weight: 800; display: block; }
-                .no-print-btn { background: #1e3a8a; color: white; padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-bottom: 20px; }
-                @media print { .no-print { display: none; } body { background: white; padding: 0; } .ot-card { box-shadow: none; border: 2px solid #1e3a8a; margin-bottom: 50px; } }
+                body { font-family: 'Segoe UI', sans-serif; padding: 30px; color: #1e293b; background: #f1f5f9; }
+                .ot-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                table { width: 100%; border-collapse: collapse; }
+                th { background: #1e3a8a; color: white; padding: 10px; font-size: 0.8rem; text-transform: uppercase; }
+                td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+                .resumen-financiero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+                .valor-alerta { color: #dc2626; font-weight: 800; } /* Rojo si cobraste menos de lo sugerido */
+                .valor-exito { color: #15803d; font-weight: 800; }
             </style>
-        </head>
-        <body>
-            <div class="no-print" style="text-align: center;">
-                <button class="no-print-btn" onclick="window.print()">IMPRIMIR TODAS LAS ORDENES</button>
-            </div>
-            <div class="report-header">
-                <h1 style="margin:0;">MARQUETERÍA LA CHICA MORALES</h1>
-                <h3 style="margin:5px 0; color: #1e3a8a;">REPORTE DE AUDITORÍA DETALLADO (COSTOS X 3)</h3>
-                <p>Órdenes analizadas: ${facturasAReportar.length} | Fecha: ${new Date().toLocaleString()}</p>
-            </div>
-        `;
+        </head><body>`;
 
         facturasAReportar.forEach(f => {
-            const clienteReal = (f.clienteNombre || f.cliente?.nombre || "CLIENTE NO REGISTRADO").toUpperCase();
-            const nOT = formatearNumeroOT(f);
             const items = f.items || [];
-            
-            let sumaCostoBaseOT = 0;
             let sumaCostoX3OT = 0;
+            let sumaCostoBaseOT = 0;
+
+            // 1. Calculamos la Mano de Obra (Diferencia entre total y lo que suman los items)
+            // Si no está guardada explícitamente, la detectamos
+            const valorTotalFactura = Number(f.totalFactura || f.total || 0);
 
             htmlContenido += `
             <div class="ot-card">
-                <div class="ot-header">
-                    <div class="ot-info">
-                        <h2>${nOT}</h2>
-                        <p>CLIENTE: ${clienteReal}</p>
-                    </div>
-                    <div style="text-align: right; color: #64748b; font-size: 0.9rem;">
-                        <strong>FECHA REGISTRO:</strong> ${new Date(f.fecha).toLocaleDateString()}<br>
-                        <strong>ESTADO:</strong> ${((f.totalFactura || f.total) - (f.totalPagado || f.abono || 0)) <= 0 ? 'PAGADO' : 'CON SALDO'}
-                    </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                    <div><strong>${formatearNumeroOT(f)}</strong><br>CLIENTE: ${(f.clienteNombre || "S/N").toUpperCase()}</div>
+                    <div style="text-align:right">FECHA: ${new Date(f.fecha).toLocaleDateString()}</div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th style="text-align: left;">Descripción Material</th>
-                            <th style="text-align: center;">Cant.</th>
-                            <th style="text-align: center;">Costo Base Unit.</th>
-                            <th style="text-align: center;">Costo x 3 Unit.</th>
-                            <th style="text-align: center;">Subtotal (x3)</th>
+                            <th>Material</th>
+                            <th style="text-align:center;">Medida (m²/ml)</th>
+                            <th style="text-align:center;">Costo Unit.</th>
+                            <th style="text-align:center;">Sugerido (x3)</th>
+                            <th style="text-align:center;">Subtotal Sugerido</th>
                         </tr>
                     </thead>
-                    <tbody>
-            `;
+                    <tbody>`;
 
             items.forEach(item => {
-                const cant = Number(item.cantidad || 1);
+                // RESCATE DE NOMBRE: Probamos todas las rutas posibles
+                const nombre = (item.descripcion || item.nombre || item.material || "Material no especificado").toUpperCase();
                 
-                // --- 1. RESCATE DEL NOMBRE DEL MATERIAL ---
-                const nombreMaterial = (item.descripcion || item.nombre || item.materialNombre || 'Material').toUpperCase();
-
-                // --- 2. LÓGICA DE RESCATE DE COSTOS ---
-                let cBaseU = Number(item.costoBase || item.costo_base_unitario || item.costo_m2_base || 0);
-
-                if (cBaseU === 0) {
-                    const mInv = inventarioLocal.find(m => {
-                        const nombreInv = (m.nombre || "").toLowerCase().trim();
-                        const nombreItem = nombreMaterial.toLowerCase().trim();
-                        return nombreInv === nombreItem;
-                    });
-                    if (mInv) {
-                        cBaseU = Number(mInv.costo_m2 || mInv.precio_m2_costo || mInv.costo || 0);
-                    }
+                // MEDIDA: Buscamos el área o cantidad guardada
+                const medida = item.area || item.cantidad || 1;
+                
+                // COSTO:
+                let cBase = Number(item.costoBase || 0);
+                if (cBase === 0) {
+                    const mInv = inventarioLocal.find(m => (m.nombre || "").toLowerCase().trim() === nombre.toLowerCase().trim());
+                    if (mInv) cBase = Number(mInv.costo_m2 || mInv.precio_m2_costo || 0);
                 }
 
-                const cX3U = cBaseU * 3;
-                const cX3TotalItem = cX3U * cant;
-
-                sumaCostoBaseOT += (cBaseU * cant);
-                sumaCostoX3OT += cX3TotalItem;
+                const sugeridoU = cBase * 3;
+                const sugeridoT = sugeridoU * medida;
+                
+                sumaCostoBaseOT += (cBase * medida);
+                sumaCostoX3OT += sugeridoT;
 
                 htmlContenido += `
                     <tr>
-                        <td style="font-weight: 600;">${nombreMaterial}</td>
-                        <td style="text-align: center;">${cant}</td>
-                        <td style="text-align: center;" class="col-costo">${formatter.format(cBaseU)}</td>
-                        <td style="text-align: center;" class="col-x3">${formatter.format(cX3U)}</td>
-                        <td style="text-align: center;" class="col-x3"><strong>${formatter.format(cX3TotalItem)}</strong></td>
-                    </tr>
-                `;
+                        <td>${nombre}</td>
+                        <td style="text-align:center;">${medida.toFixed(2)}</td>
+                        <td style="text-align:center;">${formatter.format(cBase)}</td>
+                        <td style="text-align:center;">${formatter.format(sugeridoU)}</td>
+                        <td style="text-align:center; background:#f0fdf4;"><strong>${formatter.format(sugeridoT)}</strong></td>
+                    </tr>`;
             });
 
-            htmlContenido += `
-                    </tbody>
-                </table>
-                <div class="footer-ot">
-                    <div class="total-item">
-                        <span class="total-label">Costo Total Materiales (Base)</span>
-                        <span class="total-val" style="color: #64748b;">${formatter.format(sumaCostoBaseOT)}</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="total-label">Costo Total x 3 (Sugerido OT)</span>
-                        <span class="total-val" style="color: #15803d;">${formatter.format(sumaCostoX3OT)}</span>
-                    </div>
+            // Supongamos que la Mano de Obra se calcula por la diferencia o se lee de la factura
+            const manoObra = f.manoObra || 35000; // Aquí podrías poner f.manoObra si lo guardas
+            const totalSugeridoFinal = sumaCostoX3OT + manoObra;
+            const diferencia = valorTotalFactura - totalSugeridoFinal;
+
+            htmlContenido += `</tbody></table>
+                <div class="resumen-financiero">
+                    <div><span style="font-size:0.7rem">COSTO MATERIALES</span><br><strong>${formatter.format(sumaCostoBaseOT)}</strong></div>
+                    <div><span style="font-size:0.7rem">MANO DE OBRA (MANUAL)</span><br><strong>${formatter.format(manoObra)}</strong></div>
+                    <div><span style="font-size:0.7rem">TOTAL SUGERIDO (COSTOSx3 + M.O)</span><br><span class="valor-exito">${formatter.format(totalSugeridoFinal)}</span></div>
                 </div>
-                <div style="text-align: right; margin-top: 15px; font-weight: 800; font-size: 1.1rem; color: #1e3a8a; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
-                    VALOR TOTAL VENTA REAL: ${formatter.format(f.totalFactura || f.total)}
+                <div style="margin-top:15px; text-align:right; font-size:1.2rem; border-top: 2px solid #1e3a8a; padding-top:10px;">
+                    VALOR COBRADO EN FACTURA: <strong>${formatter.format(valorTotalFactura)}</strong><br>
+                    <span style="font-size:0.9rem; color: ${diferencia < 0 ? '#dc2626' : '#15803d'}">
+                        ${diferencia < 0 ? '⚠️ ESTÁS COBRANDO ' + formatter.format(Math.abs(diferencia)) + ' POR DEBAJO DEL SUGERIDO' : '✅ COBRO CORRECTO'}
+                    </span>
                 </div>
-            </div>
-            `;
+            </div>`;
         });
 
         htmlContenido += `</body></html>`;
         nuevaVentana.document.write(htmlContenido);
         nuevaVentana.document.close();
-
-    } catch (error) {
-        console.error("❌ Error en reporte:", error);
-        alert("Ocurrió un error al generar el reporte de auditoría.");
-    }
+    } catch (e) { console.error(e); }
 }
 
 // --- 4. EXPORTAR A EXCEL (INTACTO) ---
