@@ -149,24 +149,29 @@ window.API = {
 
     // BUSCA ESTA FUNCIÓN EN api.js Y REEMPLÁZALA COMPLETAMENTE
 // REEMPLAZO FINAL: Sincronización Universal v14.1.0
+    // --- FUNCIÓN saveMaterial BLINDADA v14.5.5 ---
     saveMaterial: async function(data) {
         const id = data.id || data._id;
-        // Si el ID empieza por 'LOC-', es un material que nunca llegó a Atlas. Intentaremos crearlo de cero.
         const isNewLocal = id && String(id).startsWith('LOC-');
         const path = (id && !isNewLocal) ? `/inventory/${id}` : '/inventory';
         const method = (id && !isNewLocal) ? 'PUT' : 'POST';
-
+        
         try {
-            console.log(`📡 Sincronizando con Atlas: ${method} en ${path}...`);
+            console.log(`📡 Sincronizando con Atlas (${method})...`);
             
-            // --- MEJORA CRUCIAL PARA ATLAS ---
-            // Si es un material nuevo (LOC-), eliminamos el ID temporal antes de enviar
-            // para que MongoDB Atlas pueda asignarle su ID real de base de datos.
-            const dataToCloud = { ...data };
-            if (isNewLocal) {
-                delete dataToCloud.id;
-                delete dataToCloud._id;
-            }
+            // NORMALIZACIÓN PARA EVITAR ERROR 400 EN ATLAS
+            const dataToCloud = {
+                nombre: String(data.nombre || "").trim().toUpperCase(),
+                categoria: data.categoria || "GENERAL",
+                tipo: data.tipo || "m²",
+                stock_actual: parseFloat(data.stock_actual || data.stock || 0),
+                precio_total_lamina: parseFloat(data.precio_total_lamina || 0),
+                largo_lamina_cm: parseFloat(data.largo_lamina_cm || 0),
+                ancho_lamina_cm: parseFloat(data.ancho_lamina_cm || 0),
+                stock_minimo: parseFloat(data.stock_minimo || 0)
+            };
+
+            if (!isNewLocal && id) dataToCloud.id = id;
 
             const res = await window.API._request(path, { 
                 method: method, 
@@ -174,31 +179,23 @@ window.API = {
             });
 
             if (res.success) {
-                // ¡ÉXITO! Si se guardó en Atlas, limpiamos la copia local para evitar duplicidad
+                console.log("✅ ¡Atlas Sincronizado!");
                 let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
                 const filtered = localInv.filter(m => String(m.id || m._id) !== String(id));
                 localStorage.setItem('inventory', JSON.stringify(filtered));
-                console.log("✅ Atlas actualizado. Memoria local liberada.");
-                
-                // IMPORTANTE: Devolvemos la respuesta de Atlas para que el modo incógnito lo vea
                 return res;
             }
-            throw new Error("Atlas rechazó el paquete");
+            throw new Error("Atlas rechazó el formato de datos");
         } catch (e) {
-            console.warn("💾 Fallo de red/Atlas: Guardando en memoria local de esta PC...");
-            // Tu lógica original de rescate se mantiene intacta aquí:
+            console.warn("💾 RESCATE LOCAL ACTIVO:", e.message);
             const localId = id || `LOC-${Date.now()}`;
-            const newMaterial = { ...data, id: localId, _id: localId };
+            const newMaterial = { ...data, id: localId, _id: localId, local: true };
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            
             const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
             if (index > -1) localInv[index] = newMaterial;
             else localInv.push(newMaterial);
-            
             localStorage.setItem('inventory', JSON.stringify(localInv));
-            
-            // Si llegamos aquí, avisamos que es LOCAL (por eso no se ve en incógnito)
-            return { success: true, data: newMaterial, id: localId, local: true, error: e.message };
+            return { success: true, data: newMaterial, id: localId, local: true };
         }
     },
 
