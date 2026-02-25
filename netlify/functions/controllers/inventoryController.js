@@ -257,8 +257,9 @@ const deleteMaterial = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // 🛡️ FILTRO DE ID TEMPORAL (MAT-)
-        // Si el frontend intenta borrar un ID temporal, le decimos que sí para que no bloquee la compra.
+        // 🛡️ BLINDAJE CONTRA ID TEMPORAL:
+        // Si el ID empieza por MAT-, respondemos éxito de inmediato.
+        // Esto engaña al frontend para que proceda con la compra real.
         if (id && id.startsWith('MAT-')) {
             console.log("🛡️ Bloqueando intento de borrado local en Atlas para ID:", id);
             return res.status(200).json({ 
@@ -267,7 +268,7 @@ const deleteMaterial = async (req, res) => {
             });
         }
 
-        // --- LÓGICA ORIGINAL PARA REGISTROS REALES ---
+        // --- LÓGICA ORIGINAL PARA REGISTROS REALES EN ATLAS ---
         await Material.findByIdAndDelete(id);
         
         const TransactionModel = getTransactionModel();
