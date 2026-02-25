@@ -26,11 +26,12 @@ const saveMaterial = async (req, res) => {
             ancho_lamina_cm, largo_lamina_cm // Campos recuperados
         } = req.body;
 
-        // --- MEJORA DE VALIDACIÓN ---
-        const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val);
+        // --- BLINDAJE PARA ATLAS: Validación de ObjectId ---
+        const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val) && val.length === 24;
         const proveedorFinal = esIdValido(proveedor) ? proveedor : null;
 
         let material;
+        // Si el id que llega es un ID real de MongoDB, editamos
         if (id && esIdValido(id)) {
             material = await Material.findById(id);
             if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
@@ -43,11 +44,12 @@ const saveMaterial = async (req, res) => {
             material.ancho_lamina_cm = ancho_lamina_cm !== undefined ? parseFloat(ancho_lamina_cm) : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo_lamina_cm !== undefined ? parseFloat(largo_lamina_cm) : material.largo_lamina_cm;
             
-            // Asignación segura de proveedor
+            // Asignación segura: si proveedorFinal es null, mantenemos el que tenía o dejamos null
             material.proveedor = proveedorFinal || material.proveedor;
             
             await material.save();
         } else {
+            // CREACIÓN DE MATERIAL NUEVO (Solución al Error 500 para la 2311)
             material = new Material({
                 nombre: nombre || "Nuevo Material",
                 categoria: categoria || "Otros",
@@ -56,14 +58,15 @@ const saveMaterial = async (req, res) => {
                 precio_total_lamina: parseFloat(precio_total_lamina) || 0,
                 ancho_lamina_cm: parseFloat(ancho_lamina_cm) || 0,
                 largo_lamina_cm: parseFloat(largo_lamina_cm) || 0,
-                proveedor: proveedorFinal // Usa el ID validado o null
+                // Aquí usamos undefined si es null para que el esquema no falle
+                proveedor: proveedorFinal ? proveedorFinal : undefined 
             });
             await material.save();
         }
 
         res.status(200).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error en saveMaterial:", error);
+        console.error("🚨 Error crítico en saveMaterial (Atlas):", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
