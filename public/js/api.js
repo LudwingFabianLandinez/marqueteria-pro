@@ -169,15 +169,33 @@ window.API = {
 
     saveMaterial: async function(data) {
         const id = data.id || data._id;
-        const path = id ? `/inventory/${id}` : '/inventory';
+        // Detectamos si es un material nuevo (local) o uno existente en Atlas
+        const isLocal = !id || String(id).startsWith('LOC-');
+        
+        // Si es local usamos /inventory, si existe usamos la ruta de reparación para evitar el Error 500
+        const path = isLocal ? '/inventory' : `/fix-material-data/${id}`;
+        
         try {
-            const res = await window.API._request(path, { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
+            // Usamos POST para la ruta de reparación según tu server.js v13.4.45
+            const res = await window.API._request(path, { 
+                method: 'POST', 
+                body: JSON.stringify(data) 
+            });
+
             if (res.isOffline || !res.success) throw new Error("Trigger Local");
+
+            // Si se guardó con éxito en Atlas y era local, lo limpiamos del localStorage
+            if (!isLocal) {
+                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
+                localStorage.setItem('inventory', JSON.stringify(localInv));
+            }
+
             return res;
         } catch (e) {
             console.warn("💾 Rescate Local: Guardando moldura...");
             const localId = id || `LOC-${Date.now()}`;
-            const newMaterial = { ...data, id: localId, _id: localId, stock: 0 };
+            const newMaterial = { ...data, id: localId, _id: localId, stock: data.stock || 0 };
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
             
             // Evitar duplicados por ID en el guardado local
