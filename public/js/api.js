@@ -153,8 +153,14 @@ window.API = {
             // Ordenar alfabéticamente para mantener la estructura visual limpia
             finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
 
+            // --- VÍNCULO CON EL COTIZADOR ---
+            window.todosLosMateriales = finalData; 
+
             return { ...res, data: finalData };
         }
+        
+        // --- VÍNCULO DE EMERGENCIA SI NO HAY DATOS LOCALES ---
+        window.todosLosMateriales = res.data || [];
         return res;
     },
 
