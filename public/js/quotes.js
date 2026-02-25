@@ -26,24 +26,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('/.netlify/functions/server/quotes/materials');
         const result = await response.json();
         
-        // --- RADAR DE DIAGNÓSTICO ---
         console.log("📡 DATOS LLEGANDO DEL SERVIDOR:", result);
 
         if (result.success) {
             const cat = result.data;
             
-            // 1. UNIFICACIÓN TOTAL MEJORADA (Usamos 'todos' que viene del servidor)
-            const inventarioCompleto = cat.todos || [];
+            // 1. UNIFICACIÓN TOTAL MEJORADA (Iniciamos con lo del servidor)
+            let inventarioCompleto = cat.todos || [];
 
-            // ALERT DE VERIFICACIÓN (Radar de la K 2312)
+            // 🚀 --- INICIO BLOQUE DE RESCATE LOCAL (MOLDURA 2311) ---
+            const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
+            localMaterials.forEach(lm => {
+                const yaExiste = inventarioCompleto.some(m => 
+                    (m.nombre || "").trim().toUpperCase() === (lm.nombre || "").trim().toUpperCase()
+                );
+                if (!yaExiste) {
+                    inventarioCompleto.push({
+                        ...lm,
+                        costo_base: lm.costo_m2 || lm.precio_m2_costo || 0,
+                        stock_actual: lm.stock_actual || 0,
+                        unidad: (lm.tipo || 'm2').toUpperCase()
+                    });
+                }
+            });
+            // 🚀 --- FIN BLOQUE DE RESCATE ---
+
+            // ALERT DE VERIFICACIÓN (Actualizado para detectar ambas)
             const busquedaCritica = inventarioCompleto.filter(m => 
-                m.nombre && (m.nombre.toUpperCase().includes("K 2312") || m.nombre.toUpperCase().includes("2312"))
+                m.nombre && (m.nombre.toUpperCase().includes("2312") || m.nombre.toUpperCase().includes("2311"))
             );
 
             if (busquedaCritica.length === 0) {
-                alert("🚨 ALERTA: La moldura 'K 2312' SIGUE SIN LLEGAR. Revisa que esté activa en la Base de Datos.");
+                console.warn("🚨 ALERTA: Molduras críticas no encontradas en el inventario híbrido.");
             } else {
-                console.log("✅ MOLDURA K 2312 DETECTADA EN LISTA MAESTRA:", busquedaCritica);
+                console.log("✅ MOLDURAS DETECTADAS (SERVIDOR + LOCAL):", busquedaCritica);
             }
 
             materialesOriginales = inventarioCompleto;
