@@ -573,68 +573,78 @@ function configurarEventos() {
 
 // Reemplaza tu bloque formCompra.onsubmit con este corregido:
 const formCompra = document.getElementById('formNuevaCompra');
-    if (formCompra) {
-        formCompra.onsubmit = async function(e) {
-            e.preventDefault();
+if (formCompra) {
+    formCompra.onsubmit = async function(e) {
+        e.preventDefault();
 
-            const formulario = e.target;
-            const btn = formulario.querySelector('button[type="submit"]');
-            if (btn) { 
-                btn.disabled = true; 
-                btn.innerHTML = 'GUARDANDO...'; 
+        const formulario = e.target;
+        const btn = formulario.querySelector('button[type="submit"]');
+        if (btn) { 
+            btn.disabled = true; 
+            btn.innerHTML = 'GUARDANDO...'; 
+        }
+
+        try {
+            const selectMat = document.getElementById('compraMaterial');
+            const inputNuevo = document.getElementById('nombreNuevoMaterial');
+            const inputCant = document.getElementById('compraCantidad');
+            const inputCosto = document.getElementById('compraCosto');
+            const inputLargo = document.getElementById('compraLargo');
+            const inputAncho = document.getElementById('compraAncho');
+
+            let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
+            
+            const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
+            let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
+
+            const cant = parseFloat(inputCant.value) || 0;
+            const costo = parseFloat(inputCosto.value) || 0;
+            let unidadFinal = esMoldura ? "ml" : "m²";
+            
+            let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
+
+            if (!window.todosLosMateriales) window.todosLosMateriales = [];
+            let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
+
+            if (existente) {
+                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                existente.precio_total_lamina = costo;
+                existente.nombre = nombreReal;
+            } else {
+                const nuevoId = `LOC-${Date.now()}`; 
+                existente = {
+                    id: nuevoId,
+                    nombre: nombreReal,
+                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    tipo: unidadFinal,
+                    stock_actual: stockASumar,
+                    precio_total_lamina: costo,
+                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
+                };
+                window.todosLosMateriales.unshift(existente);
             }
 
+            // --- 1. CONEXIÓN DIRECTA CON ATLAS (EL CAMBIO DE RESCATE) ---
             try {
-                const selectMat = document.getElementById('compraMaterial');
-                const inputNuevo = document.getElementById('nombreNuevoMaterial');
-                const inputCant = document.getElementById('compraCantidad');
-                const inputCosto = document.getElementById('compraCosto');
-                const inputLargo = document.getElementById('compraLargo');
-                const inputAncho = document.getElementById('compraAncho');
-
-                let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
+                console.log("📡 Sincronizando con Atlas...");
+                // Enviamos a Atlas. Si es exitoso, devolvemos el ID real de la base de datos
+                const res = await window.API.saveMaterial(existente);
                 
-                const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
-                let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
-
-                const cant = parseFloat(inputCant.value) || 0;
-                const costo = parseFloat(inputCosto.value) || 0;
-                let unidadFinal = esMoldura ? "ml" : "m²";
+                if (res.success) {
+                    console.log("✅ Atlas confirmó el guardado.");
+                    // Limpiamos la caja de seguridad para este material porque YA está en la nube
+                    let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+                    pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
+                    localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+                    
+                    // Actualizamos con la verdad de la nube
+                    await fetchInventory(); 
+                }
+            } catch (apiErr) {
+                console.warn("⚠️ Atlas no respondió. Se mantendrá en la Caja de Seguridad local.");
                 
-                let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
-
-                if (!window.todosLosMateriales) window.todosLosMateriales = [];
-                let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
-
-                if (existente) {
-                    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                    existente.precio_total_lamina = costo;
-                    existente.nombre = nombreReal;
-                } else {
-                    const nuevoId = `LOC-${Date.now()}`; // Usamos LOC para que el motor de empuje lo detecte
-                    existente = {
-                        id: nuevoId,
-                        nombre: nombreReal,
-                        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                        tipo: unidadFinal,
-                        stock_actual: stockASumar,
-                        precio_total_lamina: costo,
-                        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
-                    };
-                    window.todosLosMateriales.unshift(existente);
-                }
-
-                // --- 1. CONEXIÓN DIRECTA CON ATLAS (EL CAMBIO QUIRÚRGICO) ---
-                // Intentamos avisar a la nube de inmediato
-                try {
-                    console.log("📡 Sincronizando compra con Atlas...");
-                    await window.API.saveMaterial(existente);
-                } catch (apiErr) {
-                    console.warn("⚠️ Atlas no respondió, pero se salvará en la Caja de Seguridad local.");
-                }
-
-                // --- 2. TU CAJA DE SEGURIDAD (SE MANTIENE IGUAL) ---
+                // --- 2. CAJA DE SEGURIDAD (SOLO SI ATLAS FALLA) ---
                 let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
                 const index = pendientes.findIndex(p => p.nombre.toLowerCase() === nombreReal.toLowerCase());
                 const datoASalvar = { ...existente, fechaCompra: new Date().toISOString() };
@@ -643,27 +653,29 @@ const formCompra = document.getElementById('formNuevaCompra');
                 else { pendientes.push(datoASalvar); }
                 
                 localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
-
-                let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-                eliminados = eliminados.filter(id => id !== String(existente.id));
-                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
-
-                localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-                renderTable(window.todosLosMateriales);
-                
-                alert(`✅ Registrado y Sincronizado: ${nombreReal}`);
-                const modal = document.getElementById('modalCompra');
-                if(modal) modal.style.display = 'none';
-                formulario.reset();
-
-            } catch (error) {
-                console.error("❌ Error:", error);
-                alert("Error: " + error.message);
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
             }
-        };
-    }
+
+            // Mantenemos tus limpiezas de lista negra y renderizado
+            let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+            eliminados = eliminados.filter(id => id !== String(existente.id));
+            localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            renderTable(window.todosLosMateriales);
+            
+            alert(`✅ Registrado y Sincronizado: ${nombreReal}`);
+            const modal = document.getElementById('modalCompra');
+            if(modal) modal.style.display = 'none';
+            formulario.reset();
+
+        } catch (error) {
+            console.error("❌ Error:", error);
+            alert("Error: " + error.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
+        }
+    };
+}
 }
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
