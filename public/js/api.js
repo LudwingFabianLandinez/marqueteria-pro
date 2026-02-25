@@ -94,106 +94,91 @@ window.API = {
     getProviders: function() { return window.API._request('/providers'); },
 
     // --- MEJORA v13.4.35: REPARACIÓN MECÁNICA DE STOCK POR NOMBRE LIMPIO ---
-    // REEMPLAZO SIMPLIFICADO: Prioridad Atlas + Rescate Local
     getInventory: async function() { 
-        // 1. Intentamos traer la verdad desde Atlas (añadimos timestamp para evitar caché)
-        const res = await window.API._request(`/inventory?t=${Date.now()}`);
-        
-        // Si la respuesta fue exitosa y vino del servidor (no es un rescate offline automático)
-        if (res.success && !res.isOffline) {
-            console.log("☁️ Datos sincronizados desde Atlas.");
-            
-            // Actualizamos el respaldo local para que el "Rescate" siempre tenga lo último
-            localStorage.setItem('inventory', JSON.stringify(res.data));
-            
-            // Limpiamos las compras locales procesadas para no duplicar stock en el futuro
-            // localStorage.removeItem('local_purchases'); 
-            
-            return res;
-        }
-
-        // 2. PROTOCOLO DE RESCATE (Si falla Atlas o no hay internet)
-        console.warn("💾 Atlas no responde. Activando respaldo local...");
+        const res = await window.API._request('/inventory');
         const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
-        
-        // Mantenemos tu lógica de "Suma Forzada" solo cuando estamos offline
         const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
+        
+        // Función interna de normalización para evitar errores por espacios invisibles
         const normalize = (txt) => String(txt || "").trim().toUpperCase().replace(/\s+/g, ' ');
 
-        const finalData = localMaterials.map(m => {
-            const nombreNormalM = normalize(m.nombre);
-            const sumaCompras = localPurchases
-                .filter(p => {
-                    const matchId = String(m.id || m._id) === String(p.materialId);
-                    const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
-                    return matchId || matchNombre;
-                })
-                .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
+        if (localMaterials.length > 0 || res.data.length > 0) {
+            console.log("🧩 Unificando por nombre normalizado y vinculando stock...");
             
-            return { 
-                ...m, 
-                stock: (Number(m.stock || m.stock_actual || 0)) + sumaCompras 
-            };
-        });
+            const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
+            const uniqueMap = new Map();
 
-        return { 
-            success: true, 
-            data: finalData, 
-            local: true, 
-            isOffline: true 
-        };
+            // 1. Cargar datos del servidor al mapa primero
+            res.data.forEach(m => {
+                const key = normalize(m.nombre);
+                uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [String(m.id || m._id)] });
+            });
+
+            // 2. Fusionar datos locales por nombre normalizado (Si el servidor falla, este es el motor principal)
+            localMaterials.forEach(m => {
+                const materialId = String(m.id || m._id);
+                const key = normalize(m.nombre);
+                
+                if (!uniqueMap.has(key)) {
+                    // Si no está en el mapa (server falló o es nuevo), lo agregamos
+                    uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [materialId] });
+                } else {
+                    // Si ya existe por nombre, vinculamos el ID
+                    if (!uniqueMap.get(key)._allIds.includes(materialId)) {
+                        uniqueMap.get(key)._allIds.push(materialId);
+                    }
+                }
+            });
+
+            // 3. Calcular stock final (Suma forzada de compras locales)
+            const finalData = Array.from(uniqueMap.values()).map(m => {
+                const nombreNormalM = normalize(m.nombre);
+                
+                // Buscamos compras que coincidan con el ID O con el nombre normalizado
+                const sumaCompras = localPurchases
+                    .filter(p => {
+                        const matchId = m._allIds.includes(String(p.materialId));
+                        const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
+                        return matchId || matchNombre;
+                    })
+                    .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
+                
+                return { 
+                    ...m, 
+                    stock: Number(m.stock || 0) + sumaCompras,
+                    _id: m._allIds[0] 
+                };
+            });
+
+            // Ordenar alfabéticamente para mantener la estructura visual limpia
+            finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
+
+            return { ...res, data: finalData };
+        }
+        return res;
     },
 
     getInvoices: function() { return window.API._request('/invoices'); },
     saveProvider: function(data) { return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); },
 
-    // BUSCA ESTA FUNCIÓN EN api.js Y REEMPLÁZALA COMPLETAMENTE
-// REEMPLAZO FINAL: Sincronización Universal v14.1.0
-    // --- FUNCIÓN saveMaterial BLINDADA v14.5.5 ---
     saveMaterial: async function(data) {
         const id = data.id || data._id;
-        const isNewLocal = id && String(id).startsWith('LOC-');
-        const path = (id && !isNewLocal) ? `/inventory/${id}` : '/inventory';
-        const method = (id && !isNewLocal) ? 'PUT' : 'POST';
-        
+        const path = id ? `/inventory/${id}` : '/inventory';
         try {
-            console.log(`📡 Sincronizando con Atlas (${method})...`);
-            
-            // NORMALIZACIÓN PARA EVITAR ERROR 400 EN ATLAS
-            const dataToCloud = {
-                nombre: String(data.nombre || "").trim().toUpperCase(),
-                categoria: data.categoria || "GENERAL",
-                tipo: data.tipo || "m²",
-                stock_actual: parseFloat(data.stock_actual || data.stock || 0),
-                precio_total_lamina: parseFloat(data.precio_total_lamina || 0),
-                largo_lamina_cm: parseFloat(data.largo_lamina_cm || 0),
-                ancho_lamina_cm: parseFloat(data.ancho_lamina_cm || 0),
-                stock_minimo: parseFloat(data.stock_minimo || 0)
-            };
-
-            if (!isNewLocal && id) dataToCloud.id = id;
-
-            const res = await window.API._request(path, { 
-                method: method, 
-                body: JSON.stringify(dataToCloud) 
-            });
-
-            if (res.success) {
-                console.log("✅ ¡Atlas Sincronizado!");
-                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                const filtered = localInv.filter(m => String(m.id || m._id) !== String(id));
-                localStorage.setItem('inventory', JSON.stringify(filtered));
-                return res;
-            }
-            throw new Error("Atlas rechazó el formato de datos");
+            const res = await window.API._request(path, { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
+            if (res.isOffline || !res.success) throw new Error("Trigger Local");
+            return res;
         } catch (e) {
-            console.warn("💾 RESCATE LOCAL ACTIVO:", e.message);
+            console.warn("💾 Rescate Local: Guardando moldura...");
             const localId = id || `LOC-${Date.now()}`;
-            const newMaterial = { ...data, id: localId, _id: localId, local: true };
+            const newMaterial = { ...data, id: localId, _id: localId, stock: 0 };
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            
+            // Evitar duplicados por ID en el guardado local
             const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
             if (index > -1) localInv[index] = newMaterial;
             else localInv.push(newMaterial);
+            
             localStorage.setItem('inventory', JSON.stringify(localInv));
             return { success: true, data: newMaterial, id: localId, local: true };
         }

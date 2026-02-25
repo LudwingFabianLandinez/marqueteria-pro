@@ -216,9 +216,6 @@ try {
     // --- INVENTARIO UNIFICADO (LECTURA Y GUARDADO) ---
 
 // A. Leer Inventario (Ya lo tienes)
-// --- SECCIÓN INVENTARIO UNIFICADA (CIRUGÍA DEFINITIVA) ---
-
-// A. Leer Inventario
 router.get('/inventory', async (req, res) => {
     try {
         const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -228,66 +225,47 @@ router.get('/inventory', async (req, res) => {
     }
 });
 
-// B. CREAR Nuevo Material (Ruta que espera api.js)
-router.post('/inventory', async (req, res) => {
-    try {
-        // Quitamos cualquier ID temporal "LOC-" que venga del frontend
-        const datos = { ...req.body };
-        delete datos.id;
-        delete datos._id;
-
-        const resultado = new Material(datos);
-        await resultado.save();
-        
-        console.log(`✅ Nuevo material creado en Atlas: ${resultado.nombre}`);
-        res.json({ success: true, data: resultado });
-    } catch (error) {
-        console.error("❌ Error al crear material:", error.message);
-        res.status(400).json({ success: false, error: error.message });
-    }
-});
-
-// C. EDITAR Material Existente (Ruta compatible con api.js)
-router.put('/inventory/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const datos = req.body;
-
-        // Limpieza de datos numéricos para asegurar persistencia
-        if (datos.stock_minimo !== undefined) datos.stock_minimo = parseFloat(datos.stock_minimo);
-        if (datos.stock_actual !== undefined) datos.stock_actual = parseFloat(datos.stock_actual);
-
-        const actualizado = await Material.findByIdAndUpdate(
-            id, 
-            { $set: datos }, 
-            { new: true, runValidators: false }
-        );
-
-        if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado en Atlas" });
-        
-        console.log(`✅ Material actualizado en Atlas: ${actualizado.nombre}`);
-        res.json({ success: true, data: actualizado });
-    } catch (error) {
-        console.error("❌ Error al editar material:", error.message);
-        res.status(400).json({ success: false, error: error.message });
-    }
-});
-
-// D. MANTENER COMPATIBILIDAD (Ruta antigua /inventory/save)
+// B. Guardar/Editar desde la misma ruta base (CIRUGÍA MAYOR)
 router.post('/inventory/save', async (req, res) => {
     try {
         const { id, ...datos } = req.body;
         let resultado;
-        if (id && id.length > 5 && !id.startsWith('LOC-')) {
+
+        if (id && id.length > 5) {
+            // Si hay ID, es una edición (como tu 36 de stock mínimo)
             resultado = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
         } else {
-            const limpio = { ...datos };
-            delete limpio.id; delete limpio._id;
-            resultado = new Material(limpio);
+            // Si no hay ID, es uno nuevo
+            resultado = new Material(datos);
             await resultado.save();
         }
+
         res.json({ success: true, data: resultado });
     } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+    // 2. Ruta para EDITAR material existente
+    router.put('/materials/:id', async (req, res) => {
+    try {
+        // Aseguramos que el stock_minimo sea un número real antes de enviarlo a la DB
+        if (req.body.stock_minimo !== undefined) {
+            req.body.stock_minimo = parseFloat(req.body.stock_minimo);
+        }
+
+        const actualizado = await Material.findByIdAndUpdate(
+            req.params.id, 
+            { $set: req.body }, // Usamos $set para ser más precisos
+            { new: true, runValidators: false } // Desactivamos validaciones que puedan bloquear el 36
+        );
+
+        if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
+        
+        console.log(`✅ Material ${actualizado.nombre} actualizado. Nuevo Stock Mínimo: ${actualizado.stock_minimo}`);
+        res.json({ success: true, data: actualizado });
+    } catch (error) {
+        console.error("❌ Error al actualizar material:", error.message);
         res.status(400).json({ success: false, error: error.message });
     }
 });

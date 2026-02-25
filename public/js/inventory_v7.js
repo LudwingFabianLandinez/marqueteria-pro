@@ -215,32 +215,6 @@ window.guardarProveedor = async function(event) {
 
 async function fetchInventory() {
     try {
-        console.log("🔄 Iniciando Sincronización Universal v13.9.0...");
-
-        // --- BLOQUE NUEVO: MOTOR DE EMPUJE A ATLAS ---
-        // Buscamos si hay materiales creados en esta PC con ID temporal "LOC-"
-        const localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-        const pendientesDeSubir = localInv.filter(m => String(m.id || m._id).startsWith('LOC-'));
-
-        if (pendientesDeSubir.length > 0) {
-            console.log(`📦 Detectados ${pendientesDeSubir.length} materiales nuevos. Subiendo a Atlas...`);
-            for (const mat of pendientesDeSubir) {
-                const tempId = mat.id || mat._id;
-                const clon = { ...mat };
-                delete clon.id; delete clon._id; // Quitamos el ID local para que Atlas asigne uno real
-                
-                const res = await window.API.saveMaterial(clon);
-                if (res.success) {
-                    console.log(`✅ "${mat.nombre}" ya está en la nube.`);
-                    // Lo quitamos de la lista local de esta PC porque ya existe en el servidor
-                    const limpiarLocal = JSON.parse(localStorage.getItem('inventory') || '[]')
-                                         .filter(m => (m.id || m._id) !== tempId);
-                    localStorage.setItem('inventory', JSON.stringify(limpiarLocal));
-                }
-            }
-        }
-        // ----------------------------------------------
-
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
@@ -255,7 +229,7 @@ async function fetchInventory() {
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
-                proveedorNombre: m.proveedor?.nombre || m.proveedorNombre || "Sin proveedor",
+                proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
                 stock_actual: Number(m.stock_actual) || 0, 
                 precio_m2_costo: Number(m.precio_m2_costo) || 0,
                 precio_total_lamina: Number(m.precio_total_lamina) || 0,
@@ -303,7 +277,7 @@ async function fetchInventory() {
             window.cargarListasModal();
         }
         
-        console.log("✅ Inventario sincronizado por nombre y Atlas actualizado.");
+        console.log("✅ Inventario sincronizado por nombre (Tela/Lona protegidas)");
 
     } catch (error) { 
         console.error("❌ Error inventario:", error); 
@@ -571,93 +545,103 @@ function configurarEventos() {
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
+// Reemplaza tu bloque formCompra.onsubmit con este corregido:
 const formCompra = document.getElementById('formNuevaCompra');
-if (formCompra) {
-    formCompra.onsubmit = async function(e) {
-        e.preventDefault();
-        const formulario = e.target;
-        const btn = formulario.querySelector('button[type="submit"]');
-        
-        if (btn) { 
-            btn.disabled = true; 
-            btn.innerHTML = 'SINCRONIZANDO CON ATLAS...'; 
-        }
+    if (formCompra) {
+        formCompra.onsubmit = async function(e) {
+            e.preventDefault();
 
-        try {
-            // 1. CAPTURA DE DATOS
-            const selectMat = document.getElementById('compraMaterial');
-            const inputNuevo = document.getElementById('nombreNuevoMaterial');
-            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-            const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
-            const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
-            const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
-            const provId = document.getElementById('compraProveedor')?.value || "";
-
-            let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
-            const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
-            let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
-            
-            // Lógica de stock (2.90 para molduras, área para el resto)
-            let stockASumar = esMoldura ? (cant * 2.90) : ((largo * ancho / 10000) * cant);
-
-            // 2. BUSCAR EN LA LISTA GLOBAL
-            let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
-
-            // 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
-            const datosParaAtlas = {
-                nombre: nombreReal,
-                categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                tipo: esMoldura ? "ml" : "m²",
-                stock_actual: existente ? (Number(existente.stock_actual || existente.stock || 0)) + stockASumar : stockASumar,
-                precio_total_lamina: costo,
-                largo_lamina_cm: esMoldura ? 290 : largo,
-                ancho_lamina_cm: esMoldura ? 1 : ancho
-            };
-
-            if (existente && (existente._id || existente.id)) {
-                datosParaAtlas.id = existente._id || existente.id;
+            // 1. Identificar el botón y el formulario
+            const formulario = e.target;
+            const btn = formulario.querySelector('button[type="submit"]');
+            if (btn) { 
+                btn.disabled = true; 
+                btn.innerHTML = 'GUARDANDO...'; 
             }
 
-            // 4. DISPARO ÚNICO A LA NUBE (Guardar Material)
-            console.log("📡 Enviando a Atlas:", datosParaAtlas);
-            const res = await window.API.saveMaterial(datosParaAtlas);
+            try {
+                const selectMat = document.getElementById('compraMaterial');
+                const inputNuevo = document.getElementById('nombreNuevoMaterial');
+                const inputCant = document.getElementById('compraCantidad');
+                const inputCosto = document.getElementById('compraCosto');
+                const inputLargo = document.getElementById('compraLargo');
+                const inputAncho = document.getElementById('compraAncho');
 
-            if (res.success) {
-                // 5. REGISTRAR LA TRANSACCIÓN (Para que aparezca en el historial de compras)
-                const materialIdFinal = res.data?._id || res.data?.id || datosParaAtlas.id;
+                let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
                 
-                await window.API.registerPurchase({
-                    materialId: materialIdFinal,
-                    nombreMaterial: nombreReal,
-                    cantidad: cant,
-                    largo: esMoldura ? 290 : largo,
-                    ancho: esMoldura ? 1 : ancho,
-                    valorUnitario: costo,
-                    proveedorId: provId
-                });
+                // Formato: Molduras en MAYÚS, el resto (Lona, Tela) como lo escribas
+                const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
+                let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
-                // ÉXITO: Limpiamos rastro local para forzar lectura fresca
-                localStorage.removeItem('inventory');
+                const cant = parseFloat(inputCant.value) || 0;
+                const costo = parseFloat(inputCosto.value) || 0;
+                let unidadFinal = esMoldura ? "ml" : "m²";
                 
-                // Forzamos la descarga de la "Verdad Absoluta" desde Atlas
-                await fetchInventory(); 
+                // Cálculo de stock: 2.90 para molduras, área para m² (como tu lona)
+                let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
+
+                // ACTUALIZACIÓN DE ARRAY GLOBAL
+                if (!window.todosLosMateriales) window.todosLosMateriales = [];
+                let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
+
+                if (existente) {
+                    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                    existente.precio_total_lamina = costo;
+                    existente.nombre = nombreReal;
+                } else {
+                    const nuevoId = `MAT-${Date.now()}`;
+                    existente = {
+                        id: nuevoId,
+                        nombre: nombreReal,
+                        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                        tipo: unidadFinal,
+                        stock_actual: stockASumar,
+                        precio_total_lamina: costo,
+                        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
+                    };
+                    window.todosLosMateriales.unshift(existente);
+                }
+
+                // --- CAJA DE SEGURIDAD REFORZADA (M2 y ML) ---
+                let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
                 
-                alert(`✅ COMPRA REGISTRADA EN ATLAS: ${nombreReal}\nStock actualizado y visible en Incógnito.`);
+                // Buscamos si ya existe en pendientes por nombre para actualizarlo
+                const index = pendientes.findIndex(p => p.nombre.toLowerCase() === nombreReal.toLowerCase());
                 
-                if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
+                // Creamos una copia limpia del objeto para la caja fuerte
+                const datoASalvar = { ...existente, fechaCompra: new Date().toISOString() };
+
+                if (index !== -1) {
+                    pendientes[index] = datoASalvar;
+                } else {
+                    pendientes.push(datoASalvar);
+                }
+                
+                localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+
+                // Limpieza de lista negra (Para que no se oculte al refrescar)
+                let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+                eliminados = eliminados.filter(id => id !== String(existente.id));
+                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+
+                // FINALIZAR Y RENDERIZAR
+                localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+                renderTable(window.todosLosMateriales);
+                
+                alert(`✅ Registrado: ${nombreReal}`);
+                const modal = document.getElementById('modalCompra');
+                if(modal) modal.style.display = 'none';
                 formulario.reset();
-            } else {
-                throw new Error("Atlas rechazó el guardado.");
-            }
 
-        } catch (error) {
-            console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
-            alert("❌ FALLO DE CONEXIÓN CON ATLAS:\nSe intentó guardar pero el servidor no respondió correctamente.");
-        } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
-        }
-    };
-}
+            } catch (error) {
+                console.error("❌ Error:", error);
+                alert("Error: " + error.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
+            }
+        }; 
+    }
 }
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
@@ -897,16 +881,15 @@ window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
     
     // 🕵️‍♂️ Búsqueda exhaustiva del ID
+    // Lo buscamos en el atributo 'data-id' o en una variable global si existe
     const id = modal.dataset.id || window.currentEditingId; 
 
     if (!id) {
         console.error("❌ Fallo crítico: ID no localizado en el modal.");
-        return alert("⚠️ Error técnico: No se pudo localizar el ID del material.");
+        return alert("⚠️ Error técnico: No se pudo localizar el ID del material. Cierra el modal e intenta abrirlo de nuevo.");
     }
 
-    // Captura de datos preservando tu lógica de m2/ml
     const materialData = {
-        id: id, // Importante para que el API sepa si es nuevo o edición
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
         largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
@@ -915,33 +898,22 @@ window.guardarMaterial = async function() {
     };
 
     try {
-        console.log("🚀 Enviando actualización a Atlas vía Motor Universal...");
+        // Usamos la ruta de emergencia que ya tienes en server.js
+        const url = `${window.API_URL}/fix-material-data/${id}`; 
         
-        // CAMBIO CLAVE: Usamos el API blindada en lugar de un fetch directo a una ruta fija
-        const res = await window.API.saveMaterial(materialData);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(materialData)
+        });
 
-        if (res.success) {
-            alert("✅ ¡Atlas Actualizado! La K 2310 ahora es universal.");
-            
-            // Si el material tenía un ID "LOC-", lo eliminamos del local porque ya es real en Atlas
-            if (String(id).startsWith('LOC-')) {
-                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                localInv = localInv.filter(m => (m.id || m._id) !== id);
-                localStorage.setItem('inventory', JSON.stringify(localInv));
-            }
-
-            // En lugar de reload, llamamos a fetchInventory para ver el cambio sin perder el scroll
-            if (typeof fetchInventory === 'function') {
-                await fetchInventory();
-                if (typeof cerrarModal === 'function') cerrarModal('modalNuevoMaterial');
-            } else {
-                location.reload();
-            }
+        if (response.ok) {
+            alert("✅ ¡Material actualizado! El punto de reorden ahora es " + materialData.stock_minimo);
+            location.reload(); 
         } else {
-            alert("⚠️ Atlas no pudo procesar el cambio, se mantuvo localmente.");
+            alert("❌ El servidor no permitió el guardado.");
         }
     } catch (error) {
-        console.error("❌ Error en sincronización:", error);
-        alert("❌ Error de red. El cambio se guardará en esta PC pero no en Atlas hasta que haya internet.");
+        alert("❌ Error de red al intentar guardar.");
     }
 };
