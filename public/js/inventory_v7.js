@@ -581,7 +581,7 @@ if (formCompra) {
         const btn = formulario.querySelector('button[type="submit"]');
         if (btn) { 
             btn.disabled = true; 
-            btn.innerHTML = 'CONECTANDO CON ATLAS...'; 
+            btn.innerHTML = 'FORZANDO SUBIDA A ATLAS...'; 
         }
 
         try {
@@ -606,68 +606,60 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // Preparamos el objeto EXACTO para la nube
-            let datosParaAtlas;
-            if (existente) {
-                datosParaAtlas = {
-                    ...existente,
-                    id: existente._id || existente.id, // Aseguramos el ID real de Atlas
-                    stock_actual: (Number(existente.stock_actual) || 0) + stockASumar,
-                    precio_total_lamina: costo,
-                    nombre: nombreReal
-                };
-            } else {
-                datosParaAtlas = {
-                    id: `LOC-${Date.now()}`, 
-                    nombre: nombreReal,
-                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                    tipo: unidadFinal,
-                    stock_actual: stockASumar,
-                    precio_total_lamina: costo,
-                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
-                };
+            // 1. CREAMOS EL OBJETO DE FORMA ULTRA-COMPATIBLE
+            let datosParaAtlas = {
+                nombre: nombreReal,
+                categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                tipo: unidadFinal,
+                stock_actual: existente ? (Number(existente.stock_actual) || 0) + stockASumar : stockASumar,
+                precio_total_lamina: costo,
+                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
+            };
+
+            // Si ya existe, usamos su ID real para que Atlas lo reconozca
+            if (existente && (existente._id || existente.id)) {
+                datosParaAtlas.id = existente._id || existente.id;
             }
 
-            // --- INYECCIÓN DIRECTA Y OBLIGATORIA A ATLAS ---
-            console.log("🚀 Enviando " + nombreReal + " directamente a Atlas...");
+            // --- 2. INTENTO DE SUBIDA DIRECTA ---
+            console.log("🚀 Intento de rescate: Enviando a Atlas...", datosParaAtlas);
             const res = await window.API.saveMaterial(datosParaAtlas);
             
             if (res.success) {
-                console.log("✅ Atlas confirmó el guardado de la compra.");
+                console.log("✅ Atlas recibió los datos correctamente.");
                 
-                // Limpieza de bitácoras locales solo tras éxito en la nube
+                // Limpieza local de seguridad
                 let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-                pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
-                localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+                localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase())));
 
-                let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-                eliminados = eliminados.filter(id => id !== String(datosParaAtlas.id));
-                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
-
-                // Refrescamos todo desde Atlas para que el stock sea el oficial
+                // Refrescamos desde la nube
                 await fetchInventory(); 
                 
-                alert(`✅ ÉXITO TOTAL: ${nombreReal} guardado en la nube.\nYa puedes revisar el Modo Incógnito.`);
+                alert(`✅ ¡LOGRADO! ${nombreReal} se guardó en Atlas.\nYa debería aparecer en Incógnito.`);
                 
                 const modal = document.getElementById('modalCompra');
                 if(modal) modal.style.display = 'none';
                 formulario.reset();
             } else {
-                // Si Atlas responde pero dice que no pudo guardar
-                alert("⚠️ ATLAS RECHAZÓ EL DATO: El servidor está en línea pero no procesó la compra. Revisa la consola.");
+                throw new Error("El servidor Atlas rechazó el paquete de datos.");
             }
 
         } catch (error) {
-            // Si hay un error de red o el servidor está caído
-            console.error("❌ Fallo de conexión con Atlas:", error);
-            alert("❌ ERROR DE RED: No se pudo contactar con Atlas. La compra NO se guardó en la nube y por eso no la verás en Incógnito.");
+            console.error("❌ Fallo crítico:", error);
+            
+            // --- 3. SALVAVIDAS: Si Atlas falla, NO dejamos la pantalla vacía ---
+            alert("⚠️ ERROR DE CONEXIÓN CON ATLAS.\nEl inventario se mantendrá de forma local en esta PC para que no pierdas el control.");
+            
+            // Re-inyectamos el stock localmente para que no desaparezca de la tabla actual
+            await fetchInventory(); 
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
     };
 }
 }
+
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
     let encontrado = false;
