@@ -9,6 +9,8 @@ const connectDB = async () => {
         // Si ya está conectado (readyState 1) o conectando (readyState 2), no hacemos nada
         if (mongoose.connection.readyState >= 1) {
             console.log("⏩ Usando conexión de base de datos existente");
+            // LOG DE DIAGNÓSTICO:
+            console.log(`📂 DB ACTIVA (Reusada): ${mongoose.connection.name}`);
             return;
         }
 
@@ -22,7 +24,7 @@ const connectDB = async () => {
 
         console.log("☁️ Iniciando conexión con MongoDB Atlas...");
         
-        await mongoose.connect(dbURI, {
+        const conn = await mongoose.connect(dbURI, {
             serverSelectionTimeoutMS: 5000, 
             socketTimeoutMS: 45000,
             // Estas opciones ayudan a mantener la conexión estable en serverless
@@ -30,6 +32,10 @@ const connectDB = async () => {
         });
 
         console.log("✅ Conexión establecida con éxito");
+        // LOG DE DIAGNÓSTICO:
+        console.log(`📂 DB ACTIVA (Nueva): ${conn.connection.name}`);
+        console.log(`🏠 HOST: ${conn.connection.host}`);
+
     } catch (err) {
         console.error("❌ Fallo crítico en config/db.js:", err.message);
         throw err;
