@@ -101,10 +101,8 @@ window.API = {
         
         const normalize = (txt) => String(txt || "").trim().toUpperCase().replace(/\s+/g, ' ');
 
-        // 🧩 Unificando por nombre normalizado y vinculando stock...
         const uniqueMap = new Map();
 
-        // 1. Cargar datos del servidor al mapa (si existen)
         if (res.data && Array.from(res.data).length > 0) {
             res.data.forEach(m => {
                 const key = normalize(m.nombre);
@@ -112,7 +110,6 @@ window.API = {
             });
         }
 
-        // 2. Fusionar datos locales (El motor de rescate)
         localMaterials.forEach(m => {
             const materialId = String(m.id || m._id);
             const key = normalize(m.nombre);
@@ -126,7 +123,6 @@ window.API = {
             }
         });
 
-        // 3. Calcular stock final y normalizar para el COTIZADOR
         const finalData = Array.from(uniqueMap.values()).map(m => {
             const nombreNormalM = normalize(m.nombre);
             
@@ -142,17 +138,19 @@ window.API = {
                 ...m, 
                 stock: Number(m.stock || 0) + sumaCompras,
                 _id: m._allIds[0],
-                // Forzamos campos que el cotizador necesita para no ignorar el material
                 precio_m2_costo: Number(m.costo_m2 || m.precio_m2_costo || 0)
             };
         });
 
         finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
 
-        // --- VÍNCULO CRÍTICO CON EL COTIZADOR ---
+        // --- VÍNCULO CRÍTICO CON EL COTIZADOR Y FACTURACIÓN ---
         window.todosLosMateriales = finalData; 
 
-        // Forzamos al DOM a renderizar si la función existe en dashboard.js
+        // 🚀 NUEVO: Disparar evento para que facturacion.html se actualice
+        const event = new CustomEvent('inventoryUpdated', { detail: finalData });
+        window.dispatchEvent(event);
+
         if (typeof window.renderMaterialOptions === 'function') {
             window.renderMaterialOptions(finalData);
         }
@@ -170,9 +168,8 @@ window.API = {
         const id = data.id || data._id;
         const isLocal = !id || String(id).startsWith('LOC-') || String(id).startsWith('MAT-');
         
-        // --- SATANIZACIÓN DE DATOS (Anti-Error 500) ---
         const cleanData = {
-            ...data, // Mantenemos proveedor_id y otros campos
+            ...data,
             nombre: String(data.nombre || "SIN NOMBRE").trim().toUpperCase(),
             categoria: String(data.categoria || "MARCOS"),
             tipo: String(data.tipo || "ml"),
@@ -196,7 +193,6 @@ window.API = {
 
             if (!res.success) throw new Error("Atlas rechazó el paquete");
 
-            // Si Atlas acepta, limpiamos local para no duplicar
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
             localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
             localStorage.setItem('inventory', JSON.stringify(localInv));
@@ -204,7 +200,7 @@ window.API = {
             await this.getInventory();
             return res;
         } catch (e) {
-            console.warn("💾 Rescate Local: Fallo en Atlas, inyectando al cotizador...");
+            console.warn("💾 Rescate Local Activo...");
             
             const localId = id || `LOC-${Date.now()}`;
             const newMaterial = { ...cleanData, id: localId, _id: localId };
@@ -217,12 +213,12 @@ window.API = {
             
             localStorage.setItem('inventory', JSON.stringify(localInv));
 
-            // Refrescamos la vista global inmediatamente
             await this.getInventory();
             
             return { success: true, data: newMaterial, id: localId, local: true };
         }
     },
+
 
     registerPurchase: async function(purchaseData) {
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
