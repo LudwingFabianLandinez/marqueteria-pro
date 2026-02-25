@@ -156,7 +156,7 @@ const registerPurchase = async (req, res) => {
         console.error("🚨 ERROR EN COMPRA:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
-};
+};  
 
 // 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
@@ -255,11 +255,30 @@ const manualAdjustment = async (req, res) => {
 // 8. Eliminar material
 const deleteMaterial = async (req, res) => {
     try {
-        await Material.findByIdAndDelete(req.params.id);
+        const { id } = req.params;
+
+        // 🛡️ BLINDAJE CONTRA ID TEMPORAL:
+        // Si el ID es de tipo MAT-123..., es un ID local. 
+        // Respondemos éxito de inmediato para que el frontend no se trabe.
+        if (id && id.startsWith('MAT-')) {
+            console.log("🛡️ Ignorando eliminación de ID temporal del frontend:", id);
+            return res.status(200).json({ 
+                success: true, 
+                message: "Material temporal removido de vista local" 
+            });
+        }
+
+        // --- LÓGICA ORIGINAL PARA ATLAS ---
+        await Material.findByIdAndDelete(id);
+        
         const TransactionModel = getTransactionModel();
-        if (TransactionModel) await TransactionModel.deleteMany({ materialId: req.params.id });
-        res.status(200).json({ success: true, message: "Material eliminado" });
+        if (TransactionModel) {
+            await TransactionModel.deleteMany({ materialId: id });
+        }
+
+        res.status(200).json({ success: true, message: "Material eliminado de Atlas" });
     } catch (error) {
+        console.error("❌ Error en deleteMaterial:", error);
         res.status(500).json({ success: false, error: "Error al eliminar" });
     }
 };
