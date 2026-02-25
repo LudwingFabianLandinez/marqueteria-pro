@@ -88,21 +88,35 @@ const getMaterials = async (req, res) => {
 // 2. Registrar compra - VERSIÓN INTELIGENTE FORZADA
 const registerPurchase = async (req, res) => {
     try {
-        console.log("🚀 FORZANDO ESCRITURA EN ATLAS:", req.body.nombre);
-        
         const { 
-            nombre, ancho_lamina_cm, largo_lamina_cm, 
-            precio_total_lamina, cantidad_laminas, proveedor,
-            precio_venta_sugerido, costo_total 
+            materialId, nombre, proveedor,      
+            ancho_lamina_cm, largo_lamina_cm, 
+            precio_total_lamina, cantidad_laminas,
+            cantidad_m2, precio_venta_sugerido, costo_total 
         } = req.body;
 
-        // 1. FILTRO TOTAL: Ignoramos el ID del frontend y buscamos solo por NOMBRE
-        const nombreLimpio = nombre ? nombre.trim().toUpperCase() : "SIN NOMBRE";
-        let material = await Material.findOne({ 
-            nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
-        });
+        console.log(`📦 Recibida compra para: ${nombre} (ID enviado: ${materialId})`);
 
-        // 2. CUMPLIMIENTO DE SCHEMA (Evita rechazo de Atlas por campos vacíos)
+        // 🛡️ PASO 1: MATAR EL ID "MAT-"
+        // Si el ID empieza por MAT-, es basura del frontend. Lo ignoramos por completo.
+        const esIdTemporal = materialId && String(materialId).startsWith('MAT-');
+        const idReal = (esIdTemporal || !mongoose.Types.ObjectId.isValid(materialId)) ? null : materialId;
+
+        let material = null;
+
+        // 🛡️ PASO 2: BUSQUEDA INTELIGENTE
+        if (idReal) {
+            material = await Material.findById(idReal);
+        }
+        
+        // Si no hay ID real o no se encontró, buscamos por NOMBRE (el salvavidas)
+        if (!material && nombre) {
+            material = await Material.findOne({ 
+                nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
+            });
+        }
+
+        // Normalización de datos para el Schema
         const ancho = Math.max(0.1, parseFloat(ancho_lamina_cm) || 0);
         const largo = Math.max(0.1, parseFloat(largo_lamina_cm) || 0);
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
@@ -110,21 +124,21 @@ const registerPurchase = async (req, res) => {
         const incrementoStock = (ancho * largo / 10000) * cant;
 
         if (material) {
-            // ACTUALIZAR EXISTENTE
+            // ACTUALIZAR EXISTENTE EN ATLAS
             material.stock_actual += incrementoStock;
             material.precio_total_lamina = precioUnitario > 0 ? precioUnitario : material.precio_total_lamina;
-            if (mongoose.Types.ObjectId.isValid(proveedor)) material.proveedor = proveedor;
             await material.save();
-            console.log("✅ Atlas: Stock actualizado.");
+            console.log("✅ Atlas: Material existente actualizado.");
         } else {
-            // CREAR NUEVO (Caso MP K 2315)
-            // Forzamos categoría 'Moldura' para cumplir con el ENUM del modelo
-            const esMoldura = nombreLimpio.includes('K ') || nombreLimpio.includes('MP') || nombreLimpio.includes('MOLDURA');
-            
+            // CREAR NUEVO EN ATLAS (Aquí es donde nacerá la 2315)
+            let cat = 'Otros';
+            const n = nombre.toUpperCase();
+            if (n.includes('K ') || n.includes('MP') || n.includes('MOLDURA')) cat = 'Moldura';
+
             material = new Material({
-                nombre: nombreLimpio,
-                categoria: esMoldura ? 'Moldura' : 'Otros',
-                tipo: 'm2',
+                nombre: nombre.trim().toUpperCase(),
+                categoria: cat,
+                tipo: req.body.tipo_material || 'm2',
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioUnitario,
@@ -133,12 +147,13 @@ const registerPurchase = async (req, res) => {
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
             await material.save();
-            console.log("✨ Atlas: Material nuevo creado exitosamente.");
+            console.log("✨ Atlas: Nuevo material creado con éxito.");
         }
 
         res.status(201).json({ success: true, data: material });
+
     } catch (error) {
-        console.error("🚨 FALLO CRÍTICO EN ATLAS:", error.message);
+        console.error("🚨 ERROR EN COMPRA:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
