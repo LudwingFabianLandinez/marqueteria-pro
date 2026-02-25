@@ -94,68 +94,54 @@ window.API = {
     getProviders: function() { return window.API._request('/providers'); },
 
     // --- MEJORA v13.4.35: REPARACIÓN MECÁNICA DE STOCK POR NOMBRE LIMPIO ---
+    // REEMPLAZO SIMPLIFICADO: Prioridad Atlas + Rescate Local
     getInventory: async function() { 
-        const res = await window.API._request('/inventory');
-        const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
-        const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
+        // 1. Intentamos traer la verdad desde Atlas (añadimos timestamp para evitar caché)
+        const res = await window.API._request(`/inventory?t=${Date.now()}`);
         
-        // Función interna de normalización para evitar errores por espacios invisibles
+        // Si la respuesta fue exitosa y vino del servidor (no es un rescate offline automático)
+        if (res.success && !res.isOffline) {
+            console.log("☁️ Datos sincronizados desde Atlas.");
+            
+            // Actualizamos el respaldo local para que el "Rescate" siempre tenga lo último
+            localStorage.setItem('inventory', JSON.stringify(res.data));
+            
+            // Limpiamos las compras locales procesadas para no duplicar stock en el futuro
+            // localStorage.removeItem('local_purchases'); 
+            
+            return res;
+        }
+
+        // 2. PROTOCOLO DE RESCATE (Si falla Atlas o no hay internet)
+        console.warn("💾 Atlas no responde. Activando respaldo local...");
+        const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
+        
+        // Mantenemos tu lógica de "Suma Forzada" solo cuando estamos offline
+        const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
         const normalize = (txt) => String(txt || "").trim().toUpperCase().replace(/\s+/g, ' ');
 
-        if (localMaterials.length > 0 || res.data.length > 0) {
-            console.log("🧩 Unificando por nombre normalizado y vinculando stock...");
+        const finalData = localMaterials.map(m => {
+            const nombreNormalM = normalize(m.nombre);
+            const sumaCompras = localPurchases
+                .filter(p => {
+                    const matchId = String(m.id || m._id) === String(p.materialId);
+                    const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
+                    return matchId || matchNombre;
+                })
+                .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
             
-            const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
-            const uniqueMap = new Map();
+            return { 
+                ...m, 
+                stock: (Number(m.stock || m.stock_actual || 0)) + sumaCompras 
+            };
+        });
 
-            // 1. Cargar datos del servidor al mapa primero
-            res.data.forEach(m => {
-                const key = normalize(m.nombre);
-                uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [String(m.id || m._id)] });
-            });
-
-            // 2. Fusionar datos locales por nombre normalizado (Si el servidor falla, este es el motor principal)
-            localMaterials.forEach(m => {
-                const materialId = String(m.id || m._id);
-                const key = normalize(m.nombre);
-                
-                if (!uniqueMap.has(key)) {
-                    // Si no está en el mapa (server falló o es nuevo), lo agregamos
-                    uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [materialId] });
-                } else {
-                    // Si ya existe por nombre, vinculamos el ID
-                    if (!uniqueMap.get(key)._allIds.includes(materialId)) {
-                        uniqueMap.get(key)._allIds.push(materialId);
-                    }
-                }
-            });
-
-            // 3. Calcular stock final (Suma forzada de compras locales)
-            const finalData = Array.from(uniqueMap.values()).map(m => {
-                const nombreNormalM = normalize(m.nombre);
-                
-                // Buscamos compras que coincidan con el ID O con el nombre normalizado
-                const sumaCompras = localPurchases
-                    .filter(p => {
-                        const matchId = m._allIds.includes(String(p.materialId));
-                        const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
-                        return matchId || matchNombre;
-                    })
-                    .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
-                
-                return { 
-                    ...m, 
-                    stock: Number(m.stock || 0) + sumaCompras,
-                    _id: m._allIds[0] 
-                };
-            });
-
-            // Ordenar alfabéticamente para mantener la estructura visual limpia
-            finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
-
-            return { ...res, data: finalData };
-        }
-        return res;
+        return { 
+            success: true, 
+            data: finalData, 
+            local: true, 
+            isOffline: true 
+        };
     },
 
     getInvoices: function() { return window.API._request('/invoices'); },

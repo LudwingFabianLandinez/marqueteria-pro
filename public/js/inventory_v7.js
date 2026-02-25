@@ -591,6 +591,7 @@ if (formCompra) {
             const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
             const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
             const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
+            const provId = document.getElementById('compraProveedor')?.value || "";
 
             let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
             const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
@@ -599,16 +600,15 @@ if (formCompra) {
             // Lógica de stock (2.90 para molduras, área para el resto)
             let stockASumar = esMoldura ? (cant * 2.90) : ((largo * ancho / 10000) * cant);
 
-            // 2. BUSCAR EN LA LISTA GLOBAL (Para actualizar o crear)
+            // 2. BUSCAR EN LA LISTA GLOBAL
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
             // 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
-            // IMPORTANTE: Eliminamos IDs temporales "LOC-", Atlas necesita sus propios IDs o ninguno para crear
             const datosParaAtlas = {
                 nombre: nombreReal,
                 categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                 tipo: esMoldura ? "ml" : "m²",
-                stock_actual: existente ? (Number(existente.stock_actual) || 0) + stockASumar : stockASumar,
+                stock_actual: existente ? (Number(existente.stock_actual || existente.stock || 0)) + stockASumar : stockASumar,
                 precio_total_lamina: costo,
                 largo_lamina_cm: esMoldura ? 290 : largo,
                 ancho_lamina_cm: esMoldura ? 1 : ancho
@@ -618,19 +618,31 @@ if (formCompra) {
                 datosParaAtlas.id = existente._id || existente.id;
             }
 
-            // 4. DISPARO ÚNICO Y DEFINITIVO A LA NUBE
+            // 4. DISPARO ÚNICO A LA NUBE (Guardar Material)
             console.log("📡 Enviando a Atlas:", datosParaAtlas);
             const res = await window.API.saveMaterial(datosParaAtlas);
 
             if (res.success) {
-                // ÉXITO: Limpiamos CUALQUIER rastro local para forzar la lectura de la nube
+                // 5. REGISTRAR LA TRANSACCIÓN (Para que aparezca en el historial de compras)
+                const materialIdFinal = res.data?._id || res.data?.id || datosParaAtlas.id;
+                
+                await window.API.registerPurchase({
+                    materialId: materialIdFinal,
+                    nombreMaterial: nombreReal,
+                    cantidad: cant,
+                    largo: esMoldura ? 290 : largo,
+                    ancho: esMoldura ? 1 : ancho,
+                    valorUnitario: costo,
+                    proveedorId: provId
+                });
+
+                // ÉXITO: Limpiamos rastro local para forzar lectura fresca
                 localStorage.removeItem('inventory');
-                localStorage.removeItem('molduras_pendientes');
                 
                 // Forzamos la descarga de la "Verdad Absoluta" desde Atlas
                 await fetchInventory(); 
                 
-                alert(`✅ COMPRA REGISTRADA EN ATLAS: ${nombreReal}\nVisible ahora en todas las pantallas e Incógnito.`);
+                alert(`✅ COMPRA REGISTRADA EN ATLAS: ${nombreReal}\nStock actualizado y visible en Incógnito.`);
                 
                 if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
                 formulario.reset();
@@ -640,7 +652,7 @@ if (formCompra) {
 
         } catch (error) {
             console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
-            alert("❌ FALLO DE CONEXIÓN CON ATLAS:\nNo se pudo guardar. Verifica que el servidor esté encendido.");
+            alert("❌ FALLO DE CONEXIÓN CON ATLAS:\nSe intentó guardar pero el servidor no respondió correctamente.");
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
