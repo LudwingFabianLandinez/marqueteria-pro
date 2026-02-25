@@ -577,7 +577,6 @@ const formCompra = document.getElementById('formNuevaCompra');
         formCompra.onsubmit = async function(e) {
             e.preventDefault();
 
-            // 1. Identificar el botón y el formulario
             const formulario = e.target;
             const btn = formulario.querySelector('button[type="submit"]');
             if (btn) { 
@@ -595,7 +594,6 @@ const formCompra = document.getElementById('formNuevaCompra');
 
                 let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
                 
-                // Formato: Molduras en MAYÚS, el resto (Lona, Tela) como lo escribas
                 const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
                 let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
@@ -603,10 +601,8 @@ const formCompra = document.getElementById('formNuevaCompra');
                 const costo = parseFloat(inputCosto.value) || 0;
                 let unidadFinal = esMoldura ? "ml" : "m²";
                 
-                // Cálculo de stock: 2.90 para molduras, área para m² (como tu lona)
                 let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
 
-                // ACTUALIZACIÓN DE ARRAY GLOBAL
                 if (!window.todosLosMateriales) window.todosLosMateriales = [];
                 let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
@@ -615,7 +611,7 @@ const formCompra = document.getElementById('formNuevaCompra');
                     existente.precio_total_lamina = costo;
                     existente.nombre = nombreReal;
                 } else {
-                    const nuevoId = `MAT-${Date.now()}`;
+                    const nuevoId = `LOC-${Date.now()}`; // Usamos LOC para que el motor de empuje lo detecte
                     existente = {
                         id: nuevoId,
                         nombre: nombreReal,
@@ -629,33 +625,33 @@ const formCompra = document.getElementById('formNuevaCompra');
                     window.todosLosMateriales.unshift(existente);
                 }
 
-                // --- CAJA DE SEGURIDAD REFORZADA (M2 y ML) ---
+                // --- 1. CONEXIÓN DIRECTA CON ATLAS (EL CAMBIO QUIRÚRGICO) ---
+                // Intentamos avisar a la nube de inmediato
+                try {
+                    console.log("📡 Sincronizando compra con Atlas...");
+                    await window.API.saveMaterial(existente);
+                } catch (apiErr) {
+                    console.warn("⚠️ Atlas no respondió, pero se salvará en la Caja de Seguridad local.");
+                }
+
+                // --- 2. TU CAJA DE SEGURIDAD (SE MANTIENE IGUAL) ---
                 let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-                
-                // Buscamos si ya existe en pendientes por nombre para actualizarlo
                 const index = pendientes.findIndex(p => p.nombre.toLowerCase() === nombreReal.toLowerCase());
-                
-                // Creamos una copia limpia del objeto para la caja fuerte
                 const datoASalvar = { ...existente, fechaCompra: new Date().toISOString() };
 
-                if (index !== -1) {
-                    pendientes[index] = datoASalvar;
-                } else {
-                    pendientes.push(datoASalvar);
-                }
+                if (index !== -1) { pendientes[index] = datoASalvar; } 
+                else { pendientes.push(datoASalvar); }
                 
                 localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-                // Limpieza de lista negra (Para que no se oculte al refrescar)
                 let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
                 eliminados = eliminados.filter(id => id !== String(existente.id));
                 localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
 
-                // FINALIZAR Y RENDERIZAR
                 localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
                 renderTable(window.todosLosMateriales);
                 
-                alert(`✅ Registrado: ${nombreReal}`);
+                alert(`✅ Registrado y Sincronizado: ${nombreReal}`);
                 const modal = document.getElementById('modalCompra');
                 if(modal) modal.style.display = 'none';
                 formulario.reset();
@@ -666,7 +662,7 @@ const formCompra = document.getElementById('formNuevaCompra');
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
             }
-        }; 
+        };
     }
 }
 
