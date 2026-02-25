@@ -907,15 +907,16 @@ window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
     
     // 🕵️‍♂️ Búsqueda exhaustiva del ID
-    // Lo buscamos en el atributo 'data-id' o en una variable global si existe
     const id = modal.dataset.id || window.currentEditingId; 
 
     if (!id) {
         console.error("❌ Fallo crítico: ID no localizado en el modal.");
-        return alert("⚠️ Error técnico: No se pudo localizar el ID del material. Cierra el modal e intenta abrirlo de nuevo.");
+        return alert("⚠️ Error técnico: No se pudo localizar el ID del material.");
     }
 
+    // Captura de datos preservando tu lógica de m2/ml
     const materialData = {
+        id: id, // Importante para que el API sepa si es nuevo o edición
         nombre: document.getElementById('matNombre').value.trim(),
         ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
         largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
@@ -924,22 +925,33 @@ window.guardarMaterial = async function() {
     };
 
     try {
-        // Usamos la ruta de emergencia que ya tienes en server.js
-        const url = `${window.API_URL}/fix-material-data/${id}`; 
+        console.log("🚀 Enviando actualización a Atlas vía Motor Universal...");
         
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(materialData)
-        });
+        // CAMBIO CLAVE: Usamos el API blindada en lugar de un fetch directo a una ruta fija
+        const res = await window.API.saveMaterial(materialData);
 
-        if (response.ok) {
-            alert("✅ ¡Material actualizado! El punto de reorden ahora es " + materialData.stock_minimo);
-            location.reload(); 
+        if (res.success) {
+            alert("✅ ¡Atlas Actualizado! La K 2310 ahora es universal.");
+            
+            // Si el material tenía un ID "LOC-", lo eliminamos del local porque ya es real en Atlas
+            if (String(id).startsWith('LOC-')) {
+                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                localInv = localInv.filter(m => (m.id || m._id) !== id);
+                localStorage.setItem('inventory', JSON.stringify(localInv));
+            }
+
+            // En lugar de reload, llamamos a fetchInventory para ver el cambio sin perder el scroll
+            if (typeof fetchInventory === 'function') {
+                await fetchInventory();
+                if (typeof cerrarModal === 'function') cerrarModal('modalNuevoMaterial');
+            } else {
+                location.reload();
+            }
         } else {
-            alert("❌ El servidor no permitió el guardado.");
+            alert("⚠️ Atlas no pudo procesar el cambio, se mantuvo localmente.");
         }
     } catch (error) {
-        alert("❌ Error de red al intentar guardar.");
+        console.error("❌ Error en sincronización:", error);
+        alert("❌ Error de red. El cambio se guardará en esta PC pero no en Atlas hasta que haya internet.");
     }
 };
