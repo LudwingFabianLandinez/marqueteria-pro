@@ -26,8 +26,12 @@ const saveMaterial = async (req, res) => {
             ancho_lamina_cm, largo_lamina_cm // Campos recuperados
         } = req.body;
 
+        // --- MEJORA DE VALIDACIÓN ---
+        const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val);
+        const proveedorFinal = esIdValido(proveedor) ? proveedor : null;
+
         let material;
-        if (id && mongoose.Types.ObjectId.isValid(id)) {
+        if (id && esIdValido(id)) {
             material = await Material.findById(id);
             if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
 
@@ -38,7 +42,9 @@ const saveMaterial = async (req, res) => {
             material.precio_total_lamina = precio_total_lamina !== undefined ? parseFloat(precio_total_lamina) : material.precio_total_lamina;
             material.ancho_lamina_cm = ancho_lamina_cm !== undefined ? parseFloat(ancho_lamina_cm) : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo_lamina_cm !== undefined ? parseFloat(largo_lamina_cm) : material.largo_lamina_cm;
-            material.proveedor = (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : material.proveedor;
+            
+            // Asignación segura de proveedor
+            material.proveedor = proveedorFinal || material.proveedor;
             
             await material.save();
         } else {
@@ -50,7 +56,7 @@ const saveMaterial = async (req, res) => {
                 precio_total_lamina: parseFloat(precio_total_lamina) || 0,
                 ancho_lamina_cm: parseFloat(ancho_lamina_cm) || 0,
                 largo_lamina_cm: parseFloat(largo_lamina_cm) || 0,
-                proveedor: (proveedor && mongoose.Types.ObjectId.isValid(proveedor)) ? proveedor : null
+                proveedor: proveedorFinal // Usa el ID validado o null
             });
             await material.save();
         }
