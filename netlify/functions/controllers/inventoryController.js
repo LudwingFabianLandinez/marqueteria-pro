@@ -103,10 +103,18 @@ const registerPurchase = async (req, res) => {
             costo_total 
         } = req.body;
 
+        // --- VALIDACIÓN DE IDS PARA ATLAS ---
+        const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val);
+        const idProvFinal = esIdValido(proveedor) ? proveedor : (esIdValido(proveedorId) ? proveedorId : null);
+
         let material;
-        if (materialId && mongoose.Types.ObjectId.isValid(materialId)) {
+        // 1. Buscar por ID si es válido
+        if (materialId && esIdValido(materialId)) {
             material = await Material.findById(materialId);
-        } else if (nombre) {
+        } 
+        
+        // 2. Si no se encontró por ID, buscar por NOMBRE (Caso de la 2311 nueva)
+        if (!material && nombre) {
             const nombreLimpio = nombre.trim();
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
@@ -124,8 +132,6 @@ const registerPurchase = async (req, res) => {
         }
 
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
-        const idProvFinal = proveedor || proveedorId;
-        let proveedorValido = (idProvFinal && mongoose.Types.ObjectId.isValid(idProvFinal)) ? idProvFinal : null;
 
         if (material) {
             material.stock_actual += incrementoStock;
@@ -133,11 +139,12 @@ const registerPurchase = async (req, res) => {
             material.ancho_lamina_cm = ancho > 0 ? ancho : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo > 0 ? largo : material.largo_lamina_cm;
             material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
-            material.proveedor = proveedorValido || material.proveedor;
+            if (idProvFinal) material.proveedor = idProvFinal;
             await material.save();
         } else {
+            // Si el material no existe en Atlas, LO CREAMOS AQUÍ
             material = new Material({
-                nombre: nombre ? nombre.trim() : "Material Nuevo",
+                nombre: nombre ? nombre.trim().toUpperCase() : "MATERIAL NUEVO",
                 tipo: (req.body.tipo_material || 'm2'),
                 categoria: 'Otros',
                 ancho_lamina_cm: ancho,
@@ -145,7 +152,7 @@ const registerPurchase = async (req, res) => {
                 precio_total_lamina: precioTotalUnitario,
                 stock_actual: incrementoStock,
                 precio_venta_sugerido: precio_venta_sugerido || 0,
-                proveedor: proveedorValido
+                proveedor: idProvFinal || undefined
             });
             await material.save();
         }
@@ -158,15 +165,15 @@ const registerPurchase = async (req, res) => {
                 cantidad: incrementoStock,
                 cantidad_m2: incrementoStock,
                 costo_total: costo_total || precio_total || (precioTotalUnitario * cantidad),
-                proveedor: proveedorValido,
-                motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2`,
+                proveedor: idProvFinal || undefined,
+                motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2 (Sincronización)`,
                 fecha: new Date()
             });
         }
 
         res.status(201).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error en registerPurchase:", error);
+        console.error("🚨 Error en registerPurchase (Atlas):", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
