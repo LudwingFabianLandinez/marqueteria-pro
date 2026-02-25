@@ -162,43 +162,59 @@ window.API = {
     saveProvider: function(data) { return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); },
 
     // BUSCA ESTA FUNCIÓN EN api.js Y REEMPLÁZALA COMPLETAMENTE
-saveMaterial: async function(data) {
-    const id = data.id || data._id;
-    // Si el ID empieza por 'LOC-', es un material que nunca llegó a Atlas. Intentaremos crearlo de cero.
-    const isNewLocal = id && String(id).startsWith('LOC-');
-    const path = (id && !isNewLocal) ? `/inventory/${id}` : '/inventory';
-    const method = (id && !isNewLocal) ? 'PUT' : 'POST';
+// REEMPLAZO FINAL: Sincronización Universal v14.1.0
+    saveMaterial: async function(data) {
+        const id = data.id || data._id;
+        // Si el ID empieza por 'LOC-', es un material que nunca llegó a Atlas. Intentaremos crearlo de cero.
+        const isNewLocal = id && String(id).startsWith('LOC-');
+        const path = (id && !isNewLocal) ? `/inventory/${id}` : '/inventory';
+        const method = (id && !isNewLocal) ? 'PUT' : 'POST';
 
-    try {
-        console.log(`📡 Sincronizando con Atlas: ${method} en ${path}...`);
-        const res = await window.API._request(path, { 
-            method: method, 
-            body: JSON.stringify(data) 
-        });
+        try {
+            console.log(`📡 Sincronizando con Atlas: ${method} en ${path}...`);
+            
+            // --- MEJORA CRUCIAL PARA ATLAS ---
+            // Si es un material nuevo (LOC-), eliminamos el ID temporal antes de enviar
+            // para que MongoDB Atlas pueda asignarle su ID real de base de datos.
+            const dataToCloud = { ...data };
+            if (isNewLocal) {
+                delete dataToCloud.id;
+                delete dataToCloud._id;
+            }
 
-        if (res.success) {
-            // ¡ÉXITO! Si se guardó en Atlas, limpiamos la copia local para evitar duplicidad
+            const res = await window.API._request(path, { 
+                method: method, 
+                body: JSON.stringify(dataToCloud) 
+            });
+
+            if (res.success) {
+                // ¡ÉXITO! Si se guardó en Atlas, limpiamos la copia local para evitar duplicidad
+                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                const filtered = localInv.filter(m => String(m.id || m._id) !== String(id));
+                localStorage.setItem('inventory', JSON.stringify(filtered));
+                console.log("✅ Atlas actualizado. Memoria local liberada.");
+                
+                // IMPORTANTE: Devolvemos la respuesta de Atlas para que el modo incógnito lo vea
+                return res;
+            }
+            throw new Error("Atlas rechazó el paquete");
+        } catch (e) {
+            console.warn("💾 Fallo de red/Atlas: Guardando en memoria local de esta PC...");
+            // Tu lógica original de rescate se mantiene intacta aquí:
+            const localId = id || `LOC-${Date.now()}`;
+            const newMaterial = { ...data, id: localId, _id: localId };
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            const filtered = localInv.filter(m => String(m.id || m._id) !== String(id));
-            localStorage.setItem('inventory', JSON.stringify(filtered));
-            console.log("✅ Atlas actualizado. Memoria local liberada.");
-            return res;
+            
+            const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
+            if (index > -1) localInv[index] = newMaterial;
+            else localInv.push(newMaterial);
+            
+            localStorage.setItem('inventory', JSON.stringify(localInv));
+            
+            // Si llegamos aquí, avisamos que es LOCAL (por eso no se ve en incógnito)
+            return { success: true, data: newMaterial, id: localId, local: true, error: e.message };
         }
-        throw new Error("Atlas rechazó el paquete");
-    } catch (e) {
-        console.warn("💾 Fallo de red: Guardando en memoria local de esta PC...");
-        const localId = id || `LOC-${Date.now()}`;
-        const newMaterial = { ...data, id: localId, _id: localId };
-        let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-        
-        const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
-        if (index > -1) localInv[index] = newMaterial;
-        else localInv.push(newMaterial);
-        
-        localStorage.setItem('inventory', JSON.stringify(localInv));
-        return { success: true, data: newMaterial, id: localId, local: true };
-    }
-},
+    },
 
     registerPurchase: async function(purchaseData) {
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
