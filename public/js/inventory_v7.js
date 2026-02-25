@@ -215,6 +215,32 @@ window.guardarProveedor = async function(event) {
 
 async function fetchInventory() {
     try {
+        console.log("🔄 Iniciando Sincronización Universal v13.9.0...");
+
+        // --- BLOQUE NUEVO: MOTOR DE EMPUJE A ATLAS ---
+        // Buscamos si hay materiales creados en esta PC con ID temporal "LOC-"
+        const localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+        const pendientesDeSubir = localInv.filter(m => String(m.id || m._id).startsWith('LOC-'));
+
+        if (pendientesDeSubir.length > 0) {
+            console.log(`📦 Detectados ${pendientesDeSubir.length} materiales nuevos. Subiendo a Atlas...`);
+            for (const mat of pendientesDeSubir) {
+                const tempId = mat.id || mat._id;
+                const clon = { ...mat };
+                delete clon.id; delete clon._id; // Quitamos el ID local para que Atlas asigne uno real
+                
+                const res = await window.API.saveMaterial(clon);
+                if (res.success) {
+                    console.log(`✅ "${mat.nombre}" ya está en la nube.`);
+                    // Lo quitamos de la lista local de esta PC porque ya existe en el servidor
+                    const limpiarLocal = JSON.parse(localStorage.getItem('inventory') || '[]')
+                                         .filter(m => (m.id || m._id) !== tempId);
+                    localStorage.setItem('inventory', JSON.stringify(limpiarLocal));
+                }
+            }
+        }
+        // ----------------------------------------------
+
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
@@ -229,7 +255,7 @@ async function fetchInventory() {
                 id: m._id || m.id,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
-                proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
+                proveedorNombre: m.proveedor?.nombre || m.proveedorNombre || "Sin proveedor",
                 stock_actual: Number(m.stock_actual) || 0, 
                 precio_m2_costo: Number(m.precio_m2_costo) || 0,
                 precio_total_lamina: Number(m.precio_total_lamina) || 0,
@@ -277,7 +303,7 @@ async function fetchInventory() {
             window.cargarListasModal();
         }
         
-        console.log("✅ Inventario sincronizado por nombre (Tela/Lona protegidas)");
+        console.log("✅ Inventario sincronizado por nombre y Atlas actualizado.");
 
     } catch (error) { 
         console.error("❌ Error inventario:", error); 

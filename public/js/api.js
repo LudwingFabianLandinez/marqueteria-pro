@@ -161,28 +161,44 @@ window.API = {
     getInvoices: function() { return window.API._request('/invoices'); },
     saveProvider: function(data) { return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); },
 
-    saveMaterial: async function(data) {
-        const id = data.id || data._id;
-        const path = id ? `/inventory/${id}` : '/inventory';
-        try {
-            const res = await window.API._request(path, { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
-            if (res.isOffline || !res.success) throw new Error("Trigger Local");
-            return res;
-        } catch (e) {
-            console.warn("💾 Rescate Local: Guardando moldura...");
-            const localId = id || `LOC-${Date.now()}`;
-            const newMaterial = { ...data, id: localId, _id: localId, stock: 0 };
+    // BUSCA ESTA FUNCIÓN EN api.js Y REEMPLÁZALA COMPLETAMENTE
+saveMaterial: async function(data) {
+    const id = data.id || data._id;
+    // Si el ID empieza por 'LOC-', es un material que nunca llegó a Atlas. Intentaremos crearlo de cero.
+    const isNewLocal = id && String(id).startsWith('LOC-');
+    const path = (id && !isNewLocal) ? `/inventory/${id}` : '/inventory';
+    const method = (id && !isNewLocal) ? 'PUT' : 'POST';
+
+    try {
+        console.log(`📡 Sincronizando con Atlas: ${method} en ${path}...`);
+        const res = await window.API._request(path, { 
+            method: method, 
+            body: JSON.stringify(data) 
+        });
+
+        if (res.success) {
+            // ¡ÉXITO! Si se guardó en Atlas, limpiamos la copia local para evitar duplicidad
             let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            
-            // Evitar duplicados por ID en el guardado local
-            const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
-            if (index > -1) localInv[index] = newMaterial;
-            else localInv.push(newMaterial);
-            
-            localStorage.setItem('inventory', JSON.stringify(localInv));
-            return { success: true, data: newMaterial, id: localId, local: true };
+            const filtered = localInv.filter(m => String(m.id || m._id) !== String(id));
+            localStorage.setItem('inventory', JSON.stringify(filtered));
+            console.log("✅ Atlas actualizado. Memoria local liberada.");
+            return res;
         }
-    },
+        throw new Error("Atlas rechazó el paquete");
+    } catch (e) {
+        console.warn("💾 Fallo de red: Guardando en memoria local de esta PC...");
+        const localId = id || `LOC-${Date.now()}`;
+        const newMaterial = { ...data, id: localId, _id: localId };
+        let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+        
+        const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
+        if (index > -1) localInv[index] = newMaterial;
+        else localInv.push(newMaterial);
+        
+        localStorage.setItem('inventory', JSON.stringify(localInv));
+        return { success: true, data: newMaterial, id: localId, local: true };
+    }
+},
 
     registerPurchase: async function(purchaseData) {
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
