@@ -20,53 +20,49 @@ const getTransactionModel = () => {
  */
 const saveMaterial = async (req, res) => {
     try {
+        console.log("📥 Datos recibidos en saveMaterial:", req.body);
         const { 
             id, nombre, categoria, tipo, stock_actual, 
             precio_total_lamina, proveedor,
-            ancho_lamina_cm, largo_lamina_cm // Campos recuperados
+            ancho_lamina_cm, largo_lamina_cm 
         } = req.body;
 
         // --- BLINDAJE PARA ATLAS: Validación de ObjectId ---
         const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val) && val.length === 24;
         const proveedorFinal = esIdValido(proveedor) ? proveedor : null;
 
-        let material;
-        // Si el id que llega es un ID real de MongoDB, editamos
-        if (id && esIdValido(id)) {
-            material = await Material.findById(id);
-            if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
+        // Preparación de datos normalizados para evitar errores de tipo en MongoDB
+        const datosLimpios = {
+            nombre: (nombre || "Nuevo Material").trim().toUpperCase(),
+            categoria: categoria || "Otros",
+            tipo: tipo || "m2",
+            stock_actual: Number(stock_actual) || 0,
+            precio_total_lamina: Number(precio_total_lamina) || 0,
+            ancho_lamina_cm: Number(ancho_lamina_cm) || 0,
+            largo_lamina_cm: Number(largo_lamina_cm) || 0,
+            proveedor: proveedorFinal || undefined
+        };
 
-            material.nombre = nombre || material.nombre;
-            material.categoria = categoria || material.categoria;
-            material.tipo = tipo || material.tipo;
-            material.stock_actual = stock_actual !== undefined ? parseFloat(stock_actual) : material.stock_actual;
-            material.precio_total_lamina = precio_total_lamina !== undefined ? parseFloat(precio_total_lamina) : material.precio_total_lamina;
-            material.ancho_lamina_cm = ancho_lamina_cm !== undefined ? parseFloat(ancho_lamina_cm) : material.ancho_lamina_cm;
-            material.largo_lamina_cm = largo_lamina_cm !== undefined ? parseFloat(largo_lamina_cm) : material.largo_lamina_cm;
-            
-            // Asignación segura: si proveedorFinal es null, mantenemos el que tenía o dejamos null
-            material.proveedor = proveedorFinal || material.proveedor;
-            
-            await material.save();
+        let material;
+        if (id && esIdValido(id)) {
+            // EDITAR: Usamos findByIdAndUpdate para una escritura más directa en Atlas
+            material = await Material.findByIdAndUpdate(
+                id, 
+                { $set: datosLimpios }, 
+                { new: true, runValidators: true }
+            );
+            if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
+            console.log("✅ Material actualizado en Atlas");
         } else {
-            // CREACIÓN DE MATERIAL NUEVO (Solución al Error 500 para la 2311)
-            material = new Material({
-                nombre: nombre || "Nuevo Material",
-                categoria: categoria || "Otros",
-                tipo: tipo || "m2",
-                stock_actual: parseFloat(stock_actual) || 0,
-                precio_total_lamina: parseFloat(precio_total_lamina) || 0,
-                ancho_lamina_cm: parseFloat(ancho_lamina_cm) || 0,
-                largo_lamina_cm: parseFloat(largo_lamina_cm) || 0,
-                // Aquí usamos undefined si es null para que el esquema no falle
-                proveedor: proveedorFinal ? proveedorFinal : undefined 
-            });
+            // CREAR: Caso de la moldura 2311
+            material = new Material(datosLimpios);
             await material.save();
+            console.log("✨ Nuevo material guardado en Atlas:", material.nombre);
         }
 
         res.status(200).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error crítico en saveMaterial (Atlas):", error);
+        console.error("🚨 Error crítico en saveMaterial (Atlas):", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -89,9 +85,10 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra - VERSIÓN INTELIGENTE
+// 2. Registrar compra - VERSIÓN INTELIGENTE FORZADA
 const registerPurchase = async (req, res) => {
     try {
+        console.log("📥 Procesando compra para Atlas:", req.body);
         const { 
             materialId, proveedorId, 
             nombre, proveedor,      
@@ -103,17 +100,14 @@ const registerPurchase = async (req, res) => {
             costo_total 
         } = req.body;
 
-        // --- VALIDACIÓN DE IDS PARA ATLAS ---
         const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val);
         const idProvFinal = esIdValido(proveedor) ? proveedor : (esIdValido(proveedorId) ? proveedorId : null);
 
         let material;
-        // 1. Buscar por ID si es válido
         if (materialId && esIdValido(materialId)) {
             material = await Material.findById(materialId);
         } 
         
-        // 2. Si no se encontró por ID, buscar por NOMBRE (Caso de la 2311 nueva)
         if (!material && nombre) {
             const nombreLimpio = nombre.trim();
             material = await Material.findOne({ 
@@ -138,11 +132,10 @@ const registerPurchase = async (req, res) => {
             material.precio_total_lamina = precioTotalUnitario > 0 ? precioTotalUnitario : material.precio_total_lamina;
             material.ancho_lamina_cm = ancho > 0 ? ancho : material.ancho_lamina_cm;
             material.largo_lamina_cm = largo > 0 ? largo : material.largo_lamina_cm;
-            material.precio_venta_sugerido = precio_venta_sugerido || material.precio_venta_sugerido;
+            material.precio_venta_sugerido = Number(precio_venta_sugerido) || material.precio_venta_sugerido;
             if (idProvFinal) material.proveedor = idProvFinal;
             await material.save();
         } else {
-            // Si el material no existe en Atlas, LO CREAMOS AQUÍ
             material = new Material({
                 nombre: nombre ? nombre.trim().toUpperCase() : "MATERIAL NUEVO",
                 tipo: (req.body.tipo_material || 'm2'),
@@ -151,7 +144,7 @@ const registerPurchase = async (req, res) => {
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioTotalUnitario,
                 stock_actual: incrementoStock,
-                precio_venta_sugerido: precio_venta_sugerido || 0,
+                precio_venta_sugerido: Number(precio_venta_sugerido) || 0,
                 proveedor: idProvFinal || undefined
             });
             await material.save();
@@ -164,16 +157,17 @@ const registerPurchase = async (req, res) => {
                 tipo: 'COMPRA',
                 cantidad: incrementoStock,
                 cantidad_m2: incrementoStock,
-                costo_total: costo_total || precio_total || (precioTotalUnitario * cantidad),
+                costo_total: Number(costo_total || precio_total || (precioTotalUnitario * cantidad)),
                 proveedor: idProvFinal || undefined,
                 motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2 (Sincronización)`,
                 fecha: new Date()
             });
         }
 
+        console.log("✅ Compra registrada exitosamente en Atlas");
         res.status(201).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error en registerPurchase (Atlas):", error);
+        console.error("🚨 Error en registerPurchase (Atlas):", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
