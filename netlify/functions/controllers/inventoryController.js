@@ -88,70 +88,52 @@ const getMaterials = async (req, res) => {
 // 2. Registrar compra - VERSIÓN INTELIGENTE FORZADA
 const registerPurchase = async (req, res) => {
     try {
+        console.log("🚀 FORZANDO REGISTRO EN ATLAS:", req.body.nombre);
+        
         const { 
-            materialId, nombre, proveedor,      
-            ancho_lamina_cm, largo_lamina_cm, 
-            precio_total_lamina, cantidad_laminas,
-            cantidad_m2, precio_venta_sugerido, costo_total 
+            nombre, ancho_lamina_cm, largo_lamina_cm, 
+            precio_total_lamina, cantidad_laminas, proveedor
         } = req.body;
 
-        const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val);
-        
-        // --- FILTRO CRÍTICO ---
-        // Si el ID viene del navegador (MAT-...), lo ignoramos para que Atlas no lo rechace.
-        const idParaBusqueda = (materialId && materialId.startsWith('MAT-')) ? null : materialId;
+        // 1. LIMPIEZA TOTAL: Buscamos solo por nombre para evitar conflictos con IDs temporales
+        const nombreLimpio = nombre ? nombre.trim().toUpperCase() : "SIN NOMBRE";
+        let material = await Material.findOne({ nombre: new RegExp(`^${nombreLimpio}$`, 'i') });
 
-        let material;
-        if (idParaBusqueda && esIdValido(idParaBusqueda)) {
-            material = await Material.findById(idParaBusqueda);
-        } 
-        
-        // Si no hay ID real, buscamos por NOMBRE (así encontraremos la MP K 2315)
-        if (!material && nombre) {
-            material = await Material.findOne({ 
-                nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
-            });
-        }
-
-        // Normalización para cumplir el Schema de Atlas
+        // 2. NORMALIZACIÓN DE MEDIDAS (Para cumplir con el Schema required: true)
         const ancho = Math.max(0.1, parseFloat(ancho_lamina_cm) || 0);
         const largo = Math.max(0.1, parseFloat(largo_lamina_cm) || 0);
-        const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
-        const cantidad = Math.max(1, parseFloat(cantidad_laminas) || 1);
-        
-        let incrementoStock = parseFloat(cantidad_m2) || 0;
-        if (incrementoStock <= 0) {
-            incrementoStock = (ancho * largo / 10000) * cantidad;
-        }
+        const precioLamina = Math.max(0, parseFloat(precio_total_lamina) || 0);
+        const cant = Math.max(1, parseFloat(cantidad_laminas) || 1);
+        const m2Comprados = (ancho * largo / 10000) * cant;
 
         if (material) {
-            material.stock_actual += incrementoStock;
-            material.precio_total_lamina = precioUnitario > 0 ? precioUnitario : material.precio_total_lamina;
-            if (esIdValido(proveedor)) material.proveedor = proveedor;
+            // ACTUALIZAR EXISTENTE
+            material.stock_actual += m2Comprados;
+            material.precio_total_lamina = precioLamina > 0 ? precioLamina : material.precio_total_lamina;
             await material.save();
+            console.log("✅ Atlas: Stock actualizado.");
         } else {
-            // DETECCIÓN DE CATEGORÍA SEGÚN TU MODELO
-            let cat = 'Otros';
-            const nUpper = nombre.toUpperCase();
-            if (nUpper.includes('K ') || nUpper.includes('MP') || nUpper.includes('MOLDURA')) cat = 'Moldura';
-
+            // CREAR NUEVO (Caso MP K 2315)
+            // Forzamos categoría 'Moldura' si es una moldura para evitar error de ENUM
+            const esMoldura = nombreLimpio.includes('K ') || nombreLimpio.includes('MP');
+            
             material = new Material({
-                nombre: nombre.trim().toUpperCase(),
-                tipo: req.body.tipo_material || 'm2',
-                categoria: cat,
+                nombre: nombreLimpio,
+                categoria: esMoldura ? 'Moldura' : 'Otros',
+                tipo: 'm2',
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
-                precio_total_lamina: precioUnitario,
-                stock_actual: incrementoStock,
-                precio_venta_sugerido: parseFloat(precio_venta_sugerido) || 0,
-                proveedor: esIdValido(proveedor) ? proveedor : undefined
+                precio_total_lamina: precioLamina,
+                stock_actual: m2Comprados,
+                proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
             await material.save();
+            console.log("✨ Atlas: Material nuevo creado exitosamente.");
         }
 
         res.status(201).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 ERROR DE ESCRITURA EN ATLAS:", error.message);
+        console.error("🚨 FALLO DIRECTO EN ATLAS:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
