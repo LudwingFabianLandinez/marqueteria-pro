@@ -257,18 +257,17 @@ const deleteMaterial = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // 🛡️ BLINDAJE CONTRA ID TEMPORAL:
-        // Si el ID es de tipo MAT-123..., es un ID local. 
-        // Respondemos éxito de inmediato para que el frontend no se trabe.
+        // 🛡️ FILTRO DE ID TEMPORAL (MAT-)
+        // Si el frontend intenta borrar un ID temporal, le decimos que sí para que no bloquee la compra.
         if (id && id.startsWith('MAT-')) {
-            console.log("🛡️ Ignorando eliminación de ID temporal del frontend:", id);
+            console.log("🛡️ Bloqueando intento de borrado local en Atlas para ID:", id);
             return res.status(200).json({ 
                 success: true, 
-                message: "Material temporal removido de vista local" 
+                message: "Registro local ignorado, permitiendo sincronización" 
             });
         }
 
-        // --- LÓGICA ORIGINAL PARA ATLAS ---
+        // --- LÓGICA ORIGINAL PARA REGISTROS REALES ---
         await Material.findByIdAndDelete(id);
         
         const TransactionModel = getTransactionModel();
@@ -278,7 +277,7 @@ const deleteMaterial = async (req, res) => {
 
         res.status(200).json({ success: true, message: "Material eliminado de Atlas" });
     } catch (error) {
-        console.error("❌ Error en deleteMaterial:", error);
+        console.error("❌ Error en deleteMaterial:", error.message);
         res.status(500).json({ success: false, error: "Error al eliminar" });
     }
 };
