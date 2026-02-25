@@ -755,6 +755,8 @@ window.verHistorial = async function(id, nombre) {
     window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
         try {
+            const esIdTemporal = id && String(id).startsWith('MAT-');
+
             // 1. AGREGAR A LISTA NEGRA (Para que fetchInventory no lo resucite)
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
             if (!eliminados.includes(String(id))) {
@@ -770,9 +772,13 @@ window.verHistorial = async function(id, nombre) {
             // 3. BORRAR DE LA VISTA ACTUAL
             window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
             
-            // 4. AVISAR AL SERVIDOR
-            if (window.API && window.API.deleteMaterial) {
-                await window.API.deleteMaterial(id).catch(e => console.log("Pendiente en nube"));
+            // 4. AVISAR AL SERVIDOR (SOLO SI ES UN ID REAL DE ATLAS)
+            if (!esIdTemporal) {
+                if (window.API && window.API.deleteMaterial) {
+                    await window.API.deleteMaterial(id).catch(e => console.log("Pendiente en nube"));
+                }
+            } else {
+                console.log("🛡️ ID temporal detectado: Se eliminó localmente sin peticiones innecesarias al servidor.");
             }
 
             renderTable(window.todosLosMateriales);
