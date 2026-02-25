@@ -88,34 +88,38 @@ const getMaterials = async (req, res) => {
 // 2. Registrar compra - VERSIÓN INTELIGENTE FORZADA
 const registerPurchase = async (req, res) => {
     try {
-        console.log("🚀 FORZANDO REGISTRO EN ATLAS:", req.body.nombre);
+        console.log("🚀 FORZANDO ESCRITURA EN ATLAS:", req.body.nombre);
         
         const { 
             nombre, ancho_lamina_cm, largo_lamina_cm, 
-            precio_total_lamina, cantidad_laminas, proveedor
+            precio_total_lamina, cantidad_laminas, proveedor,
+            precio_venta_sugerido, costo_total 
         } = req.body;
 
-        // 1. LIMPIEZA TOTAL: Buscamos solo por nombre para evitar conflictos con IDs temporales
+        // 1. FILTRO TOTAL: Ignoramos el ID del frontend y buscamos solo por NOMBRE
         const nombreLimpio = nombre ? nombre.trim().toUpperCase() : "SIN NOMBRE";
-        let material = await Material.findOne({ nombre: new RegExp(`^${nombreLimpio}$`, 'i') });
+        let material = await Material.findOne({ 
+            nombre: { $regex: new RegExp(`^${nombreLimpio}$`, 'i') } 
+        });
 
-        // 2. NORMALIZACIÓN DE MEDIDAS (Para cumplir con el Schema required: true)
+        // 2. CUMPLIMIENTO DE SCHEMA (Evita rechazo de Atlas por campos vacíos)
         const ancho = Math.max(0.1, parseFloat(ancho_lamina_cm) || 0);
         const largo = Math.max(0.1, parseFloat(largo_lamina_cm) || 0);
-        const precioLamina = Math.max(0, parseFloat(precio_total_lamina) || 0);
+        const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
         const cant = Math.max(1, parseFloat(cantidad_laminas) || 1);
-        const m2Comprados = (ancho * largo / 10000) * cant;
+        const incrementoStock = (ancho * largo / 10000) * cant;
 
         if (material) {
             // ACTUALIZAR EXISTENTE
-            material.stock_actual += m2Comprados;
-            material.precio_total_lamina = precioLamina > 0 ? precioLamina : material.precio_total_lamina;
+            material.stock_actual += incrementoStock;
+            material.precio_total_lamina = precioUnitario > 0 ? precioUnitario : material.precio_total_lamina;
+            if (mongoose.Types.ObjectId.isValid(proveedor)) material.proveedor = proveedor;
             await material.save();
             console.log("✅ Atlas: Stock actualizado.");
         } else {
             // CREAR NUEVO (Caso MP K 2315)
-            // Forzamos categoría 'Moldura' si es una moldura para evitar error de ENUM
-            const esMoldura = nombreLimpio.includes('K ') || nombreLimpio.includes('MP');
+            // Forzamos categoría 'Moldura' para cumplir con el ENUM del modelo
+            const esMoldura = nombreLimpio.includes('K ') || nombreLimpio.includes('MP') || nombreLimpio.includes('MOLDURA');
             
             material = new Material({
                 nombre: nombreLimpio,
@@ -123,8 +127,9 @@ const registerPurchase = async (req, res) => {
                 tipo: 'm2',
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
-                precio_total_lamina: precioLamina,
-                stock_actual: m2Comprados,
+                precio_total_lamina: precioUnitario,
+                stock_actual: incrementoStock,
+                precio_venta_sugerido: parseFloat(precio_venta_sugerido) || 0,
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
             await material.save();
@@ -133,7 +138,7 @@ const registerPurchase = async (req, res) => {
 
         res.status(201).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 FALLO DIRECTO EN ATLAS:", error.message);
+        console.error("🚨 FALLO CRÍTICO EN ATLAS:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
