@@ -170,58 +170,73 @@ saveProvider: function(data) { return window.API._request('/providers', { method
 saveMaterial: async function(data) {
     const id = data.id || data._id;
     // Detectamos si es un material nuevo (local) o uno existente en Atlas
-    // Añadimos MAT- por si acaso tienes registros con ese prefijo
     const isLocal = !id || String(id).startsWith('LOC-') || String(id).startsWith('MAT-');
     
-    // --- CORRECCIÓN PARA ELIMINAR ERROR 500 ---
-    // Aseguramos que los campos que Atlas espera como números NO lleguen vacíos o como texto
+    // --- SANITIZACIÓN EXTREMA PARA MATAR EL ERROR 500 ---
     const cleanData = {
-        ...data,
-        nombre: String(data.nombre || "").trim().toUpperCase(),
+        nombre: String(data.nombre || "SIN NOMBRE").trim().toUpperCase(),
+        categoria: String(data.categoria || "MARCOS"),
+        tipo: String(data.tipo || "ml"),
+        // Forzamos conversión numérica. Si no es número, va 0. Jamás enviamos "" o undefined.
         stock_actual: Number(data.stock_actual) || 0,
         stock_minimo: Number(data.stock_minimo) || 0,
         costo_m2: Number(data.costo_m2 || data.precio_m2_costo) || 0,
         ancho_lamina_cm: Number(data.ancho_lamina_cm) || 0,
         largo_lamina_cm: Number(data.largo_lamina_cm) || 0,
-        precio_total_lamina: Number(data.precio_total_lamina) || 0
+        precio_total_lamina: Number(data.precio_total_lamina) || 0,
+        proveedor_id: data.proveedor_id || null,
+        estado: "Activo"
     };
 
-    // Si es local usamos /inventory, si existe usamos la ruta de reparación
+    // Si es local, NO enviamos el ID en el cuerpo porque Atlas genera el suyo
+    // Si no es local, usamos la ruta de reparación
     const path = isLocal ? '/inventory' : `/fix-material-data/${id}`;
     
     try {
         const res = await window.API._request(path, { 
             method: 'POST', 
-            body: JSON.stringify(cleanData) // Enviamos los datos limpios
+            body: JSON.stringify(cleanData) 
         });
 
-        if (res.isOffline || !res.success) throw new Error("Trigger Local");
+        if (!res.success) throw new Error("Atlas rechazó el paquete");
 
-        // Si se guardó con éxito en Atlas, lo limpiamos del localStorage
-        // Quitamos el !isLocal para que limpie CUALQUIER rastro local si ya subió a Atlas
+        console.log("✅ ¡Atlas conquistado! Guardado exitoso.");
+
+        // Limpieza de rastro local para evitar duplicados
         let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
         localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
         localStorage.setItem('inventory', JSON.stringify(localInv));
 
-        // Refrescar la memoria del cotizador inmediatamente después del éxito
+        // Refrescar el inventario y el cotizador
         if (this.getInventory) await this.getInventory();
 
         return res;
     } catch (e) {
-        console.warn("💾 Rescate Local: Guardando moldura por fallo en Atlas...");
+        console.warn("💾 Rescate Local Activo: Atlas sigue dando Error 500.");
+        
         const localId = id || `LOC-${Date.now()}`;
-        const newMaterial = { ...cleanData, id: localId, _id: localId };
+        const newMaterial = { 
+            ...cleanData, 
+            id: localId, 
+            _id: localId,
+            precio_m2_costo: cleanData.costo_m2 // Doble compatibilidad para el cotizador
+        };
         
         let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-        
         const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
+        
         if (index > -1) localInv[index] = newMaterial;
         else localInv.push(newMaterial);
         
         localStorage.setItem('inventory', JSON.stringify(localInv));
 
-        // Refrescar la memoria del cotizador incluso si falló Atlas
-        if (this.getInventory) await this.getInventory();
+        // --- INYECCIÓN FORZADA AL COTIZADOR ---
+        // Esto garantiza que aparezca en la lista aunque Atlas falle
+        if (this.getInventory) {
+            await this.getInventory();
+        } else {
+            window.todosLosMateriales = localInv;
+        }
         
         return { success: true, data: newMaterial, id: localId, local: true };
     }
