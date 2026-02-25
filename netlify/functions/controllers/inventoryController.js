@@ -115,8 +115,11 @@ const registerPurchase = async (req, res) => {
             });
         }
 
-        const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0);
-        const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0);
+        // --- CUMPLIMIENTO DE SCHEMA (required: true) ---
+        // Tu modelo exige estos campos, si van en 0 o vacíos, Atlas los rechaza.
+        const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0.1);
+        const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0.1);
+        const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || (material ? material.precio_total_lamina : 0);
         const cantidad = Math.abs(parseFloat(cantidad_laminas)) || 1;
         
         let incrementoStock = parseFloat(cantidad_m2) || 0;
@@ -125,21 +128,31 @@ const registerPurchase = async (req, res) => {
             incrementoStock = (tipoMaterial === 'ml') ? (largo / 100) * cantidad : ((ancho * largo) / 10000) * cantidad;
         }
 
-        const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || 0;
-
         if (material) {
             material.stock_actual += incrementoStock;
-            material.precio_total_lamina = precioTotalUnitario > 0 ? precioTotalUnitario : material.precio_total_lamina;
-            material.ancho_lamina_cm = ancho > 0 ? ancho : material.ancho_lamina_cm;
-            material.largo_lamina_cm = largo > 0 ? largo : material.largo_lamina_cm;
+            material.precio_total_lamina = precioTotalUnitario;
+            material.ancho_lamina_cm = ancho;
+            material.largo_lamina_cm = largo;
             material.precio_venta_sugerido = Number(precio_venta_sugerido) || material.precio_venta_sugerido;
             if (idProvFinal) material.proveedor = idProvFinal;
+            
             await material.save();
         } else {
+            // --- DETECCIÓN DE CATEGORÍA PARA SCHEMA ---
+            // Tu modelo tiene un ENUM. Si enviamos algo que no está en la lista, falla.
+            let categoriaDetectada = 'Otros';
+            const nombreUpper = nombre ? nombre.toUpperCase() : "";
+            
+            if (nombreUpper.includes('K ') || nombreUpper.includes('MOLDURA') || nombreUpper.includes('MP')) {
+                categoriaDetectada = 'Moldura';
+            } else if (nombreUpper.includes('VIDRIO')) {
+                categoriaDetectada = 'Vidrio';
+            }
+
             material = new Material({
                 nombre: nombre ? nombre.trim().toUpperCase() : "MATERIAL NUEVO",
                 tipo: (req.body.tipo_material || 'm2'),
-                categoria: 'Otros',
+                categoria: categoriaDetectada, // Evita error de ENUM
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioTotalUnitario,
@@ -159,13 +172,14 @@ const registerPurchase = async (req, res) => {
                 cantidad_m2: incrementoStock,
                 costo_total: Number(costo_total || precio_total || (precioTotalUnitario * cantidad)),
                 proveedor: idProvFinal || undefined,
-                motivo: `Ingreso de ${incrementoStock.toFixed(2)} unidades/m2 (Sincronización)`,
+                motivo: `Compra de ${nombre} - Sincronización Atlas`,
                 fecha: new Date()
             });
         }
 
-        console.log("✅ Compra registrada exitosamente en Atlas");
+        console.log(`✅ Compra de ${nombre} registrada exitosamente en Atlas`);
         res.status(201).json({ success: true, data: material });
+
     } catch (error) {
         console.error("🚨 Error en registerPurchase (Atlas):", error.message);
         res.status(500).json({ success: false, error: error.message });
