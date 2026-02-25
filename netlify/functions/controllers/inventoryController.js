@@ -104,6 +104,7 @@ const registerPurchase = async (req, res) => {
         const idProvFinal = esIdValido(proveedor) ? proveedor : (esIdValido(proveedorId) ? proveedorId : null);
 
         let material;
+        // 1. Intentar localizar el material
         if (materialId && esIdValido(materialId)) {
             material = await Material.findById(materialId);
         } 
@@ -115,8 +116,8 @@ const registerPurchase = async (req, res) => {
             });
         }
 
-        // --- CUMPLIMIENTO DE SCHEMA (required: true) ---
-        // Tu modelo exige estos campos, si van en 0 o vacíos, Atlas los rechaza.
+        // --- CUMPLIMIENTO DE SCHEMA (Evita rechazo de Atlas) ---
+        // Forzamos valores mínimos para campos 'required: true'
         const ancho = Math.abs(parseFloat(ancho_lamina_cm)) || (material ? material.ancho_lamina_cm : 0.1);
         const largo = Math.abs(parseFloat(largo_lamina_cm)) || (material ? material.largo_lamina_cm : 0.1);
         const precioTotalUnitario = Math.abs(parseFloat(precio_total_lamina)) || (material ? material.precio_total_lamina : 0);
@@ -129,6 +130,7 @@ const registerPurchase = async (req, res) => {
         }
 
         if (material) {
+            // ACTUALIZACIÓN
             material.stock_actual += incrementoStock;
             material.precio_total_lamina = precioTotalUnitario;
             material.ancho_lamina_cm = ancho;
@@ -138,8 +140,7 @@ const registerPurchase = async (req, res) => {
             
             await material.save();
         } else {
-            // --- DETECCIÓN DE CATEGORÍA PARA SCHEMA ---
-            // Tu modelo tiene un ENUM. Si enviamos algo que no está en la lista, falla.
+            // CREACIÓN CON CATEGORÍA VÁLIDA (ENUM check)
             let categoriaDetectada = 'Otros';
             const nombreUpper = nombre ? nombre.toUpperCase() : "";
             
@@ -152,7 +153,7 @@ const registerPurchase = async (req, res) => {
             material = new Material({
                 nombre: nombre ? nombre.trim().toUpperCase() : "MATERIAL NUEVO",
                 tipo: (req.body.tipo_material || 'm2'),
-                categoria: categoriaDetectada, // Evita error de ENUM
+                categoria: categoriaDetectada,
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioTotalUnitario,
@@ -163,6 +164,7 @@ const registerPurchase = async (req, res) => {
             await material.save();
         }
 
+        // Registro de transacción
         const TransactionModel = getTransactionModel();
         if (TransactionModel) {
             await TransactionModel.create({
@@ -172,12 +174,12 @@ const registerPurchase = async (req, res) => {
                 cantidad_m2: incrementoStock,
                 costo_total: Number(costo_total || precio_total || (precioTotalUnitario * cantidad)),
                 proveedor: idProvFinal || undefined,
-                motivo: `Compra de ${nombre} - Sincronización Atlas`,
+                motivo: `Compra de ${nombre} - Sincronizada con Atlas`,
                 fecha: new Date()
             });
         }
 
-        console.log(`✅ Compra de ${nombre} registrada exitosamente en Atlas`);
+        console.log(`✅ Registro exitoso en Atlas para: ${nombre}`);
         res.status(201).json({ success: true, data: material });
 
     } catch (error) {
