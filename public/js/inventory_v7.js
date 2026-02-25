@@ -571,88 +571,76 @@ function configurarEventos() {
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
-// Reemplaza tu bloque formCompra.onsubmit con este corregido:
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
         e.preventDefault();
-
         const formulario = e.target;
         const btn = formulario.querySelector('button[type="submit"]');
+        
         if (btn) { 
             btn.disabled = true; 
-            btn.innerHTML = 'FORZANDO SUBIDA A ATLAS...'; 
+            btn.innerHTML = 'SINCRONIZANDO CON ATLAS...'; 
         }
 
         try {
+            // 1. CAPTURA DE DATOS
             const selectMat = document.getElementById('compraMaterial');
             const inputNuevo = document.getElementById('nombreNuevoMaterial');
-            const inputCant = document.getElementById('compraCantidad');
-            const inputCosto = document.getElementById('compraCosto');
-            const inputLargo = document.getElementById('compraLargo');
-            const inputAncho = document.getElementById('compraAncho');
+            const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+            const costo = parseFloat(document.getElementById('compraCosto').value) || 0;
+            const largo = parseFloat(document.getElementById('compraLargo')?.value) || 0;
+            const ancho = parseFloat(document.getElementById('compraAncho')?.value) || 0;
 
             let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
-            
             const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
             let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
-
-            const cant = parseFloat(inputCant.value) || 0;
-            const costo = parseFloat(inputCosto.value) || 0;
-            let unidadFinal = esMoldura ? "ml" : "m²";
             
-            let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
+            // Lógica de stock (2.90 para molduras, área para el resto)
+            let stockASumar = esMoldura ? (cant * 2.90) : ((largo * ancho / 10000) * cant);
 
-            if (!window.todosLosMateriales) window.todosLosMateriales = [];
+            // 2. BUSCAR EN LA LISTA GLOBAL (Para actualizar o crear)
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // 1. CREAMOS EL OBJETO DE FORMA ULTRA-COMPATIBLE
-            let datosParaAtlas = {
+            // 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
+            // IMPORTANTE: Eliminamos IDs temporales "LOC-", Atlas necesita sus propios IDs o ninguno para crear
+            const datosParaAtlas = {
                 nombre: nombreReal,
                 categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                tipo: unidadFinal,
+                tipo: esMoldura ? "ml" : "m²",
                 stock_actual: existente ? (Number(existente.stock_actual) || 0) + stockASumar : stockASumar,
                 precio_total_lamina: costo,
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
+                largo_lamina_cm: esMoldura ? 290 : largo,
+                ancho_lamina_cm: esMoldura ? 1 : ancho
             };
 
-            // Si ya existe, usamos su ID real para que Atlas lo reconozca
             if (existente && (existente._id || existente.id)) {
                 datosParaAtlas.id = existente._id || existente.id;
             }
 
-            // --- 2. INTENTO DE SUBIDA DIRECTA ---
-            console.log("🚀 Intento de rescate: Enviando a Atlas...", datosParaAtlas);
+            // 4. DISPARO ÚNICO Y DEFINITIVO A LA NUBE
+            console.log("📡 Enviando a Atlas:", datosParaAtlas);
             const res = await window.API.saveMaterial(datosParaAtlas);
-            
-            if (res.success) {
-                console.log("✅ Atlas recibió los datos correctamente.");
-                
-                // Limpieza local de seguridad
-                let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-                localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase())));
 
-                // Refrescamos desde la nube
+            if (res.success) {
+                // ÉXITO: Limpiamos CUALQUIER rastro local para forzar la lectura de la nube
+                localStorage.removeItem('inventory');
+                localStorage.removeItem('molduras_pendientes');
+                
+                // Forzamos la descarga de la "Verdad Absoluta" desde Atlas
                 await fetchInventory(); 
                 
-                alert(`✅ ¡LOGRADO! ${nombreReal} se guardó en Atlas.\nYa debería aparecer en Incógnito.`);
+                alert(`✅ COMPRA REGISTRADA EN ATLAS: ${nombreReal}\nVisible ahora en todas las pantallas e Incógnito.`);
                 
-                const modal = document.getElementById('modalCompra');
-                if(modal) modal.style.display = 'none';
+                if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
                 formulario.reset();
             } else {
-                throw new Error("El servidor Atlas rechazó el paquete de datos.");
+                throw new Error("Atlas rechazó el guardado.");
             }
 
         } catch (error) {
-            console.error("❌ Fallo crítico:", error);
-            
-            // --- 3. SALVAVIDAS: Si Atlas falla, NO dejamos la pantalla vacía ---
-            alert("⚠️ ERROR DE CONEXIÓN CON ATLAS.\nEl inventario se mantendrá de forma local en esta PC para que no pierdas el control.");
-            
-            // Re-inyectamos el stock localmente para que no desaparezca de la tabla actual
-            await fetchInventory(); 
+            console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
+            alert("❌ FALLO DE CONEXIÓN CON ATLAS:\nNo se pudo guardar. Verifica que el servidor esté encendido.");
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
