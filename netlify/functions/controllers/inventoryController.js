@@ -88,7 +88,6 @@ const getMaterials = async (req, res) => {
 // 2. Registrar compra - VERSIÓN INTELIGENTE FORZADA
 const registerPurchase = async (req, res) => {
     try {
-        console.log("📥 Iniciando registro en Atlas para:", req.body.nombre);
         const { 
             materialId, nombre, proveedor,      
             ancho_lamina_cm, largo_lamina_cm, 
@@ -98,22 +97,23 @@ const registerPurchase = async (req, res) => {
 
         const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val);
         
-        // --- FILTRO DE ID TEMPORAL ---
-        // Si el materialId empieza con "MAT-", Atlas lo rechazará. Lo ignoramos.
-        const idBusqueda = (materialId && materialId.startsWith('MAT-')) ? null : materialId;
+        // --- FILTRO CRÍTICO ---
+        // Si el ID viene del navegador (MAT-...), lo ignoramos para que Atlas no lo rechace.
+        const idParaBusqueda = (materialId && materialId.startsWith('MAT-')) ? null : materialId;
 
         let material;
-        if (idBusqueda && esIdValido(idBusqueda)) {
-            material = await Material.findById(idBusqueda);
+        if (idParaBusqueda && esIdValido(idParaBusqueda)) {
+            material = await Material.findById(idParaBusqueda);
         } 
         
+        // Si no hay ID real, buscamos por NOMBRE (así encontraremos la MP K 2315)
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             });
         }
 
-        // --- NORMALIZACIÓN DE DATOS (CUMPLIMIENTO DE SCHEMA) ---
+        // Normalización para cumplir el Schema de Atlas
         const ancho = Math.max(0.1, parseFloat(ancho_lamina_cm) || 0);
         const largo = Math.max(0.1, parseFloat(largo_lamina_cm) || 0);
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
@@ -129,12 +129,11 @@ const registerPurchase = async (req, res) => {
             material.precio_total_lamina = precioUnitario > 0 ? precioUnitario : material.precio_total_lamina;
             if (esIdValido(proveedor)) material.proveedor = proveedor;
             await material.save();
-            console.log("✅ Stock actualizado en Atlas");
         } else {
-            // DETECCIÓN DE CATEGORÍA PARA EL ENUM DEL MODELO
+            // DETECCIÓN DE CATEGORÍA SEGÚN TU MODELO
             let cat = 'Otros';
-            const n = nombre.toUpperCase();
-            if (n.includes('K ') || n.includes('MP') || n.includes('MOLDURA')) cat = 'Moldura';
+            const nUpper = nombre.toUpperCase();
+            if (nUpper.includes('K ') || nUpper.includes('MP') || nUpper.includes('MOLDURA')) cat = 'Moldura';
 
             material = new Material({
                 nombre: nombre.trim().toUpperCase(),
@@ -148,19 +147,6 @@ const registerPurchase = async (req, res) => {
                 proveedor: esIdValido(proveedor) ? proveedor : undefined
             });
             await material.save();
-            console.log("✨ Creado nuevo en Atlas:", material.nombre);
-        }
-
-        // Transacción
-        const TransactionModel = getTransactionModel();
-        if (TransactionModel) {
-            await TransactionModel.create({
-                materialId: material._id,
-                tipo: 'COMPRA',
-                cantidad: incrementoStock,
-                costo_total: costo_total || (precioUnitario * cantidad),
-                motivo: `Sincronización Atlas: ${nombre}`
-            });
         }
 
         res.status(201).json({ success: true, data: material });
