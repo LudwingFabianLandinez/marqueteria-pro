@@ -551,6 +551,7 @@ if (formCompra) {
     formCompra.onsubmit = async function(e) {
         e.preventDefault();
 
+        // 1. Identificar el botón y el formulario
         const formulario = e.target;
         const btn = formulario.querySelector('button[type="submit"]');
         if (btn) { 
@@ -568,6 +569,7 @@ if (formCompra) {
 
             let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
             
+            // Formato: Molduras en MAYÚS, el resto (Lona, Tela) como lo escribas
             const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
             let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
@@ -575,13 +577,14 @@ if (formCompra) {
             const costo = parseFloat(inputCosto.value) || 0;
             let unidadFinal = esMoldura ? "ml" : "m²";
             
+            // Cálculo de stock: 2.90 para molduras, área para m²
             let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
 
+            // ACTUALIZACIÓN DE ARRAY GLOBAL
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // --- PASO CRÍTICO: SINCRONIZACIÓN CON EL SERVIDOR ---
-            // Preparamos los datos para Atlas
+            // --- 🚀 NUEVO: SINCRONIZACIÓN CON ATLAS ---
             const datosParaAtlas = {
                 materialId: (existente && !String(existente.id).startsWith('MAT-')) ? existente.id : null,
                 nombre: nombreReal,
@@ -593,7 +596,6 @@ if (formCompra) {
                 costo_total: costo * cant
             };
 
-            // Enviamos a la API de Netlify
             const response = await fetch('/api/inventory/purchase', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -603,18 +605,18 @@ if (formCompra) {
             const resultadoAtlas = await response.json();
 
             if (!response.ok) {
-                throw new Error(resultadoAtlas.error || "Error al sincronizar con Atlas");
+                throw new Error(resultadoAtlas.error || "Error en el servidor");
             }
+            // -------------------------------------------
 
-            // --- ACTUALIZACIÓN LOCAL (Ahora con ID real de Atlas) ---
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
                 existente.precio_total_lamina = costo;
                 existente.nombre = nombreReal;
-                // Si Atlas nos devolvió un ID real, lo actualizamos
+                // Actualizamos el ID si Atlas nos devolvió uno real
                 if (resultadoAtlas.data && resultadoAtlas.data._id) existente.id = resultadoAtlas.data._id;
             } else {
-                // Si es nuevo, usamos el ID que generó Atlas, no el MAT-
+                // Si es nuevo, usamos el ID de Atlas, NO el MAT-
                 existente = {
                     id: resultadoAtlas.data?._id || `MAT-${Date.now()}`,
                     nombre: nombreReal,
@@ -628,27 +630,36 @@ if (formCompra) {
                 window.todosLosMateriales.unshift(existente);
             }
 
-            // Mantenemos tu lógica de "Caja de Seguridad" y LocalStorage
+            // --- CAJA DE SEGURIDAD REFORZADA ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             const index = pendientes.findIndex(p => p.nombre.toLowerCase() === nombreReal.toLowerCase());
             const datoASalvar = { ...existente, fechaCompra: new Date().toISOString() };
 
-            if (index !== -1) { pendientes[index] = datoASalvar; } 
-            else { pendientes.push(datoASalvar); }
+            if (index !== -1) {
+                pendientes[index] = datoASalvar;
+            } else {
+                pendientes.push(datoASalvar);
+            }
             
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+
+            // Limpieza de lista negra
+            let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+            eliminados = eliminados.filter(id => id !== String(existente.id));
+            localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+
+            // FINALIZAR Y RENDERIZAR
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-            
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡ÉXITO! Guardado en Atlas: ${nombreReal}`);
+            alert(`✅ Sincronizado con Atlas: ${nombreReal}`);
             const modal = document.getElementById('modalCompra');
             if(modal) modal.style.display = 'none';
             formulario.reset();
 
         } catch (error) {
-            console.error("❌ Error de Sincronización:", error);
-            alert("⚠️ ATENCIÓN: Se guardó localmente pero NO en Atlas. " + error.message);
+            console.error("❌ Error:", error);
+            alert("⚠️ Se guardó localmente pero falló Atlas: " + error.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
