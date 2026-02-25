@@ -165,48 +165,67 @@ window.API = {
     },
 
     getInvoices: function() { return window.API._request('/invoices'); },
-    saveProvider: function(data) { return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); },
+saveProvider: function(data) { return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); },
 
-    saveMaterial: async function(data) {
-        const id = data.id || data._id;
-        // Detectamos si es un material nuevo (local) o uno existente en Atlas
-        const isLocal = !id || String(id).startsWith('LOC-');
+saveMaterial: async function(data) {
+    const id = data.id || data._id;
+    // Detectamos si es un material nuevo (local) o uno existente en Atlas
+    // Añadimos MAT- por si acaso tienes registros con ese prefijo
+    const isLocal = !id || String(id).startsWith('LOC-') || String(id).startsWith('MAT-');
+    
+    // --- CORRECCIÓN PARA ELIMINAR ERROR 500 ---
+    // Aseguramos que los campos que Atlas espera como números NO lleguen vacíos o como texto
+    const cleanData = {
+        ...data,
+        nombre: String(data.nombre || "").trim().toUpperCase(),
+        stock_actual: Number(data.stock_actual) || 0,
+        stock_minimo: Number(data.stock_minimo) || 0,
+        costo_m2: Number(data.costo_m2 || data.precio_m2_costo) || 0,
+        ancho_lamina_cm: Number(data.ancho_lamina_cm) || 0,
+        largo_lamina_cm: Number(data.largo_lamina_cm) || 0,
+        precio_total_lamina: Number(data.precio_total_lamina) || 0
+    };
+
+    // Si es local usamos /inventory, si existe usamos la ruta de reparación
+    const path = isLocal ? '/inventory' : `/fix-material-data/${id}`;
+    
+    try {
+        const res = await window.API._request(path, { 
+            method: 'POST', 
+            body: JSON.stringify(cleanData) // Enviamos los datos limpios
+        });
+
+        if (res.isOffline || !res.success) throw new Error("Trigger Local");
+
+        // Si se guardó con éxito en Atlas, lo limpiamos del localStorage
+        // Quitamos el !isLocal para que limpie CUALQUIER rastro local si ya subió a Atlas
+        let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+        localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
+        localStorage.setItem('inventory', JSON.stringify(localInv));
+
+        // Refrescar la memoria del cotizador inmediatamente después del éxito
+        if (this.getInventory) await this.getInventory();
+
+        return res;
+    } catch (e) {
+        console.warn("💾 Rescate Local: Guardando moldura por fallo en Atlas...");
+        const localId = id || `LOC-${Date.now()}`;
+        const newMaterial = { ...cleanData, id: localId, _id: localId };
         
-        // Si es local usamos /inventory, si existe usamos la ruta de reparación para evitar el Error 500
-        const path = isLocal ? '/inventory' : `/fix-material-data/${id}`;
+        let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
         
-        try {
-            // Usamos POST para la ruta de reparación según tu server.js v13.4.45
-            const res = await window.API._request(path, { 
-                method: 'POST', 
-                body: JSON.stringify(data) 
-            });
+        const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
+        if (index > -1) localInv[index] = newMaterial;
+        else localInv.push(newMaterial);
+        
+        localStorage.setItem('inventory', JSON.stringify(localInv));
 
-            if (res.isOffline || !res.success) throw new Error("Trigger Local");
-
-            // Si se guardó con éxito en Atlas y era local, lo limpiamos del localStorage
-            if (!isLocal) {
-                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
-                localStorage.setItem('inventory', JSON.stringify(localInv));
-            }
-
-            return res;
-        } catch (e) {
-            console.warn("💾 Rescate Local: Guardando moldura...");
-            const localId = id || `LOC-${Date.now()}`;
-            const newMaterial = { ...data, id: localId, _id: localId, stock: data.stock || 0 };
-            let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            
-            // Evitar duplicados por ID en el guardado local
-            const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
-            if (index > -1) localInv[index] = newMaterial;
-            else localInv.push(newMaterial);
-            
-            localStorage.setItem('inventory', JSON.stringify(localInv));
-            return { success: true, data: newMaterial, id: localId, local: true };
-        }
-    },
+        // Refrescar la memoria del cotizador incluso si falló Atlas
+        if (this.getInventory) await this.getInventory();
+        
+        return { success: true, data: newMaterial, id: localId, local: true };
+    }
+},
 
     registerPurchase: async function(purchaseData) {
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
