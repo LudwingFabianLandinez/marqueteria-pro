@@ -99,148 +99,130 @@ window.API = {
         const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
         const localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
         
-        // Función interna de normalización para evitar errores por espacios invisibles
         const normalize = (txt) => String(txt || "").trim().toUpperCase().replace(/\s+/g, ' ');
 
-        if (localMaterials.length > 0 || res.data.length > 0) {
-            console.log("🧩 Unificando por nombre normalizado y vinculando stock...");
-            
-            const serverIds = new Set(res.data.map(i => String(i.id || i._id)));
-            const uniqueMap = new Map();
+        // 🧩 Unificando por nombre normalizado y vinculando stock...
+        const uniqueMap = new Map();
 
-            // 1. Cargar datos del servidor al mapa primero
+        // 1. Cargar datos del servidor al mapa (si existen)
+        if (res.data && Array.from(res.data).length > 0) {
             res.data.forEach(m => {
                 const key = normalize(m.nombre);
                 uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [String(m.id || m._id)] });
             });
-
-            // 2. Fusionar datos locales por nombre normalizado (Si el servidor falla, este es el motor principal)
-            localMaterials.forEach(m => {
-                const materialId = String(m.id || m._id);
-                const key = normalize(m.nombre);
-                
-                if (!uniqueMap.has(key)) {
-                    // Si no está en el mapa (server falló o es nuevo), lo agregamos
-                    uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [materialId] });
-                } else {
-                    // Si ya existe por nombre, vinculamos el ID
-                    if (!uniqueMap.get(key)._allIds.includes(materialId)) {
-                        uniqueMap.get(key)._allIds.push(materialId);
-                    }
-                }
-            });
-
-            // 3. Calcular stock final (Suma forzada de compras locales)
-            const finalData = Array.from(uniqueMap.values()).map(m => {
-                const nombreNormalM = normalize(m.nombre);
-                
-                // Buscamos compras que coincidan con el ID O con el nombre normalizado
-                const sumaCompras = localPurchases
-                    .filter(p => {
-                        const matchId = m._allIds.includes(String(p.materialId));
-                        const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
-                        return matchId || matchNombre;
-                    })
-                    .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
-                
-                return { 
-                    ...m, 
-                    stock: Number(m.stock || 0) + sumaCompras,
-                    _id: m._allIds[0] 
-                };
-            });
-
-            // Ordenar alfabéticamente para mantener la estructura visual limpia
-            finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
-
-            // --- VÍNCULO CON EL COTIZADOR ---
-            window.todosLosMateriales = finalData; 
-
-            return { ...res, data: finalData };
         }
-        
-        // --- VÍNCULO DE EMERGENCIA SI NO HAY DATOS LOCALES ---
-        window.todosLosMateriales = res.data || [];
-        return res;
+
+        // 2. Fusionar datos locales (El motor de rescate)
+        localMaterials.forEach(m => {
+            const materialId = String(m.id || m._id);
+            const key = normalize(m.nombre);
+            
+            if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, { ...m, stock: Number(m.stock || 0), _allIds: [materialId] });
+            } else {
+                if (!uniqueMap.get(key)._allIds.includes(materialId)) {
+                    uniqueMap.get(key)._allIds.push(materialId);
+                }
+            }
+        });
+
+        // 3. Calcular stock final y normalizar para el COTIZADOR
+        const finalData = Array.from(uniqueMap.values()).map(m => {
+            const nombreNormalM = normalize(m.nombre);
+            
+            const sumaCompras = localPurchases
+                .filter(p => {
+                    const matchId = m._allIds.includes(String(p.materialId));
+                    const matchNombre = normalize(p._materialNombre) === nombreNormalM || normalize(p.nombreMaterial) === nombreNormalM;
+                    return matchId || matchNombre;
+                })
+                .reduce((acc, p) => acc + Number(p.cantidad || 0), 0);
+            
+            return { 
+                ...m, 
+                stock: Number(m.stock || 0) + sumaCompras,
+                _id: m._allIds[0],
+                // Forzamos campos que el cotizador necesita para no ignorar el material
+                precio_m2_costo: Number(m.costo_m2 || m.precio_m2_costo || 0)
+            };
+        });
+
+        finalData.sort((a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre)));
+
+        // --- VÍNCULO CRÍTICO CON EL COTIZADOR ---
+        window.todosLosMateriales = finalData; 
+
+        // Forzamos al DOM a renderizar si la función existe en dashboard.js
+        if (typeof window.renderMaterialOptions === 'function') {
+            window.renderMaterialOptions(finalData);
+        }
+
+        return { ...res, data: finalData };
     },
 
     getInvoices: function() { return window.API._request('/invoices'); },
-saveProvider: function(data) { return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); },
-
-saveMaterial: async function(data) {
-    const id = data.id || data._id;
-    // Detectamos si es un material nuevo (local) o uno existente en Atlas
-    const isLocal = !id || String(id).startsWith('LOC-') || String(id).startsWith('MAT-');
     
-    // --- SANITIZACIÓN EXTREMA PARA MATAR EL ERROR 500 ---
-    const cleanData = {
-        nombre: String(data.nombre || "SIN NOMBRE").trim().toUpperCase(),
-        categoria: String(data.categoria || "MARCOS"),
-        tipo: String(data.tipo || "ml"),
-        // Forzamos conversión numérica. Si no es número, va 0. Jamás enviamos "" o undefined.
-        stock_actual: Number(data.stock_actual) || 0,
-        stock_minimo: Number(data.stock_minimo) || 0,
-        costo_m2: Number(data.costo_m2 || data.precio_m2_costo) || 0,
-        ancho_lamina_cm: Number(data.ancho_lamina_cm) || 0,
-        largo_lamina_cm: Number(data.largo_lamina_cm) || 0,
-        precio_total_lamina: Number(data.precio_total_lamina) || 0,
-        proveedor_id: data.proveedor_id || null,
-        estado: "Activo"
-    };
+    saveProvider: function(data) { 
+        return window.API._request('/providers', { method: 'POST', body: JSON.stringify(data) }); 
+    },
 
-    // Si es local, NO enviamos el ID en el cuerpo porque Atlas genera el suyo
-    // Si no es local, usamos la ruta de reparación
-    const path = isLocal ? '/inventory' : `/fix-material-data/${id}`;
-    
-    try {
-        const res = await window.API._request(path, { 
-            method: 'POST', 
-            body: JSON.stringify(cleanData) 
-        });
-
-        if (!res.success) throw new Error("Atlas rechazó el paquete");
-
-        console.log("✅ ¡Atlas conquistado! Guardado exitoso.");
-
-        // Limpieza de rastro local para evitar duplicados
-        let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-        localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
-        localStorage.setItem('inventory', JSON.stringify(localInv));
-
-        // Refrescar el inventario y el cotizador
-        if (this.getInventory) await this.getInventory();
-
-        return res;
-    } catch (e) {
-        console.warn("💾 Rescate Local Activo: Atlas sigue dando Error 500.");
+    saveMaterial: async function(data) {
+        const id = data.id || data._id;
+        const isLocal = !id || String(id).startsWith('LOC-') || String(id).startsWith('MAT-');
         
-        const localId = id || `LOC-${Date.now()}`;
-        const newMaterial = { 
-            ...cleanData, 
-            id: localId, 
-            _id: localId,
-            precio_m2_costo: cleanData.costo_m2 // Doble compatibilidad para el cotizador
+        // --- SATANIZACIÓN DE DATOS (Anti-Error 500) ---
+        const cleanData = {
+            ...data, // Mantenemos proveedor_id y otros campos
+            nombre: String(data.nombre || "SIN NOMBRE").trim().toUpperCase(),
+            categoria: String(data.categoria || "MARCOS"),
+            tipo: String(data.tipo || "ml"),
+            stock_actual: Number(data.stock_actual) || 0,
+            stock_minimo: Number(data.stock_minimo) || 0,
+            costo_m2: Number(data.costo_m2 || data.precio_m2_costo || 0),
+            precio_m2_costo: Number(data.costo_m2 || data.precio_m2_costo || 0),
+            ancho_lamina_cm: Number(data.ancho_lamina_cm) || 0,
+            largo_lamina_cm: Number(data.largo_lamina_cm) || 0,
+            precio_total_lamina: Number(data.precio_total_lamina) || 0,
+            estado: "Activo"
         };
-        
-        let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-        const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
-        
-        if (index > -1) localInv[index] = newMaterial;
-        else localInv.push(newMaterial);
-        
-        localStorage.setItem('inventory', JSON.stringify(localInv));
 
-        // --- INYECCIÓN FORZADA AL COTIZADOR ---
-        // Esto garantiza que aparezca en la lista aunque Atlas falle
-        if (this.getInventory) {
-            await this.getInventory();
-        } else {
-            window.todosLosMateriales = localInv;
-        }
+        const path = isLocal ? '/inventory' : `/fix-material-data/${id}`;
         
-        return { success: true, data: newMaterial, id: localId, local: true };
-    }
-},
+        try {
+            const res = await window.API._request(path, { 
+                method: 'POST', 
+                body: JSON.stringify(cleanData) 
+            });
+
+            if (!res.success) throw new Error("Atlas rechazó el paquete");
+
+            // Si Atlas acepta, limpiamos local para no duplicar
+            let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            localInv = localInv.filter(m => String(m.id || m._id) !== String(id));
+            localStorage.setItem('inventory', JSON.stringify(localInv));
+
+            await this.getInventory();
+            return res;
+        } catch (e) {
+            console.warn("💾 Rescate Local: Fallo en Atlas, inyectando al cotizador...");
+            
+            const localId = id || `LOC-${Date.now()}`;
+            const newMaterial = { ...cleanData, id: localId, _id: localId };
+            
+            let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            const index = localInv.findIndex(m => String(m.id || m._id) === String(localId));
+            
+            if (index > -1) localInv[index] = newMaterial;
+            else localInv.push(newMaterial);
+            
+            localStorage.setItem('inventory', JSON.stringify(localInv));
+
+            // Refrescamos la vista global inmediatamente
+            await this.getInventory();
+            
+            return { success: true, data: newMaterial, id: localId, local: true };
+        }
+    },
 
     registerPurchase: async function(purchaseData) {
         const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
