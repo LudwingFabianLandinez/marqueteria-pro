@@ -1,7 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.2.9 (FIX: FORZADO COLECCIÓN PURCHASES)
- * + DIAGNÓSTICO DE CONEXIÓN (Punto 3)
+ * Controlador de Inventario - Versión 12.3.0 (SUPER-PERSISTENCIA ATLAS)
+ * + DIAGNÓSTICO DE CONEXIÓN Y FORZADO DE ESCRITURA
  */
 
 const mongoose = require('mongoose');
@@ -12,13 +12,13 @@ const Provider = require('../models/Provider');
 
 // Función interna para obtener el modelo de transacción apuntando a 'purchases'
 const getTransactionModel = () => {
-    // Si el modelo ya existe lo usamos; si no, lo definimos forzando la colección 'purchases'
+    // Si el modelo ya existe lo usamos para evitar errores de recompilación en Mongoose
     if (mongoose.models.Transaction) return mongoose.models.Transaction;
     if (mongoose.models.Transaccion) return mongoose.models.Transaccion;
 
     const transactionSchema = new mongoose.Schema({
-        materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material' },
-        tipo: String,
+        materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', required: true },
+        tipo: { type: String, required: true },
         cantidad: Number,
         cantidad_m2: Number,
         costo_unitario: Number,
@@ -26,7 +26,10 @@ const getTransactionModel = () => {
         proveedor: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider' },
         fecha: { type: Date, default: Date.now },
         motivo: String
-    }, { collection: 'purchases' }); // <--- FORZAMOS LA COLECCIÓN FÍSICA EN ATLAS
+    }, { 
+        collection: 'purchases', // <--- ESTO ES LO QUE HACE QUE SE VEA EN ATLAS
+        timestamps: true 
+    });
 
     return mongoose.model('Transaction', transactionSchema);
 };
@@ -36,11 +39,9 @@ const getTransactionModel = () => {
  */
 const saveMaterial = async (req, res) => {
     try {
-        // 🕵️ DIAGNÓSTICO SAVE:
         console.log("------------------------------------------");
         console.log("📥 Datos recibidos en saveMaterial:", JSON.stringify(req.body));
         console.log("🛰️ DB CONECTADA:", mongoose.connection.name);
-        console.log("📋 COLECCIONES:", Object.keys(mongoose.connection.collections));
         console.log("------------------------------------------");
 
         const { 
@@ -93,12 +94,8 @@ const getMaterials = async (req, res) => {
             .sort({ categoria: 1, nombre: 1 })
             .lean();
         
-        res.status(200).json({
-            success: true,
-            data: materials || []
-        });
+        res.status(200).json({ success: true, data: materials || [] });
     } catch (error) {
-        console.error("❌ Error en getMaterials:", error);
         res.status(500).json({ success: false, data: [], error: "Error al cargar materiales" });
     }
 };
@@ -106,57 +103,38 @@ const getMaterials = async (req, res) => {
 // 2. Registrar compra - VERSIÓN DUAL REFORZADA
 const registerPurchase = async (req, res) => {
     try {
-        // 🕵️ DIAGNÓSTICO PURCHASE:
         console.log("------------------------------------------");
-        console.log("🛰️ REGISTRANDO COMPRA EN DB:", mongoose.connection.name);
-        console.log("📋 COLECCIONES DISPONIBLES:", Object.keys(mongoose.connection.collections));
-        console.log("📦 DATA RECIBIDA:", req.body.nombre, "ID:", req.body.materialId);
-        console.log("------------------------------------------");
-
+        console.log("🛰️ PROCESANDO COMPRA PARA ATLAS...");
+        
         const { 
-            nombre, proveedor,      
-            ancho_lamina_cm, largo_lamina_cm, 
-            precio_total_lamina, cantidad_laminas,
-            precio_venta_sugerido
+            nombre, proveedor, ancho_lamina_cm, largo_lamina_cm, 
+            precio_total_lamina, cantidad_laminas, precio_venta_sugerido
         } = req.body;
 
         let { materialId } = req.body; 
 
-        // 🛡️ SEGURIDAD 1: Verificar conexión activa
         if (mongoose.connection.readyState !== 1) {
-            console.log("🔄 Re-conectando a Atlas...");
             await mongoose.connect(process.env.MONGODB_URI);
         }
 
-        console.log(`📦 Procesando compra en Atlas: ${nombre}`);
-
-        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Mata los TEMP- y MAT-)
         const esIdInvalido = !materialId || 
                              String(materialId).startsWith('TEMP-') || 
                              String(materialId).startsWith('MAT-') || 
                              String(materialId).length !== 24;
 
-        if (esIdInvalido) {
-            console.log("⚠️ ID temporal detectado, se ignorará para buscar por nombre.");
-            materialId = null;
-        }
+        if (esIdInvalido) materialId = null;
         
         let material = null;
-        if (materialId) {
-            material = await Material.findById(materialId).exec();
-        }
-        
-        // Búsqueda por nombre si no hay ID real
+        if (materialId) material = await Material.findById(materialId).exec();
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             }).exec();
         }
 
-        // --- LÓGICA DE CÁLCULO ORIGINAL (INTACTA) ---
+        // LÓGICA DE CÁLCULO
         const n = nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
-        
         const cant = Math.max(0, parseFloat(cantidad_laminas) || 0);
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
         let incrementoStock = 0;
@@ -165,26 +143,17 @@ const registerPurchase = async (req, res) => {
 
         if (esMoldura) {
             incrementoStock = cant * 2.90;
-            ancho = ancho || 1; 
-            largo = largo || 290;
+            ancho = ancho || 1; largo = largo || 290;
         } else {
-            ancho = Math.max(0.1, ancho);
-            largo = Math.max(0.1, largo);
+            ancho = Math.max(0.1, ancho); largo = Math.max(0.1, largo);
             incrementoStock = (ancho * largo / 10000) * cant;
         }
 
         if (material) {
-            // ACTUALIZAR EXISTENTE
             material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
             if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
-            if (material.ancho_lamina_cm === 0) material.ancho_lamina_cm = ancho;
-            if (material.largo_lamina_cm === 0) material.largo_lamina_cm = largo;
-
-            // 🔥 PERSISTENCIA FORZADA
             await material.save();
-            console.log("✅ Atlas: Material actualizado exitosamente.");
         } else {
-            // CREAR NUEVO
             material = new Material({
                 nombre: nombre.trim().toUpperCase(),
                 categoria: esMoldura ? 'MOLDURAS' : 'GENERAL',
@@ -196,16 +165,13 @@ const registerPurchase = async (req, res) => {
                 precio_venta_sugerido: parseFloat(precio_venta_sugerido) || 0,
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
-
-            // 🔥 PERSISTENCIA FORZADA
             await material.save();
-            console.log("✨ Atlas: Nuevo material creado físicamente.");
         }
 
-        // 🚩 ADICIÓN PARA ATLAS: CREAR EL REGISTRO EN 'purchases'
+        // 🚩 REGISTRO EN 'purchases' CON PERSISTENCIA INMEDIATA (.create)
         const TransactionModel = getTransactionModel();
         if (TransactionModel && material) {
-            const nuevaCompra = new TransactionModel({
+            const result = await TransactionModel.create({
                 materialId: material._id,
                 tipo: 'COMPRA',
                 cantidad: cant,
@@ -216,11 +182,9 @@ const registerPurchase = async (req, res) => {
                 fecha: new Date(),
                 motivo: `Compra registrada: ${nombre}`
             });
-            await nuevaCompra.save();
-            console.log("💎 Atlas: Registro guardado en la colección PURCHASES.");
+            console.log("💎 ATLAS: Documento insertado en 'purchases' con ID:", result._id);
         }
 
-        // --- RESPUESTA GARANTIZADA ---
         return res.status(200).json({ 
             success: true, 
             message: "Sincronizado con Atlas",
@@ -237,12 +201,10 @@ const registerPurchase = async (req, res) => {
 const getAllPurchases = async (req, res) => {
     try {
         const TransactionModel = getTransactionModel();
-        if (!TransactionModel) return res.status(200).json({ success: true, data: [] });
         const purchases = await TransactionModel.find({ tipo: 'COMPRA' })
             .populate('materialId', 'nombre categoria')
             .populate('proveedor', 'nombre')
-            .sort({ fecha: -1 })
-            .lean();
+            .sort({ fecha: -1 }).lean();
         res.status(200).json({ success: true, data: purchases || [] });
     } catch (error) {
         res.status(500).json({ success: false, data: [], error: "Error al cargar historial" });
@@ -254,11 +216,7 @@ const getMaterialHistory = async (req, res) => {
     try {
         const { id } = req.params;
         const TransactionModel = getTransactionModel();
-        if (!TransactionModel) return res.status(200).json({ success: true, data: [] });
-        const history = await TransactionModel.find({ materialId: id })
-            .sort({ fecha: -1 })
-            .limit(20)
-            .lean();
+        const history = await TransactionModel.find({ materialId: id }).sort({ fecha: -1 }).limit(20).lean();
         res.status(200).json({ success: true, data: history || [] });
     } catch (error) {
         res.status(500).json({ success: false, data: [], error: "Error al obtener historial" });
@@ -269,7 +227,6 @@ const getMaterialHistory = async (req, res) => {
 const getPurchasesSummary = async (req, res) => {
     try {
         const TransactionModel = getTransactionModel();
-        if (!TransactionModel) return res.json({ totalInvertido: 0, totalCantidad: 0, conteo: 0 });
         const stats = await TransactionModel.aggregate([
             { $match: { tipo: 'COMPRA' } },
             { $group: {
@@ -307,20 +264,17 @@ const manualAdjustment = async (req, res) => {
         const diferencia = parseFloat(nuevaCantidad) - material.stock_actual;
         material.stock_actual = parseFloat(nuevaCantidad);
         if (stock_minimo !== undefined) material.stock_minimo = parseFloat(stock_minimo);
-        
         await material.save();
 
         const TransactionModel = getTransactionModel();
-        if (TransactionModel) {
-            await TransactionModel.create({
-                materialId: material._id,
-                tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
-                cantidad: Math.abs(diferencia),
-                cantidad_m2: Math.abs(diferencia),
-                motivo: motivo || 'Ajuste manual',
-                fecha: new Date()
-            });
-        }
+        await TransactionModel.create({
+            materialId: material._id,
+            tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
+            cantidad: Math.abs(diferencia),
+            cantidad_m2: Math.abs(diferencia),
+            motivo: motivo || 'Ajuste manual',
+            fecha: new Date()
+        });
         res.status(200).json({ success: true, data: { stock: material.stock_actual } });
     } catch (error) {
         res.status(500).json({ success: false, error: "Error en ajuste" });
@@ -331,42 +285,21 @@ const manualAdjustment = async (req, res) => {
 const deleteMaterial = async (req, res) => {
     try {
         const { id } = req.params;
-
-        if (id && id.startsWith('MAT-')) {
-            console.log("🛡️ Bloqueando intento de borrado local en Atlas para ID:", id);
-            return res.status(200).json({ 
-                success: true, 
-                message: "Registro local ignorado, permitiendo sincronización" 
-            });
-        }
-
+        if (id && id.startsWith('MAT-')) return res.status(200).json({ success: true });
         await Material.findByIdAndDelete(id);
-        
         const TransactionModel = getTransactionModel();
-        if (TransactionModel) {
-            await TransactionModel.deleteMany({ materialId: id });
-        }
-
+        await TransactionModel.deleteMany({ materialId: id });
         res.status(200).json({ success: true, message: "Material eliminado de Atlas" });
     } catch (error) {
-        console.error("❌ Error en deleteMaterial:", error.message);
         res.status(500).json({ success: false, error: "Error al eliminar" });
     }
 };
 
-// EXPORTACIÓN CONSOLIDADA
 module.exports = {
-    saveMaterial,
-    createMaterial: saveMaterial,
-    addMaterial: saveMaterial,
-    getMaterials,
-    getInventory: getMaterials,
-    getMaterialHistory,
-    registerPurchase,
-    getAllPurchases,
-    getPurchasesSummary,
-    getLowStockMaterials,
-    manualAdjustment,
-    adjustStock: manualAdjustment,
+    saveMaterial, createMaterial: saveMaterial, addMaterial: saveMaterial,
+    getMaterials, getInventory: getMaterials,
+    getMaterialHistory, registerPurchase, getAllPurchases,
+    getPurchasesSummary, getLowStockMaterials,
+    manualAdjustment, adjustStock: manualAdjustment,
     deleteMaterial
 };
