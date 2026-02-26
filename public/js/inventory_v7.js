@@ -617,8 +617,9 @@ if (formCompra) {
                 if (resultadoAtlas.data && resultadoAtlas.data._id) existente.id = resultadoAtlas.data._id;
             } else {
                 // Si es nuevo, usamos el ID de Atlas, NO el MAT-
+                // --- REEMPLAZO LIMPIO ---
                 existente = {
-                    id: resultadoAtlas.data?._id || `MAT-${Date.now()}`,
+                    id: resultadoAtlas.data?._id || null, 
                     nombre: nombreReal,
                     categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                     tipo: unidadFinal,
@@ -627,8 +628,14 @@ if (formCompra) {
                     largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
                     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
                 };
+
+                // Si no hay ID de Atlas, lanzamos error para no crear basura local
+                if (!existente.id) {
+                    throw new Error("No se pudo obtener el ID de Atlas. Registro cancelado.");
+                }
+
                 window.todosLosMateriales.unshift(existente);
-            }
+            } 
 
             // --- CAJA DE SEGURIDAD REFORZADA ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
@@ -752,12 +759,13 @@ window.verHistorial = async function(id, nombre) {
     }
 };
 
-    window.eliminarMaterial = async function(id) {
+  window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
         try {
+            // Verificamos si es un ID de mentira (MAT-)
             const esIdTemporal = id && String(id).startsWith('MAT-');
 
-            // 1. AGREGAR A LISTA NEGRA (Para que fetchInventory no lo resucite)
+            // 1. AGREGAR A LISTA NEGRA (Evita que resucite al refrescar)
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
             if (!eliminados.includes(String(id))) {
                 eliminados.push(String(id));
@@ -769,24 +777,34 @@ window.verHistorial = async function(id, nombre) {
             pendientes = pendientes.filter(p => String(p.id) !== String(id));
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // 3. BORRAR DE LA VISTA ACTUAL
+            // 3. BORRAR DE LA VISTA ACTUAL (Array global)
             window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
             
-            // 4. AVISAR AL SERVIDOR (SOLO SI ES UN ID REAL DE ATLAS)
+            // 4. AVISAR AL SERVIDOR (🛡️ BLOQUEO DE SEGURIDAD REFORZADO)
             if (!esIdTemporal) {
+                // Solo si el ID es real de Atlas, intentamos borrar en la nube
                 if (window.API && window.API.deleteMaterial) {
-                    await window.API.deleteMaterial(id).catch(e => console.log("Pendiente en nube"));
+                    await window.API.deleteMaterial(id).catch(e => {
+                        console.warn("⚠️ Falló sincronización en nube, pero se eliminó localmente.");
+                    });
                 }
             } else {
-                console.log("🛡️ ID temporal detectado: Se eliminó localmente sin peticiones innecesarias al servidor.");
+                // Si es un MAT-, solo imprimimos en la consola del navegador, NO mandamos fetch
+                console.log(`🛡️ Bloqueo preventivo: ID temporal ${id} eliminado solo de memoria local.`);
             }
 
-            renderTable(window.todosLosMateriales);
+            // 5. ACTUALIZAR INTERFAZ
+            if (typeof renderTable === 'function') {
+                renderTable(window.todosLosMateriales);
+            }
+            
             alert("✅ Material eliminado definitivamente.");
 
         } catch (error) {
-            console.error("Error al eliminar:", error);
-            renderTable(window.todosLosMateriales);
+            console.error("❌ Error al eliminar:", error);
+            if (typeof renderTable === 'function') {
+                renderTable(window.todosLosMateriales);
+            }
         }
     }
 };
