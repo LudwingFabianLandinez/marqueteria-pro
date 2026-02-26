@@ -189,16 +189,15 @@ window.API = {
             fechaLocal: new Date().toISOString()
         };
 
-        // DETERMINACIÓN DE RUTA SEGURA (Bypass al 404)
-        const isIdTemporal = payload.materialId.startsWith('TEMP-') || 
-                             payload.materialId.startsWith('MAT-') || 
-                             payload.materialId.startsWith('LOC-') ||
-                             payload.materialId.length < 10;
-
-        // Si el ID es basura temporal, forzamos la ruta base de compra para evitar el 404
-        const safePath = isIdTemporal ? '/inventory/purchase' : `/inventory/purchase/${payload.materialId}`;
+        /**
+         * 🛡️ REPARACIÓN TÉCNICA DEFINITIVA (PUNTO 4):
+         * Eliminamos la ruta dinámica con ID para evitar el error 404 de Netlify/Express.
+         * Forzamos el uso de '/inventory/purchase' porque el servidor ya sabe
+         * buscar el material por nombre o ID dentro del contenido (payload).
+         */
+        const safePath = '/inventory/purchase';
         
-        console.log(`🛡️ Escudo Anti-404: Usando ruta segura ${safePath}`);
+        console.log(`🚀 Conectando a ruta maestra: ${safePath}`);
 
         const res = await window.API._request(safePath, { 
             method: 'POST', 
@@ -206,12 +205,15 @@ window.API = {
         });
 
         if (res.isOffline || !res.success) {
-            console.warn("💾 Registrando en bitácora local...");
+            console.warn("💾 Fallo de red o servidor: Registrando en bitácora local...");
             let localPurchases = JSON.parse(localStorage.getItem('local_purchases') || '[]');
             localPurchases.push(payload);
             localStorage.setItem('local_purchases', JSON.stringify(localPurchases));
             return { success: true, data: payload, local: true };
         }
+        
+        // Si el servidor respondió 200, los datos ya están en Atlas
+        console.log("✅ Compra sincronizada con Atlas exitosamente.");
         return res;
     },
 
@@ -221,9 +223,10 @@ window.API = {
     saveInvoice: function(data) { return window.API._request('/invoices', { method: 'POST', body: JSON.stringify(data) }); }
 };
 
+// --- GANCHOS DE COMPATIBILIDAD ---
 window.API.getSuppliers = window.API.getProviders;
 window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.5.0 - Punto 4 Aplicado (Escudo Anti-404).");
+console.log("🛡️ API v13.6.0 - Ruteo Maestro Unificado (Adiós al 404).");
