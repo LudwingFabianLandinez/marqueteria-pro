@@ -1,126 +1,123 @@
-const mongoose = require('mongoose');
+    const mongoose = require('mongoose');
 
-/**
- * MODELO DE MATERIALES - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.6 - BLINDAJE DE DATOS Y VIRTUALS
- * Objetivo: Asegurar que el campo 'costo_m2' sea accesible para el motor de cálculo,
- * incluso si el documento es antiguo.
- */
-const MaterialSchema = new mongoose.Schema({
-    nombre: { 
-        type: String, 
-        required: true, 
-        trim: true 
-    },
-    categoria: { 
+    /**
+     * MODELO DE MATERIALES - MARQUETERÍA LA CHICA MORALES
+     * Versión: 12.2.6 - BLINDAJE DE DATOS Y VIRTUALS
+     * Objetivo: Asegurar que el campo 'costo_m2' sea accesible para el motor de cálculo,
+     * incluso si el documento es antiguo.
+     */
+    const MaterialSchema = new mongoose.Schema({
+        nombre: { 
+            type: String, 
+            required: true, 
+            trim: true 
+        },
+        categoria: { 
         type: String, 
         required: true,
+        uppercase: true, // Convierte lo que entre a MAYÚSCULAS
         enum: [
-            'Vidrio', 
-            'Respaldo', 
-            'Paspartu', 
-            'Marco', 
-            'Foam', 
-            'Tela', 
-            'Chapilla',
-            'Moldura',
-            'General', 
-            'Otros'
+            // Versiones en mayúsculas (las que quedarán en Atlas)
+            'VIDRIO', 'RESPALDO', 'PASPARTU', 'MARCO', 
+            'FOAM', 'TELA', 'CHAPILLA', 'MOLDURA', 
+            'MOLDURAS', 'GENERAL', 'OTROS',
+            // Mantenemos estas por si acaso, aunque uppercase las convierta
+            'Vidrio', 'General', 'Moldura' 
         ],
-        default: 'Otros'
+        default: 'OTROS'
     },
-    tipo: { 
-        type: String, 
-        enum: ['m2', 'ml'], 
-        default: 'm2' 
-    },
-    ancho_lamina_cm: { 
-        type: Number, 
-        required: true,
-        default: 0
-    }, 
-    largo_lamina_cm: { 
-        type: Number, 
-        required: true,
-        default: 0
-    }, 
-    // Costos y Precios originales
-    precio_total_lamina: { 
-        type: Number, 
-        required: true,
-        default: 0
-    }, 
-    precio_m2_costo: { 
-        type: Number,
-        default: 0
-    },
-    // 🛡️ GANCHO DE SEGURIDAD: Campo duplicado para compatibilidad total
-    costo_m2: {
-        type: Number,
-        default: 0
-    },
-    precio_venta_sugerido: {
-        type: Number,
-        default: 0
-    },
-    stock_actual: { 
-        type: Number, 
-        default: 0 
-    }, 
-    stock_minimo: { 
-        type: Number, 
-        default: 2 
-    },
-    area_por_lamina_m2: { 
-        type: Number,
-        default: 0
-    },
-    proveedor: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Provider' 
-    },
-    notas: {
-        type: String,
-        trim: true
-    }
-}, { 
-    timestamps: true,
-    // 🔥 PERMITIR VIRTUALES: Esto hace que los datos calculados viajen al frontend
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+        tipo: { 
+            type: String, 
+            enum: ['m2', 'ml'], 
+            default: 'm2' 
+        },
+        ancho_lamina_cm: { 
+            type: Number, 
+            required: true,
+            default: 0
+        }, 
+        largo_lamina_cm: { 
+            type: Number, 
+            required: true,
+            default: 0
+        }, 
+        // Costos y Precios originales
+        precio_total_lamina: { 
+            type: Number, 
+            required: true,
+            default: 0
+        }, 
+        precio_m2_costo: { 
+            type: Number,
+            default: 0
+        },
+        // 🛡️ GANCHO DE SEGURIDAD: Campo duplicado para compatibilidad total
+        costo_m2: {
+            type: Number,
+            default: 0
+        },
+        precio_venta_sugerido: {
+            type: Number,
+            default: 0
+        },
+        stock_actual: { 
+            type: Number, 
+            default: 0 
+        }, 
+        stock_minimo: { 
+            type: Number, 
+            default: 2 
+        },
+        area_por_lamina_m2: { 
+            type: Number,
+            default: 0
+        },
+        proveedor: { 
+            type: mongoose.Schema.Types.ObjectId, 
+            ref: 'Provider' 
+        },
+        notas: {
+            type: String,
+            trim: true
+        }
+    }, { 
+        timestamps: true,
+        // 🔥 PERMITIR VIRTUALES: Esto hace que los datos calculados viajen al frontend
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true }
+    });
 
-/**
- * MIDDLEWARE PRE-SAVE:
- * Realiza cálculos técnicos y sincroniza ambos campos de costo.
- */
-MaterialSchema.pre('save', function(next) {
-    // Cálculo de área
-    if (this.tipo === 'm2') {
-        const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
-        this.area_por_lamina_m2 = areaCalculada;
+    /**
+     * MIDDLEWARE PRE-SAVE:
+     * Realiza cálculos técnicos y sincroniza ambos campos de costo.
+     */
+    MaterialSchema.pre('save', function(next) {
+        // Cálculo de área
+        if (this.tipo === 'm2') {
+            const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
+            this.area_por_lamina_m2 = areaCalculada;
+            
+            if (areaCalculada > 0) {
+                this.precio_m2_costo = Math.round(this.precio_total_lamina / areaCalculada);
+            }
+        } 
+        else if (this.tipo === 'ml') {
+            if (this.largo_lamina_cm > 0) {
+                this.precio_m2_costo = Math.round(this.precio_total_lamina / (this.largo_lamina_cm / 100));
+            }
+        }
+
+        // 🔥 SINCRONIZACIÓN CRÍTICA:
+        // Forzamos que 'costo_m2' sea idéntico a 'precio_m2_costo'
+        this.costo_m2 = this.precio_m2_costo;
         
-        if (areaCalculada > 0) {
-            this.precio_m2_costo = Math.round(this.precio_total_lamina / areaCalculada);
-        }
-    } 
-    else if (this.tipo === 'ml') {
-        if (this.largo_lamina_cm > 0) {
-            this.precio_m2_costo = Math.round(this.precio_total_lamina / (this.largo_lamina_cm / 100));
-        }
-    }
+        if (this.stock_actual < 0) this.stock_actual = 0;
 
-    // 🔥 SINCRONIZACIÓN CRÍTICA:
-    // Forzamos que 'costo_m2' sea idéntico a 'precio_m2_costo'
-    this.costo_m2 = this.precio_m2_costo;
-    
-    if (this.stock_actual < 0) this.stock_actual = 0;
+        next();
+    });
 
-    next();
-});
-
-/**
- * EXPORTACIÓN CORREGIDA:
- * Mantenemos el Singleton para evitar errores de recompilación en Netlify.
- */
-module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');
+    /**
+     * EXPORTACIÓN CORREGIDA:
+     * Mantenemos el Singleton para evitar errores de recompilación en Netlify.
+     */
+    module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');
