@@ -596,6 +596,7 @@ if (formCompra) {
                 costo_total: costo * cant
             };
 
+            // --- BLOQUE REESCRITO CON FLEXIBILIDAD ---
             const response = await fetch('/api/inventory/purchase', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -607,19 +608,24 @@ if (formCompra) {
             if (!response.ok) {
                 throw new Error(resultadoAtlas.error || "Error en el servidor");
             }
-            // -------------------------------------------
+
+            // Detectamos el ID real de Atlas (buscamos en varias posiciones por seguridad)
+            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id || (resultadoAtlas.success ? `TEMP-${Date.now()}` : null);
 
             if (existente) {
+                // ACTUALIZAR EXISTENTE
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
                 existente.precio_total_lamina = costo;
                 existente.nombre = nombreReal;
-                // Actualizamos el ID si Atlas nos devolvió uno real
-                if (resultadoAtlas.data && resultadoAtlas.data._id) existente.id = resultadoAtlas.data._id;
+                
+                // Si Atlas nos dio un ID real, reemplazamos el MAT- viejo
+                if (idDeAtlas && !String(idDeAtlas).startsWith('TEMP-')) {
+                    existente.id = idDeAtlas;
+                }
             } else {
-                // Si es nuevo, usamos el ID de Atlas, NO el MAT-
-                // --- REEMPLAZO LIMPIO ---
+                // CREAR NUEVO
                 existente = {
-                    id: resultadoAtlas.data?._id || null, 
+                    id: idDeAtlas, // Usamos el ID de Atlas o el TEMP- preventivo
                     nombre: nombreReal,
                     categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                     tipo: unidadFinal,
@@ -629,13 +635,13 @@ if (formCompra) {
                     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
                 };
 
-                // Si no hay ID de Atlas, lanzamos error para no crear basura local
+                // Si no hay ID de ningún tipo, ahí sí lanzamos error
                 if (!existente.id) {
-                    throw new Error("No se pudo obtener el ID de Atlas. Registro cancelado.");
+                    throw new Error("Atlas no confirmó el registro. Intente nuevamente.");
                 }
 
                 window.todosLosMateriales.unshift(existente);
-            } 
+            }
 
             // --- CAJA DE SEGURIDAD REFORZADA ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
