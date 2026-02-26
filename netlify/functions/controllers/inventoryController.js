@@ -81,6 +81,7 @@ const getMaterials = async (req, res) => {
 };
 
 // 2. Registrar compra - VERSIÓN DUAL REFORZADA
+// 2. Registrar compra - VERSIÓN FINAL GARANTIZADA PARA ATLAS
 const registerPurchase = async (req, res) => {
     try {
         const { 
@@ -90,7 +91,7 @@ const registerPurchase = async (req, res) => {
             precio_venta_sugerido
         } = req.body;
 
-        console.log(`📦 Procesando compra: ${nombre}. DB: ${mongoose.connection.name}`);
+        console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
         const esIdTemporal = materialId && String(materialId).startsWith('MAT-');
         const idReal = (esIdTemporal || !mongoose.Types.ObjectId.isValid(materialId)) ? null : materialId;
@@ -100,13 +101,14 @@ const registerPurchase = async (req, res) => {
             material = await Material.findById(idReal);
         }
         
+        // Búsqueda por nombre si no hay ID real
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             });
         }
 
-        // --- LÓGICA DUAL DE CÁLCULO DE STOCK ---
+        // --- LÓGICA DUAL ---
         const n = nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         
@@ -114,34 +116,35 @@ const registerPurchase = async (req, res) => {
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
         let incrementoStock = 0;
         
-        // Valores por defecto para dimensiones
         let ancho = parseFloat(ancho_lamina_cm) || 0;
         let largo = parseFloat(largo_lamina_cm) || 0;
 
         if (esMoldura) {
-            // Lógica para Molduras: Metros Lineales (Cada unidad son 2.90 metros)
             incrementoStock = cant * 2.90;
-            if (ancho === 0) ancho = 1; // Evitamos 0 en Atlas
+            if (ancho === 0) ancho = 1;
             if (largo === 0) largo = 290;
-            console.log(`📏 MOLDURA DETECTADA: ${cant} tiras = ${incrementoStock} ml`);
         } else {
-            // Lógica para General: Metros Cuadrados (Área)
             ancho = Math.max(0.1, ancho);
             largo = Math.max(0.1, largo);
             incrementoStock = (ancho * largo / 10000) * cant;
-            console.log(`📐 MATERIAL M2 DETECTADO: ${incrementoStock} m2`);
         }
 
         if (material) {
+            // ACTUALIZAR EXISTENTE
             material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
-            material.precio_total_lamina = precioUnitario > 0 ? precioUnitario : material.precio_total_lamina;
+            if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
+            
+            // Forzamos actualización de dimensiones si estaban en 0
+            if (material.ancho_lamina_cm === 0) material.ancho_lamina_cm = ancho;
+            if (material.largo_lamina_cm === 0) material.largo_lamina_cm = largo;
+
             await material.save();
-            console.log("✅ Atlas: Stock actualizado.");
+            console.log("✅ Material existente actualizado en Atlas");
         } else {
-            const cat = esMoldura ? 'MOLDURAS' : 'GENERAL';
-            material = new Material({
+            // CREAR NUEVO (Caso de tu moldura 2315)
+            const nuevaMoldura = new Material({
                 nombre: nombre.trim().toUpperCase(),
-                categoria: cat,
+                categoria: esMoldura ? 'MOLDURAS' : 'GENERAL',
                 tipo: esMoldura ? 'ml' : 'm2',
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
@@ -150,21 +153,27 @@ const registerPurchase = async (req, res) => {
                 precio_venta_sugerido: parseFloat(precio_venta_sugerido) || 0,
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
-            await material.save();
-            console.log("✨ Atlas: Nuevo material creado y guardado.");
+
+            material = await nuevaMoldura.save();
+            console.log("✨ Nuevo material creado físicamente en Atlas con ID:", material._id);
         }
+
+        // --- RESPUESTA CRÍTICA PARA EL FRONTEND ---
+        // Convertimos a objeto de JS puro para asegurar que el _id sea visible
+        const resultado = material.toObject();
 
         return res.status(200).json({ 
             success: true, 
-            message: "Sincronizado con Atlas correctamente",
+            message: "Sincronizado con Atlas",
             data: {
-                ...material.toObject(),
-                _id: material._id.toString() 
+                ...resultado,
+                _id: material._id.toString(), // ESTO ES LO QUE EL FRONTEND NECESITA
+                id: material._id.toString()   // Doble seguridad
             }
         });
 
     } catch (error) {
-        console.error("🚨 ERROR EN COMPRA:", error.message);
+        console.error("🚨 ERROR CRÍTICO EN ATLAS:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
