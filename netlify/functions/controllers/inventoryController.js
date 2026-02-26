@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.2.8 (FIX DOBLE PERSISTENCIA)
+ * Controlador de Inventario - Versión 12.2.9 (FIX: FORZADO COLECCIÓN PURCHASES)
  * + DIAGNÓSTICO DE CONEXIÓN (Punto 3)
  */
 
@@ -10,9 +10,25 @@ const mongoose = require('mongoose');
 const Material = require('../models/Material');
 const Provider = require('../models/Provider');
 
-// Función interna para obtener el modelo de transacción de forma dinámica
+// Función interna para obtener el modelo de transacción apuntando a 'purchases'
 const getTransactionModel = () => {
-    return mongoose.models.Transaction || mongoose.models.Transaccion;
+    // Si el modelo ya existe lo usamos; si no, lo definimos forzando la colección 'purchases'
+    if (mongoose.models.Transaction) return mongoose.models.Transaction;
+    if (mongoose.models.Transaccion) return mongoose.models.Transaccion;
+
+    const transactionSchema = new mongoose.Schema({
+        materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material' },
+        tipo: String,
+        cantidad: Number,
+        cantidad_m2: Number,
+        costo_unitario: Number,
+        costo_total: Number,
+        proveedor: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider' },
+        fecha: { type: Date, default: Date.now },
+        motivo: String
+    }, { collection: 'purchases' }); // <--- FORZAMOS LA COLECCIÓN FÍSICA EN ATLAS
+
+    return mongoose.model('Transaction', transactionSchema);
 };
 
 /**
@@ -166,7 +182,7 @@ const registerPurchase = async (req, res) => {
 
             // 🔥 PERSISTENCIA FORZADA
             await material.save();
-            console.log("✅ Atlas: Material actualizado exitosamente en 'materiales'.");
+            console.log("✅ Atlas: Material actualizado exitosamente.");
         } else {
             // CREAR NUEVO
             material = new Material({
@@ -183,10 +199,10 @@ const registerPurchase = async (req, res) => {
 
             // 🔥 PERSISTENCIA FORZADA
             await material.save();
-            console.log("✨ Atlas: Nuevo material creado físicamente en 'materiales' con ID:", material._id);
+            console.log("✨ Atlas: Nuevo material creado físicamente.");
         }
 
-        // 🚩 ADICIÓN PARA ATLAS: CREAR EL REGISTRO DE TRANSACCIÓN
+        // 🚩 ADICIÓN PARA ATLAS: CREAR EL REGISTRO EN 'purchases'
         const TransactionModel = getTransactionModel();
         if (TransactionModel && material) {
             const nuevaCompra = new TransactionModel({
@@ -201,7 +217,7 @@ const registerPurchase = async (req, res) => {
                 motivo: `Compra registrada: ${nombre}`
             });
             await nuevaCompra.save();
-            console.log("💎 Atlas: Registro de transacción guardado exitosamente.");
+            console.log("💎 Atlas: Registro guardado en la colección PURCHASES.");
         }
 
         // --- RESPUESTA GARANTIZADA ---
