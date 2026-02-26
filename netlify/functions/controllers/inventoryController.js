@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.2.7 (FIX DUAL: MOLDURAS ML Y GENERAL M2)
+ * Controlador de Inventario - Versión 12.2.8 (FIX DOBLE PERSISTENCIA)
  * + DIAGNÓSTICO DE CONEXIÓN (Punto 3)
  */
 
@@ -186,6 +186,24 @@ const registerPurchase = async (req, res) => {
             console.log("✨ Atlas: Nuevo material creado físicamente en 'materiales' con ID:", material._id);
         }
 
+        // 🚩 ADICIÓN PARA ATLAS: CREAR EL REGISTRO DE TRANSACCIÓN
+        const TransactionModel = getTransactionModel();
+        if (TransactionModel && material) {
+            const nuevaCompra = new TransactionModel({
+                materialId: material._id,
+                tipo: 'COMPRA',
+                cantidad: cant,
+                cantidad_m2: incrementoStock,
+                costo_unitario: precioUnitario,
+                costo_total: precioUnitario * cant,
+                proveedor: material.proveedor,
+                fecha: new Date(),
+                motivo: `Compra registrada: ${nombre}`
+            });
+            await nuevaCompra.save();
+            console.log("💎 Atlas: Registro de transacción guardado exitosamente.");
+        }
+
         // --- RESPUESTA GARANTIZADA ---
         return res.status(200).json({ 
             success: true, 
@@ -198,8 +216,6 @@ const registerPurchase = async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 };
-
-module.exports = { registerPurchase };
 
 // 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
