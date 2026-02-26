@@ -85,38 +85,36 @@ const getMaterials = async (req, res) => {
     }
 };
 
-// 2. Registrar compra - VERSIÓN INTELIGENTE FORZADA
+// 2. Registrar compra - VERSIÓN ULTRA-SINCRONIZADA
 const registerPurchase = async (req, res) => {
     try {
         const { 
             materialId, nombre, proveedor,      
             ancho_lamina_cm, largo_lamina_cm, 
             precio_total_lamina, cantidad_laminas,
-            cantidad_m2, precio_venta_sugerido, costo_total 
+            precio_venta_sugerido
         } = req.body;
 
-        console.log(`📦 Recibida compra para: ${nombre} (ID enviado: ${materialId})`);
+        console.log(`📦 Procesando compra: ${nombre} (ID: ${materialId})`);
 
-        // 🛡️ PASO 1: MATAR EL ID "MAT-"
-        // Si el ID empieza por MAT-, es basura del frontend. Lo ignoramos por completo.
+        // 🛡️ PASO 1: FILTRAR ID TEMPORAL
         const esIdTemporal = materialId && String(materialId).startsWith('MAT-');
         const idReal = (esIdTemporal || !mongoose.Types.ObjectId.isValid(materialId)) ? null : materialId;
 
         let material = null;
 
-        // 🛡️ PASO 2: BUSQUEDA INTELIGENTE
+        // 🛡️ PASO 2: LOCALIZAR MATERIAL
         if (idReal) {
             material = await Material.findById(idReal);
         }
         
-        // Si no hay ID real o no se encontró, buscamos por NOMBRE (el salvavidas)
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             });
         }
 
-        // Normalización de datos para el Schema
+        // Cálculos de stock
         const ancho = Math.max(0.1, parseFloat(ancho_lamina_cm) || 0);
         const largo = Math.max(0.1, parseFloat(largo_lamina_cm) || 0);
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
@@ -124,21 +122,21 @@ const registerPurchase = async (req, res) => {
         const incrementoStock = (ancho * largo / 10000) * cant;
 
         if (material) {
-            // ACTUALIZAR EXISTENTE EN ATLAS
+            // ACTUALIZAR
             material.stock_actual += incrementoStock;
             material.precio_total_lamina = precioUnitario > 0 ? precioUnitario : material.precio_total_lamina;
             await material.save();
-            console.log("✅ Atlas: Material existente actualizado.");
+            console.log("✅ Atlas: Stock actualizado.");
         } else {
-            // CREAR NUEVO EN ATLAS (Aquí es donde nacerá la 2315)
-            let cat = 'Otros';
+            // CREAR (Caso Moldura 2315)
+            let cat = 'GENERAL';
             const n = nombre.toUpperCase();
-            if (n.includes('K ') || n.includes('MP') || n.includes('MOLDURA')) cat = 'Moldura';
+            if (n.includes('K ') || n.includes('MP') || n.includes('MOLDURA')) cat = 'MOLDURAS';
 
             material = new Material({
                 nombre: nombre.trim().toUpperCase(),
                 categoria: cat,
-                tipo: req.body.tipo_material || 'm2',
+                tipo: req.body.tipo_material || (cat === 'MOLDURAS' ? 'ml' : 'm2'),
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: precioUnitario,
@@ -147,10 +145,20 @@ const registerPurchase = async (req, res) => {
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
             await material.save();
-            console.log("✨ Atlas: Nuevo material creado con éxito.");
+            console.log("✨ Atlas: Nuevo material creado y guardado.");
         }
 
-        res.status(201).json({ success: true, data: material });
+        // ✅ RESPUESTA REFORZADA: Enviamos el objeto limpio y aseguramos el _id
+        const respuesta = material.toObject ? material.toObject() : material;
+        
+        return res.status(200).json({ 
+            success: true, 
+            message: "Sincronizado con Atlas correctamente",
+            data: {
+                ...respuesta,
+                _id: material._id.toString() // Forzamos que el ID vaya como string para el frontend
+            }
+        });
 
     } catch (error) {
         console.error("🚨 ERROR EN COMPRA:", error.message);
