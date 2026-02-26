@@ -15,16 +15,15 @@
         categoria: { 
         type: String, 
         required: true,
-        uppercase: true, // Convierte lo que entre a MAYÚSCULAS
+        trim: true,
+        // Eliminamos el 'uppercase: true' para no alterar lo que ya tienes en Atlas,
+        // pero expandimos el enum para que acepte cualquier variante que envíe el controlador.
         enum: [
-            // Versiones en mayúsculas (las que quedarán en Atlas)
-            'VIDRIO', 'RESPALDO', 'PASPARTU', 'MARCO', 
-            'FOAM', 'TELA', 'CHAPILLA', 'MOLDURA', 
-            'MOLDURAS', 'GENERAL', 'OTROS',
-            // Mantenemos estas por si acaso, aunque uppercase las convierta
-            'Vidrio', 'General', 'Moldura' 
+            'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
+            'Moldura', 'General', 'Otros', 
+            'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA' // Variantes de seguridad
         ],
-        default: 'OTROS'
+        default: 'Otros'
     },
         tipo: { 
             type: String, 

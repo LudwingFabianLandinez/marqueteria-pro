@@ -81,7 +81,6 @@ const getMaterials = async (req, res) => {
 };
 
 // 2. Registrar compra - VERSIÓN DUAL REFORZADA
-// 2. Registrar compra - VERSIÓN FINAL GARANTIZADA PARA ATLAS
 const registerPurchase = async (req, res) => {
     try {
         const { 
@@ -91,38 +90,43 @@ const registerPurchase = async (req, res) => {
             precio_venta_sugerido
         } = req.body;
 
+        // 🛡️ SEGURIDAD 1: Verificar conexión activa
+        if (mongoose.connection.readyState !== 1) {
+            console.log("🔄 Re-conectando a Atlas...");
+            await mongoose.connect(process.env.MONGODB_URI);
+        }
+
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        const esIdTemporal = materialId && String(materialId).startsWith('MAT-');
-        const idReal = (esIdTemporal || !mongoose.Types.ObjectId.isValid(materialId)) ? null : materialId;
-
+        // 🛡️ SEGURIDAD 2: Filtrar IDs temporales del frontend
+        const esIdValido = materialId && mongoose.Types.ObjectId.isValid(materialId) && materialId.length === 24;
+        
         let material = null;
-        if (idReal) {
-            material = await Material.findById(idReal);
+        if (esIdValido) {
+            material = await Material.findById(materialId);
         }
         
-        // Búsqueda por nombre si no hay ID real
+        // Si no lo halla por ID, busca por nombre exacto (insensible a mayúsculas)
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             });
         }
 
-        // --- LÓGICA DUAL ---
+        // --- LÓGICA DE CÁLCULO ---
         const n = nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         
         const cant = Math.max(0, parseFloat(cantidad_laminas) || 0);
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
         let incrementoStock = 0;
-        
         let ancho = parseFloat(ancho_lamina_cm) || 0;
         let largo = parseFloat(largo_lamina_cm) || 0;
 
         if (esMoldura) {
             incrementoStock = cant * 2.90;
-            if (ancho === 0) ancho = 1;
-            if (largo === 0) largo = 290;
+            ancho = ancho || 1; // Evita ceros
+            largo = largo || 290;
         } else {
             ancho = Math.max(0.1, ancho);
             largo = Math.max(0.1, largo);
@@ -133,16 +137,14 @@ const registerPurchase = async (req, res) => {
             // ACTUALIZAR EXISTENTE
             material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
             if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
-            
-            // Forzamos actualización de dimensiones si estaban en 0
             if (material.ancho_lamina_cm === 0) material.ancho_lamina_cm = ancho;
             if (material.largo_lamina_cm === 0) material.largo_lamina_cm = largo;
 
             await material.save();
-            console.log("✅ Material existente actualizado en Atlas");
+            console.log("✅ Atlas: Material actualizado.");
         } else {
-            // CREAR NUEVO (Caso de tu moldura 2315)
-            const nuevaMoldura = new Material({
+            // CREAR NUEVO
+            material = new Material({
                 nombre: nombre.trim().toUpperCase(),
                 categoria: esMoldura ? 'MOLDURAS' : 'GENERAL',
                 tipo: esMoldura ? 'ml' : 'm2',
@@ -154,21 +156,18 @@ const registerPurchase = async (req, res) => {
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
 
-            material = await nuevaMoldura.save();
-            console.log("✨ Nuevo material creado físicamente en Atlas con ID:", material._id);
+            await material.save();
+            console.log("✨ Atlas: Nuevo material creado con ID:", material._id);
         }
 
-        // --- RESPUESTA CRÍTICA PARA EL FRONTEND ---
-        // Convertimos a objeto de JS puro para asegurar que el _id sea visible
-        const resultado = material.toObject();
-
+        // --- RESPUESTA GARANTIZADA ---
         return res.status(200).json({ 
             success: true, 
             message: "Sincronizado con Atlas",
             data: {
-                ...resultado,
-                _id: material._id.toString(), // ESTO ES LO QUE EL FRONTEND NECESITA
-                id: material._id.toString()   // Doble seguridad
+                ...material.toObject(),
+                _id: material._id.toString(),
+                id: material._id.toString()
             }
         });
 
