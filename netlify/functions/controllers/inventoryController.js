@@ -185,6 +185,8 @@ const registerPurchase = async (req, res) => {
     }
 };
 
+module.exports = { registerPurchase };
+
 // 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
     try {

@@ -11,18 +11,18 @@ const MaterialSchema = new mongoose.Schema({
         trim: true 
     },
     categoria: { 
-    type: String, 
-    required: true,
-    trim: true,
-    // Enum blindado: Acepta variaciones para que Atlas no bloquee el guardado
-    enum: [
-        'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
-        'Moldura', 'General', 'Otros', 
-        'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA',
-        'moldura', 'general', 'vidrio'
-    ],
-    default: 'Otros'
-},
+        type: String, 
+        required: true,
+        trim: true,
+        // Enum blindado: Acepta variaciones para que Atlas no bloquee el guardado
+        enum: [
+            'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
+            'Moldura', 'General', 'Otros', 
+            'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA',
+            'moldura', 'general', 'vidrio'
+        ],
+        default: 'Otros'
+    },
     tipo: { 
         type: String, 
         enum: ['m2', 'ml'], 
@@ -110,4 +110,5 @@ MaterialSchema.pre('save', function(next) {
     next();
 });
 
+// 🚨 CONEXIÓN FORZADA A LA COLECCIÓN 'materiales'
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');
