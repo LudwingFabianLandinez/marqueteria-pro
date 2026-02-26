@@ -90,7 +90,7 @@ const registerPurchase = async (req, res) => {
             precio_venta_sugerido
         } = req.body;
 
-        // 🛡️ SEGURIDAD 1: Verificar conexión activa
+        // 🛡️ SEGURIDAD 1: Verificar conexión activa (Evita que Atlas ignore el envío)
         if (mongoose.connection.readyState !== 1) {
             console.log("🔄 Re-conectando a Atlas...");
             await mongoose.connect(process.env.MONGODB_URI);
@@ -98,7 +98,7 @@ const registerPurchase = async (req, res) => {
 
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        // 🛡️ SEGURIDAD 2: Filtrar IDs temporales del frontend
+        // 🛡️ SEGURIDAD 2: Filtrar IDs temporales del frontend (Evita error 404)
         const esIdValido = materialId && mongoose.Types.ObjectId.isValid(materialId) && materialId.length === 24;
         
         let material = null;
@@ -106,14 +106,14 @@ const registerPurchase = async (req, res) => {
             material = await Material.findById(materialId);
         }
         
-        // Si no lo halla por ID, busca por nombre exacto (insensible a mayúsculas)
+        // Búsqueda por nombre si no hay ID real (Asegura que no se dupliquen)
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             });
         }
 
-        // --- LÓGICA DE CÁLCULO ---
+        // --- LÓGICA DE CÁLCULO ORIGINAL ---
         const n = nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         
@@ -125,7 +125,7 @@ const registerPurchase = async (req, res) => {
 
         if (esMoldura) {
             incrementoStock = cant * 2.90;
-            ancho = ancho || 1; // Evita ceros
+            ancho = ancho || 1; 
             largo = largo || 290;
         } else {
             ancho = Math.max(0.1, ancho);
@@ -134,7 +134,7 @@ const registerPurchase = async (req, res) => {
         }
 
         if (material) {
-            // ACTUALIZAR EXISTENTE
+            // ACTUALIZAR EXISTENTE EN ATLAS
             material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
             if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
             if (material.ancho_lamina_cm === 0) material.ancho_lamina_cm = ancho;
@@ -143,7 +143,7 @@ const registerPurchase = async (req, res) => {
             await material.save();
             console.log("✅ Atlas: Material actualizado.");
         } else {
-            // CREAR NUEVO
+            // CREAR NUEVO REGISTRO FÍSICO EN ATLAS
             material = new Material({
                 nombre: nombre.trim().toUpperCase(),
                 categoria: esMoldura ? 'MOLDURAS' : 'GENERAL',
@@ -160,7 +160,7 @@ const registerPurchase = async (req, res) => {
             console.log("✨ Atlas: Nuevo material creado con ID:", material._id);
         }
 
-        // --- RESPUESTA GARANTIZADA ---
+        // --- RESPUESTA GARANTIZADA PARA EL FRONTEND ---
         return res.status(200).json({ 
             success: true, 
             message: "Sincronizado con Atlas",
