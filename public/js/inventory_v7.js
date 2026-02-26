@@ -569,6 +569,7 @@ if (formCompra) {
 
             let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
             
+            // Formato: Molduras en MAYÚS, el resto (Lona, Tela) como lo escribas
             const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
             let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
@@ -576,12 +577,15 @@ if (formCompra) {
             const costo = parseFloat(inputCosto.value) || 0;
             let unidadFinal = esMoldura ? "ml" : "m²";
             
+            // Cálculo de stock: 2.90 para molduras, área para m²
             let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
 
+            // ACTUALIZACIÓN DE ARRAY GLOBAL
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
             // --- 🛡️ ESCUDO ANTI-ERROR ATLAS (Limpieza de ID) ---
+            // Si el ID es TEMP- o MAT-, enviamos null para que el servidor no explote
             const idLimpio = (existente && existente.id && !String(existente.id).startsWith('TEMP-') && !String(existente.id).startsWith('MAT-')) 
                             ? existente.id 
                             : null;
@@ -597,7 +601,8 @@ if (formCompra) {
                 costo_total: costo * cant
             };
 
-            // --- 🚀 DETECCIÓN DE RUTA (Ignora el puerto 3000 si está en Netlify) ---
+            // --- 🚀 DETECCIÓN DE RUTA INTELIGENTE ---
+            // Si detecta que no es localhost, usa la ruta de Netlify sin puertos.
             const URL_FINAL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
                 ? 'http://localhost:3000/api/inventory/purchase'
                 : '/.netlify/functions/server/inventory/purchase';
@@ -614,18 +619,22 @@ if (formCompra) {
                 throw new Error(resultadoAtlas.error || "Error en el servidor");
             }
 
+            // Detectamos el ID real de Atlas
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id || (resultadoAtlas.success ? `TEMP-${Date.now()}` : null);
 
             if (existente) {
+                // ACTUALIZAR EXISTENTE
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
                 existente.precio_total_lamina = costo;
                 existente.nombre = nombreReal;
                 
+                // Si Atlas nos dio un ID real, reemplazamos el ID local
                 if (idDeAtlas && !String(idDeAtlas).startsWith('TEMP-')) {
                     existente.id = idDeAtlas;
-                    existente._id = idDeAtlas;
+                    existente._id = idDeAtlas; // Doble seguridad
                 }
             } else {
+                // CREAR NUEVO
                 existente = {
                     id: idDeAtlas,
                     _id: idDeAtlas,
@@ -658,15 +667,18 @@ if (formCompra) {
             
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
+            // Limpieza de lista negra de eliminados
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
             eliminados = eliminados.filter(id => id !== String(existente.id));
             localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
 
+            // FINALIZAR Y RENDERIZAR
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
             alert(`✅ Sincronizado con Atlas: ${nombreReal}`);
             
+            // Cerrar modal y resetear
             const modal = document.getElementById('modalCompra');
             if(modal) modal.style.display = 'none';
             formulario.reset();
