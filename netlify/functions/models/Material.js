@@ -14,7 +14,7 @@ const MaterialSchema = new mongoose.Schema({
     type: String, 
     required: true,
     trim: true,
-    // Enum expandido para compatibilidad total con Atlas y Controlador
+    // Enum blindado: Acepta variaciones para que Atlas no bloquee el guardado
     enum: [
         'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
         'Moldura', 'General', 'Otros', 

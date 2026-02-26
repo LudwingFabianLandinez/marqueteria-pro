@@ -90,7 +90,7 @@ const registerPurchase = async (req, res) => {
             precio_venta_sugerido
         } = req.body;
 
-        let { materialId } = req.body; // Lo definimos como let para poder limpiarlo
+        let { materialId } = req.body; 
 
         // 🛡️ SEGURIDAD 1: Verificar conexión activa (Evita que Atlas ignore el envío)
         if (mongoose.connection.readyState !== 1) {
@@ -100,8 +100,7 @@ const registerPurchase = async (req, res) => {
 
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Basado en tus hallazgos de MAT- y TEMP-)
-        // Si el ID es temporal o inválido, lo anulamos para forzar búsqueda por nombre
+        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Basado en hallazgos de MAT- y TEMP-)
         const esIdInvalido = !materialId || 
                              String(materialId).startsWith('TEMP-') || 
                              String(materialId).startsWith('MAT-') || 
@@ -114,14 +113,14 @@ const registerPurchase = async (req, res) => {
         
         let material = null;
         if (materialId) {
-            material = await Material.findById(materialId);
+            material = await Material.findById(materialId).exec();
         }
         
-        // Búsqueda por nombre si no hay ID real (Asegura que no se dupliquen en Atlas)
+        // Búsqueda por nombre si no hay ID real
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
-            });
+            }).exec();
         }
 
         // --- LÓGICA DE CÁLCULO ORIGINAL (INTACTA) ---
@@ -145,16 +144,17 @@ const registerPurchase = async (req, res) => {
         }
 
         if (material) {
-            // ACTUALIZAR EXISTENTE EN ATLAS
+            // ACTUALIZAR EXISTENTE
             material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
             if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
             if (material.ancho_lamina_cm === 0) material.ancho_lamina_cm = ancho;
             if (material.largo_lamina_cm === 0) material.largo_lamina_cm = largo;
 
+            // 🔥 PERSISTENCIA FORZADA
             await material.save();
             console.log("✅ Atlas: Material actualizado exitosamente.");
         } else {
-            // CREAR NUEVO REGISTRO FÍSICO EN ATLAS
+            // CREAR NUEVO
             material = new Material({
                 nombre: nombre.trim().toUpperCase(),
                 categoria: esMoldura ? 'MOLDURAS' : 'GENERAL',
@@ -167,12 +167,12 @@ const registerPurchase = async (req, res) => {
                 proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
             });
 
+            // 🔥 PERSISTENCIA FORZADA
             await material.save();
             console.log("✨ Atlas: Nuevo material creado físicamente con ID:", material._id);
         }
 
         // --- RESPUESTA GARANTIZADA ---
-        // Enviamos el objeto de Atlas para que el frontend reemplace su TEMP- por el ID real
         return res.status(200).json({ 
             success: true, 
             message: "Sincronizado con Atlas",
