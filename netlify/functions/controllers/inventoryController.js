@@ -92,7 +92,7 @@ const registerPurchase = async (req, res) => {
 
         let { materialId } = req.body; 
 
-        // 🛡️ SEGURIDAD 1: Verificar conexión activa (Evita que Atlas ignore el envío)
+        // 🛡️ SEGURIDAD 1: Verificar conexión activa
         if (mongoose.connection.readyState !== 1) {
             console.log("🔄 Re-conectando a Atlas...");
             await mongoose.connect(process.env.MONGODB_URI);
@@ -100,7 +100,7 @@ const registerPurchase = async (req, res) => {
 
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Basado en hallazgos de MAT- y TEMP-)
+        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID
         const esIdInvalido = !materialId || 
                              String(materialId).startsWith('TEMP-') || 
                              String(materialId).startsWith('MAT-') || 
@@ -152,7 +152,7 @@ const registerPurchase = async (req, res) => {
 
             // 🔥 PERSISTENCIA FORZADA
             await material.save();
-            console.log("✅ Atlas: Material actualizado exitosamente.");
+            console.log("✅ Atlas: Material actualizado exitosamente en 'materiales'.");
         } else {
             // CREAR NUEVO
             material = new Material({
@@ -169,7 +169,7 @@ const registerPurchase = async (req, res) => {
 
             // 🔥 PERSISTENCIA FORZADA
             await material.save();
-            console.log("✨ Atlas: Nuevo material creado físicamente con ID:", material._id);
+            console.log("✨ Atlas: Nuevo material creado físicamente en 'materiales' con ID:", material._id);
         }
 
         // --- RESPUESTA GARANTIZADA ---
