@@ -72,7 +72,7 @@ const MaterialSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Provider' 
     },
-    notas: {
+    notes: {
         type: String,
         trim: true
     }
@@ -110,5 +110,5 @@ MaterialSchema.pre('save', function(next) {
     next();
 });
 
-// 🚨 CONEXIÓN FORZADA A LA COLECCIÓN 'materiales'
+// 🚨 CORRECCIÓN FINAL: Forzado de la colección 'materiales'
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');

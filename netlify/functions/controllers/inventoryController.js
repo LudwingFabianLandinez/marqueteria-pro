@@ -100,7 +100,7 @@ const registerPurchase = async (req, res) => {
 
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID
+        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Mata los TEMP- y MAT-)
         const esIdInvalido = !materialId || 
                              String(materialId).startsWith('TEMP-') || 
                              String(materialId).startsWith('MAT-') || 
