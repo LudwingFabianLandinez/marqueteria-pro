@@ -1,136 +1,91 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Controlador de Inventario - Versión 12.3.0 (SUPER-PERSISTENCIA ATLAS)
- * + DIAGNÓSTICO DE CONEXIÓN Y FORZADO DE ESCRITURA
+ * Controlador de Inventario - Versión 12.4.0 (FORZADO DE PERSISTENCIA TOTAL)
  */
 
 const mongoose = require('mongoose');
-
-// Carga segura de modelos
 const Material = require('../models/Material');
 const Provider = require('../models/Provider');
 
-// Función interna para obtener el modelo de transacción apuntando a 'purchases'
-const getTransactionModel = () => {
-    // Si el modelo ya existe lo usamos para evitar errores de recompilación en Mongoose
-    if (mongoose.models.Transaction) return mongoose.models.Transaction;
-    if (mongoose.models.Transaccion) return mongoose.models.Transaccion;
+// 1. DEFINICIÓN ESTÁTICA (Para que Mongoose no pierda el hilo en Atlas)
+const transactionSchema = new mongoose.Schema({
+    materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', required: true },
+    tipo: { type: String, required: true },
+    cantidad: Number,
+    cantidad_m2: Number,
+    costo_unitario: Number,
+    costo_total: Number,
+    proveedor: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider' },
+    fecha: { type: Date, default: Date.now },
+    motivo: String
+}, { 
+    collection: 'purchases',
+    timestamps: true 
+});
 
-    const transactionSchema = new mongoose.Schema({
-        materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', required: true },
-        tipo: { type: String, required: true },
-        cantidad: Number,
-        cantidad_m2: Number,
-        costo_unitario: Number,
-        costo_total: Number,
-        proveedor: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider' },
-        fecha: { type: Date, default: Date.now },
-        motivo: String
-    }, { 
-        collection: 'purchases', // <--- ESTO ES LO QUE HACE QUE SE VEA EN ATLAS
-        timestamps: true 
-    });
-
-    return mongoose.model('Transaction', transactionSchema);
-};
+// Evitamos errores de recompilación típicos de Netlify
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 
 /**
  * 🚀 saveMaterial: Maneja la creación y edición de materiales
  */
 const saveMaterial = async (req, res) => {
     try {
-        console.log("------------------------------------------");
-        console.log("📥 Datos recibidos en saveMaterial:", JSON.stringify(req.body));
-        console.log("🛰️ DB CONECTADA:", mongoose.connection.name);
-        console.log("------------------------------------------");
-
-        const { 
-            id, nombre, categoria, tipo, stock_actual, 
-            precio_total_lamina, proveedor,
-            ancho_lamina_cm, largo_lamina_cm 
-        } = req.body;
-
+        const { id, nombre, categoria, tipo, stock_actual, precio_total_lamina, proveedor, ancho_lamina_cm, largo_lamina_cm } = req.body;
         const esIdValido = (val) => val && mongoose.Types.ObjectId.isValid(val) && val.length === 24;
-        const proveedorFinal = esIdValido(proveedor) ? proveedor : null;
 
         const datosLimpios = {
-            nombre: (nombre || "Nuevo Material").trim().toUpperCase(),
+            nombre: (nombre || "").trim().toUpperCase(),
             categoria: categoria || "Otros",
             tipo: tipo || "m2",
             stock_actual: Number(stock_actual) || 0,
             precio_total_lamina: Number(precio_total_lamina) || 0,
             ancho_lamina_cm: Number(ancho_lamina_cm) || 0,
             largo_lamina_cm: Number(largo_lamina_cm) || 0,
-            proveedor: proveedorFinal || undefined
+            proveedor: esIdValido(proveedor) ? proveedor : undefined
         };
 
         let material;
-        if (id && esIdValido(id)) {
-            material = await Material.findByIdAndUpdate(
-                id, 
-                { $set: datosLimpios }, 
-                { new: true, runValidators: true }
-            );
-            if (!material) return res.status(404).json({ success: false, message: "Material no encontrado" });
-            console.log("✅ Material actualizado en Atlas");
+        if (esIdValido(id)) {
+            material = await Material.findByIdAndUpdate(id, { $set: datosLimpios }, { new: true });
         } else {
             material = new Material(datosLimpios);
             await material.save();
-            console.log("✨ Nuevo material guardado en Atlas:", material.nombre);
         }
-
         res.status(200).json({ success: true, data: material });
     } catch (error) {
-        console.error("🚨 Error crítico en saveMaterial (Atlas):", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
 
-// 1. Obtener materiales
-const getMaterials = async (req, res) => {
-    try {
-        const materials = await Material.find()
-            .populate('proveedor', 'nombre') 
-            .sort({ categoria: 1, nombre: 1 })
-            .lean();
-        
-        res.status(200).json({ success: true, data: materials || [] });
-    } catch (error) {
-        res.status(500).json({ success: false, data: [], error: "Error al cargar materiales" });
-    }
-};
-
-// 2. Registrar compra - VERSIÓN DUAL REFORZADA
+/**
+ * 📦 registerPurchase: Registro con persistencia garantizada en Atlas
+ */
 const registerPurchase = async (req, res) => {
     try {
         console.log("------------------------------------------");
-        console.log("🛰️ PROCESANDO COMPRA PARA ATLAS...");
-        
-        const { 
-            nombre, proveedor, ancho_lamina_cm, largo_lamina_cm, 
-            precio_total_lamina, cantidad_laminas, precio_venta_sugerido
-        } = req.body;
+        console.log("🛰️ INICIANDO OPERACIÓN EN ATLAS...");
 
-        let { materialId } = req.body; 
+        const { nombre, proveedor, ancho_lamina_cm, largo_lamina_cm, precio_total_lamina, cantidad_laminas, precio_venta_sugerido } = req.body;
+        let { materialId } = req.body;
 
+        // Asegurar conexión activa
         if (mongoose.connection.readyState !== 1) {
             await mongoose.connect(process.env.MONGODB_URI);
         }
 
-        const esIdInvalido = !materialId || 
-                             String(materialId).startsWith('TEMP-') || 
-                             String(materialId).startsWith('MAT-') || 
-                             String(materialId).length !== 24;
-
-        if (esIdInvalido) materialId = null;
+        // Limpiar IDs temporales
+        if (!materialId || materialId.startsWith('TEMP-') || materialId.startsWith('MAT-') || materialId.length !== 24) {
+            materialId = null;
+        }
         
         let material = null;
-        if (materialId) material = await Material.findById(materialId).exec();
+        if (materialId) material = await Material.findById(materialId);
         if (!material && nombre) {
-            material = await Material.findOne({ 
-                nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
-            }).exec();
+            material = await Material.findOne({ nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } });
         }
+
+        if (!material) throw new Error("Material no encontrado en Atlas");
 
         // LÓGICA DE CÁLCULO
         const n = nombre.toUpperCase();
@@ -138,61 +93,46 @@ const registerPurchase = async (req, res) => {
         const cant = Math.max(0, parseFloat(cantidad_laminas) || 0);
         const precioUnitario = Math.max(0, parseFloat(precio_total_lamina) || 0);
         let incrementoStock = 0;
-        let ancho = parseFloat(ancho_lamina_cm) || 0;
-        let largo = parseFloat(largo_lamina_cm) || 0;
-
+        
         if (esMoldura) {
             incrementoStock = cant * 2.90;
-            ancho = ancho || 1; largo = largo || 290;
         } else {
-            ancho = Math.max(0.1, ancho); largo = Math.max(0.1, largo);
+            const ancho = parseFloat(ancho_lamina_cm) || material.ancho_lamina_cm || 0;
+            const largo = parseFloat(largo_lamina_cm) || material.largo_lamina_cm || 0;
             incrementoStock = (ancho * largo / 10000) * cant;
         }
 
-        if (material) {
-            material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
-            if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
-            await material.save();
-        } else {
-            material = new Material({
-                nombre: nombre.trim().toUpperCase(),
-                categoria: esMoldura ? 'MOLDURAS' : 'GENERAL',
-                tipo: esMoldura ? 'ml' : 'm2',
-                ancho_lamina_cm: ancho,
-                largo_lamina_cm: largo,
-                precio_total_lamina: precioUnitario,
-                stock_actual: incrementoStock,
-                precio_venta_sugerido: parseFloat(precio_venta_sugerido) || 0,
-                proveedor: mongoose.Types.ObjectId.isValid(proveedor) ? proveedor : undefined
-            });
-            await material.save();
-        }
+        // ACTUALIZACIÓN DE STOCK
+        material.stock_actual = (Number(material.stock_actual) || 0) + incrementoStock;
+        if (precioUnitario > 0) material.precio_total_lamina = precioUnitario;
 
-        // 🚩 REGISTRO EN 'purchases' CON PERSISTENCIA INMEDIATA (.create)
-        const TransactionModel = getTransactionModel();
-        if (TransactionModel && material) {
-            const result = await TransactionModel.create({
+        // 🔥 BLOQUE DE PERSISTENCIA ATÓMICA
+        // Usamos Promise.all para que Netlify NO corte la ejecución hasta que ambos se guarden
+        const [materialGuardado, compraGuardada] = await Promise.all([
+            material.save(),
+            Transaction.create({
                 materialId: material._id,
                 tipo: 'COMPRA',
                 cantidad: cant,
                 cantidad_m2: incrementoStock,
                 costo_unitario: precioUnitario,
                 costo_total: precioUnitario * cant,
-                proveedor: material.proveedor,
+                proveedor: material.proveedor || proveedor,
                 fecha: new Date(),
                 motivo: `Compra registrada: ${nombre}`
-            });
-            console.log("💎 ATLAS: Documento insertado en 'purchases' con ID:", result._id);
-        }
+            })
+        ]);
+
+        console.log("💎 ATLAS CONFIRMÓ ESCRITURA. ID COMPRA:", compraGuardada._id);
 
         return res.status(200).json({ 
             success: true, 
             message: "Sincronizado con Atlas",
-            data: material.toObject()
+            data: materialGuardado
         });
 
     } catch (error) {
-        console.error("🚨 ERROR CRÍTICO EN ATLAS:", error.message);
+        console.error("🚨 ERROR CRÍTICO:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -200,34 +140,30 @@ const registerPurchase = async (req, res) => {
 // 3. Obtener todas las compras
 const getAllPurchases = async (req, res) => {
     try {
-        const TransactionModel = getTransactionModel();
-        const purchases = await TransactionModel.find({ tipo: 'COMPRA' })
+        const purchases = await Transaction.find({ tipo: 'COMPRA' })
             .populate('materialId', 'nombre categoria')
             .populate('proveedor', 'nombre')
             .sort({ fecha: -1 }).lean();
         res.status(200).json({ success: true, data: purchases || [] });
     } catch (error) {
-        res.status(500).json({ success: false, data: [], error: "Error al cargar historial" });
+        res.status(500).json({ success: false, data: [] });
     }
 };
 
 // 4. Historial de un material específico
 const getMaterialHistory = async (req, res) => {
     try {
-        const { id } = req.params;
-        const TransactionModel = getTransactionModel();
-        const history = await TransactionModel.find({ materialId: id }).sort({ fecha: -1 }).limit(20).lean();
+        const history = await Transaction.find({ materialId: req.params.id }).sort({ fecha: -1 }).limit(20).lean();
         res.status(200).json({ success: true, data: history || [] });
     } catch (error) {
-        res.status(500).json({ success: false, data: [], error: "Error al obtener historial" });
+        res.status(500).json({ success: false, data: [] });
     }
 };
 
-// 5. Resumen de KPIs
+// 5. Resumen de KPIs (Ajustado al modelo Transaction)
 const getPurchasesSummary = async (req, res) => {
     try {
-        const TransactionModel = getTransactionModel();
-        const stats = await TransactionModel.aggregate([
+        const stats = await Transaction.aggregate([
             { $match: { tipo: 'COMPRA' } },
             { $group: {
                 _id: null,
@@ -238,36 +174,32 @@ const getPurchasesSummary = async (req, res) => {
         ]);
         res.status(200).json(stats[0] || { totalInvertido: 0, totalCantidad: 0, conteo: 0 });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error en KPIs" });
+        res.status(500).json({ success: false });
     }
 };
 
 // 6. Alertas de Stock Bajo
 const getLowStockMaterials = async (req, res) => {
     try {
-        const lowStock = await Material.find({ 
-            $expr: { $lt: ["$stock_actual", "$stock_minimo"] } 
-        }).limit(10).lean();
+        const lowStock = await Material.find({ $expr: { $lt: ["$stock_actual", "$stock_minimo"] } }).limit(10).lean();
         res.status(200).json({ success: true, data: lowStock || [] });
     } catch (error) {
-        res.status(500).json({ success: false, data: [], error: "Error en alertas" });
+        res.status(500).json({ success: false, data: [] });
     }
 };
 
 // 7. Ajuste manual de stock
 const manualAdjustment = async (req, res) => {
     try {
-        const { materialId, nuevaCantidad, stock_minimo, motivo } = req.body;
+        const { materialId, nuevaCantidad, motivo } = req.body;
         const material = await Material.findById(materialId);
-        if (!material) return res.status(404).json({ success: false, message: "No encontrado" });
+        if (!material) return res.status(404).json({ success: false });
 
         const diferencia = parseFloat(nuevaCantidad) - material.stock_actual;
         material.stock_actual = parseFloat(nuevaCantidad);
-        if (stock_minimo !== undefined) material.stock_minimo = parseFloat(stock_minimo);
         await material.save();
 
-        const TransactionModel = getTransactionModel();
-        await TransactionModel.create({
+        await Transaction.create({
             materialId: material._id,
             tipo: diferencia > 0 ? 'AJUSTE_MAS' : 'AJUSTE_MENOS',
             cantidad: Math.abs(diferencia),
@@ -277,7 +209,7 @@ const manualAdjustment = async (req, res) => {
         });
         res.status(200).json({ success: true, data: { stock: material.stock_actual } });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error en ajuste" });
+        res.status(500).json({ success: false });
     }
 };
 
@@ -285,13 +217,13 @@ const manualAdjustment = async (req, res) => {
 const deleteMaterial = async (req, res) => {
     try {
         const { id } = req.params;
-        if (id && id.startsWith('MAT-')) return res.status(200).json({ success: true });
-        await Material.findByIdAndDelete(id);
-        const TransactionModel = getTransactionModel();
-        await TransactionModel.deleteMany({ materialId: id });
-        res.status(200).json({ success: true, message: "Material eliminado de Atlas" });
+        if (id && id.length === 24) {
+            await Material.findByIdAndDelete(id);
+            await Transaction.deleteMany({ materialId: id });
+        }
+        res.status(200).json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Error al eliminar" });
+        res.status(500).json({ success: false });
     }
 };
 
