@@ -584,9 +584,14 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // --- 🚀 NUEVO: SINCRONIZACIÓN CON ATLAS ---
+            // --- 🛡️ ESCUDO ANTI-ERROR ATLAS (Limpieza de ID) ---
+            // Si el ID es TEMP- o MAT-, enviamos null para que el servidor no explote
+            const idLimpio = (existente && existente.id && !String(existente.id).startsWith('TEMP-') && !String(existente.id).startsWith('MAT-')) 
+                            ? existente.id 
+                            : null;
+
             const datosParaAtlas = {
-                materialId: (existente && !String(existente.id).startsWith('MAT-')) ? existente.id : null,
+                materialId: idLimpio, 
                 nombre: nombreReal,
                 cantidad_laminas: cant,
                 precio_total_lamina: costo,
@@ -596,8 +601,8 @@ if (formCompra) {
                 costo_total: costo * cant
             };
 
-            // --- BLOQUE REESCRITO CON FLEXIBILIDAD ---
-            const response = await fetch('/api/inventory/purchase', {
+            // --- 🚀 ENVÍO A ATLAS ---
+            const response = await fetch('/.netlify/functions/server/inventory/purchase', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(datosParaAtlas)
@@ -609,7 +614,7 @@ if (formCompra) {
                 throw new Error(resultadoAtlas.error || "Error en el servidor");
             }
 
-            // Detectamos el ID real de Atlas (buscamos en varias posiciones por seguridad)
+            // Detectamos el ID real de Atlas
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id || (resultadoAtlas.success ? `TEMP-${Date.now()}` : null);
 
             if (existente) {
@@ -618,14 +623,16 @@ if (formCompra) {
                 existente.precio_total_lamina = costo;
                 existente.nombre = nombreReal;
                 
-                // Si Atlas nos dio un ID real, reemplazamos el MAT- viejo
+                // Si Atlas nos dio un ID real, reemplazamos el ID local
                 if (idDeAtlas && !String(idDeAtlas).startsWith('TEMP-')) {
                     existente.id = idDeAtlas;
+                    existente._id = idDeAtlas; // Doble seguridad
                 }
             } else {
                 // CREAR NUEVO
                 existente = {
-                    id: idDeAtlas, // Usamos el ID de Atlas o el TEMP- preventivo
+                    id: idDeAtlas,
+                    _id: idDeAtlas,
                     nombre: nombreReal,
                     categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                     tipo: unidadFinal,
@@ -635,7 +642,6 @@ if (formCompra) {
                     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0)
                 };
 
-                // Si no hay ID de ningún tipo, ahí sí lanzamos error
                 if (!existente.id) {
                     throw new Error("Atlas no confirmó el registro. Intente nuevamente.");
                 }
@@ -643,7 +649,7 @@ if (formCompra) {
                 window.todosLosMateriales.unshift(existente);
             }
 
-            // --- CAJA DE SEGURIDAD REFORZADA ---
+            // --- 📦 CAJA DE SEGURIDAD REFORZADA (localStorage) ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             const index = pendientes.findIndex(p => p.nombre.toLowerCase() === nombreReal.toLowerCase());
             const datoASalvar = { ...existente, fechaCompra: new Date().toISOString() };
@@ -656,7 +662,7 @@ if (formCompra) {
             
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // Limpieza de lista negra
+            // Limpieza de lista negra de eliminados
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
             eliminados = eliminados.filter(id => id !== String(existente.id));
             localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
@@ -666,13 +672,15 @@ if (formCompra) {
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
             alert(`✅ Sincronizado con Atlas: ${nombreReal}`);
+            
+            // Cerrar modal y resetear
             const modal = document.getElementById('modalCompra');
             if(modal) modal.style.display = 'none';
             formulario.reset();
 
         } catch (error) {
             console.error("❌ Error:", error);
-            alert("⚠️ Se guardó localmente pero falló Atlas: " + error.message);
+            alert("⚠️ Error de Sincronización: " + error.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
