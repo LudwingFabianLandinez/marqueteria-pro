@@ -84,13 +84,15 @@ const getMaterials = async (req, res) => {
 const registerPurchase = async (req, res) => {
     try {
         const { 
-            materialId, nombre, proveedor,      
+            nombre, proveedor,      
             ancho_lamina_cm, largo_lamina_cm, 
             precio_total_lamina, cantidad_laminas,
             precio_venta_sugerido
         } = req.body;
 
-        // 🛡️ SEGURIDAD 1: Verificar conexión activa (Evita que Atlas ignore el envío)
+        let { materialId } = req.body; // Lo tomamos como let para poder limpiarlo
+
+        // 🛡️ SEGURIDAD 1: Verificar conexión activa
         if (mongoose.connection.readyState !== 1) {
             console.log("🔄 Re-conectando a Atlas...");
             await mongoose.connect(process.env.MONGODB_URI);
@@ -98,22 +100,30 @@ const registerPurchase = async (req, res) => {
 
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        // 🛡️ SEGURIDAD 2: Filtrar IDs temporales del frontend (Evita error 404)
-        const esIdValido = materialId && mongoose.Types.ObjectId.isValid(materialId) && materialId.length === 24;
+        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Para matar los TEMP- y MAT-)
+        // Si el ID no tiene 24 caracteres o es un ID temporal, lo anulamos
+        const esIdInvalido = !materialId || 
+                             String(materialId).startsWith('TEMP-') || 
+                             String(materialId).startsWith('MAT-') || 
+                             String(materialId).length !== 24;
+
+        if (esIdInvalido) {
+            materialId = null;
+        }
         
         let material = null;
-        if (esIdValido) {
+        if (materialId) {
             material = await Material.findById(materialId);
         }
         
-        // Búsqueda por nombre si no hay ID real (Asegura que no se dupliquen)
+        // Búsqueda por nombre si no hay ID real o si el ID no devolvió nada
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
             });
         }
 
-        // --- LÓGICA DE CÁLCULO ORIGINAL ---
+        // --- LÓGICA DE CÁLCULO ORIGINAL (INTACTA) ---
         const n = nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         

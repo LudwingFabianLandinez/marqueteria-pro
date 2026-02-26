@@ -11,17 +11,18 @@ const MaterialSchema = new mongoose.Schema({
         trim: true 
     },
     categoria: { 
-        type: String, 
-        required: true,
-        trim: true,
-        // Enum expandido para compatibilidad total con Atlas y Controlador
-        enum: [
-            'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
-            'Moldura', 'General', 'Otros', 
-            'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA' 
-        ],
-        default: 'Otros'
-    },
+    type: String, 
+    required: true,
+    trim: true,
+    // Enum expandido: No daña lo anterior y acepta lo nuevo
+    enum: [
+        'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
+        'Moldura', 'General', 'Otros', 
+        'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA',
+        'moldura', 'general', 'vidrio'
+    ],
+    default: 'Otros'
+},
     tipo: { 
         type: String, 
         enum: ['m2', 'ml'], 
