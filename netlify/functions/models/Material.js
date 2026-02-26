@@ -25,8 +25,11 @@ const MaterialSchema = new mongoose.Schema({
     },
     tipo: { 
         type: String, 
-        enum: ['m2', 'ml'], 
-        default: 'm2' 
+        // Eliminamos el enum estricto temporalmente para ver si el flujo se destraba
+        // o nos aseguramos de que siempre tenga un valor válido
+        default: 'm2',
+        trim: true,
+        lowercase: true
     },
     ancho_lamina_cm: { 
         type: Number, 

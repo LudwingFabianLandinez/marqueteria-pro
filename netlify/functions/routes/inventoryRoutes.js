@@ -18,30 +18,35 @@ const invoiceController = require('../controllers/invoiceController');
  * Mantenemos tu blindaje para asegurar que el 'tipo' sea compatible 
  * con los ENUMS del modelo antes de procesar la petición.
  */
+// 🛡️ MIDDLEWARE DE BLINDAJE TOTAL
 const normalizarDatosMaterial = (req, res, next) => {
+    console.log("🛠️ Iniciando blindaje de datos para Atlas...");
+    
     if (req.body) {
-        // 1. Limpieza de IDs (Aseguramos que no viajen basuras TEMP al controlador)
+        // 1. Forzar valores numéricos (Evita que Mongoose rechace la compra por datos vacíos)
+        req.body.ancho_lamina_cm = parseFloat(req.body.ancho_lamina_cm) || 0;
+        req.body.largo_lamina_cm = parseFloat(req.body.largo_lamina_cm) || 0;
+        req.body.precio_total_lamina = parseFloat(req.body.precio_total_lamina) || 0;
+
+        // 2. Asegurar Categoría (Tu modelo exige que esté en el ENUM)
+        let cat = String(req.body.categoria || '').trim();
+        // Si no viene categoría válida, ponemos 'General' que sí está en tu Enum de Material.js
+        if (!cat || cat === "") {
+            req.body.categoria = 'General'; 
+        }
+
+        // 3. Limpiar el Tipo (Debe ser estrictamente 'm2' o 'ml')
+        let t = String(req.body.tipo || '').toLowerCase().trim();
+        req.body.tipo = (t === 'ml' || t === 'm2') ? t : 'm2';
+
+        // 4. Limpieza de ID (Si es TEMP-, lo anulamos para que el controlador busque por nombre)
         if (req.body.materialId && String(req.body.materialId).startsWith('TEMP-')) {
-            req.body._id_original = req.body.materialId; // Guardamos el rastro por si acaso
-            req.body.materialId = null; 
-        }
-
-        // 2. Blindaje de Tipo (Solo corregimos si es estrictamente necesario)
-        if (req.body.tipo) {
-            const tipoOriginal = String(req.body.tipo).trim().toLowerCase();
-            // Solo cambiamos si el valor es "compra", si ya es m2 o ml lo dejamos quieto
-            if (tipoOriginal === 'compra' || tipoOriginal === 'purchase') {
-                req.body.tipo = req.body.unidad_medida || 'm2'; 
-            }
-        }
-
-        // 3. Limpieza de Categoría
-        if (req.body.categoria && String(req.body.categoria).trim() === "") {
-            delete req.body.categoria;
+            console.log("⚠️ ID TEMP detectado en Middleware, limpiando...");
+            req.body.materialId = null;
         }
     }
     
-    console.log("🧼 Middleware: Datos normalizados con éxito. Pasando al controlador...");
+    console.log("✅ Datos blindados con éxito. Pasando al controlador.");
     next();
 };
 
