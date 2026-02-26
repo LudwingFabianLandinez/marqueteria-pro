@@ -20,20 +20,28 @@ const invoiceController = require('../controllers/invoiceController');
  */
 const normalizarDatosMaterial = (req, res, next) => {
     if (req.body) {
-        // 1. Blindaje de Tipo (m2 / ml)
+        // 1. Limpieza de IDs (Aseguramos que no viajen basuras TEMP al controlador)
+        if (req.body.materialId && String(req.body.materialId).startsWith('TEMP-')) {
+            req.body._id_original = req.body.materialId; // Guardamos el rastro por si acaso
+            req.body.materialId = null; 
+        }
+
+        // 2. Blindaje de Tipo (Solo corregimos si es estrictamente necesario)
         if (req.body.tipo) {
             const tipoOriginal = String(req.body.tipo).trim().toLowerCase();
+            // Solo cambiamos si el valor es "compra", si ya es m2 o ml lo dejamos quieto
             if (tipoOriginal === 'compra' || tipoOriginal === 'purchase') {
-                req.body.tipo = 'm2'; // Fallback seguro para el modelo Material
+                req.body.tipo = req.body.unidad_medida || 'm2'; 
             }
         }
-        // 2. Blindaje de Categoría (Evita Error 500 por ENUM)
-        if (req.body.categoria) {
-            const cat = String(req.body.categoria).trim();
-            // Si llega algo vacío o no reconocido, el controlador usará el default del modelo
-            if (cat === "") delete req.body.categoria;
+
+        // 3. Limpieza de Categoría
+        if (req.body.categoria && String(req.body.categoria).trim() === "") {
+            delete req.body.categoria;
         }
     }
+    
+    console.log("🧼 Middleware: Datos normalizados con éxito. Pasando al controlador...");
     next();
 };
 
