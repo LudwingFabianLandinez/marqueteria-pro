@@ -1,6 +1,7 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
  * Controlador de Inventario - Versión 12.2.7 (FIX DUAL: MOLDURAS ML Y GENERAL M2)
+ * + DIAGNÓSTICO DE CONEXIÓN (Punto 3)
  */
 
 const mongoose = require('mongoose');
@@ -19,7 +20,13 @@ const getTransactionModel = () => {
  */
 const saveMaterial = async (req, res) => {
     try {
-        console.log("📥 Datos recibidos en saveMaterial:", req.body);
+        // 🕵️ DIAGNÓSTICO SAVE:
+        console.log("------------------------------------------");
+        console.log("📥 Datos recibidos en saveMaterial:", JSON.stringify(req.body));
+        console.log("🛰️ DB CONECTADA:", mongoose.connection.name);
+        console.log("📋 COLECCIONES:", Object.keys(mongoose.connection.collections));
+        console.log("------------------------------------------");
+
         const { 
             id, nombre, categoria, tipo, stock_actual, 
             precio_total_lamina, proveedor,
@@ -83,6 +90,13 @@ const getMaterials = async (req, res) => {
 // 2. Registrar compra - VERSIÓN DUAL REFORZADA
 const registerPurchase = async (req, res) => {
     try {
+        // 🕵️ DIAGNÓSTICO PURCHASE:
+        console.log("------------------------------------------");
+        console.log("🛰️ REGISTRANDO COMPRA EN DB:", mongoose.connection.name);
+        console.log("📋 COLECCIONES DISPONIBLES:", Object.keys(mongoose.connection.collections));
+        console.log("📦 DATA RECIBIDA:", req.body.nombre, "ID:", req.body.materialId);
+        console.log("------------------------------------------");
+
         const { 
             nombre, proveedor,      
             ancho_lamina_cm, largo_lamina_cm, 
