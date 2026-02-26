@@ -90,9 +90,9 @@ const registerPurchase = async (req, res) => {
             precio_venta_sugerido
         } = req.body;
 
-        let { materialId } = req.body; // Lo tomamos como let para poder limpiarlo
+        let { materialId } = req.body; // Lo definimos como let para poder limpiarlo
 
-        // 🛡️ SEGURIDAD 1: Verificar conexión activa
+        // 🛡️ SEGURIDAD 1: Verificar conexión activa (Evita que Atlas ignore el envío)
         if (mongoose.connection.readyState !== 1) {
             console.log("🔄 Re-conectando a Atlas...");
             await mongoose.connect(process.env.MONGODB_URI);
@@ -100,14 +100,15 @@ const registerPurchase = async (req, res) => {
 
         console.log(`📦 Procesando compra en Atlas: ${nombre}`);
 
-        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Para matar los TEMP- y MAT-)
-        // Si el ID no tiene 24 caracteres o es un ID temporal, lo anulamos
+        // 🛡️ SEGURIDAD 2: LIMPIEZA RADICAL DE ID (Basado en tus hallazgos de MAT- y TEMP-)
+        // Si el ID es temporal o inválido, lo anulamos para forzar búsqueda por nombre
         const esIdInvalido = !materialId || 
                              String(materialId).startsWith('TEMP-') || 
                              String(materialId).startsWith('MAT-') || 
                              String(materialId).length !== 24;
 
         if (esIdInvalido) {
+            console.log("⚠️ ID temporal detectado, se ignorará para buscar por nombre.");
             materialId = null;
         }
         
@@ -116,7 +117,7 @@ const registerPurchase = async (req, res) => {
             material = await Material.findById(materialId);
         }
         
-        // Búsqueda por nombre si no hay ID real o si el ID no devolvió nada
+        // Búsqueda por nombre si no hay ID real (Asegura que no se dupliquen en Atlas)
         if (!material && nombre) {
             material = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
@@ -151,7 +152,7 @@ const registerPurchase = async (req, res) => {
             if (material.largo_lamina_cm === 0) material.largo_lamina_cm = largo;
 
             await material.save();
-            console.log("✅ Atlas: Material actualizado.");
+            console.log("✅ Atlas: Material actualizado exitosamente.");
         } else {
             // CREAR NUEVO REGISTRO FÍSICO EN ATLAS
             material = new Material({
@@ -167,18 +168,15 @@ const registerPurchase = async (req, res) => {
             });
 
             await material.save();
-            console.log("✨ Atlas: Nuevo material creado con ID:", material._id);
+            console.log("✨ Atlas: Nuevo material creado físicamente con ID:", material._id);
         }
 
-        // --- RESPUESTA GARANTIZADA PARA EL FRONTEND ---
+        // --- RESPUESTA GARANTIZADA ---
+        // Enviamos el objeto de Atlas para que el frontend reemplace su TEMP- por el ID real
         return res.status(200).json({ 
             success: true, 
             message: "Sincronizado con Atlas",
-            data: {
-                ...material.toObject(),
-                _id: material._id.toString(),
-                id: material._id.toString()
-            }
+            data: material.toObject()
         });
 
     } catch (error) {
