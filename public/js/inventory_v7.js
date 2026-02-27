@@ -600,20 +600,21 @@ if (formCompra) {
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
             // 2. 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2)
+            // --- 🛡️ LÓGICA DE IDENTIDAD DE ALTO NIVEL (v15.3.3) ---
             const esAgregadoNuevo = (selectMat.value === "NUEVO");
 
-            // Limpiamos el ID: solo enviamos IDs reales de Atlas
-            const idLimpio = (existente && (existente._id || existente.id) && 
+            // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
+            let idLimpio = (existente && (existente._id || existente.id) && 
                              !String(existente._id || existente.id).startsWith('TEMP-') && 
                              !String(existente._id || existente.id).startsWith('MAT-')) 
                             ? (existente._id || existente.id) 
-                            : null;
+                            : (esAgregadoNuevo ? "NEW_MATERIAL" : null);
 
-            // 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS (La clave para evitar el Error 400)
+            // Construcción del objeto para Atlas
             const datosParaAtlas = {
-                materialId: idLimpio, 
+                materialId: idLimpio, // Enviamos "NEW_MATERIAL" en lugar de null
                 nombre: nombreReal,
-                esNuevo: esAgregadoNuevo || (idLimpio === null), // SEÑAL CRUCIAL
+                esNuevo: esAgregadoNuevo || (idLimpio === "NEW_MATERIAL"),
                 categoria: esAgregadoNuevo ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
                 cantidad_laminas: cant,
                 precio_total_lamina: costo,
@@ -633,7 +634,7 @@ if (formCompra) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(datosParaAtlas)
             });
-            
+
             const textoRespuesta = await response.text();
             let resultadoAtlas;
             
