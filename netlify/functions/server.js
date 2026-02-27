@@ -1,8 +1,8 @@
 /**
  * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Módulo de Servidor (Netlify Function) - Versión v13.4.45 (BLINDADA)
+ * Módulo de Servidor (Netlify Function) - Versión v13.8.0 (BLINDADA + PROVIDERS)
  * Blindaje: Estructura visual, cálculos m2 y consecutivos OT 100% INTACTOS.
- * Reparación: Estabilización de /inventory/purchase para eliminar Error 500.
+ * Reparación: Ruta POST /providers activada para guardado en Atlas.
  */
 
 const express = require('express');
@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v13.4.45 vinculados y registrados exitosamente");
+console.log("📦 Modelos v13.8.0 vinculados y registrados exitosamente");
 
 const app = express();
 
@@ -39,22 +39,38 @@ app.use((req, res, next) => {
     req.url = req.url.replace(/\/+/g, '/');
     if (!req.url || req.url === '') req.url = '/';
     
-    console.log(`📡 [v13.4.45] ${req.method} -> ${req.url}`);
+    console.log(`📡 [v13.8.0] ${req.method} -> ${req.url}`);
     next();
 });
 
-// 4. GESTIÓN DE CONEXIÓN DB (ESTABILIZADA)
+// 4. GESTIÓN DE CONEXIÓN DB (ESTABILIZADA v13.8.0)
 let isConnected = false;
 const connect = async () => {
-    if (isConnected && mongoose.connection.readyState === 1) return;
+    if (mongoose.connection.readyState === 1) {
+        isConnected = true;
+        return;
+    }
+    
     try {
         mongoose.set('bufferCommands', false); 
         mongoose.set('strictQuery', false);
-        await connectDB();
+        
+        const dbUri = process.env.MONGODB_URI;
+        
+        if (dbUri) {
+            await mongoose.connect(dbUri, {
+                useNewUrlParser: true,
+                useUnifiedTopology: true,
+                serverSelectionTimeoutMS: 5000
+            });
+        } else {
+            await connectDB();
+        }
+        
         isConnected = true;
-        console.log("🟢 Conexión activa con MongoDB Atlas");
+        console.log("🟢 Conexión activa con MongoDB Atlas (Virginia)");
     } catch (err) {
-        console.error("🚨 Error en conexión DB:", err.message);
+        console.error("🚨 Error crítico en conexión DB:", err.message);
         isConnected = false;
         throw err;
     }
@@ -67,13 +83,10 @@ try {
     // --- RUTA DE SINCRONIZACIÓN DE FAMILIAS (INTACTA) ---
     router.get('/quotes/materials', async (req, res) => {
     try {
-        // REFUERZO: Traemos todo lo que no esté inactivo Y que tenga nombre (elimina fantasmas)
         const materiales = await Material.find({ 
             estado: { $ne: 'Inactivo' },
             nombre: { $exists: true, $ne: "" } 
         }).sort({ nombre: 1 }).lean();
-        
-        console.log("📦 Total materiales reales recuperados:", materiales.length);
         
         const normalizar = (texto) => texto ? texto.toLowerCase().trim() : "";
         
@@ -81,7 +94,6 @@ try {
             ...m, 
             costo_m2: m.costo_m2 || m.precio_m2_costo || 0, 
             id: m._id,
-            // SINCRONIZACIÓN: Forzamos que 'unidad' sea lo que diga el campo 'tipo'
             unidad: (m.tipo || "m2").toLowerCase() 
         }));
 
@@ -97,16 +109,8 @@ try {
             marcos: materialesMapeados.filter(m => {
                 const n = normalizar(m.nombre); 
                 const c = normalizar(m.categoria);
-                const u = normalizar(m.unidad); // Ahora sí viene de m.tipo
-                
-                // BLINDAJE TOTAL:
-                return c.includes('marco') || 
-                       c.includes('moldura') ||
-                       n.includes('marco') || 
-                       n.includes('moldura') || 
-                       n.includes('madera') || 
-                       n.includes('2312') || 
-                       u === 'ml'; // <--- El salvavidas para la MP K 2312
+                const u = normalizar(m.unidad);
+                return c.includes('marco') || c.includes('moldura') || n.includes('marco') || n.includes('moldura') || n.includes('madera') || n.includes('2312') || u === 'ml';
             }),
             paspartu: materialesMapeados.filter(m => {
                 const n = normalizar(m.nombre);
@@ -120,7 +124,6 @@ try {
         
         res.json({ success: true, count: materiales.length, data });
     } catch (error) {
-        console.error("🚨 Error en server.js:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -202,7 +205,7 @@ try {
         }
     });
 
-    // --- PROVEEDORES ---
+    // --- PROVEEDORES (LECTURA Y GUARDADO CORREGIDO) ---
     router.get('/providers', async (req, res) => {
         try {
             const proveedores = await Provider.find().sort({ nombre: 1 }).lean();
@@ -212,63 +215,68 @@ try {
         }
     });
 
+    // RUTA NUEVA: Esta es la que guarda a Distribuidora Virginia
+    router.post('/providers', async (req, res) => {
+        try {
+            const data = req.body;
+            let resultado;
+            const id = data._id || data.id;
+
+            if (id && id.length > 5) {
+                resultado = await Provider.findByIdAndUpdate(id, { $set: data }, { new: true });
+            } else {
+                delete data.id; delete data._id; // Limpiar IDs vacíos
+                resultado = new Provider(data);
+                await resultado.save();
+            }
+            res.json({ success: true, data: resultado });
+        } catch (error) {
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
+
     // --- INVENTARIO ---
-    // --- INVENTARIO UNIFICADO (LECTURA Y GUARDADO) ---
-
-// A. Leer Inventario (Ya lo tienes)
-router.get('/inventory', async (req, res) => {
-    try {
-        const materiales = await Material.find().sort({ nombre: 1 }).lean();
-        res.json(materiales);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// B. Guardar/Editar desde la misma ruta base (CIRUGÍA MAYOR)
-router.post('/inventory/save', async (req, res) => {
-    try {
-        const { id, ...datos } = req.body;
-        let resultado;
-
-        if (id && id.length > 5) {
-            // Si hay ID, es una edición (como tu 36 de stock mínimo)
-            resultado = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
-        } else {
-            // Si no hay ID, es uno nuevo
-            resultado = new Material(datos);
-            await resultado.save();
+    router.get('/inventory', async (req, res) => {
+        try {
+            const materiales = await Material.find().sort({ nombre: 1 }).lean();
+            res.json(materiales);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
         }
+    });
 
-        res.json({ success: true, data: resultado });
-    } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
-    }
-});
+    router.post('/inventory/save', async (req, res) => {
+        try {
+            const { id, ...datos } = req.body;
+            let resultado;
+            if (id && id.length > 5) {
+                resultado = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
+            } else {
+                resultado = new Material(datos);
+                await resultado.save();
+            }
+            res.json({ success: true, data: resultado });
+        } catch (error) {
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
 
-    // 2. Ruta para EDITAR material existente
     router.put('/materials/:id', async (req, res) => {
-    try {
-        // Aseguramos que el stock_minimo sea un número real antes de enviarlo a la DB
-        if (req.body.stock_minimo !== undefined) {
-            req.body.stock_minimo = parseFloat(req.body.stock_minimo);
+        try {
+            if (req.body.stock_minimo !== undefined) {
+                req.body.stock_minimo = parseFloat(req.body.stock_minimo);
+            }
+            const actualizado = await Material.findByIdAndUpdate(
+                req.params.id, 
+                { $set: req.body }, 
+                { new: true, runValidators: false }
+            );
+            if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
+            res.json({ success: true, data: actualizado });
+        } catch (error) {
+            res.status(400).json({ success: false, error: error.message });
         }
-
-        const actualizado = await Material.findByIdAndUpdate(
-            req.params.id, 
-            { $set: req.body }, // Usamos $set para ser más precisos
-            { new: true, runValidators: false } // Desactivamos validaciones que puedan bloquear el 36
-        );
-
-        if (!actualizado) return res.status(404).json({ success: false, error: "No encontrado" });
-        
-        console.log(`✅ Material ${actualizado.nombre} actualizado. Nuevo Stock Mínimo: ${actualizado.stock_minimo}`);
-        res.json({ success: true, data: actualizado });
-    } catch (error) {
-        console.error("❌ Error al actualizar material:", error.message);
-        res.status(400).json({ success: false, error: error.message });
-    }
-});
+    });
 
     // --- REPORTE DE COMPRAS (INTACTO) ---
     router.get('/inventory/all-purchases', async (req, res) => {
@@ -277,16 +285,14 @@ router.post('/inventory/save', async (req, res) => {
                 $or: [{ tipo: 'IN' }, { cantidad: { $gt: 0 } }, { cantidad_m2: { $gt: 0 } }]
             }).sort({ fecha: -1 }).limit(100).lean();
 
-            const dataMapeada = compras.map(c => {
-                return {
-                    fecha: c.fecha || new Date(),
-                    materialId: { nombre: c.materialNombre || "Ingreso de Material" },
-                    proveedorId: { nombre: c.proveedorNombre || "Proveedor General" },
-                    cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
-                    costo_total: parseFloat(c.costo_total || c.total || 0),
-                    motivo: c.materialNombre || "Ingreso"
-                };
-            });
+            const dataMapeada = compras.map(c => ({
+                fecha: c.fecha || new Date(),
+                materialId: { nombre: c.materialNombre || "Ingreso de Material" },
+                proveedorId: { nombre: c.proveedorNombre || "Proveedor General" },
+                cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
+                costo_total: parseFloat(c.costo_total || c.total || 0),
+                motivo: c.materialNombre || "Ingreso"
+            }));
             res.json({ success: true, count: dataMapeada.length, data: dataMapeada });
         } catch (error) {
             res.json({ success: true, data: [] });
@@ -297,24 +303,16 @@ router.post('/inventory/save', async (req, res) => {
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId, proveedorNombre } = req.body;
-            
-            // Cálculos blindados
             const areaTotalIngreso = (parseFloat(largo || 0) * parseFloat(ancho || 0) / 10000) * parseFloat(cantidad || 0);
             const valorTotalCalculado = parseFloat(valorUnitario || 0) * parseFloat(cantidad || 0);
 
-            // Ejecución secuencial para evitar race conditions que causan el 500
             const matAct = await Material.findByIdAndUpdate(materialId, { 
                 $inc: { stock_actual: areaTotalIngreso },
-                $set: { 
-                    ultimo_costo: parseFloat(valorUnitario), 
-                    fecha_ultima_compra: new Date(), 
-                    proveedor_principal: proveedorId 
-                }
+                $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
             }, { new: true }).lean();
 
             const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
-            // Creación del registro con fallback de seguridad
             const registro = new Transaction({
                 tipo: 'IN',
                 materialId: materialId,
@@ -324,28 +322,15 @@ router.post('/inventory/save', async (req, res) => {
                 cantidad: areaTotalIngreso,     
                 cantidad_m2: areaTotalIngreso,  
                 costo_unitario: valorUnitario,
-                total: valorTotalCalculado,       
+                total: valorTotalCalculado,           
                 costo_total: valorTotalCalculado, 
                 fecha: new Date()
             });
 
-            // Guardado forzado sin validaciones que bloqueen el hilo
             await registro.save({ validateBeforeSave: false });
-            
-            return res.status(200).json({ 
-                success: true, 
-                nuevoStock: matAct ? matAct.stock_actual : 0, 
-                ingreso_m2: areaTotalIngreso 
-            });
-
+            return res.status(200).json({ success: true, nuevoStock: matAct ? matAct.stock_actual : 0 });
         } catch (error) {
-            console.error("🚨 Error crítico en Purchase:", error.message);
-            // Si falla la DB, devolvemos un 200 falso pero con éxito false para que el Frontend active el Rescate Local
-            return res.status(200).json({ 
-                success: false, 
-                error: "Fallo de escritura, activando respaldo local",
-                localRescue: true 
-            });
+            return res.status(200).json({ success: false, localRescue: true });
         }
     });
 
@@ -353,7 +338,6 @@ router.post('/inventory/save', async (req, res) => {
     console.error(`🚨 Error vinculando rutas: ${error.message}`);
 }
 
-// --- RUTA PARA ELIMINAR FACTURAS (Añadir esto) ---
 router.delete('/invoices/:id', async (req, res) => {
     try {
         await Invoice.findByIdAndDelete(req.params.id);
@@ -363,7 +347,6 @@ router.delete('/invoices/:id', async (req, res) => {
     }
 });
 
-// 6. MONTAJE DE RUTAS
 router.post('/fix-material-data/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -374,20 +357,17 @@ router.post('/fix-material-data/:id', async (req, res) => {
             precio_total_lamina: req.body.precio_total_lamina,
             stock_minimo: req.body.stock_minimo
         };
-
         const materialActualizado = await Material.findByIdAndUpdate(id, { $set: update }, { new: true });
-        console.log("Actualizado:", materialActualizado.stock_minimo); 
         res.json({ success: true, data: materialActualizado });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
 });
 
-// 6. MONTAJE DE RUTAS (SOLO UNA VEZ Y AL FINAL)
+// 6. MONTAJE DE RUTAS
 app.use('/', router);
 
 const handler = serverless(app);
-
 
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;

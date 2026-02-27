@@ -174,10 +174,15 @@ async function fetchProviders() {
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
+    // 1. UI: Feedback visual inmediato
     const btnGuardar = event.submitter || document.querySelector('#provForm button[type="submit"]');
     const originalText = btnGuardar ? btnGuardar.innerHTML : 'GUARDAR';
-    if(btnGuardar) { btnGuardar.disabled = true; btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+    if(btnGuardar) { 
+        btnGuardar.disabled = true; 
+        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...'; 
+    }
 
+    // 2. Captura de datos (Tu estructura original intacta)
     const payload = {
         nombre: document.getElementById('provNombre')?.value.trim() || "",
         nit: document.getElementById('provNit')?.value.trim() || "",
@@ -190,24 +195,50 @@ window.guardarProveedor = async function(event) {
 
     if (!payload.nombre) {
         if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
-        return alert("El nombre es obligatorio");
+        return alert("⚠️ El nombre del proveedor es obligatorio");
     }
 
     try {
-        const res = await window.API.saveProvider(payload);
-        if (res.success) {
-            alert("✅ Proveedor guardado correctamente");
+        console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
+        
+        // 3. PUENTE DIRECTO (Sustituye a window.API para evitar el 404)
+        const url = `${window.API_URL || ''}/providers`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const res = await response.json();
+
+        if (res.success || response.ok) {
+            alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
             document.getElementById('provForm')?.reset();
-            window.cerrarModales();
+            
+            // Cerrar modal si existe la función
+            if (typeof window.cerrarModales === 'function') {
+                window.cerrarModales();
+            } else {
+                // Fallback manual para cerrar modal
+                const modal = document.getElementById('modalProveedor');
+                if(modal) modal.style.display = 'none';
+            }
+            
+            // Refrescar lista de proveedores
             await fetchProviders(); 
+            
         } else {
-            alert("❌ Error: " + (res.message || "No se pudo guardar"));
+            throw new Error(res.error || res.message || "Error en el servidor");
         }
+
     } catch (error) { 
-        console.error("Error al guardar proveedor:", error);
-        alert("❌ Error de conexión al guardar proveedor"); 
+        console.error("🚨 Error crítico al guardar proveedor:", error);
+        alert("❌ Error: No se pudo conectar con el servidor. El cambio se aplicará al subir el código."); 
     } finally {
-        if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
+        if(btnGuardar) { 
+            btnGuardar.disabled = false; 
+            btnGuardar.innerHTML = originalText; 
+        }
     }
 };
 
