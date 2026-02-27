@@ -607,16 +607,21 @@ if (formCompra) {
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
 // --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.6) ---
 // Usamos "" en lugar de null para que el servidor no aborte por "dato inválido"
-const idLimpio = (existente && (existente._id || existente.id) && 
-                 !String(existente._id || existente.id).startsWith('TEMP-') && 
-                 !String(existente._id || existente.id).startsWith('MAT-')) 
-                ? (existente._id || existente.id) 
-                : ""; 
+// --- 🛡️ LIMPIEZA DE ID (v15.3.8 - VERSIÓN FINAL SIN ERRORES) ---
+// 1. Buscamos el ID real de Atlas, si no existe o es temporal, queda como null internamente
+const idAtlasReal = (existente && (existente._id || existente.id) && 
+                    !String(existente._id || existente.id).startsWith('TEMP-') && 
+                    !String(existente._id || existente.id).startsWith('MAT-')) 
+                   ? (existente._id || existente.id) 
+                   : null;
 
+// 2. Definimos si es nuevo antes de construir el objeto
+const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
+
+// 3. Construimos el objeto base SIN el materialId inicialmente
 const datosParaAtlas = {
-    materialId: idLimpio, // Si es nuevo, viaja como "" (cadena vacía)
     nombre: nombreReal,
-    esNuevo: (idLimpio === ""), // Si está vacío, es creación nueva
+    esNuevo: esNuevoMaterial,
     cantidad_laminas: cant,
     precio_total_lamina: costo,
     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
@@ -626,9 +631,9 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// LIMPIEZA FINAL: Si es nuevo, eliminamos el campo materialId para que no viaje como "null"
-if (datosParaAtlas.esNuevo) {
-    delete datosParaAtlas.materialId;
+// 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
+if (!esNuevoMaterial && idAtlasReal) {
+    datosParaAtlas.materialId = idAtlasReal;
 }
 
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
