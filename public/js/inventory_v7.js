@@ -260,6 +260,7 @@ window.guardarProveedor = async function(event) {
 
 async function fetchInventory() {
     try {
+        // --- 🛡️ CONEXIÓN ATLAS (PRESERVADA AL 100%) ---
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
@@ -267,12 +268,12 @@ async function fetchInventory() {
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const moldurasPendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
 
-        // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Preservando tu lógica)
+        // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Tu lógica original intacta)
         const materialesMapeados = datosServidor.map(m => {
+            const idReal = m._id || m.id; // Extraemos el ID una sola vez
             return {
                 ...m,
-                id: m._id || m.id,
-                // ESCUDO: Si no hay nombre, evitamos el undefined
+                id: idReal,
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
@@ -286,45 +287,54 @@ async function fetchInventory() {
             };
         });
 
-        // 3. RECONCILIACIÓN POR NOMBRE (Con protección contra errores de toLowerCase)
+        // 3. RECONCILIACIÓN POR NOMBRE (Protección total contra toLowerCase)
         window.todosLosMateriales = materialesMapeados.map(mServidor => {
-            // ESCUDO: Usamos (mServidor.nombre || "") para que el toLowerCase nunca falle
-            const nombreServidor = (mServidor.nombre || "").toLowerCase();
+            const nombreServidor = (mServidor.nombre || "").toLowerCase().trim();
             
             const compraReciente = moldurasPendientes.find(p => 
-                (p.nombre || "").toLowerCase() === nombreServidor
+                (p.nombre || "").toLowerCase().trim() === nombreServidor
             );
 
             if (compraReciente) {
-                return { ...mServidor, ...compraReciente };
+                // Si hay compra reciente, priorizamos esos datos pero mantenemos el ID de Atlas
+                return { ...mServidor, ...compraReciente, id: mServidor.id };
             }
             return mServidor;
         });
 
-        // Agregamos materiales nuevos con la misma protección
+        // Agregar materiales nuevos que aún no están en el servidor
         moldurasPendientes.forEach(p => {
-            const nombrePendiente = (p.nombre || "").toLowerCase();
+            const nombrePendiente = (p.nombre || "").toLowerCase().trim();
             const yaExisteEnLista = window.todosLosMateriales.some(m => 
-                (m.nombre || "").toLowerCase() === nombrePendiente
+                (m.nombre || "").toLowerCase().trim() === nombrePendiente
             );
             
-            if (!yaExisteEnLista) {
+            if (!yaExisteEnLista && nombrePendiente !== "") {
                 window.todosLosMateriales.push(p);
             }
         });
 
-        // 4. FILTRADO FINAL
+        // 4. FILTRADO FINAL (🛡️ CORRECCIÓN PARA QUE NO DESAPAREZCAN)
         window.todosLosMateriales = window.todosLosMateriales.filter(m => {
-            const noEstaEliminado = !eliminados.includes(String(m.id));
-            // Solo mostramos si tiene un nombre real
+            // Si el ID no existe (material nuevo), permitimos que pase. 
+            // Si existe, verificamos que no esté en la lista de eliminados.
+            const noEstaEliminado = m.id ? !eliminados.includes(String(m.id)) : true;
+            
             const nombreLimpio = (m.nombre || "").trim();
             const tieneNombreValido = nombreLimpio !== "" && nombreLimpio !== "Sin nombre";
+            
             return noEstaEliminado && tieneNombreValido;
         });
         
         // 5. ACTUALIZACIÓN DE VISTA Y CACHÉ
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-        renderTable(window.todosLosMateriales);
+        
+        // Verificamos que renderTable exista antes de llamarla
+        if (typeof renderTable === 'function') {
+            renderTable(window.todosLosMateriales);
+        } else {
+            console.warn("⚠️ renderTable no está definida");
+        }
         
         if (typeof actualizarDatalistMateriales === 'function') {
             actualizarDatalistMateriales();
@@ -334,10 +344,10 @@ async function fetchInventory() {
             window.cargarListasModal();
         }
         
-        console.log("✅ Inventario sincronizado y protegido contra errores de nombre");
+        console.log("✅ Sincronización completa. Materiales en tabla:", window.todosLosMateriales.length);
 
     } catch (error) { 
-        console.error("❌ Error inventario:", error); 
+        console.error("❌ Error crítico en inventario:", error); 
     }
 }
 
