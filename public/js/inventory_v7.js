@@ -595,29 +595,31 @@ if (formCompra) {
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
             // --- 🛡️ LIMPIEZA DE ID ---
-            const idLimpio = (existente && existente.id && !String(existente.id).startsWith('TEMP-') && !String(existente.id).startsWith('MAT-')) 
-                            ? existente.id 
-                            : null;
+            // --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.1) ---
+// Verificamos tanto ._id (Atlas) como .id (Local/Mapeado)
+const idLimpio = (existente && (existente._id || existente.id) && 
+                 !String(existente._id || existente.id).startsWith('TEMP-') && 
+                 !String(existente._id || existente.id).startsWith('MAT-')) 
+                ? (existente._id || existente.id) 
+                : null;
 
-            const datosParaAtlas = {
-                materialId: idLimpio, 
-                nombre: nombreReal,
-                cantidad_laminas: cant,
-                precio_total_lamina: costo,
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costo * cant,
-                timestamp: new Date().toISOString()
-            };
+const datosParaAtlas = {
+    materialId: idLimpio, // <--- Ahora sí viajará el ID 67b8...
+    nombre: nombreReal,
+    cantidad_laminas: cant,
+    precio_total_lamina: costo,
+    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costo * cant,
+    timestamp: new Date().toISOString()
+};
 
             // --- 🚀 RUTA DE CONEXIÓN ---
-            const ES_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const URL_FINAL = ES_LOCAL 
-                ? 'http://localhost:3000/api/inventory/purchase' 
-                : '/.netlify/functions/server/inventory/purchase';
+            // --- 🚀 RUTA DE CONEXIÓN (UNIFICADA) ---
+const URL_FINAL = `${window.API_URL}/inventory/purchase`;
 
-            console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL);
+console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL);
 
             const response = await fetch(URL_FINAL, {
                 method: 'POST',
@@ -638,26 +640,29 @@ if (formCompra) {
                 throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
             }
 
-            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
-            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+           // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
+const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
 
-            if (existente) {
-                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                if (idDeAtlas) {
-                    existente.id = idDeAtlas;
-                    existente._id = idDeAtlas;
-                }
-            } else {
-                existente = {
-                    id: idDeAtlas || `TEMP-${Date.now()}`,
-                    nombre: nombreReal,
-                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                    tipo: unidadFinal,
-                    stock_actual: stockASumar,
-                    precio_total_lamina: costo
-                };
-                window.todosLosMateriales.unshift(existente);
-            }
+if (existente) {
+    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+    if (idDeAtlas) {
+        existente._id = idDeAtlas; // Sincronizamos ID de Atlas
+        existente.id = idDeAtlas;
+    }
+} else {
+    // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
+    const nuevoMaterial = {
+        _id: idDeAtlas,
+        id: idDeAtlas || `TEMP-${Date.now()}`,
+        nombre: nombreReal,
+        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+        stock_actual: stockASumar,
+        precio_total_lamina: costo,
+        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
+    };
+    window.todosLosMateriales.unshift(nuevoMaterial);
+}
 
             // --- 📦 PERSISTENCIA LOCAL ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
