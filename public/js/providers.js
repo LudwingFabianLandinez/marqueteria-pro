@@ -5,7 +5,9 @@
  */
 
 // Definición segura de la URL de la API - Ajustada para Netlify/Local
-const BASE_URL_API = (window.API && window.API.url) ? window.API.url : '/.netlify/functions/server';
+const BASE_URL_API = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/.netlify/functions/server' 
+    : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE REGISTRO ---
