@@ -24,8 +24,12 @@ console.log("📦 Modelos v13.8.0 vinculados y registrados exitosamente");
 
 const app = express();
 
-// 2. MIDDLEWARES INICIALES
-app.use(cors({ origin: '*' }));
+// 2. MIDDLEWARES INICIALES (AJUSTE CORS PARA ATLAS)
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -43,13 +47,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// 4. GESTIÓN DE CONEXIÓN DB (ESTABILIZADA v13.8.0)
-// 4. GESTIÓN DE CONEXIÓN DB (FORZADA v13.9.0)
+// 4. GESTIÓN DE CONEXIÓN DB (FORZADA v13.9.0 - MEJORADA)
 let isConnected = false;
 const connect = async () => {
-    // Si ya estamos conectados, verificamos que sea a la base de datos correcta
     if (mongoose.connection.readyState === 1) {
-        // Si el nombre de la DB no coincide con lo esperado, cerramos para re-conectar
         if (!mongoose.connection.db.databaseName.includes('V2')) {
             console.log("⚠️ Detectada DB antigua, cerrando conexión...");
             await mongoose.disconnect();
@@ -60,14 +61,14 @@ const connect = async () => {
     
     try {
         mongoose.set('strictQuery', false);
-        const dbUri = process.env.MONGODB_URI; // LA QUE PUSISTE EN NETLIFY
+        const dbUri = process.env.MONGODB_URI; 
         
         console.log("📡 Intentando conectar a Atlas V2...");
         
         await mongoose.connect(dbUri, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 10000, // Más tiempo para evitar el error 500
+            serverSelectionTimeoutMS: 15000, // Aumentado para mayor estabilidad
             heartbeatFrequencyMS: 2000
         });
         
