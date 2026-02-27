@@ -282,10 +282,21 @@ router.get('/inventory/all-purchases', async (req, res) => {
 });
 
 // --- REGISTRO DE COMPRA (CORREGIDO PARA ATLAS) ---
+// --- REGISTRO DE COMPRA (BLINDAJE TOTAL + SINCRONIZACIÓN ATLAS) ---
 router.post('/inventory/purchase', async (req, res) => {
     try {
-        // Aseguramos que los nombres coincidan con lo que envía el frontend
+        // 1. Captura de ID con validación de seguridad para evitar registros huérfanos
         const materialId = req.body.materialId;
+        
+        if (!materialId || materialId === 'null' || materialId === 'undefined') {
+            console.error("🚨 Intento de compra sin materialId válido");
+            return res.status(400).json({ 
+                success: false, 
+                error: "ID de material no proporcionado o inválido. La actualización de stock fue abortada." 
+            });
+        }
+
+        // 2. Mantenemos tus nombres de variables y lógica de fallback (Frontend compatible)
         const cantidad = parseFloat(req.body.cantidad_laminas || req.body.cantidad || 0);
         const largo = parseFloat(req.body.largo_lamina_cm || req.body.largo || 0);
         const ancho = parseFloat(req.body.ancho_lamina_cm || req.body.ancho || 0);
@@ -293,9 +304,11 @@ router.post('/inventory/purchase', async (req, res) => {
         const proveedorId = req.body.proveedorId;
         const proveedorNombre = req.body.proveedorNombre;
 
+        // 3. Cálculos m2 intactos
         const areaTotalIngreso = (largo * ancho / 10000) * cantidad;
         const valorTotalCalculado = valorUnitario * cantidad;
 
+        // 4. Actualización del Material (Crucial: sin esto no aparece en colección materiales)
         const matAct = await Material.findByIdAndUpdate(materialId, { 
             $inc: { stock_actual: areaTotalIngreso },
             $set: { 
@@ -308,8 +321,17 @@ router.post('/inventory/purchase', async (req, res) => {
             }
         }, { new: true });
 
+        // Si el material no existe en Atlas, detenemos el proceso
+        if (!matAct) {
+            return res.status(404).json({ 
+                success: false, 
+                error: `El material con ID ${materialId} no fue encontrado en la base de datos.` 
+            });
+        }
+
         const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
+        // 5. Registro de Transacción (Sincronizado con el éxito del paso anterior)
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
@@ -338,7 +360,7 @@ router.post('/inventory/purchase', async (req, res) => {
     }
 });
 
-// --- RUTAS DE MANTENIMIENTO ---
+// --- RUTAS DE MANTENIMIENTO (INTACTAS) ---
 router.delete('/invoices/:id', async (req, res) => {
     try {
         await Invoice.findByIdAndDelete(req.params.id);
