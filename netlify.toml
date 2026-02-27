@@ -1,16 +1,26 @@
 [build]
-  # CAMBIO VITAL: Tus archivos HTML viven dentro de 'public'
   publish = "public"
   functions = "netlify/functions"
 
+# 1. PERMISOS DE PUERTA ABIERTA (CORS)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+
+# 2. PRIORIDAD A LA API (Para que Virginia llegue al servidor)
 [[redirects]]
-  from = "/api/*"
+  from = "/.netlify/functions/server/*"
   to = "/.netlify/functions/server/:splat"
   status = 200
   force = true
 
-# Si alguien entra a la raíz, mándalo al dashboard que está en public
+# 3. REDIRECCIÓN DE SEGURIDAD PARA HTML
+# Solo redireccionamos si NO es una ruta de función
 [[redirects]]
   from = "/*"
   to = "/dashboard.html"
   status = 200
+  force = false

@@ -25,12 +25,19 @@ console.log("📦 Modelos v13.8.0 vinculados y registrados exitosamente");
 const app = express();
 
 // 2. MIDDLEWARES INICIALES (AJUSTE CORS PARA ATLAS)
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(express.json({ limit: '10mb' })); 
+// 2. MIDDLEWARES INICIALES (FUERZA BRUTA CORS)
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.header('Allow', 'GET, POST, OPTIONS, PUT, DELETE');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).send();
+    }
+    next();
+});
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 3. NORMALIZACIÓN DE URL (MANTENIDA)
