@@ -9,6 +9,9 @@ const BASE_URL_API = window.location.hostname === 'localhost'
     ? 'http://localhost:3000/.netlify/functions/server' 
     : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
 
+// Y añadimos esta línea abajo para que todo el sistema esté sincronizado:
+window.API_URL = BASE_URL_API;
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE REGISTRO ---
     const supplierForm = document.getElementById('supplierForm');
