@@ -605,17 +605,18 @@ if (formCompra) {
 
             // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
+// --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.6) ---
+// Usamos "" en lugar de null para que el servidor no aborte por "dato inválido"
 const idLimpio = (existente && (existente._id || existente.id) && 
                  !String(existente._id || existente.id).startsWith('TEMP-') && 
                  !String(existente._id || existente.id).startsWith('MAT-')) 
                 ? (existente._id || existente.id) 
-                : null;
+                : ""; 
 
 const datosParaAtlas = {
-    materialId: idLimpio, 
+    materialId: idLimpio, // Si es nuevo, viaja como "" (cadena vacía)
     nombre: nombreReal,
-    // AGREGAMOS ESTO: Si el ID es null, le decimos a Atlas que es una creación nueva
-    esNuevo: (idLimpio === null), 
+    esNuevo: (idLimpio === ""), // Si está vacío, es creación nueva
     cantidad_laminas: cant,
     precio_total_lamina: costo,
     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
