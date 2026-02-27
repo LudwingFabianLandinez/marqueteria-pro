@@ -229,4 +229,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.6.1 - Forzando reinicio de ruteo (Virginia)");
+console.log("🛡️ API v13.7.0 - VEREDICTO FINAL: Reintento de Conexión Activo");
