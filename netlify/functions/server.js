@@ -311,19 +311,31 @@ try {
     });
 
     // --- REGISTRO DE COMPRA (ESTABILIZACIÓN ANTIFALLO 500) ---
+    // --- REGISTRO DE COMPRA (PASO 2: SINCRONIZACIÓN TOTAL ATLAS) ---
     router.post('/inventory/purchase', async (req, res) => {
         try {
             const { materialId, cantidad, largo, ancho, valorUnitario, proveedorId, proveedorNombre } = req.body;
+            
+            // Calculamos el área del ingreso actual
             const areaTotalIngreso = (parseFloat(largo || 0) * parseFloat(ancho || 0) / 10000) * parseFloat(cantidad || 0);
             const valorTotalCalculado = parseFloat(valorUnitario || 0) * parseFloat(cantidad || 0);
 
+            // ACTUALIZACIÓN DEL MATERIAL: Ahora incluimos ancho, largo y precio para que Atlas no guarde ceros
             const matAct = await Material.findByIdAndUpdate(materialId, { 
                 $inc: { stock_actual: areaTotalIngreso },
-                $set: { ultimo_costo: parseFloat(valorUnitario), fecha_ultima_compra: new Date(), proveedor_principal: proveedorId }
-            }, { new: true }).lean();
+                $set: { 
+                    ancho_lamina_cm: parseFloat(ancho),
+                    largo_lamina_cm: parseFloat(largo),
+                    precio_total_lamina: parseFloat(valorUnitario), // Precio de la lámina comprada
+                    ultimo_costo: parseFloat(valorUnitario),
+                    fecha_ultima_compra: new Date(), 
+                    proveedor_principal: proveedorId 
+                }
+            }, { new: true }); // Quitamos .lean() para que se disparen los Hooks del Paso 1
 
             const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
+            // REGISTRO DE TRANSACCIÓN: Historial impecable en Atlas
             const registro = new Transaction({
                 tipo: 'IN',
                 materialId: materialId,
@@ -339,9 +351,18 @@ try {
             });
 
             await registro.save({ validateBeforeSave: false });
-            return res.status(200).json({ success: true, nuevoStock: matAct ? matAct.stock_actual : 0 });
+
+            // Respuesta exitosa sincronizada
+            return res.status(200).json({ 
+                success: true, 
+                nuevoStock: matAct ? matAct.stock_actual : 0,
+                data: matAct 
+            });
+
         } catch (error) {
-            return res.status(200).json({ success: false, localRescue: true });
+            console.error("🚨 Error en Compra Atlas:", error.message);
+            // Mantenemos tu rescate local por seguridad
+            return res.status(200).json({ success: false, localRescue: true, error: error.message });
         }
     });
 
