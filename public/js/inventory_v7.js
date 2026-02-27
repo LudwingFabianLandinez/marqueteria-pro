@@ -8,6 +8,23 @@
  * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
  */
 
+// --- CONFIGURACIÓN DE CONEXIÓN GLOBAL (Arreglo Punto 1 - Virginia) ---
+window.API_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/.netlify/functions/server' 
+    : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
+
+// Puente de compatibilidad para window.API
+window.API = {
+    getInvoices: () => fetch(`${window.API_URL}/invoices`).then(r => r.json()),
+    getInventory: () => fetch(`${window.API_URL}/inventory`).then(r => r.json()),
+    getProviders: (query = "") => fetch(`${window.API_URL}/providers${query}`).then(r => r.json()),
+    saveInvoice: (data) => fetch(`${window.API_URL}/invoices`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+    saveMaterial: (data) => fetch(`${window.API_URL}/inventory`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+    updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+    getHistory: (id) => fetch(`${window.API_URL}/materials/${id}/history`).then(r => r.json()),
+    deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
+};
+
 // 1. VARIABLES GLOBALES
 window.todosLosMateriales = [];
 window.todosLosProveedores = [];
@@ -199,23 +216,17 @@ window.guardarProveedor = async function(event) {
     }
 
     try {
-        console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
-        
-        // 3. PUENTE DIRECTO (Sustituye a window.API para evitar el 404)
-        // Usamos window.API_URL si existe, de lo contrario la ruta relativa de la función
-        const baseUrl = window.API_URL = "https://tu-sitio-en-netlify.netlify.app/.netlify/functions/server";
-        const url = `${baseUrl}/providers`;
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
-        const res = await response.json();
+    console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
+    
+    // Usamos el puente que definimos al inicio para mayor seguridad
+    const res = await window.API.saveProvider ? await window.API.saveProvider(payload) : await fetch(`${window.API_URL}/providers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(r => r.json());
 
-        if (res.success || response.ok) {
-            alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
+    if (res.success || res._id) {
+        alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
             document.getElementById('provForm')?.reset();
             
             // Cerrar modal si existe la función
@@ -923,9 +934,6 @@ window.actualizarDatalistMateriales = function() {
         lista.innerHTML = window.todosLosMateriales.map(m => `<option value="${m.nombre}">`).join('');
     }
 };
-
-
-
 
 window.verHistorial = async function(id, nombre) {
     console.log("📜 Abriendo historial para:", nombre);
