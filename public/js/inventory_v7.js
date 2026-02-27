@@ -604,26 +604,31 @@ if (formCompra) {
             const esAgregadoNuevo = (selectMat.value === "NUEVO");
 
             // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
-            let idLimpio = (existente && (existente._id || existente.id) && 
-                             !String(existente._id || existente.id).startsWith('TEMP-') && 
-                             !String(existente._id || existente.id).startsWith('MAT-')) 
-                            ? (existente._id || existente.id) 
-                            : (esAgregadoNuevo ? "NEW_MATERIAL" : null);
+            // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
+const idLimpio = (existente && (existente._id || existente.id) && 
+                 !String(existente._id || existente.id).startsWith('TEMP-') && 
+                 !String(existente._id || existente.id).startsWith('MAT-')) 
+                ? (existente._id || existente.id) 
+                : null;
 
-            // Construcción del objeto para Atlas
-            const datosParaAtlas = {
-                materialId: idLimpio, // Enviamos "NEW_MATERIAL" en lugar de null
-                nombre: nombreReal,
-                esNuevo: esAgregadoNuevo || (idLimpio === "NEW_MATERIAL"),
-                categoria: esAgregadoNuevo ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
-                cantidad_laminas: cant,
-                precio_total_lamina: costo,
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costo * cant,
-                timestamp: new Date().toISOString()
-            };
+const datosParaAtlas = {
+    materialId: idLimpio, 
+    nombre: nombreReal,
+    // AGREGAMOS ESTO: Si el ID es null, le decimos a Atlas que es una creación nueva
+    esNuevo: (idLimpio === null), 
+    cantidad_laminas: cant,
+    precio_total_lamina: costo,
+    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costo * cant,
+    timestamp: new Date().toISOString()
+};
+
+// LIMPIEZA FINAL: Si es nuevo, eliminamos el campo materialId para que no viaje como "null"
+if (datosParaAtlas.esNuevo) {
+    delete datosParaAtlas.materialId;
+}
 
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
