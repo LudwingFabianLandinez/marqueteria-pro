@@ -340,43 +340,46 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // GANCHO CRÍTICO: Cálculo del Stock Real (Servidor + Local)
-        // Aquí es donde el 5.80 + 2.90 se convierte en 8.70
-        // 1. Calculamos el stock sumando la bitácora local (Pieza 1 corregida)
+        // 1. RECONCILIACIÓN: Stock real sumando lo local
         const stockActualUnidad = calcularStockReal(m);
         
-        // 2. Definimos unidad y dimensiones
-        const tipoUnidad = m.tipo === 'ml' ? 'ml' : 'm²';
+        // 2. IDENTIFICACIÓN ESTRICTA: ¿Es Moldura o es Material de Área?
+        const esMoldura = m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().startsWith("K ");
+        const unidadFinal = esMoldura ? 'ml' : 'm²';
+        
         const ancho = parseFloat(m.ancho_lamina_cm) || 0;
         const largo = parseFloat(m.largo_lamina_cm) || 0;
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
-        // 3. Cálculo de costo por unidad (ML o M2)
+        // 3. CÁLCULO DE COSTO (Basado en tu regla: ML para molduras, M2 para el resto)
         let costoMostrar = 0;
-        if (m.tipo === 'ml' && largo > 0) {
-            // Precio por Metro Lineal
-            costoMostrar = Math.round(m.precio_total_lamina / (largo / 100));
-        } else if (areaUnaLaminaM2 > 0) {
-            // Precio por Metro Cuadrado
-            costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
+        if (esMoldura) {
+            // Precio por Metro Lineal (Largo estándar 2.9m si viene en 0)
+            const largoMetros = largo > 0 ? (largo / 100) : 2.9;
+            costoMostrar = Math.round((m.precio_total_lamina || 0) / largoMetros) || m.precio_m2_costo || 0;
         } else {
-            costoMostrar = m.precio_m2_costo || 0;
+            // Precio por Metro Cuadrado
+            if (areaUnaLaminaM2 > 0) {
+                costoMostrar = Math.round((m.precio_total_lamina || 0) / areaUnaLaminaM2);
+            } else {
+                costoMostrar = m.precio_m2_costo || 0;
+            }
         }
 
-        // 4. Semáforo de colores (Rojo, Naranja, Verde)
-        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= m.stock_minimo ? '#f59e0b' : '#059669');
+        // 4. SEMÁFORO (Basado en stock_minimo)
+        const stockMin = parseFloat(m.stock_minimo) || 2;
+        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
         
-        // 5. Construcción del texto visual
+        // 5. CONSTRUCCIÓN VISUAL DEL STOCK
         let textoStockVisual = "";
-        
-        if (m.tipo === 'ml') {
-            // MOLDURAS: Solo mostramos los metros lineales totales (Ej: 8.70 ml)
+        if (esMoldura) {
+            // MOLDURAS: Limpio, solo metros totales
             textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total en tiras)</div>
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total disponible en ML)</div>
             `;
         } else {
-            // VIDRIOS/MADERA: Tu lógica de láminas + m2 sobrantes
+            // MATERIALES M2: Lógica de láminas + sobrante
             const laminasExactas = areaUnaLaminaM2 > 0 ? stockActualUnidad / areaUnaLaminaM2 : 0;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
@@ -387,35 +390,9 @@ function renderTable(materiales) {
                 : `(${sobranteM2.toFixed(2)} m²)`;
             
             textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
             `;
-        }
-        
-        // LÓGICA DIFERENCIADA:
-        if (m.tipo === 'ml') {
-            // PARA MOLDURAS: No calculamos láminas, solo mostramos el total de metros
-            textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Stock en Metros)</div>
-            `;
-        } else if (m.tipo !== 'ml' && areaUnaLaminaM2 > 0) {
-            // PARA OTROS MATERIALES: Mantenemos tu lógica de Unidades + Sobrante m2
-            const laminasExactas = stockActualUnidad / areaUnaLaminaM2;
-            const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
-            let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
-            if (sobranteM2 < 0.0001) sobranteM2 = 0;
-
-            let desglose = (laminasCompletas > 0) 
-                ? (sobranteM2 > 0 ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)` : `(${laminasCompletas} unidades)`)
-                : `(${sobranteM2.toFixed(2)} m²)`;
-            
-            textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${tipoUnidad}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
-            `;
-        } else {
-            textoStockVisual = `<strong>${stockActualUnidad.toFixed(2)}</strong> ${tipoUnidad}`;
         }
 
         fila.innerHTML = `
@@ -427,11 +404,11 @@ function renderTable(materiales) {
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${m.tipo === 'ml' ? `${largo} cm` : `${ancho}x${largo} cm`}
+                    ${esMoldura ? (largo > 0 ? `${largo} cm` : '290 cm') : `${ancho}x${largo} cm`}
                 </span>
             </td>
             <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
-                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${tipoUnidad}</span>
+                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
                 <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
@@ -439,32 +416,23 @@ function renderTable(materiales) {
                 </div>
             </td>
             <td style="text-align: center; vertical-align: middle; min-width: 320px;">
-    <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
-        
-        <button onclick="window.abrirModalEditar('${m.id || m._id}')" 
-                style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
-                title="Haz clic para modificar el nombre, medidas, costos o stock mínimo de este material">
-            <i class="fas fa-edit"></i> EDITAR
-        </button>
-        
-        <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" 
-                style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);"
-                title="Ver movimientos de stock e historial de precios">
-            <i class="fas fa-history"></i> HISTORIAL
-        </button>
-        
-        <button onclick="window.eliminarMaterial('${m.id}')" 
-                style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);"
-                title="Eliminar este material permanentemente">
-            <i class="fas fa-trash"></i> ELIMINAR
-        </button>
-        
-    </div>
-</td>
+                <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
+                    <button onclick="window.abrirModalEditar('${m.id || m._id}')" class="btn-action-edit" style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-edit"></i> EDITAR
+                    </button>
+                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" class="btn-action-history" style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-history"></i> HISTORIAL
+                    </button>
+                    <button onclick="window.eliminarMaterial('${m.id}')" class="btn-action-delete" style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-trash"></i> ELIMINAR
+                    </button>
+                </div>
+            </td>
         `;
         cuerpoTabla.appendChild(fila);
     });
 }
+     
 
 // --- FACTURACIÓN (PRESERVADO) ---
 
