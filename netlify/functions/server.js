@@ -44,34 +44,37 @@ app.use((req, res, next) => {
 });
 
 // 4. GESTIÓN DE CONEXIÓN DB (ESTABILIZADA v13.8.0)
+// 4. GESTIÓN DE CONEXIÓN DB (FORZADA v13.9.0)
 let isConnected = false;
 const connect = async () => {
+    // Si ya estamos conectados, verificamos que sea a la base de datos correcta
     if (mongoose.connection.readyState === 1) {
-        isConnected = true;
-        return;
+        // Si el nombre de la DB no coincide con lo esperado, cerramos para re-conectar
+        if (!mongoose.connection.db.databaseName.includes('V2')) {
+            console.log("⚠️ Detectada DB antigua, cerrando conexión...");
+            await mongoose.disconnect();
+        } else {
+            return; 
+        }
     }
     
     try {
-        mongoose.set('bufferCommands', false); 
         mongoose.set('strictQuery', false);
+        const dbUri = process.env.MONGODB_URI; // LA QUE PUSISTE EN NETLIFY
         
-        const dbUri = process.env.MONGODB_URI;
+        console.log("📡 Intentando conectar a Atlas V2...");
         
-        if (dbUri) {
-            await mongoose.connect(dbUri, {
-                useNewUrlParser: true,
-                useUnifiedTopology: true,
-                serverSelectionTimeoutMS: 5000
-            });
-        } else {
-            await connectDB();
-        }
+        await mongoose.connect(dbUri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 10000, // Más tiempo para evitar el error 500
+            heartbeatFrequencyMS: 2000
+        });
         
         isConnected = true;
-        console.log("🟢 Conexión activa con MongoDB Atlas (Virginia)");
+        console.log(`🟢 CONECTADO EXITOSAMENTE A: ${mongoose.connection.db.databaseName}`);
     } catch (err) {
-        console.error("🚨 Error crítico en conexión DB:", err.message);
-        isConnected = false;
+        console.error("🚨 ERROR CRÍTICO ATLAS:", err.message);
         throw err;
     }
 };
