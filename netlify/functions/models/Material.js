@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 /**
  * MODELO DE MATERIALES - MARQUETERÍA LA CHICA MORALES
- * Versión: 12.2.8 - BLINDAJE DE CATEGORÍAS Y VIRTUALS
+ * Versión: 12.2.6 - BLINDAJE DE DATOS Y VIRTUALS
+ * Objetivo: Asegurar que el campo 'costo_m2' sea accesible para el motor de cálculo.
  */
 const MaterialSchema = new mongoose.Schema({
     nombre: { 
@@ -13,23 +14,16 @@ const MaterialSchema = new mongoose.Schema({
     categoria: { 
         type: String, 
         required: true,
-        trim: true,
-        // Enum blindado: Acepta variaciones para que Atlas no bloquee el guardado
         enum: [
-            'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
-            'Moldura', 'General', 'Otros', 
-            'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA',
-            'moldura', 'general', 'vidrio'
+            'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla',
+            'Moldura', 'General', 'Otros'
         ],
         default: 'Otros'
     },
     tipo: { 
         type: String, 
-        // Eliminamos el enum estricto temporalmente para ver si el flujo se destraba
-        // o nos aseguramos de que siempre tenga un valor válido
-        default: 'm2',
-        trim: true,
-        lowercase: true
+        enum: ['m2', 'ml'], 
+        default: 'm2' 
     },
     ancho_lamina_cm: { 
         type: Number, 
@@ -50,7 +44,6 @@ const MaterialSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    // 🛡️ GANCHO DE SEGURIDAD: Campo duplicado para compatibilidad total
     costo_m2: {
         type: Number,
         default: 0
@@ -75,7 +68,7 @@ const MaterialSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Provider' 
     },
-    notes: {
+    notas: {
         type: String,
         trim: true
     }
@@ -85,58 +78,54 @@ const MaterialSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
+// 🌟 PUENTE DE COMPATIBILIDAD (No daña nada, solo traduce para el navegador)
+MaterialSchema.virtual('medidas').get(function() {
+    return `${this.ancho_lamina_cm || 0} x ${this.largo_lamina_cm || 0} cm`;
+});
+
+MaterialSchema.virtual('costo').get(function() {
+    return this.precio_m2_costo || this.costo_m2 || 0;
+});
+
 /**
  * MIDDLEWARE PRE-SAVE:
  * Realiza cálculos técnicos y sincroniza ambos campos de costo.
  */
-/**
- * MIDDLEWARE DE CÁLCULO - MARQUETERÍA LA CHICA MORALES
- * Esta función centraliza la lógica para que no haya errores de "0x0 cm"
- */
-function calcularValoresTecnicos(doc) {
-    if (!doc) return;
-
-    // 1. Cálculo de área y precio m2
-    if (doc.tipo === 'm2') {
-        const ancho = doc.ancho_lamina_cm || 0;
-        const largo = doc.largo_lamina_cm || 0;
-        const areaCalculada = (ancho * largo) / 10000;
+MaterialSchema.pre('save', function(next) {
+    if (this.tipo === 'm2') {
+        const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
+        this.area_por_lamina_m2 = areaCalculada;
         
-        doc.area_por_lamina_m2 = areaCalculada;
-        
-        if (areaCalculada > 0 && doc.precio_total_lamina) {
-            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / areaCalculada);
+        if (areaCalculada > 0) {
+            this.precio_m2_costo = Math.round(this.precio_total_lamina / areaCalculada);
         }
     } 
-    else if (doc.tipo === 'ml') {
-        if (doc.largo_lamina_cm > 0 && doc.precio_total_lamina) {
-            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / (doc.largo_lamina_cm / 100));
+    else if (this.tipo === 'ml') {
+        if (this.largo_lamina_cm > 0) {
+            this.precio_m2_costo = Math.round(this.precio_total_lamina / (this.largo_lamina_cm / 100));
         }
     }
 
-    // 2. 🔥 SINCRONIZACIÓN CRÍTICA PARA ATLAS
-    doc.costo_m2 = doc.precio_m2_costo || 0;
-    
-    if (doc.stock_actual < 0) doc.stock_actual = 0;
-}
-
-// HOOK 1: Se activa al usar .save() (Material nuevo)
-MaterialSchema.pre('save', function(next) {
-    calcularValoresTecnicos(this);
+    this.costo_m2 = this.precio_m2_costo;
+    if (this.stock_actual < 0) this.stock_actual = 0;
     next();
 });
 
-// HOOK 2: Se activa al usar .findByIdAndUpdate() (Compras/Actualizaciones)
+// Middleware extra para que las COMPRAS también activen los cálculos
 MaterialSchema.pre('findOneAndUpdate', function(next) {
     const update = this.getUpdate();
-    // Si la actualización viene dentro de $set (lo normal en Express)
     if (update.$set) {
-        calcularValoresTecnicos(update.$set);
-    } else {
-        calcularValoresTecnicos(update);
+        const doc = update.$set;
+        if (doc.ancho_lamina_cm && doc.largo_lamina_cm) {
+            const area = (doc.ancho_lamina_cm * doc.largo_lamina_cm) / 10000;
+            doc.area_por_lamina_m2 = area;
+            if (area > 0 && doc.precio_total_lamina) {
+                doc.precio_m2_costo = Math.round(doc.precio_total_lamina / area);
+                doc.costo_m2 = doc.precio_m2_costo;
+            }
+        }
     }
     next();
 });
 
-// 🚨 Mantenemos tu exportación blindada
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');
