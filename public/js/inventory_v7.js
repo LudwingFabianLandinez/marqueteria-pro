@@ -609,19 +609,24 @@ if (formCompra) {
 // Usamos "" en lugar de null para que el servidor no aborte por "dato inválido"
 // --- 🛡️ LIMPIEZA DE ID (v15.3.8 - VERSIÓN FINAL SIN ERRORES) ---
 // 1. Buscamos el ID real de Atlas, si no existe o es temporal, queda como null internamente
+// --- 🛡️ SOLUCIÓN FINAL (v15.3.9 - COMPATIBILIDAD CON SERVIDOR) ---
+// 1. Buscamos el ID real de Atlas
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
                    ? (existente._id || existente.id) 
                    : null;
 
-// 2. Definimos si es nuevo antes de construir el objeto
+// 2. Determinamos si es nuevo
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 3. Construimos el objeto base SIN el materialId inicialmente
+// 3. Construimos el objeto forzando el campo materialId
 const datosParaAtlas = {
+    // Si es nuevo, enviamos "NUEVO" para que el servidor no lance el error de "ID no proporcionado"
+    materialId: esNuevoMaterial ? "NUEVO" : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
+    categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
     cantidad_laminas: cant,
     precio_total_lamina: costo,
     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
@@ -630,7 +635,6 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
-
 // 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
 if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
