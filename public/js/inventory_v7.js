@@ -433,7 +433,6 @@ function renderTable(materiales) {
     });
 }
      
-
 // --- FACTURACIÓN (PRESERVADO) ---
 
 async function facturarVenta() {
