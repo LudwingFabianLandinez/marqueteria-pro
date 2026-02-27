@@ -11,21 +11,20 @@
  */
 
 // 1. CONFIGURACIÓN DE CONEXIÓN
-const BASE_URL_API = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/.netlify/functions/server' 
-    : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
+// --- CONFIGURACIÓN AUTOMÁTICA (Resuelve error de CORS de las fotos) ---
+const BASE_URL_API = window.location.origin + '/.netlify/functions/server';
 
 window.API_URL = BASE_URL_API;
 
-// 2. OBJETO DE CONEXIÓN (Sin errores de llaves)
 window.API = {
     url: BASE_URL_API,
     saveProvider: async (payload) => {
-        const response = await fetch(`${window.API_URL}/providers`, {
+        const response = await fetch(`${BASE_URL_API}/providers`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+        if (!response.ok) throw new Error('Error en el servidor');
         return await response.json();
     }
 };

@@ -2,7 +2,7 @@
   publish = "public"
   functions = "netlify/functions"
 
-# 1. PERMISOS DE PUERTA ABIERTA (CORS)
+# 1. PERMISOS DE PUERTA ABIERTA (CORS) - INDISPENSABLE PARA ATLAS
 [[headers]]
   for = "/*"
   [headers.values]
@@ -10,7 +10,13 @@
     Access-Control-Allow-Headers = "Content-Type, Authorization"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
 
-# 2. PRIORIDAD A LA API (Para que Virginia llegue al servidor)
+# 2. PRIORIDAD A LA API (Para que Virginia llegue al servidor sin Error 404)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/server/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/.netlify/functions/server/*"
   to = "/.netlify/functions/server/:splat"
@@ -18,7 +24,7 @@
   force = true
 
 # 3. REDIRECCIÓN DE SEGURIDAD PARA HTML
-# Solo redireccionamos si NO es una ruta de función
+# force = false es VITAL para que no bloquee las peticiones de datos
 [[redirects]]
   from = "/*"
   to = "/dashboard.html"
