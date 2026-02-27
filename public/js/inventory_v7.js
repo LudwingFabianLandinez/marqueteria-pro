@@ -594,18 +594,23 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // --- 🛡️ LIMPIEZA DE ID ---
+            
             // --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.1) ---
 // Verificamos tanto ._id (Atlas) como .id (Local/Mapeado)
+// --- 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2) ---
+// 1. Mantenemos tu limpieza de ID original
 const idLimpio = (existente && (existente._id || existente.id) && 
                  !String(existente._id || existente.id).startsWith('TEMP-') && 
                  !String(existente._id || existente.id).startsWith('MAT-')) 
                 ? (existente._id || existente.id) 
                 : null;
 
+// 2. Construimos el objeto con la señal 'esNuevo' para evitar el error 400
 const datosParaAtlas = {
-    materialId: idLimpio, // <--- Ahora sí viajará el ID 67b8...
+    materialId: idLimpio, 
     nombre: nombreReal,
+    esNuevo: (selectMat.value === "NUEVO" || idLimpio === null), // <--- SEÑAL CLAVE
+    categoria: (selectMat.value === "NUEVO") ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
     cantidad_laminas: cant,
     precio_total_lamina: costo,
     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
