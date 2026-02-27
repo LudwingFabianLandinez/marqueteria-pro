@@ -551,12 +551,12 @@ if (formCompra) {
     formCompra.onsubmit = async function(e) {
         e.preventDefault();
 
-        // 1. Identificar el botón y el formulario
+        // 1. UI: Bloqueo de seguridad y feedback visual
         const formulario = e.target;
         const btn = formulario.querySelector('button[type="submit"]');
         if (btn) { 
             btn.disabled = true; 
-            btn.innerHTML = '⚡ CONECTANDO CON ATLAS...'; 
+            btn.innerHTML = '⚡ VALIDANDO CON ATLAS...'; 
         }
 
         try {
@@ -581,7 +581,7 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // --- 🛡️ ESCUDO ANTI-ERROR ATLAS (Limpieza de ID) ---
+            // --- 🛡️ ESCUDO ANTI-ERROR ATLAS ---
             const idLimpio = (existente && existente.id && !String(existente.id).startsWith('TEMP-') && !String(existente.id).startsWith('MAT-')) 
                             ? existente.id 
                             : null;
@@ -594,16 +594,17 @@ if (formCompra) {
                 ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
                 largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
                 tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costo * cant
+                costo_total: costo * cant,
+                timestamp: new Date().toISOString() // Sonda para rastrear en logs
             };
 
-            // --- 🚀 SOLUCIÓN FINAL DE RUTA (Ignora el puerto 3000 del .env en Netlify) ---
+            // --- 🚀 RUTA INTELIGENTE ---
             const ES_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             const URL_FINAL = ES_LOCAL 
                 ? 'http://localhost:3000/api/inventory/purchase' 
                 : '/.netlify/functions/server/inventory/purchase';
 
-            console.log(`📡 Sincronizando con Atlas vía: ${URL_FINAL}`);
+            console.log("📡 Payload enviado:", datosParaAtlas);
 
             const response = await fetch(URL_FINAL, {
                 method: 'POST',
@@ -611,12 +612,21 @@ if (formCompra) {
                 body: JSON.stringify(datosParaAtlas)
             });
 
-            const resultadoAtlas = await response.json();
-
-            if (!response.ok) {
-                throw new Error(resultadoAtlas.error || "Atlas rechazó la conexión");
+            // --- 🔍 SONDA DE RESPUESTA ---
+            const textoRespuesta = await response.text();
+            let resultadoAtlas;
+            
+            try {
+                resultadoAtlas = JSON.parse(textoRespuesta);
+            } catch (err) {
+                throw new Error("El servidor no devolvió un JSON válido. Respuesta: " + textoRespuesta.substring(0, 50));
             }
 
+            if (!response.ok) {
+                throw new Error(resultadoAtlas.error || `Error ${response.status}: Fallo en Atlas`);
+            }
+
+            // --- 🔄 SINCRONIZACIÓN LOCAL TRAS ÉXITO REAL ---
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
 
             if (existente) {
@@ -641,7 +651,7 @@ if (formCompra) {
                 window.todosLosMateriales.unshift(existente);
             }
 
-            // --- 📦 PERSISTENCIA LOCAL (Tu lógica original intacta) ---
+            // --- 📦 PERSISTENCIA LOCAL ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes.push({ ...existente, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
@@ -653,13 +663,13 @@ if (formCompra) {
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO! Sincronizado con Atlas: ${nombreReal}`);
+            alert(`✅ SINCRONIZACIÓN EXITOSA:\n${nombreReal} registrado en Atlas.`);
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
 
         } catch (error) {
-            console.error("❌ Fallo de Atlas:", error);
-            alert("⚠️ Error de Sincronización: " + error.message);
+            console.error("❌ Error Crítico:", error);
+            alert("⚠️ FALLO DE CONEXIÓN:\n" + error.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
