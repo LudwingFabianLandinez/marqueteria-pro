@@ -594,36 +594,30 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            
-            // --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.1) ---
-// Verificamos tanto ._id (Atlas) como .id (Local/Mapeado)
-// --- 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2) ---
-// 1. Mantenemos tu limpieza de ID original
-// --- 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2) ---
-// 1. Identificamos si el material ya existe en el sistema local
-const esAgregadoNuevo = (selectMat.value === "NUEVO");
+            // --- 🛡️ LÓGICA DE IDENTIDAD REFORZADA v15.3.2 ---
+            const esAgregadoNuevo = (selectMat.value === "NUEVO");
 
-// 2. Mantenemos tu limpieza de ID original para materiales existentes
-const idLimpio = (existente && (existente._id || existente.id) && 
-                 !String(existente._id || existente.id).startsWith('TEMP-') && 
-                 !String(existente._id || existente.id).startsWith('MAT-')) 
-                ? (existente._id || existente.id) 
-                : null;
+            // Limpieza de ID: Buscamos el ID real de Atlas, descartando temporales
+            const idLimpio = (existente && (existente._id || existente.id) && 
+                             !String(existente._id || existente.id).startsWith('TEMP-') && 
+                             !String(existente._id || existente.id).startsWith('MAT-')) 
+                            ? (existente._id || existente.id) 
+                            : null;
 
-// 3. Construimos el objeto con la señal 'esNuevo' para que Atlas no aborte
-const datosParaAtlas = {
-    materialId: idLimpio, 
-    nombre: nombreReal,
-    esNuevo: esAgregadoNuevo || (idLimpio === null), // <--- SEÑAL CRUCIAL PARA EL SERVIDOR
-    categoria: esAgregadoNuevo ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
-    cantidad_laminas: cant,
-    precio_total_lamina: costo,
-    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-    tipo_material: esMoldura ? 'ml' : 'm2',
-    costo_total: costo * cant,
-    timestamp: new Date().toISOString()
-};
+            // Construcción del objeto para Atlas
+            const datosParaAtlas = {
+                materialId: idLimpio, 
+                nombre: nombreReal,
+                esNuevo: esAgregadoNuevo || (idLimpio === null), // Señal para crear si no existe
+                categoria: esAgregadoNuevo ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
+                cantidad_laminas: cant,
+                precio_total_lamina: costo,
+                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                tipo_material: esMoldura ? 'ml' : 'm2',
+                costo_total: costo * cant,
+                timestamp: new Date().toISOString()
+            };
 
             // --- 🚀 RUTA DE CONEXIÓN ---
             // --- 🚀 RUTA DE CONEXIÓN (UNIFICADA) ---
