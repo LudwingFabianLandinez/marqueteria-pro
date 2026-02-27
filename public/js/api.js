@@ -229,4 +229,4 @@ window.API.saveSupplier = window.API.saveProvider;
 window.API.getMaterials = window.API.getInventory;
 window.API.savePurchase = window.API.registerPurchase;
 
-console.log("🛡️ API v13.6.0 - Ruteo Maestro Unificado (Adiós al 404).");
+console.log("🛡️ API v13.6.1 - Forzando reinicio de ruteo (Virginia)");
