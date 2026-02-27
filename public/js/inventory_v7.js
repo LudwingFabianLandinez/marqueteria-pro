@@ -202,7 +202,10 @@ window.guardarProveedor = async function(event) {
         console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
         
         // 3. PUENTE DIRECTO (Sustituye a window.API para evitar el 404)
-        const url = `${window.API_URL || ''}/providers`;
+        // Usamos window.API_URL si existe, de lo contrario la ruta relativa de la función
+        const baseUrl = window.API_URL || '/.netlify/functions/server';
+        const url = `${baseUrl}/providers`;
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
