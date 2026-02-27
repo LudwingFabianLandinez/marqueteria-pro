@@ -89,29 +89,54 @@ const MaterialSchema = new mongoose.Schema({
  * MIDDLEWARE PRE-SAVE:
  * Realiza cálculos técnicos y sincroniza ambos campos de costo.
  */
-MaterialSchema.pre('save', function(next) {
-    // Cálculo de área
-    if (this.tipo === 'm2') {
-        const areaCalculada = (this.ancho_lamina_cm * this.largo_lamina_cm) / 10000;
-        this.area_por_lamina_m2 = areaCalculada;
+/**
+ * MIDDLEWARE DE CÁLCULO - MARQUETERÍA LA CHICA MORALES
+ * Esta función centraliza la lógica para que no haya errores de "0x0 cm"
+ */
+function calcularValoresTecnicos(doc) {
+    if (!doc) return;
+
+    // 1. Cálculo de área y precio m2
+    if (doc.tipo === 'm2') {
+        const ancho = doc.ancho_lamina_cm || 0;
+        const largo = doc.largo_lamina_cm || 0;
+        const areaCalculada = (ancho * largo) / 10000;
         
-        if (areaCalculada > 0) {
-            this.precio_m2_costo = Math.round(this.precio_total_lamina / areaCalculada);
+        doc.area_por_lamina_m2 = areaCalculada;
+        
+        if (areaCalculada > 0 && doc.precio_total_lamina) {
+            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / areaCalculada);
         }
     } 
-    else if (this.tipo === 'ml') {
-        if (this.largo_lamina_cm > 0) {
-            this.precio_m2_costo = Math.round(this.precio_total_lamina / (this.largo_lamina_cm / 100));
+    else if (doc.tipo === 'ml') {
+        if (doc.largo_lamina_cm > 0 && doc.precio_total_lamina) {
+            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / (doc.largo_lamina_cm / 100));
         }
     }
 
-    // 🔥 SINCRONIZACIÓN CRÍTICA:
-    this.costo_m2 = this.precio_m2_costo;
+    // 2. 🔥 SINCRONIZACIÓN CRÍTICA PARA ATLAS
+    doc.costo_m2 = doc.precio_m2_costo || 0;
     
-    if (this.stock_actual < 0) this.stock_actual = 0;
+    if (doc.stock_actual < 0) doc.stock_actual = 0;
+}
 
+// HOOK 1: Se activa al usar .save() (Material nuevo)
+MaterialSchema.pre('save', function(next) {
+    calcularValoresTecnicos(this);
     next();
 });
 
-// 🚨 CORRECCIÓN FINAL: Forzado de la colección 'materiales'
+// HOOK 2: Se activa al usar .findByIdAndUpdate() (Compras/Actualizaciones)
+MaterialSchema.pre('findOneAndUpdate', function(next) {
+    const update = this.getUpdate();
+    // Si la actualización viene dentro de $set (lo normal en Express)
+    if (update.$set) {
+        calcularValoresTecnicos(update.$set);
+    } else {
+        calcularValoresTecnicos(update);
+    }
+    next();
+});
+
+// 🚨 Mantenemos tu exportación blindada
 module.exports = mongoose.models.Material || mongoose.model('Material', MaterialSchema, 'materiales');
