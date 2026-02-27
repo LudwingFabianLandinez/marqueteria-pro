@@ -263,15 +263,16 @@ async function fetchInventory() {
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // 1. CARGAR CAJAS DE SEGURIDAD (Declaradas una sola vez para evitar error)
+        // 1. CARGAR CAJAS DE SEGURIDAD
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const moldurasPendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
 
-        // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Tu lógica original intacta)
+        // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Preservando tu lógica)
         const materialesMapeados = datosServidor.map(m => {
             return {
                 ...m,
                 id: m._id || m.id,
+                // ESCUDO: Si no hay nombre, evitamos el undefined
                 nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
@@ -285,28 +286,39 @@ async function fetchInventory() {
             };
         });
 
-        // 3. RECONCILIACIÓN POR NOMBRE (Asegura que m2/Lona no se borren al refrescar)
+        // 3. RECONCILIACIÓN POR NOMBRE (Con protección contra errores de toLowerCase)
         window.todosLosMateriales = materialesMapeados.map(mServidor => {
-            const compraReciente = moldurasPendientes.find(p => p.nombre.toLowerCase() === mServidor.nombre.toLowerCase());
+            // ESCUDO: Usamos (mServidor.nombre || "") para que el toLowerCase nunca falle
+            const nombreServidor = (mServidor.nombre || "").toLowerCase();
+            
+            const compraReciente = moldurasPendientes.find(p => 
+                (p.nombre || "").toLowerCase() === nombreServidor
+            );
+
             if (compraReciente) {
-                // Mantenemos los datos del servidor pero inyectamos el stock de la compra local
                 return { ...mServidor, ...compraReciente };
             }
             return mServidor;
         });
 
-        // Agregamos materiales nuevos que aún no existen en el servidor
+        // Agregamos materiales nuevos con la misma protección
         moldurasPendientes.forEach(p => {
-            const yaExisteEnLista = window.todosLosMateriales.some(m => m.nombre.toLowerCase() === p.nombre.toLowerCase());
+            const nombrePendiente = (p.nombre || "").toLowerCase();
+            const yaExisteEnLista = window.todosLosMateriales.some(m => 
+                (m.nombre || "").toLowerCase() === nombrePendiente
+            );
+            
             if (!yaExisteEnLista) {
                 window.todosLosMateriales.push(p);
             }
         });
 
-        // 4. FILTRADO FINAL: Quitamos los eliminados y nombres basura
+        // 4. FILTRADO FINAL
         window.todosLosMateriales = window.todosLosMateriales.filter(m => {
             const noEstaEliminado = !eliminados.includes(String(m.id));
-            const tieneNombreValido = m.nombre && m.nombre !== "Sin nombre";
+            // Solo mostramos si tiene un nombre real
+            const nombreLimpio = (m.nombre || "").trim();
+            const tieneNombreValido = nombreLimpio !== "" && nombreLimpio !== "Sin nombre";
             return noEstaEliminado && tieneNombreValido;
         });
         
@@ -322,7 +334,7 @@ async function fetchInventory() {
             window.cargarListasModal();
         }
         
-        console.log("✅ Inventario sincronizado por nombre (Tela/Lona protegidas)");
+        console.log("✅ Inventario sincronizado y protegido contra errores de nombre");
 
     } catch (error) { 
         console.error("❌ Error inventario:", error); 
