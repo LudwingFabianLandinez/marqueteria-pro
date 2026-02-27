@@ -580,7 +580,10 @@ if (formCompra) {
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
 
-            let nombreInput = (selectMat.value === "NUEVO") ? inputNuevo.value.trim() : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
+            // 1. DETERMINAR NOMBRE Y TIPO (Mantenemos tu lógica de conversión)
+            let nombreInput = (selectMat.value === "NUEVO") 
+                ? inputNuevo.value.trim() 
+                : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
             
             const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
             let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
@@ -589,26 +592,28 @@ if (formCompra) {
             const costo = parseFloat(inputCosto.value) || 0;
             let unidadFinal = esMoldura ? "ml" : "m²";
             
-            let stockASumar = esMoldura ? (cant * 2.90) : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
+            let stockASumar = esMoldura 
+                ? (cant * 2.90) 
+                : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
 
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // --- 🛡️ LÓGICA DE IDENTIDAD REFORZADA v15.3.2 ---
+            // 2. 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2)
             const esAgregadoNuevo = (selectMat.value === "NUEVO");
 
-            // Limpieza de ID: Buscamos el ID real de Atlas, descartando temporales
+            // Limpiamos el ID: solo enviamos IDs reales de Atlas
             const idLimpio = (existente && (existente._id || existente.id) && 
                              !String(existente._id || existente.id).startsWith('TEMP-') && 
                              !String(existente._id || existente.id).startsWith('MAT-')) 
                             ? (existente._id || existente.id) 
                             : null;
 
-            // Construcción del objeto para Atlas
+            // 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS (La clave para evitar el Error 400)
             const datosParaAtlas = {
                 materialId: idLimpio, 
                 nombre: nombreReal,
-                esNuevo: esAgregadoNuevo || (idLimpio === null), // Señal para crear si no existe
+                esNuevo: esAgregadoNuevo || (idLimpio === null), // SEÑAL CRUCIAL
                 categoria: esAgregadoNuevo ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
                 cantidad_laminas: cant,
                 precio_total_lamina: costo,
@@ -619,18 +624,16 @@ if (formCompra) {
                 timestamp: new Date().toISOString()
             };
 
-            // --- 🚀 RUTA DE CONEXIÓN ---
-            // --- 🚀 RUTA DE CONEXIÓN (UNIFICADA) ---
-const URL_FINAL = `${window.API_URL}/inventory/purchase`;
-
-console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL);
+            // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
+            const URL_FINAL = `${window.API_URL}/inventory/purchase`;
+            console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
 
             const response = await fetch(URL_FINAL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(datosParaAtlas)
             });
-
+            
             const textoRespuesta = await response.text();
             let resultadoAtlas;
             
