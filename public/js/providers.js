@@ -5,13 +5,32 @@
  */
 
 // Definición segura de la URL de la API - Ajustada para Netlify/Local
+/**
+ * LÓGICA DE PROVEEDORES - MARQUETERÍA PRO
+ * Versión: CONEXIÓN ATLAS URGENTE
+ */
+
+// 1. CONFIGURACIÓN DE CONEXIÓN
 const BASE_URL_API = window.location.hostname === 'localhost' 
     ? 'http://localhost:3000/.netlify/functions/server' 
     : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
 
-// Y añadimos esta línea abajo para que todo el sistema esté sincronizado:
 window.API_URL = BASE_URL_API;
 
+// 2. OBJETO DE CONEXIÓN (Sin errores de llaves)
+window.API = {
+    url: BASE_URL_API,
+    saveProvider: async (payload) => {
+        const response = await fetch(`${window.API_URL}/providers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await response.json();
+    }
+};
+
+// 3. INICIO DE LÓGICA DE PÁGINA
 document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE REGISTRO ---
     const supplierForm = document.getElementById('supplierForm');
