@@ -627,7 +627,6 @@ if (formCompra) {
             }
 
             // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO REAL ---
-            // IMPORTANTE: Buscamos el ID que genera MongoDB
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
 
             if (existente) {
@@ -654,11 +653,9 @@ if (formCompra) {
 
             // --- 📦 PERSISTENCIA LOCAL (Reforzada) ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            // Solo guardamos si realmente tenemos un objeto válido
             pendientes.push({ ...existente, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // Limpiar historial de eliminados si el material volvió a entrar
             if (idDeAtlas) {
                 let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
                 eliminados = eliminados.filter(id => id !== String(idDeAtlas));
@@ -670,7 +667,6 @@ if (formCompra) {
             
             alert(`✅ SINCRONIZACIÓN EXITOSA:\n${nombreReal} registrado en Atlas.`);
             
-            // Cerrar modal y resetear
             const modal = document.getElementById('modalCompra');
             if(modal) modal.style.display = 'none';
             formulario.reset();
