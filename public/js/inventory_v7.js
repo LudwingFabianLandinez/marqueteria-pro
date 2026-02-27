@@ -595,7 +595,7 @@ if (formCompra) {
                 largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
                 tipo_material: esMoldura ? 'ml' : 'm2',
                 costo_total: costo * cant,
-                timestamp: new Date().toISOString() // Sonda para rastrear en logs
+                timestamp: new Date().toISOString()
             };
 
             // --- 🚀 RUTA INTELIGENTE ---
@@ -604,7 +604,7 @@ if (formCompra) {
                 ? 'http://localhost:3000/api/inventory/purchase' 
                 : '/.netlify/functions/server/inventory/purchase';
 
-            console.log("📡 Payload enviado:", datosParaAtlas);
+            console.log("📡 Payload enviado a Atlas:", datosParaAtlas);
 
             const response = await fetch(URL_FINAL, {
                 method: 'POST',
@@ -619,14 +619,15 @@ if (formCompra) {
             try {
                 resultadoAtlas = JSON.parse(textoRespuesta);
             } catch (err) {
-                throw new Error("El servidor no devolvió un JSON válido. Respuesta: " + textoRespuesta.substring(0, 50));
+                throw new Error("Atlas no respondió en formato JSON. Verifica la consola del servidor.");
             }
 
             if (!response.ok) {
-                throw new Error(resultadoAtlas.error || `Error ${response.status}: Fallo en Atlas`);
+                throw new Error(resultadoAtlas.error || `Error ${response.status}: No se pudo escribir en Atlas`);
             }
 
-            // --- 🔄 SINCRONIZACIÓN LOCAL TRAS ÉXITO REAL ---
+            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO REAL ---
+            // IMPORTANTE: Buscamos el ID que genera MongoDB
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
 
             if (existente) {
@@ -651,24 +652,31 @@ if (formCompra) {
                 window.todosLosMateriales.unshift(existente);
             }
 
-            // --- 📦 PERSISTENCIA LOCAL ---
+            // --- 📦 PERSISTENCIA LOCAL (Reforzada) ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            // Solo guardamos si realmente tenemos un objeto válido
             pendientes.push({ ...existente, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-            eliminados = eliminados.filter(id => id !== String(existente.id));
-            localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+            // Limpiar historial de eliminados si el material volvió a entrar
+            if (idDeAtlas) {
+                let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+                eliminados = eliminados.filter(id => id !== String(idDeAtlas));
+                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+            }
 
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
             alert(`✅ SINCRONIZACIÓN EXITOSA:\n${nombreReal} registrado en Atlas.`);
-            if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
+            
+            // Cerrar modal y resetear
+            const modal = document.getElementById('modalCompra');
+            if(modal) modal.style.display = 'none';
             formulario.reset();
 
         } catch (error) {
-            console.error("❌ Error Crítico:", error);
+            console.error("❌ Error Crítico de Atlas:", error);
             alert("⚠️ FALLO DE CONEXIÓN:\n" + error.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
