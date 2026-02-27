@@ -546,6 +546,7 @@ function configurarEventos() {
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
 // Reemplaza tu bloque formCompra.onsubmit con este corregido:
+// Actualización de conexión v15.3.0
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
@@ -694,6 +695,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 }
 
 // --- UTILIDADES DE UI (PRESERVADO) ---
+
 
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
