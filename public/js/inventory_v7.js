@@ -366,32 +366,30 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. RECONCILIACIÓN: Stock real sumando lo local (CONEXIÓN ATLAS PRESERVADA)
+        // 1. STOCK TOTAL (CONEXIÓN ATLAS)
         const stockActualUnidad = calcularStockReal(m);
-        
-        // 2. IDENTIFICACIÓN ESTRICTA: ¿Es Moldura o es Material de Área?
-        const esMoldura = m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().startsWith("K ");
+        const nombreUP = m.nombre.toUpperCase();
+        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
-        // --- CORRECCIÓN DE MEDIDAS: Captura datos de Atlas/Compra ---
-        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || m.ancho_compra || 0);
-        const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || m.largo_compra || 0);
-        
-        let visualMedida = "";
-        if (esMoldura) {
-            visualMedida = `${largo > 0 ? largo : 290} cm`;
+        // 2. DETECCIÓN PRIORITARIA DE MEDIDAS (Para evitar el error de la imagen)
+        // Primero intentamos sacar la medida del nombre "160 X 220"
+        const extraido = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        let ancho = 0;
+        let largo = 0;
+
+        if (extraido) {
+            ancho = parseFloat(extraido[1]);
+            largo = parseFloat(extraido[2]);
         } else {
-            if (ancho > 0 && largo > 0) {
-                visualMedida = `${ancho}x${largo} cm`;
-            } else {
-                const extraido = m.nombre.match(/(\d+)\s*[xX*]\s*(\d+)/);
-                visualMedida = extraido ? `${extraido[1]}x${extraido[2]} cm` : "Ver Ficha";
-            }
+            // Si no está en el nombre, buscamos en los campos de la base de datos
+            ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || 0);
+            largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || 0);
         }
 
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
-        // 3. CÁLCULO DE COSTO (FORZADO AL EXCEL: VALOR TOTAL / ÁREA)
+        // 3. CÁLCULO DE COSTO (PRECIO TOTAL / ÁREA REAL)
         let costoMostrar = 0;
         const valorDeLaLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
@@ -399,50 +397,49 @@ function renderTable(materiales) {
             const largoMetros = largo > 0 ? (largo / 100) : 2.9;
             costoMostrar = valorDeLaLamina / largoMetros;
         } else {
-            if (areaUnaLaminaM2 > 0) {
-                costoMostrar = valorDeLaLamina / areaUnaLaminaM2;
-            } else {
-                costoMostrar = valorDeLaLamina;
-            }
+            costoMostrar = areaUnaLaminaM2 > 0 ? (valorDeLaLamina / areaUnaLaminaM2) : valorDeLaLamina;
         }
-        
         costoMostrar = Math.round(costoMostrar);
         
-        // 4. SEMÁFORO (Basado en stock_minimo)
+        // 4. SEMÁFORO
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
         
-        // 5. CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES COMPLETAS + REMANENTE)
+        // 5. CONSTRUCCIÓN VISUAL (1 UNIDAD + 0.00 M2)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total disponible en ML)</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total ML)</div>
             `;
         } else {
-            // --- LÓGICA DE DESGLOSE SOLICITADA ---
-            // Calculamos cuántas unidades (láminas) caben enteras
-            const laminasCompletas = areaUnaLaminaM2 > 0 ? Math.floor((stockActualUnidad + 0.001) / areaUnaLaminaM2) : 0;
-            
-            // Calculamos el remanente exacto en m2
-            let sobranteM2 = areaUnaLaminaM2 > 0 ? stockActualUnidad - (laminasCompletas * areaUnaLaminaM2) : stockActualUnidad;
-            
-            // Limpieza de precisión: si el sobrante es casi nada, es 0
-            if (Math.abs(sobranteM2) < 0.005) sobranteM2 = 0;
+            // --- LÓGICA MATEMÁTICA CORREGIDA ---
+            let laminasCompletas = 0;
+            let sobranteM2 = stockActualUnidad;
 
-            let desglose = `${laminasCompletas} und + ${sobranteM2.toFixed(2)} m² rem`;
-            
+            if (areaUnaLaminaM2 > 0) {
+                // Usamos un margen de error (epsilon) para que 3.52 / 3.52 sea 1 exacto
+                laminasCompletas = Math.floor((stockActualUnidad / areaUnaLaminaM2) + 0.001);
+                sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
+                
+                // Si el sobrante es insignificante (menos de 1cm2), lo ponemos en 0
+                if (Math.abs(sobranteM2) < 0.001) sobranteM2 = 0;
+            }
+
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #475569; margin-top: 2px; font-weight: 600;">${desglose}</div>
+                <div style="font-size: 0.7rem; color: #475569; margin-top: 2px; font-weight: 600;">
+                    ${laminasCompletas} und + ${sobranteM2.toFixed(2)} m² rem
+                </div>
             `;
         }
 
+        // --- EL RESTO DE TU FILA.INNERHTML IGUAL ---
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
                 <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre || 'Proveedor'}</span>
+                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre || 'SIN PROVEEDOR'}</span>
                 </div>
             </td>
             <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
