@@ -627,19 +627,20 @@ if (formCompra) {
 // 1. Buscamos el ID real de Atlas, si no existe o es temporal, queda como null internamente
 // --- 🛡️ SOLUCIÓN FINAL (v15.3.9 - COMPATIBILIDAD CON SERVIDOR) ---
 // 1. Buscamos el ID real de Atlas
+// 1. Identificamos el ID real de Atlas
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
                    ? (existente._id || existente.id) 
                    : null;
 
-// 2. Determinamos si es nuevo
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 3. Construimos el objeto forzando el campo materialId
-// 1. Construimos el objeto base con toda tu lógica de cálculo intacta
-// BUSCA ESTO EN TU formCompra.onsubmit
+// 2. Construimos el objeto con la "llave" corregida
 const datosParaAtlas = {
+    // CAMBIO CLAVE: Si es nuevo, mandamos "" (vacío). 
+    // Esto evita el error de "ID no proporcionado" pero NO causa el "Cast Error" en Atlas.
+    materialId: esNuevoMaterial ? "" : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -652,10 +653,9 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// ESTA ES LA ÚNICA FORMA DE QUE ATLAS NO EXPLOTE:
-// Si es un material nuevo, NO PUEDE EXISTIR la propiedad materialId en el objeto.
-if (!esNuevoMaterial && idAtlasReal && idAtlasReal !== "NUEVO") {
-    datosParaAtlas.materialId = idAtlasReal;
+// 3. Refuerzo opcional: solo si el servidor es muy estricto
+if (esNuevoMaterial) {
+    datosParaAtlas.materialId = ""; 
 }
 // NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
