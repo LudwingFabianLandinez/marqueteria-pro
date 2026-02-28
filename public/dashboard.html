@@ -59,6 +59,19 @@
             color: white;
             border-left: 4px solid #3182ce;
         }
+        /* Estilo especial para el botón de catálogo en el menú */
+        .menu-link.btn-maestro {
+            color: #63b3ed;
+            font-weight: bold;
+            margin-top: 10px;
+            border: 1px dashed #3182ce;
+            margin: 10px 15px;
+            border-radius: 8px;
+        }
+        .menu-link.btn-maestro:hover {
+            background: #2c5282;
+            color: white;
+        }
 
         /* --- CONTENEDOR PRINCIPAL --- */
         .main-container {
@@ -110,6 +123,7 @@
             overflow: hidden; 
             flex-grow: 1; 
             border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
         }
 
         .table-scroll-container {
@@ -216,6 +230,11 @@
         <div class="logo-area">MARQUETERÍA<br>LA CHICA<br>MORALES</div>
         <nav class="menu-nav">
             <a href="dashboard.html" class="menu-link active"><i class="fas fa-home"></i> Inicio / Inventario</a>
+            
+            <a href="#" class="menu-link btn-maestro" onclick="document.getElementById('modalCatalogoMaestro').style.display='block'">
+                <i class="fas fa-star"></i> Crear Material Maestro
+            </a>
+
             <a href="quotes.html" class="menu-link"><i class="fas fa-calculator"></i> Nueva Cotización</a>
             <a href="history.html" class="menu-link"><i class="fas fa-history"></i> Historial de Ventas</a>
             <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
@@ -229,36 +248,6 @@
                 <div class="top-actions">
                     <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
                     <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
-                </div>
-                
-                <div style="background: #ebf8ff; padding: 20px; border-radius: 12px; border: 2px solid #3182ce; margin-bottom: 25px;">
-                    <h3 style="color: #2c5282; margin-top: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-id-card"></i> 1. REGISTRAR MATERIAL EN CATÁLOGO (ID ÚNICO)
-                    </h3>
-                    <p style="font-size: 0.8rem; color: #4a5568; margin-bottom: 15px;">
-                        Crea el material aquí una sola vez. Esto genera el <b>ID permanente</b> para que el Cotizador siempre encuentre el precio.
-                    </p>
-                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 12px; align-items: end;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>NOMBRE DEL MATERIAL</label>
-                            <input type="text" id="cat-nombre-maestro" placeholder="Ej: VIDRIO 3MM CLEAR" style="text-transform: uppercase;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>CATEGORÍA</label>
-                            <select id="cat-categoria-maestro">
-                                <option value="GENERAL">GENERAL / VIDRIOS</option>
-                                <option value="MOLDURAS">MOLDURAS (ML)</option>
-                                <option value="PASSEPARTOUT">PASSEPARTOUT</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>COSTO BASE ($)</label>
-                            <input type="number" id="cat-precio-maestro" placeholder="0">
-                        </div>
-                        <button onclick="ejecutarRegistroMaestro()" class="btn-action btn-purple" style="height: 40px; background: #3182ce;">
-                            <i class="fas fa-save"></i> CREAR ID
-                        </button>
-                    </div>
                 </div>
             </div>
             
@@ -290,6 +279,48 @@
             </div>
         </aside>
     </main>
+</div>
+
+<div id="modalCatalogoMaestro" class="modal">
+    <div class="modal-content" style="border: 2px solid #3182ce;">
+        <div class="modal-header" style="background: #2c5282;">
+            <i class="fas fa-id-card"></i> REGISTRAR MATERIAL EN CATÁLOGO
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.85rem; color: #4a5568; margin-bottom: 20px;">
+                Crea el material aquí <b>una sola vez</b>. Esto genera el ID permanente para que el Cotizador siempre encuentre el precio.
+            </p>
+            
+            <div class="form-group">
+                <label>NOMBRE DEL MATERIAL</label>
+                <input type="text" id="cat-nombre-maestro" placeholder="Ej: VIDRIO 3MM CLEAR" style="text-transform: uppercase;">
+            </div>
+
+            <div class="form-group">
+                <label>CATEGORÍA DEL PRODUCTO</label>
+                <select id="cat-categoria-maestro">
+                    <option value="GENERAL">GENERAL / VIDRIOS / LÁMINAS</option>
+                    <option value="MOLDURAS">MOLDURAS (SE CALCULA POR ML)</option>
+                    <option value="PASSEPARTOUT">PASSEPARTOUT / CARTONES</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>COSTO BASE DE COMPRA ($)</label>
+                <input type="number" id="cat-precio-maestro" placeholder="Ej: 45000">
+                <small style="color: #718096; display: block; margin-top: 5px;">Este será el precio que usará el Cotizador automáticamente.</small>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button onclick="ejecutarRegistroMaestro()" class="btn-action btn-green" style="flex: 2; justify-content: center; background: #3182ce;">
+                    <i class="fas fa-save"></i> CREAR ID Y GUARDAR
+                </button>
+                <button onclick="document.getElementById('modalCatalogoMaestro').style.display='none'" class="btn-action" style="flex: 1; background: #e2e8f0; color: #4a5568; justify-content: center;">
+                    CANCELAR
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="modalCompra" class="modal" style="display: none;">
@@ -382,7 +413,6 @@
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js"></script>
 <script>
-    // Esta es la dirección maestra para que nada se pierda
     window.API_URL = "/.netlify/functions/server";
 </script>
 <script>
@@ -425,9 +455,7 @@
         if(matSelect) {
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
-            // Añadimos el data-costo para que el cotizador pueda leerlo después
             opciones += inventario.map(m => {
-                // Detectamos el costo sin importar cómo se llame en tu base de datos
                 const costo = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
                 return `<option value="${m._id || m.id}" data-costo="${costo}">${m.nombre.toUpperCase()}</option>`;
             }).join('');
@@ -439,25 +467,22 @@
         const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
         const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
         const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const matSelect = document.getElementById('compraMaterial');
         const nombreInput = document.getElementById('nombreNuevoMaterial').value.toLowerCase();
         const label = document.getElementById('labelConversion');
 
-        // GANCHO DE INTELIGENCIA: Detectar si es moldura (por nombre o por ancho < 10cm)
         const esMoldura = nombreInput.includes('moldura') || (ancho > 0 && ancho < 10);
 
         if (esMoldura) {
             const mlTotal = (largo / 100) * cant;
             if(label) label.textContent = `Total a ingresar: ${mlTotal.toFixed(2)} ML (Moldura)`;
-            label.style.color = "#805ad5"; // Color púrpura para molduras
+            label.style.color = "#805ad5"; 
         } else {
             const m2Total = ((largo * ancho) / 10000) * cant;
             if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m² (Lámina)`;
-            label.style.color = "#2f855a"; // Color verde para láminas
+            label.style.color = "#2f855a"; 
         }
     }
 
-    // INSERTADO: FUNCIÓN DE REGISTRO MAESTRO
     async function ejecutarRegistroMaestro() {
         const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
         const categoria = document.getElementById('cat-categoria-maestro').value;
@@ -468,7 +493,6 @@
             return;
         }
 
-        // GENERACIÓN DEL ID ETERNO (Basado en el nombre)
         const idLimpio = `ID-${nombre.replace(/\s+/g, '_')}`;
 
         const nuevoMaterial = {
@@ -483,12 +507,10 @@
         };
 
         try {
-            // 1. Guardar en LocalStorage (Para uso inmediato del cotizador)
             let inv = JSON.parse(localStorage.getItem('inventory') || '[]');
             inv.push(nuevoMaterial);
             localStorage.setItem('inventory', JSON.stringify(inv));
 
-            // 2. Guardar en MongoDB Atlas vía API
             await fetch('/api/inventory/catalog', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -504,6 +526,7 @@
         }
     }
 </script>
+
 <div id="modalHistorialPrecios" class="modal" style="display:none; position:fixed; z-index:999999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
     <div style="background:white; width:90%; max-width:500px; border-radius:10px; overflow:hidden;">
         <div style="background:#1e293b; color:white; padding:15px; font-weight:bold;">HISTORIAL REAL AL 22/02/2026</div>
