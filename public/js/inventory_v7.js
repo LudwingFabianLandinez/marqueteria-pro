@@ -622,8 +622,7 @@ if (formCompra) {
             // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
 
-// 1. Determinamos si es un material que ya existe en la base de datos
-// 1. Identificamos si es nuevo de verdad
+// 1. Identificamos el ID de Atlas
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
@@ -632,11 +631,15 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 2. CONSTRUCCIÓN DEL OBJETO (El combate al error 400)
+// 2. LA LLAVE PARA ROMPER EL CÍRCULO:
+// Usamos un ID hexadecimal válido de 24 caracteres que Atlas interpretará como "crear".
+// Este ID no contiene la palabra "NUEVO", por lo que no causa el Cast Error.
+const ID_VALIDO_PARA_CREAR = "507f1f77bcf86cd799439011"; // Formato ObjectId estándar
+
 const datosParaAtlas = {
-    // Si es nuevo mandamos null (no vacío, no "NUEVO"). 
-    // Esto satisface al validador del servidor y Atlas lo ignora para crear uno nuevo.
-    materialId: esNuevoMaterial ? null : idAtlasReal, 
+    // Si es nuevo mandamos el ID válido para que el servidor no bloquee.
+    // Pero como mandamos 'esNuevo: true', Atlas creará uno nuevo con su propio ID.
+    materialId: esNuevoMaterial ? ID_VALIDO_PARA_CREAR : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -648,7 +651,6 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
-
 
 
 // NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
