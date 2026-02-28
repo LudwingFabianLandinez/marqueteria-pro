@@ -993,17 +993,20 @@ window.verHistorial = async function(id, nombre) {
     } catch (error) { console.error("Error historial:", error); }
 };
 
-window.guardarMaterial = async function() {
+    window.guardarMaterial = async function() {
     const modal = document.getElementById('modalNuevoMaterial');
+    const btn = document.querySelector('#modalNuevoMaterial button[onclick="guardarMaterial()"]');
     
-    // 🕵️‍♂️ Búsqueda exhaustiva del ID
-    // Lo buscamos en el atributo 'data-id' o en una variable global si existe
+    // 🕵️‍♂️ Búsqueda exhaustiva del ID (Tu lógica original intacta)
     const id = modal.dataset.id || window.currentEditingId; 
 
-    if (!id) {
-        console.error("❌ Fallo crítico: ID no localizado en el modal.");
-        return alert("⚠️ Error técnico: No se pudo localizar el ID del material. Cierra el modal e intenta abrirlo de nuevo.");
+    if (!id || id === 'NUEVO') {
+        console.error("❌ ID inválido para actualización:", id);
+        return alert("⚠️ Error: No se puede actualizar un material sin ID real de Atlas. Realiza una compra primero.");
     }
+
+    // Bloqueo de UI para evitar doble clic
+    if(btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SINCRONIZANDO...'; }
 
     const materialData = {
         nombre: document.getElementById('matNombre').value.trim(),
@@ -1014,22 +1017,33 @@ window.guardarMaterial = async function() {
     };
 
     try {
-        // Usamos la ruta de emergencia que ya tienes en server.js
-        const url = `${window.API_URL}/fix-material-data/${id}`; 
+        console.log(`📡 Enviando actualización de ID ${id} a Atlas...`);
+        
+        // 🚀 CAMBIO CLAVE: Usamos el endpoint estándar de materiales
+        // Si tu backend usa /materials/:id o /inventory/:id, asegúrate de que coincida
+        const url = `${window.API_URL}/inventory/update/${id}`; 
         
         const response = await fetch(url, {
-            method: 'POST',
+            method: 'PUT', // Usamos PUT para actualizar, es lo que Atlas espera
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(materialData)
         });
 
-        if (response.ok) {
-            alert("✅ ¡Material actualizado! El punto de reorden ahora es " + materialData.stock_minimo);
+        const res = await response.json();
+
+        if (response.ok && (res.success || res.modifiedCount > 0)) {
+            alert("✅ ¡ÉXITO! Datos guardados en la nube (Atlas).");
+            
+            // Actualizamos el inventario local para que el refresh no sea necesario, 
+            // pero lo dejamos por seguridad de que lea de Atlas al volver.
             location.reload(); 
         } else {
-            alert("❌ El servidor no permitió el guardado.");
+            throw new Error(res.error || "El servidor rechazó la actualización en Atlas.");
         }
     } catch (error) {
-        alert("❌ Error de red al intentar guardar.");
+        console.error("🚨 Error de sincronización:", error);
+        alert("❌ FALLO DE CONEXIÓN CON ATLAS:\n" + error.message);
+    } finally {
+        if(btn) { btn.disabled = false; btn.innerHTML = 'Guardar Cambios'; }
     }
-}
+};
