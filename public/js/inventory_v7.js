@@ -366,21 +366,24 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. RECONCILIACIÓN: Stock real sumando lo local
+        // 1. RECONCILIACIÓN: Stock real sumando lo local (CONEXIÓN ATLAS PRESERVADA)
         const stockActualUnidad = calcularStockReal(m);
         
         // 2. IDENTIFICACIÓN ESTRICTA: ¿Es Moldura o es Material de Área?
         const esMoldura = m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
-        // --- MEJORA PUNTO 1: DETECCIÓN ROBUSTA DE MEDIDAS (PRESERVADO) ---
+        // --- CORRECCIÓN DE MEDIDAS: Captura datos de Atlas/Compra ---
+        // Buscamos los valores en los diferentes nombres que usa la base de datos
         const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
         const largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
         
         let visualMedida = "";
         if (esMoldura) {
+            // Para molduras usamos largo, si no existe asumimos el estándar de 290
             visualMedida = `${largo > 0 ? largo : 290} cm`;
         } else {
+            // Para materiales de área: muestra Ancho x Largo si existen
             visualMedida = (ancho > 0 && largo > 0) ? `${ancho}x${largo} cm` : "Ver Ficha";
         }
 
@@ -403,7 +406,7 @@ function renderTable(materiales) {
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
         
-        // 5. --- MEJORA PUNTO 2: CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES + REMANENTE) ---
+        // 5. CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES + REMANENTE)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
@@ -416,7 +419,6 @@ function renderTable(materiales) {
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
             if (sobranteM2 < 0.0001) sobranteM2 = 0;
 
-            // Lógica Punto 2: Mostrar explícitamente unidades y remanente
             let desglose = "";
             if (laminasCompletas > 0) {
                 desglose = (sobranteM2 > 0.01) 
