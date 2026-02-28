@@ -291,12 +291,36 @@ router.get('/inventory/all-purchases', async (req, res) => {
 });
 
 // --- REGISTRO DE COMPRA (CORREGIDO PARA ATLAS) ---
-// --- REGISTRO DE COMPRA (BLINDAJE TOTAL + SINCRONIZACIÓN ATLAS) ---
+// --- REGISTRO DE COMPRA (BLINDAJE TOTAL + CREACIÓN DE MATERIALES EN ATLAS v16.1.7) ---
 router.post('/inventory/purchase', async (req, res) => {
     try {
-        // 1. Captura de ID con validación de seguridad para evitar registros huérfanos
-        const materialId = req.body.materialId;
-        
+        // 1. Captura de ID y detección de flujo (Creación vs Compra)
+        const materialId = req.body.materialId || req.body.id;
+
+        // --- INICIO LÓGICA DE CREACIÓN SI EL ID ES "NUEVO" ---
+        if (materialId === "NUEVO") {
+            console.log("🆕 Detectada solicitud de creación de material maestro...");
+            const nuevoMat = new Material({
+                nombre: req.body.nombre,
+                categoria: req.body.categoria,
+                costo_base: parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0),
+                precio_m2_costo: parseFloat(req.body.precio_m2_costo || req.body.costo_base || 0),
+                stock_actual: 0,
+                ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
+                largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
+                unidad: req.body.unidad || ((req.body.categoria === "MOLDURAS" || req.body.nombre?.includes("MOLDURA")) ? "ML" : "M2"),
+                estado: 'Activo'
+            });
+            const guardado = await nuevoMat.save();
+            return res.status(200).json({ 
+                success: true, 
+                message: "Material creado exitosamente en Atlas", 
+                data: guardado 
+            });
+        }
+        // --- FIN LÓGICA DE CREACIÓN ---
+
+        // Validaciones de seguridad para compras (se mantienen intactas)
         if (!materialId || materialId === 'null' || materialId === 'undefined') {
             console.error("🚨 Intento de compra sin materialId válido");
             return res.status(400).json({ 
@@ -364,7 +388,7 @@ router.post('/inventory/purchase', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("🚨 Error en Compra Atlas:", error.message);
+        console.error("🚨 Error en Compra/Creación Atlas:", error.message);
         return res.status(200).json({ success: false, localRescue: true, error: error.message });
     }
 });

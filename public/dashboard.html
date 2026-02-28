@@ -493,23 +493,21 @@
         return;
     }
 
-    // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA (v16.0.6) ---
-    // No inventamos ID, dejamos que Atlas lo cree.
+    // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA ---
     const nuevoMaterial = {
-        id: "NUEVO", 
+        id: "NUEVO", // Forzamos a Atlas a crear el ID real
         nombre: nombre,
         categoria: categoria,
         costo_base: precio,
         precio_m2_costo: precio,
         stock_actual: 0,
-        unidad: (categoria === "MOLDURAS" || nombre.includes("MOLDURA")) ? "ML" : "M2",
-        timestamp: new Date().toISOString()
+        unidad: (categoria === "MOLDURAS" || nombre.includes("MOLDURA")) ? "ML" : "M2"
     };
 
     try {
-        console.log("📡 Intentando registrar en Atlas...", nuevoMaterial);
+        console.log("📡 Intentando registrar en Atlas vía window.API_URL...");
 
-        // Usamos la URL unificada que sí funciona
+        // USAMOS TU VARIABLE DE LA IMAGEN 3 + LA RUTA CORRECTA
         const URL_REGISTRO = `${window.API_URL}/inventory/purchase`;
 
         const response = await fetch(URL_REGISTRO, {
@@ -522,17 +520,16 @@
 
         if (res.success) {
             const idDeAtlas = res.data?._id || res.data?.id;
-            alert(`✅ ¡LOGRADO!\n'${nombre}' registrado en Atlas.\nID MAESTRO: ${idDeAtlas}`);
+            alert(`✅ ¡EXITO REAL!\nMaterial guardado en Atlas.\nID MAESTRO: ${idDeAtlas}`);
             
-            // Limpiamos caché local para forzar que descargue lo nuevo de Atlas
-            localStorage.removeItem('inventory');
+            localStorage.removeItem('inventory'); // Limpiamos para recargar datos reales
             location.reload();
         } else {
             throw new Error(res.error || "Atlas rechazó el registro");
         }
     } catch (e) {
-        console.error("❌ Error en Registro Maestro:", e);
-        alert("🚨 FALLO DE CONEXIÓN CON ATLAS:\n" + e.message);
+        console.error("❌ Error 404 evitado, pero hubo otro fallo:", e);
+        alert("🚨 ERROR: Revisa que la ruta /inventory/purchase esté activa en tu server.js");
     }
 }
 </script>
