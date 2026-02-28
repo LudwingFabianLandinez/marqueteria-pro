@@ -460,7 +460,7 @@ function renderTable(materiales) {
             </td>
         `;
         cuerpoTabla.appendChild(fila);
-    });
+    }); S
 }
 
 // --- FACTURACIÓN (PRESERVADO) ---
