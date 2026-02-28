@@ -219,14 +219,27 @@ window.guardarProveedor = async function(event) {
         console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
         
         // 3. ENVÍO DIRECTO Y SEGURO (Corrigiendo el error 400 del puente)
-        const response = await fetch(`${window.API_URL}/providers`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+       // 1. NO TOCAMOS datosParaAtlas (así tu código no se daña)
+// 2. CREAMOS UNA COPIA SOLO PARA EL VIAJE A LA NUBE
+const copiaParaAtlas = { ...datosParaAtlas };
+
+if (copiaParaAtlas.materialId === "NUEVO") {
+    delete copiaParaAtlas.materialId; // Atlas feliz
+}
+
+// 3. ENVIAMOS LA COPIA, NO EL ORIGINAL
+const response = await fetch(`${window.API_URL}/inventory/purchase`, {
+    method: 'POST',
+    headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json' 
+    },
+    body: JSON.stringify(copiaParaAtlas) // <--- ESTO es lo que llega a Atlas
+});
+
+// 4. EL RESTO DE TU CÓDIGO SIGUE IGUAL
+// Como no tocamos 'datosParaAtlas', tu código local encontrará el material
+// y sumará el stock sin dar error.
 
         // Validamos si la respuesta fue exitosa antes de convertir a JSON
         if (!response.ok) {
