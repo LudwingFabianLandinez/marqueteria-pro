@@ -652,7 +652,7 @@ if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
 }
 
-            // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
+            // --- 🚀 RUTA DE CONEXIÓN UNIFICADA (v16.0.3) ---
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
             console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
 
@@ -668,22 +668,23 @@ if (!esNuevoMaterial && idAtlasReal) {
             try {
                 resultadoAtlas = JSON.parse(textoRespuesta);
             } catch (err) {
-                throw new Error("El servidor no devolvió un JSON. Posible 'Clean Exit' del servidor.");
+                throw new Error("El servidor no devolvió un JSON válido.");
             }
 
             if (!response.ok) {
                 throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
             }
 
-            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
+            // --- 🔄 SINCRONIZACIÓN MAESTRA TRAS ÉXITO ---
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
-            let objetoFinal; // Variable clave para persistencia
+            let objetoFinal; 
 
             if (existente) {
+                // Actualizamos el stock y el ID real de Atlas en el objeto de memoria
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
                 if (idDeAtlas) {
                     existente._id = idDeAtlas;
-                    existente.id = idDeAtlas;
+                    existente.id = idDeAtlas; // Matamos el ID temporal aquí
                 }
                 objetoFinal = existente;
             } else {
@@ -695,6 +696,7 @@ if (!esNuevoMaterial && idAtlasReal) {
                     categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                     stock_actual: stockASumar,
                     precio_total_lamina: costo,
+                    precio_m2_costo: costo, // Para el cotizador
                     ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
                     largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
                 };
@@ -702,20 +704,20 @@ if (!esNuevoMaterial && idAtlasReal) {
                 objetoFinal = nuevoMaterial;
             }
 
-            // --- 📦 PERSISTENCIA LOCAL (CORREGIDA PARA REFRESH) ---
-            // 1. Bitácora de molduras
+            // --- 📦 PERSISTENCIA Y LIMPIEZA ---
+            // 1. Actualizar Inventario en LocalStorage
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            
+            // 2. Limpiar molduras pendientes (Bitácora)
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // 2. ACTUALIZACIÓN TOTAL DEL INVENTARIO
-            // Forzamos el guardado de la lista completa ya actualizada
-            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-            
             // 3. UI
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} guardado permanentemente.`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado con ID Maestro Atlas.`);
             
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
@@ -726,9 +728,9 @@ if (!esNuevoMaterial && idAtlasReal) {
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
-    }; 
-}
-}
+    }; // Cierra formCompra.onsubmit
+} // Cierra if (formCompra)
+} // Cierra configurarEventos()
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
