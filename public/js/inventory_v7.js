@@ -580,41 +580,43 @@ function configurarEventos() {
     });
 
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
-    // --- FUNCIÓN DE GUARDADO CORREGIDA (PUNTO 4) ---
 window.guardarMaterial = async function() {
-    // 1. Capturamos los valores usando los IDs que están en tu HTML
-    const anchoInput = document.getElementById('matAncho')?.value || document.getElementById('compraAncho')?.value || "0";
-    const largoInput = document.getElementById('matLargo')?.value || document.getElementById('compraLargo')?.value || "0";
-    
+    // --- CAPTURA INTELIGENTE DE DATOS ---
+    // Si estamos en el modal de COMPRA, usamos esos IDs. Si no, usamos los de GESTIÓN.
+    const anchoValue = document.getElementById('compraAncho')?.value || document.getElementById('matAncho')?.value || "0";
+    const largoValue = document.getElementById('compraLargo')?.value || document.getElementById('matLargo')?.value || "0";
+    const costoValue = document.getElementById('compraCosto')?.value || document.getElementById('matCosto')?.value || "0";
+    const nombreValue = document.getElementById('nombreNuevoMaterial')?.value || document.getElementById('matNombre')?.value || "SIN NOMBRE";
+    const materialId = document.getElementById('compraMaterial')?.value || document.getElementById('matId')?.value || "NUEVO";
+
     const payload = {
-        // Buscamos el ID (si es edición) o marcamos como NUEVO
-        id: document.getElementById('matId')?.value || "NUEVO",
-        nombre: document.getElementById('matNombre')?.value || document.getElementById('nombreNuevoMaterial')?.value,
-        // Si no hay categoría seleccionada, por defecto es GENERAL
+        id: materialId,
+        nombre: nombreValue.toUpperCase(),
         categoria: document.getElementById('matCategoria')?.value || "GENERAL",
-        precio_total_lamina: parseFloat(document.getElementById('matCosto')?.value || document.getElementById('compraCosto')?.value) || 0,
-        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value) || 2,
         
-        // ENVIAMOS A ATLAS CON LOS NOMBRES CORRECTOS
-        ancho_lamina_cm: parseFloat(anchoInput),
-        largo_lamina_cm: parseFloat(largoInput)
+        // LOS TRES CAMPOS QUE ATLAS NECESITA (Convertidos a números)
+        ancho_lamina_cm: parseFloat(anchoValue),
+        largo_lamina_cm: parseFloat(largoValue),
+        precio_total_lamina: parseFloat(costoValue),
+        
+        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value) || 2
     };
 
-    console.log("📤 Intentando guardar en Atlas:", payload);
+    console.log("📡 Enviando datos unificados a Atlas:", payload);
 
     try {
+        // MANTENEMOS TU CONEXIÓN LOGRADA
         const res = await window.API.saveMaterial(payload);
+        
         if(res.success) {
-            alert(`✅ Guardado con éxito: ${payload.ancho_lamina_cm}x${payload.largo_lamina_cm} cm`);
-            window.cerrarModales?.(); // Cerramos si existe la función
-            if(window.fetchInventory) await window.fetchInventory(); // Recargamos tabla
-            location.reload(); // Recarga física para asegurar limpieza
+            alert(`✅ ¡LOGRADO!\nMedidas: ${payload.ancho_lamina_cm}x${payload.largo_lamina_cm}\nCosto: $${payload.precio_total_lamina}`);
+            location.reload(); 
         } else {
-            alert("❌ Atlas no pudo procesar el guardado");
+            alert("❌ Atlas recibió los datos pero no pudo procesarlos.");
         }
     } catch(err) {
-        console.error("Error en el envío:", err);
-        alert("❌ Error de comunicación con el servidor");
+        console.error("Error crítico de conexión:", err);
+        alert("❌ Error de comunicación con el servidor.");
     }
 };
 

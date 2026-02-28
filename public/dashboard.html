@@ -326,7 +326,7 @@
 <div id="modalCompra" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">REGISTRAR COMPRA DE MATERIAL</div>
-        <form id="formNuevaCompra" class="modal-body" onsubmit="if(window.handlePurchase) { window.handlePurchase(event); } else { event.preventDefault(); alert('Error: Motor de inventario no cargado'); }">
+        <form id="formNuevaCompra" class="modal-body" onsubmit="event.preventDefault(); window.guardarMaterial();">
             <div class="form-group">
                 <label>Proveedor</label>
                 <select id="compraProveedor" name="providerId" required></select>
