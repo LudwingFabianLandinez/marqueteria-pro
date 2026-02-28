@@ -374,17 +374,21 @@ function renderTable(materiales) {
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
         // --- CORRECCIÓN DE MEDIDAS: Captura datos de Atlas/Compra ---
-        // Buscamos los valores en los diferentes nombres que usa la base de datos
-        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
-        const largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
+        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || 0);
+        const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || 0);
         
         let visualMedida = "";
         if (esMoldura) {
-            // Para molduras usamos largo, si no existe asumimos el estándar de 290
+            // Si es moldura y el largo es 0, ponemos 290 por defecto
             visualMedida = `${largo > 0 ? largo : 290} cm`;
         } else {
-            // Para materiales de área: muestra Ancho x Largo si existen
-            visualMedida = (ancho > 0 && largo > 0) ? `${ancho}x${largo} cm` : "Ver Ficha";
+            // Si encontró valores en cualquiera de las variables de arriba, los muestra
+            if (ancho > 0 && largo > 0) {
+                visualMedida = `${ancho}x${largo} cm`;
+            } else {
+                // Si sigue en 0, intentamos ver si Atlas guardó un campo llamado 'dimensiones'
+                visualMedida = m.dimensiones ? m.dimensiones : "Ver Ficha";
+            }
         }
 
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
