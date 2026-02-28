@@ -269,11 +269,14 @@ async function fetchInventory() {
 
         // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Preservando tu lógica)
         const materialesMapeados = datosServidor.map(m => {
+            // SEGURIDAD: Si el objeto m no existe, lo saltamos
+            if (!m) return null;
+
             return {
                 ...m,
                 id: m._id || m.id,
-                // ESCUDO: Si no hay nombre, evitamos el undefined
-                nombre: m.nombre || "Sin nombre",
+                // ESCUDO REFORZADO: Convertimos a String para que toLowerCase() nunca falle
+                nombre: String(m.nombre || "Sin nombre").trim(),
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
                 stock_actual: Number(m.stock_actual) || 0, 
@@ -284,7 +287,8 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo) || 2,
                 tipo: m.tipo || 'm2'
             };
-        });
+        }).filter(m => m !== null && m.nombre !== "NUEVO" && m.nombre !== ""); 
+        // El .filter limpia registros basura o vacíos que bloquean la vista.
 
         // 3. RECONCILIACIÓN POR NOMBRE (Con protección contra errores de toLowerCase)
         window.todosLosMateriales = materialesMapeados.map(mServidor => {
@@ -633,9 +637,8 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
 // 3. Construimos el objeto forzando el campo materialId
+// 1. Construimos el objeto base con toda tu lógica de cálculo intacta
 const datosParaAtlas = {
-    // Si es nuevo, enviamos "NUEVO" para que el servidor no lance el error de "ID no proporcionado"
-    materialId: esNuevoMaterial ? "NUEVO" : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -647,7 +650,11 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
-// 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
+
+// 2. LA LLAVE MAESTRA: 
+// Si NO es nuevo, le pasamos el ID para que actualice el existente.
+// Si ES NUEVO, NO enviamos la propiedad materialId (ni siquiera como "NUEVO").
+// Al no enviarla, Atlas entiende que debe generar un ID único automáticamente.
 if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
 }
