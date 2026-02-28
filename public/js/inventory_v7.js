@@ -573,8 +573,8 @@ function configurarEventos() {
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
-// Reemplaza tu bloque formCompra.onsubmit con este corregido:
-// Actualización de conexión v15.3.0
+
+
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
@@ -596,7 +596,7 @@ if (formCompra) {
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
 
-            // 1. DETERMINAR NOMBRE Y TIPO (Mantenemos tu lógica de conversión)
+            // 1. DETERMINAR NOMBRE Y TIPO
             let nombreInput = (selectMat.value === "NUEVO") 
                 ? inputNuevo.value.trim() 
                 : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
@@ -606,7 +606,6 @@ if (formCompra) {
 
             const cant = parseFloat(inputCant.value) || 0;
             const costo = parseFloat(inputCosto.value) || 0;
-            let unidadFinal = esMoldura ? "ml" : "m²";
             
             let stockASumar = esMoldura 
                 ? (cant * 2.90) 
@@ -615,69 +614,41 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // 2. 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2)
-            // --- 🛡️ LÓGICA DE IDENTIDAD DE ALTO NIVEL (v15.3.3) ---
-            const esAgregadoNuevo = (selectMat.value === "NUEVO");
+            // 2. 🛡️ LÓGICA DE IDENTIDAD (CORREGIDA PARA EVITAR 400/404)
+            const idAtlasReal = (existente && (existente._id || existente.id) && 
+                                !String(existente._id || existente.id).startsWith('TEMP-') && 
+                                !String(existente._id || existente.id).startsWith('MAT-')) 
+                               ? (existente._id || existente.id) 
+                               : null;
 
-            // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
-            // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
+            const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 1. Identificamos el ID de Atlas (Sin tocar tu lógica de conexión)
-const idAtlasReal = (existente && (existente._id || existente.id) && 
-                    !String(existente._id || existente.id).startsWith('TEMP-') && 
-                    !String(existente._id || existente.id).startsWith('MAT-')) 
-                   ? (existente._id || existente.id) 
-                   : null;
+            // 3. CONSTRUCCIÓN DEL OBJETO DE ENVÍO
+            const datosParaAtlas = {
+                nombre: nombreReal,
+                esNuevo: esNuevoMaterial,
+                categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
+                cantidad_laminas: cant,
+                precio_total_lamina: costo,
+                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                tipo_material: esMoldura ? 'ml' : 'm2',
+                costo_total: costo * cant,
+                timestamp: new Date().toISOString()
+            };
 
-const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
+            // 🛡️ REGLA DE ORO: Solo incluimos materialId si REALMENTE existe.
+            // Si es nuevo, NO mandamos la propiedad. Ni null, ni undefined. 
+            // Esto evita que el backend busque un ID inexistente.
+            if (!esNuevoMaterial && idAtlasReal) {
+                datosParaAtlas.materialId = idAtlasReal;
+            } else {
+                datosParaAtlas.action = "create"; // Avisamos explícitamente que es creación
+            }
 
-// 2. CONSTRUCCIÓN DEL OBJETO DE COMBATE
-// 1. Construimos el objeto con los datos que SIEMPRE van
-const datosParaAtlas = {
-    nombre: nombreReal,
-    esNuevo: esNuevoMaterial,
-    categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
-    cantidad_laminas: cant,
-    precio_total_lamina: costo,
-    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-    tipo_material: esMoldura ? 'ml' : 'm2',
-    costo_total: costo * cant,
-    timestamp: new Date().toISOString()
-};
-
-// 2. LA SOLUCIÓN SIN ERRORES:
-// Solo agregamos la propiedad 'materialId' si el material YA EXISTE en Atlas.
-// Si es nuevo, NO la mandamos. Así evitamos el error 400 de "ID inválido"
-// y el error 404 de "ID no encontrado".
-if (!esNuevoMaterial && idAtlasReal) {
-    datosParaAtlas.materialId = idAtlasReal;
-}
-
-// 3. Opcional: Si tu servidor EXIGE que la propiedad exista pero sea nula:
-// if (esNuevoMaterial) { datosParaAtlas.materialId = null; }
-
-
-// 3. LA LLAVE DE ORO:
-// Si el servidor es extremadamente estricto, esta propiedad 'accion' 
-// fuerza a Atlas a ignorar el materialId y crear el registro.
-if (esNuevoMaterial) {
-    datosParaAtlas.action = "create"; 
-}
-
-
-// 3. LIMPIEZA DE ÚLTIMO MOMENTO
-if (esNuevoMaterial) {
-    // Si el servidor se pone pesado con el "undefined", lo mandamos como null 
-    // pero mantenemos la propiedad viva.
-    datosParaAtlas.materialId = null;
-}
-
-
-// NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
-            // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
+            // 4. 🚀 CONEXIÓN
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
-            console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
+            console.log("📡 Enviando a Atlas:", datosParaAtlas);
 
             const response = await fetch(URL_FINAL, {
                 method: 'POST',
@@ -691,36 +662,36 @@ if (esNuevoMaterial) {
             try {
                 resultadoAtlas = JSON.parse(textoRespuesta);
             } catch (err) {
-                throw new Error("El servidor no devolvió un JSON. Posible 'Clean Exit' del servidor.");
+                throw new Error("Atlas no respondió en formato JSON.");
             }
 
             if (!response.ok) {
-                throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
+                throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la compra.`);
             }
 
-           // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
-const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
+            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
 
-if (existente) {
-    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-    if (idDeAtlas) {
-        existente._id = idDeAtlas; // Sincronizamos ID de Atlas
-        existente.id = idDeAtlas;
-    }
-} else {
-    // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
-    const nuevoMaterial = {
-        _id: idDeAtlas,
-        id: idDeAtlas || `TEMP-${Date.now()}`,
-        nombre: nombreReal,
-        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-        stock_actual: stockASumar,
-        precio_total_lamina: costo,
-        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
-    };
-    window.todosLosMateriales.unshift(nuevoMaterial);
-}
+            if (existente) {
+                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                if (idDeAtlas) {
+                    existente._id = idDeAtlas;
+                    existente.id = idDeAtlas;
+                }
+            } else {
+                const nuevoMaterial = {
+                    _id: idDeAtlas,
+                    id: idDeAtlas || `TEMP-${Date.now()}`,
+                    nombre: nombreReal,
+                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    stock_actual: stockASumar,
+                    precio_total_lamina: costo,
+                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
+                };
+                window.todosLosMateriales.unshift(nuevoMaterial);
+                existente = nuevoMaterial; // Referencia para la bitácora
+            }
 
             // --- 📦 PERSISTENCIA LOCAL ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
@@ -730,7 +701,7 @@ if (existente) {
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} enviado. Si no aparece en Compass, revisa el Whitelist de IPs en Atlas.`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} guardado en Atlas exitosamente.`);
             
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
@@ -741,9 +712,10 @@ if (existente) {
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
-    }; 
+    };
 }
 }
+
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
