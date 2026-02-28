@@ -632,11 +632,8 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
 // 2. CONSTRUCCIÓN DEL OBJETO DE COMBATE
+// 1. Construimos el objeto con los datos que SIEMPRE van
 const datosParaAtlas = {
-    // Si es nuevo, mandamos el NOMBRE como ID temporal. 
-    // Esto satisface al validador de Netlify (porque NO está vacío) 
-    // y evita que Atlas busque un ID hexadecimal inexistente.
-    materialId: esNuevoMaterial ? nombreReal : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -649,10 +646,17 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// Refuerzo: Si es nuevo, nos aseguramos de que el servidor sepa que NO debe buscar un ID de Atlas
-if (esNuevoMaterial) {
-    datosParaAtlas.crearNuevo = true;
+// 2. LA SOLUCIÓN SIN ERRORES:
+// Solo agregamos la propiedad 'materialId' si el material YA EXISTE en Atlas.
+// Si es nuevo, NO la mandamos. Así evitamos el error 400 de "ID inválido"
+// y el error 404 de "ID no encontrado".
+if (!esNuevoMaterial && idAtlasReal) {
+    datosParaAtlas.materialId = idAtlasReal;
 }
+
+// 3. Opcional: Si tu servidor EXIGE que la propiedad exista pero sea nula:
+// if (esNuevoMaterial) { datosParaAtlas.materialId = null; }
+
 
 // 3. LA LLAVE DE ORO:
 // Si el servidor es extremadamente estricto, esta propiedad 'accion' 
