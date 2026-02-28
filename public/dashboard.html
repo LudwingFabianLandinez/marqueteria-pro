@@ -495,35 +495,46 @@
     // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA (v16.1.9) ---
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
-    // --- CÁLCULO PREVIO PARA ATLAS (v16.0.8) ---
-    // Usamos las variables que capturamos del formulario (anchoNum, largoNum, costoTotal)
-    const areaM2 = (anchoNum * largoNum) / 10000;
-    const costoM2Real = (areaM2 > 0) ? Math.round(costoTotal / areaM2) : costoTotal;
-    const costoMLReal = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : Math.round(costoTotal / 2.9);
+    // --- 1. CAPTURA DE DATOS PARA EVITAR EL ERROR 'NOT DEFINED' ---
+    const nombre = (document.getElementById('matNombre')?.value || 
+                    document.getElementById('nombreNuevoMaterial')?.value || "SIN NOMBRE").trim();
+    const precio = parseFloat(document.getElementById('matCosto')?.value || 
+                              document.getElementById('precio_total_lamina')?.value || 0);
+    const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
 
+    // Extraemos medidas del nombre (ej: 160 X 220) para asegurar precisión
+    let anchoNum = 100; // Valor por defecto si falla la captura
+    let largoNum = 100;
+    const extractMedidas = nombre.match(/(\d+)\s*[X]\s*(\d+)/i);
+    
+    if (extractMedidas) {
+        anchoNum = parseFloat(extractMedidas[1]);
+        largoNum = parseFloat(extractMedidas[2]);
+    }
+
+    // --- 2. CÁLCULO ESTILO EXCEL ($108.000 / 3.52) ---
+    const areaM2 = (anchoNum * largoNum) / 10000;
+    const costoM2Real = areaM2 > 0 ? Math.round(precio / areaM2) : precio;
+
+    // --- 3. CONSTRUCCIÓN DEL OBJETO (v16.0.9) ---
     const nuevoMaterial = {
-        // Sincronizado con router.post('/inventory/purchase') de tu server.js
         materialId: "NUEVO", 
         id: "NUEVO", 
-        nombre: nombre,
+        nombre: nombre.toUpperCase(),
         categoria: categoria,
-        
-        // --- COSTOS DINÁMICOS (Sincronizados con Excel) ---
-        costo_base: costoTotal,
-        precio_m2_costo: esMoldura ? costoMLReal : costoM2Real, // AQUÍ ESTÁ EL $30.682
-        
+        costo_base: precio,
+        precio_m2_costo: costoM2Real, // AQUÍ SE GUARDA EL $30.682
         stock_actual: 0,
         unidad: esMoldura ? "ML" : "M2",
 
-        // --- ✅ DATOS REALES (YA NO SON 100 FIJOS) ---
-        ancho_lamina_cm: anchoNum,           // Valor real del formulario (ej. 160)
-        largo_lamina_cm: largoNum,           // Valor real del formulario (ej. 220)
-        precio_total_lamina: costoTotal,     // Valor real (ej. 108.000)
-        
+        // --- YA NO MÁS 100 FIJOS EN ATLAS ---
+        ancho_lamina_cm: anchoNum,           // Ahora envía 160
+        largo_lamina_cm: largoNum,           // Ahora envía 220
+        precio_total_lamina: precio,         // Ahora envía 108.000
         tipo_material: esMoldura ? 'ml' : 'm2',
         estado: 'Activo'
     };
-    
+
     try {
         console.log("📡 Sincronizando con Atlas V2...", nuevoMaterial);
 
