@@ -821,49 +821,51 @@ window.verHistorial = async function(id, nombre) {
   window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?")) {
         try {
-            // Verificamos si es un ID de mentira (MAT-)
-            const esIdTemporal = id && String(id).startsWith('MAT-');
+            // 1. Identificar si es un ID temporal o real de Atlas
+            const esIdTemporal = String(id).startsWith('TEMP-') || String(id).startsWith('MAT-');
+            
+            // 2. Buscar el material en el array global para obtener su _id real si lo tiene
+            const materialEnMemoria = window.todosLosMateriales.find(m => String(m.id) === String(id) || String(m._id) === String(id));
+            const idParaBorrarEnAtlas = (materialEnMemoria && materialEnMemoria._id) ? materialEnMemoria._id : id;
 
-            // 1. AGREGAR A LISTA NEGRA (Evita que resucite al refrescar)
+            // 3. AGREGAR A LISTA NEGRA LOCAL (Evita que resucite al refrescar)
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
             if (!eliminados.includes(String(id))) {
                 eliminados.push(String(id));
+                if (idParaBorrarEnAtlas !== id) eliminados.push(String(idParaBorrarEnAtlas));
                 localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
             }
 
-            // 2. LIMPIAR DE LA "CAJA DE SEGURIDAD" (molduras_pendientes)
-            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            pendientes = pendientes.filter(p => String(p.id) !== String(id));
-            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
-
-            // 3. BORRAR DE LA VISTA ACTUAL (Array global)
-            window.todosLosMateriales = window.todosLosMateriales.filter(m => String(m.id) !== String(id));
+            // 4. LIMPIAR DE LA MEMORIA LOCAL Y LOCALSTORAGE
+            window.todosLosMateriales = window.todosLosMateriales.filter(m => 
+                String(m.id) !== String(id) && String(m._id) !== String(idParaBorrarEnAtlas)
+            );
             
-            // 4. AVISAR AL SERVIDOR (🛡️ BLOQUEO DE SEGURIDAD REFORZADO)
-            if (!esIdTemporal) {
-                // Solo si el ID es real de Atlas, intentamos borrar en la nube
-                if (window.API && window.API.deleteMaterial) {
-                    await window.API.deleteMaterial(id).catch(e => {
-                        console.warn("⚠️ Falló sincronización en nube, pero se eliminó localmente.");
-                    });
-                }
+            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            pendientes = pendientes.filter(p => String(p.id) !== String(id) && String(p._id) !== String(idParaBorrarEnAtlas));
+            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+
+            // 5. AVISAR AL SERVIDOR (Solo si NO es temporal)
+            if (!esIdTemporal && window.API && window.API.deleteMaterial) {
+                console.log("📡 Solicitando a Atlas borrar ID:", idParaBorrarEnAtlas);
+                await window.API.deleteMaterial(idParaBorrarEnAtlas).catch(e => {
+                    console.warn("⚠️ No se pudo borrar en la nube, pero se eliminó localmente.");
+                });
             } else {
-                // Si es un MAT-, solo imprimimos en la consola del navegador, NO mandamos fetch
-                console.log(`🛡️ Bloqueo preventivo: ID temporal ${id} eliminado solo de memoria local.`);
+                console.log(`🛡️ Borrado local completado para ID: ${id}`);
             }
 
-            // 5. ACTUALIZAR INTERFAZ
+            // 6. ACTUALIZAR INTERFAZ
             if (typeof renderTable === 'function') {
                 renderTable(window.todosLosMateriales);
             }
             
-            alert("✅ Material eliminado definitivamente.");
+            alert("✅ Material eliminado definitivamente de este dispositivo y Atlas.");
 
         } catch (error) {
             console.error("❌ Error al eliminar:", error);
-            if (typeof renderTable === 'function') {
-                renderTable(window.todosLosMateriales);
-            }
+            alert("Hubo un problema al procesar la eliminación.");
         }
     }
 };
