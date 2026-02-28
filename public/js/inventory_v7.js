@@ -584,106 +584,73 @@ function configurarEventos() {
 
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
 window.guardarMaterial = async function() {
-    console.log("🚀 Iniciando captura segura de datos...");
-
-    // 1. CAPTURA DE NOMBRE E ID
-    const nombreValue = (document.getElementById('matNombre')?.value || 
-                         document.getElementById('nombreNuevoMaterial')?.value || 
-                         "SIN NOMBRE").trim();
-                         
-    const materialId = window.materialEditandoId || 
-                       document.getElementById('matId')?.value || 
-                       "NUEVO";
-
-    const esMoldura = nombreValue.toUpperCase().includes("MOLDURA") || 
-                      nombreValue.toUpperCase().startsWith("K ");
-
-    // 2. CAPTURA DE VALORES NUMÉRICOS (Búsqueda agresiva de IDs)
-    // Extraemos el valor directamente del DOM para evitar que Atlas reciba el "100" por defecto del HTML
-    const getVal = (ids) => {
-        for (let id of ids) {
-            let el = document.getElementById(id);
-            if (el && el.value && parseFloat(el.value) !== 0) return el.value;
-        }
-        return "0";
-    };
-
-    let anchoRaw = getVal(['ancho_lamina_cm', 'matAncho', 'compraAncho']);
-    let largoRaw = getVal(['largo_lamina_cm', 'matLargo', 'compraLargo']);
-    let costoRaw = getVal(['precio_total_lamina', 'matCosto', 'compraCosto']);
-
-    // 3. VALIDACIÓN ANTI-100 (Si el input falla, leemos el nombre del material)
-    let anchoNum = parseFloat(anchoRaw);
-    let largoNum = parseFloat(largoRaw);
-    
-    // Si el sistema detecta 100 pero el nombre dice otra cosa (ej: VIDRIO 160 X 220)
-    if ((anchoNum === 100 || anchoNum === 0) && !esMoldura) {
-        const extract = nombreValue.match(/(\d+)\s*[X]\s*(\d+)/i);
-        if (extract) {
-            anchoNum = parseFloat(extract[1]);
-            largoNum = parseFloat(extract[2]);
-            console.warn("⚠️ Medidas recuperadas del nombre para evitar el error de 100:", anchoNum, largoNum);
-        }
-    }
-
-    if (esMoldura && (largoNum === 0 || largoNum === 100)) largoNum = 290;
-    const costoTotal = parseFloat(costoRaw) || 0;
-
-    // 4. CÁLCULO ESTILO EXCEL ($30.682)
-    const areaM2 = (anchoNum * largoNum) / 10000;
-    const costoM2Calculado = (areaM2 > 0) ? Math.round(costoTotal / areaM2) : 0;
-    const costoMLCalculado = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : 0;
-
-    // 5. CONSTRUCCIÓN DEL PAYLOAD PARA ATLAS
-    const payload = {
-        id: materialId,
-        nombre: nombreValue.toUpperCase(),
-        categoria: document.getElementById('matCategoria')?.value || (esMoldura ? "MOLDURAS" : "GENERAL"),
-        
-        // ENVIAMOS LOS VALORES DEPURADOS
-        ancho_lamina_cm: anchoNum,
-        largo_lamina_cm: largoNum,
-        precio_total_lamina: costoTotal,
-        
-        // Esto corrige el Dashboard definitivamente
-        precio_m2_costo: esMoldura ? costoMLCalculado : costoM2Calculado,
-        
-        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value || document.getElementById('matStockMinimo')?.value) || 2,
-        unidad: esMoldura ? 'ML' : 'M2',
-        tipo: esMoldura ? 'ml' : 'm2'
-    };
-
-    console.log("📡 Enviando a Atlas (v16.0.7):", payload);
-    
-    // ... aquí sigue tu código de fetch a la API ...
-
     try {
-        // MANTENEMOS TU CONEXIÓN LOGRADA SIN DAÑAR NADA
-        const res = await window.API.saveMaterial(payload);
-        
-        if(res.success) {
-            // Feedback visual detallado para confirmar que se guardó lo correcto
-            const medidaDesc = esMoldura ? "2.90 ML" : `${payload.ancho_lamina_cm}x${payload.largo_lamina_cm} cm`;
-            alert(`✅ ¡LOGRADO!\nMaterial: ${payload.nombre}\nMedida: ${medidaDesc}\nCosto: $${payload.precio_total_lamina.toLocaleString()}`);
-            
-            // Sincronización local antes de recargar para evitar "parpadeos" de datos viejos
-            if (window.todosLosMateriales) {
-                const index = window.todosLosMateriales.findIndex(m => String(m.id) === String(materialId) || String(m._id) === String(materialId));
-                if (index !== -1) {
-                    window.todosLosMateriales[index] = { ...window.todosLosMateriales[index], ...payload };
-                    localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-                }
-            }
+        console.log("🚀 Iniciando guardado unificado...");
 
-            location.reload(); 
-        } else {
-            alert("❌ Atlas recibió los datos pero no pudo procesar el guardado.");
+        // 1. CAPTURA DE DATOS BÁSICOS
+        const nombreInput = document.getElementById('matNombre') || document.getElementById('nombreNuevoMaterial');
+        const costoInput = document.getElementById('matCosto') || document.getElementById('precio_total_lamina');
+        
+        const nombre = (nombreInput?.value || "SIN NOMBRE").trim().toUpperCase();
+        const precio = parseFloat(costoInput?.value) || 0;
+        const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
+        const esMoldura = nombre.includes("MOLDURA") || nombre.startsWith("K ");
+
+        // 2. EXTRACCIÓN DE MEDIDAS (Para evitar el 100 fijo)
+        // Buscamos números en el nombre (ej: 160 X 220)
+        let anchoNum = 100; 
+        let largoNum = esMoldura ? 290 : 100;
+        
+        const matchMedidas = nombre.match(/(\d+)\s*[X]\s*(\d+)/i);
+        if (matchMedidas) {
+            anchoNum = parseFloat(matchMedidas[1]);
+            largoNum = parseFloat(matchMedidas[2]);
         }
-    } catch(err) {
-        console.error("❌ Error crítico en guardarMaterial:", err);
-        alert("❌ Error de comunicación: No se pudo conectar con el servidor Atlas.");
+
+        // 3. CÁLCULO DE COSTO UNITARIO (Como tu Excel: $30.682)
+        const areaM2 = (anchoNum * largoNum) / 10000;
+        const costoUnitario = areaM2 > 0 ? Math.round(precio / areaM2) : precio;
+
+        // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
+        const nuevoMaterial = {
+            id: window.materialEditandoId || "NUEVO",
+            nombre: nombre,
+            categoria: categoria,
+            costo_base: precio,
+            precio_total_lamina: precio,
+            precio_m2_costo: esMoldura ? Math.round(precio / 2.9) : costoUnitario,
+            ancho_lamina_cm: anchoNum,
+            largo_lamina_cm: largoNum,
+            unidad: esMoldura ? "ML" : "M2",
+            tipo_material: esMoldura ? 'ml' : 'm2',
+            estado: 'Activo'
+        };
+
+        console.log("📡 Enviando a Atlas:", nuevoMaterial);
+
+        // 5. ENVÍO A LA API (Netlify)
+        const response = await fetch('/.netlify/functions/server/inventory/purchase', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(nuevoMaterial)
+        });
+
+        if (response.ok) {
+            alert("✅ Material guardado y sincronizado con Atlas");
+            if (window.bootstrap) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevoMaterial'));
+                modal?.hide();
+            }
+            location.reload(); // Recargamos para ver los $30.682
+        } else {
+            throw new Error("Error en la respuesta del servidor");
+        }
+
+    } catch (error) {
+        console.error("❌ Error al guardar:", error);
+        alert("Hubo un error al guardar el material. Revisa la consola.");
     }
-};
+}; 
 
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
