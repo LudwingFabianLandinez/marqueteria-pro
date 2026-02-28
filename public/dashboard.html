@@ -493,49 +493,54 @@
         return;
     }
 
-    // 2. ESCÁNER DE MEDIDAS LOCAL (Aislado para evitar errores)
+    // 2. ESCÁNER DE MEDIDAS (Aislado)
     let anchoLocal = 0;
     let largoLocal = 0;
     const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
 
     if (match) {
-        anchoLocal = parseFloat(match[1]); // Ejemplo: 160
-        largoLocal = parseFloat(match[2]); // Ejemplo: 220
+        anchoLocal = parseFloat(match[1]); // 160
+        largoLocal = parseFloat(match[2]); // 220
     }
 
-    // 3. CÁLCULO DIRECTO (Estilo Excel Puro)
+    // 3. CÁLCULO DIRECTO (Excel: 108.000 / 3.52 = 30.682)
     let costoUnitarioFinal = 0;
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
 
     if (esMoldura) {
-        // Regla ML: Precio / Metros Lineales
         const metros = largoLocal > 0 ? (largoLocal / 100) : 2.9;
         costoUnitarioFinal = Math.round(precioCompra / metros);
     } else {
-        // Regla M2: Precio / (Ancho * Largo / 10000)
-        // Para 160x220: 108000 / 3.52 = 30682
         const areaM2 = (anchoLocal * largoLocal) / 10000;
+        // Blindaje: Si no hay medidas, el costo m2 es el precio total
         costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
     }
 
-    // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
+    // 4. OBJETO PARA ATLAS (Sincronizado para evitar la doble división)
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
         nombre: nombre,
         categoria: categoria,
-        costo_base: precioCompra,
-        precio_m2_costo: costoUnitarioFinal, // ESTA VARIABLE LLEVA EL 30682
+        
+        // ENVIAMOS EL COSTO CALCULADO ($30.682) EN AMBOS CAMPOS
+        // Esto evita que si el servidor busca 'costo_base', use el de 108.000 para volver a dividir
+        costo_base: costoUnitarioFinal, 
+        precio_m2_costo: costoUnitarioFinal, 
+        
+        // Guardamos los datos de la lámina para referencia, pero no para cálculo
+        precio_total_lamina: precioCompra, 
         ancho_lamina_cm: anchoLocal || 100,
         largo_lamina_cm: largoLocal || (esMoldura ? 290 : 100),
-        precio_total_lamina: precioCompra,
+        
+        stock_actual: 0,
         unidad: esMoldura ? "ML" : "M2",
         tipo_material: esMoldura ? 'ml' : 'm2',
         estado: 'Activo'
     };
     
     try {
-        console.log("📡 Enviando a Atlas V2:", nuevoMaterial);
+        console.log("📡 Enviando Blindado a Atlas (v16.2.6):", nuevoMaterial);
 
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
@@ -548,14 +553,14 @@
         const res = await response.json();
 
         if (res.success || response.ok) {
-            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${nuevoMaterial.precio_m2_costo}\nÁrea: ${(anchoLocal*largoLocal/10000).toFixed(2)} m2`);
+            alert(`✅ REGISTRO CORRECTO\nCosto M2: $${nuevoMaterial.precio_m2_costo}`);
             localStorage.removeItem('inventory'); 
             location.reload();
         } else {
             throw new Error(res.error || "Error en Atlas");
         }
     } catch (e) {
-        console.error("❌ Fallo en el puente con Atlas:", e);
+        console.error("❌ Fallo en el puente:", e);
         alert("🚨 ERROR: " + e.message);
     }
 }
