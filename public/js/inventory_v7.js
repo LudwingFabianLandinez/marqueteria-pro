@@ -1036,4 +1036,5 @@ window.verHistorial = async function(id, nombre) {
     } finally {
         if(btn) { btn.disabled = false; btn.innerHTML = 'Guardar Cambios'; }
     }
+    
 };
