@@ -230,6 +230,36 @@
                     <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
                     <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
                 </div>
+                
+                <div style="background: #ebf8ff; padding: 20px; border-radius: 12px; border: 2px solid #3182ce; margin-bottom: 25px;">
+                    <h3 style="color: #2c5282; margin-top: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-id-card"></i> 1. REGISTRAR MATERIAL EN CATÁLOGO (ID ÚNICO)
+                    </h3>
+                    <p style="font-size: 0.8rem; color: #4a5568; margin-bottom: 15px;">
+                        Crea el material aquí una sola vez. Esto genera el <b>ID permanente</b> para que el Cotizador siempre encuentre el precio.
+                    </p>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 12px; align-items: end;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>NOMBRE DEL MATERIAL</label>
+                            <input type="text" id="cat-nombre-maestro" placeholder="Ej: VIDRIO 3MM CLEAR" style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>CATEGORÍA</label>
+                            <select id="cat-categoria-maestro">
+                                <option value="GENERAL">GENERAL / VIDRIOS</option>
+                                <option value="MOLDURAS">MOLDURAS (ML)</option>
+                                <option value="PASSEPARTOUT">PASSEPARTOUT</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>COSTO BASE ($)</label>
+                            <input type="number" id="cat-precio-maestro" placeholder="0">
+                        </div>
+                        <button onclick="ejecutarRegistroMaestro()" class="btn-action btn-purple" style="height: 40px; background: #3182ce;">
+                            <i class="fas fa-save"></i> CREAR ID
+                        </button>
+                    </div>
+                </div>
             </div>
             
             <div class="inventory-card">
@@ -354,7 +384,6 @@
 <script>
     // Esta es la dirección maestra para que nada se pierda
     window.API_URL = "/.netlify/functions/server";
-
 </script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -397,11 +426,11 @@
             let opciones = '<option value="">-- Seleccione Material --</option>';
             opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
             // Añadimos el data-costo para que el cotizador pueda leerlo después
-opciones += inventario.map(m => {
-    // Detectamos el costo sin importar cómo se llame en tu base de datos
-    const costo = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
-    return `<option value="${m._id || m.id}" data-costo="${costo}">${m.nombre.toUpperCase()}</option>`;
-}).join('');
+            opciones += inventario.map(m => {
+                // Detectamos el costo sin importar cómo se llame en tu base de datos
+                const costo = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
+                return `<option value="${m._id || m.id}" data-costo="${costo}">${m.nombre.toUpperCase()}</option>`;
+            }).join('');
             matSelect.innerHTML = opciones;
         }
     };
@@ -425,6 +454,53 @@ opciones += inventario.map(m => {
             const m2Total = ((largo * ancho) / 10000) * cant;
             if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m² (Lámina)`;
             label.style.color = "#2f855a"; // Color verde para láminas
+        }
+    }
+
+    // INSERTADO: FUNCIÓN DE REGISTRO MAESTRO
+    async function ejecutarRegistroMaestro() {
+        const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
+        const categoria = document.getElementById('cat-categoria-maestro').value;
+        const precio = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
+
+        if (!nombre || precio <= 0) {
+            alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
+            return;
+        }
+
+        // GENERACIÓN DEL ID ETERNO (Basado en el nombre)
+        const idLimpio = `ID-${nombre.replace(/\s+/g, '_')}`;
+
+        const nuevoMaterial = {
+            _id: idLimpio,
+            id: idLimpio,
+            nombre: nombre,
+            categoria: categoria,
+            costo_base: precio,
+            precio_m2_costo: precio,
+            stock_actual: 0,
+            unidad: (categoria === "MOLDURAS") ? "ML" : "M2"
+        };
+
+        try {
+            // 1. Guardar en LocalStorage (Para uso inmediato del cotizador)
+            let inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            inv.push(nuevoMaterial);
+            localStorage.setItem('inventory', JSON.stringify(inv));
+
+            // 2. Guardar en MongoDB Atlas vía API
+            await fetch('/api/inventory/catalog', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(nuevoMaterial)
+            });
+
+            alert("✅ '" + nombre + "' registrado con éxito.\nID: " + idLimpio);
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            alert("Guardado localmente. Los cambios se sincronizarán pronto.");
+            location.reload();
         }
     }
 </script>
