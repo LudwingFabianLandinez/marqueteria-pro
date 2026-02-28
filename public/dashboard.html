@@ -484,47 +484,57 @@
     }
 
     async function ejecutarRegistroMaestro() {
-        const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
-        const categoria = document.getElementById('cat-categoria-maestro').value;
-        const precio = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
+    const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
+    const categoria = document.getElementById('cat-categoria-maestro').value;
+    const precio = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
 
-        if (!nombre || precio <= 0) {
-            alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
-            return;
-        }
-
-        const idLimpio = `ID-${nombre.replace(/\s+/g, '_')}`;
-
-        const nuevoMaterial = {
-            _id: idLimpio,
-            id: idLimpio,
-            nombre: nombre,
-            categoria: categoria,
-            costo_base: precio,
-            precio_m2_costo: precio,
-            stock_actual: 0,
-            unidad: (categoria === "MOLDURAS") ? "ML" : "M2"
-        };
-
-        try {
-            let inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            inv.push(nuevoMaterial);
-            localStorage.setItem('inventory', JSON.stringify(inv));
-
-            await fetch('/api/inventory/catalog', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(nuevoMaterial)
-            });
-
-            alert("✅ '" + nombre + "' registrado con éxito.\nID: " + idLimpio);
-            location.reload();
-        } catch (e) {
-            console.error(e);
-            alert("Guardado localmente. Los cambios se sincronizarán pronto.");
-            location.reload();
-        }
+    if (!nombre || precio <= 0) {
+        alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
+        return;
     }
+
+    // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA (v16.0.6) ---
+    // No inventamos ID, dejamos que Atlas lo cree.
+    const nuevoMaterial = {
+        id: "NUEVO", 
+        nombre: nombre,
+        categoria: categoria,
+        costo_base: precio,
+        precio_m2_costo: precio,
+        stock_actual: 0,
+        unidad: (categoria === "MOLDURAS" || nombre.includes("MOLDURA")) ? "ML" : "M2",
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        console.log("📡 Intentando registrar en Atlas...", nuevoMaterial);
+
+        // Usamos la URL unificada que sí funciona
+        const URL_REGISTRO = `${window.API_URL}/inventory/purchase`;
+
+        const response = await fetch(URL_REGISTRO, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(nuevoMaterial)
+        });
+
+        const res = await response.json();
+
+        if (res.success) {
+            const idDeAtlas = res.data?._id || res.data?.id;
+            alert(`✅ ¡LOGRADO!\n'${nombre}' registrado en Atlas.\nID MAESTRO: ${idDeAtlas}`);
+            
+            // Limpiamos caché local para forzar que descargue lo nuevo de Atlas
+            localStorage.removeItem('inventory');
+            location.reload();
+        } else {
+            throw new Error(res.error || "Atlas rechazó el registro");
+        }
+    } catch (e) {
+        console.error("❌ Error en Registro Maestro:", e);
+        alert("🚨 FALLO DE CONEXIÓN CON ATLAS:\n" + e.message);
+    }
+}
 </script>
 
 <div id="modalHistorialPrecios" class="modal" style="display:none; position:fixed; z-index:999999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
