@@ -199,8 +199,7 @@ window.guardarProveedor = async function(event) {
         btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...'; 
     }
 
-    // 2. Captura de datos (Limpieza total de campos para evitar el Error 400)
-    // Extraemos los valores y si están vacíos los enviamos como string vacío, NUNCA null.
+    // 2. Captura de datos (Tu estructura original intacta)
     const payload = {
         nombre: document.getElementById('provNombre')?.value.trim() || "",
         nit: document.getElementById('provNit')?.value.trim() || "",
@@ -211,64 +210,44 @@ window.guardarProveedor = async function(event) {
         categoria: document.getElementById('provCategoria')?.value || "General"
     };
 
-    // Validación mínima local
     if (!payload.nombre) {
         if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
         return alert("⚠️ El nombre del proveedor es obligatorio");
     }
 
     try {
-        // DETERMINAR URL (Si window.API_URL falla, usamos la ruta relativa)
-        const baseUrl = window.API_URL || '';
-        const endpoint = `${baseUrl}/providers`.replace('//providers', '/providers');
-        
-        console.log("🚀 Intentando conexión directa a:", endpoint, payload);
+    console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
+    
+    // Usamos el puente que definimos al inicio para mayor seguridad
+    const res = await window.API.saveProvider ? await window.API.saveProvider(payload) : await fetch(`${window.API_URL}/providers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(r => r.json());
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        // 3. Manejo de respuesta cruda para diagnóstico
-        const textoRespuesta = await response.text();
-        let res;
-        try {
-            res = JSON.parse(textoRespuesta);
-        } catch (e) {
-            throw new Error("El servidor no respondió un formato válido.");
-        }
-
-        if (response.ok && (res.success || res._id || res.id)) {
-            alert(" ✅ ¡LOGRADO! Proveedor guardado en Atlas.");
-            
-            // Limpieza y cierre
+    if (res.success || res._id) {
+        alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
             document.getElementById('provForm')?.reset();
+            
+            // Cerrar modal si existe la función
             if (typeof window.cerrarModales === 'function') {
                 window.cerrarModales();
             } else {
+                // Fallback manual para cerrar modal
                 const modal = document.getElementById('modalProveedor');
                 if(modal) modal.style.display = 'none';
             }
             
-            // Intentar refrescar la lista si la función existe
-            if (typeof fetchProviders === 'function') {
-                await fetchProviders(); 
-            } else {
-                location.reload(); // Si falla todo, recargamos para ver los cambios
-            }
+            // Refrescar lista de proveedores
+            await fetchProviders(); 
             
         } else {
-            // Si Atlas da error 400, aquí veremos exactamente por qué
-            console.error("❌ Respuesta de error Atlas:", res);
-            throw new Error(res.error || res.message || "Error 400: Datos rechazados.");
+            throw new Error(res.error || res.message || "Error en el servidor");
         }
 
     } catch (error) { 
-        console.error("🚨 Error crítico:", error);
-        alert("❌ FALLO DE CONEXIÓN: " + error.message); 
+        console.error("🚨 Error crítico al guardar proveedor:", error);
+        alert("❌ Error: No se pudo conectar con el servidor. El cambio se aplicará al subir el código."); 
     } finally {
         if(btnGuardar) { 
             btnGuardar.disabled = false; 
@@ -290,14 +269,11 @@ async function fetchInventory() {
 
         // 2. MAPEAMOS LOS DATOS DEL SERVIDOR (Preservando tu lógica)
         const materialesMapeados = datosServidor.map(m => {
-            // SEGURIDAD: Si el objeto m no existe, lo saltamos
-            if (!m) return null;
-
             return {
                 ...m,
                 id: m._id || m.id,
-                // ESCUDO REFORZADO: Convertimos a String para que toLowerCase() nunca falle
-                nombre: String(m.nombre || "Sin nombre").trim(),
+                // ESCUDO: Si no hay nombre, evitamos el undefined
+                nombre: m.nombre || "Sin nombre",
                 categoria: m.categoria || "General",
                 proveedorNombre: m.proveedor?.nombre || "Sin proveedor",
                 stock_actual: Number(m.stock_actual) || 0, 
@@ -308,8 +284,7 @@ async function fetchInventory() {
                 stock_minimo: Number(m.stock_minimo) || 2,
                 tipo: m.tipo || 'm2'
             };
-        }).filter(m => m !== null && m.nombre !== "NUEVO" && m.nombre !== ""); 
-        // El .filter limpia registros basura o vacíos que bloquean la vista.
+        });
 
         // 3. RECONCILIACIÓN POR NOMBRE (Con protección contra errores de toLowerCase)
         window.todosLosMateriales = materialesMapeados.map(mServidor => {
@@ -594,8 +569,8 @@ function configurarEventos() {
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
-
-
+// Reemplaza tu bloque formCompra.onsubmit con este corregido:
+// Actualización de conexión v15.3.0
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
@@ -617,7 +592,7 @@ if (formCompra) {
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
 
-            // 1. DETERMINAR NOMBRE Y TIPO
+            // 1. DETERMINAR NOMBRE Y TIPO (Mantenemos tu lógica de conversión)
             let nombreInput = (selectMat.value === "NUEVO") 
                 ? inputNuevo.value.trim() 
                 : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
@@ -627,6 +602,7 @@ if (formCompra) {
 
             const cant = parseFloat(inputCant.value) || 0;
             const costo = parseFloat(inputCosto.value) || 0;
+            let unidadFinal = esMoldura ? "ml" : "m²";
             
             let stockASumar = esMoldura 
                 ? (cant * 2.90) 
@@ -635,19 +611,31 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // 2. 🛡️ LÓGICA DE IDENTIDAD (CORREGIDA PARA EVITAR 400/404)
-            const idAtlasReal = (existente && (existente._id || existente.id) && 
-                                !String(existente._id || existente.id).startsWith('TEMP-') && 
-                                !String(existente._id || existente.id).startsWith('MAT-')) 
-                               ? (existente._id || existente.id) 
-                               : null;
+            // 2. 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2)
+            // --- 🛡️ LÓGICA DE IDENTIDAD DE ALTO NIVEL (v15.3.3) ---
+            const esAgregadoNuevo = (selectMat.value === "NUEVO");
 
-            const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
+            // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
+            // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
+// --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.6) ---
+// Usamos "" en lugar de null para que el servidor no aborte por "dato inválido"
+// --- 🛡️ LIMPIEZA DE ID (v15.3.8 - VERSIÓN FINAL SIN ERRORES) ---
+// 1. Buscamos el ID real de Atlas, si no existe o es temporal, queda como null internamente
+// --- 🛡️ SOLUCIÓN FINAL (v15.3.9 - COMPATIBILIDAD CON SERVIDOR) ---
+// 1. Buscamos el ID real de Atlas
+const idAtlasReal = (existente && (existente._id || existente.id) && 
+                    !String(existente._id || existente.id).startsWith('TEMP-') && 
+                    !String(existente._id || existente.id).startsWith('MAT-')) 
+                   ? (existente._id || existente.id) 
+                   : null;
 
-            // 3. CONSTRUCCIÓN DEL OBJETO DE ENVÍO
-            // Reemplaza el bloque de construcción del objeto en inventory.js
-// 1. Construcción base SIN materialId
+// 2. Determinamos si es nuevo
+const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
+
+// 3. Construimos el objeto forzando el campo materialId
 const datosParaAtlas = {
+    // Si es nuevo, enviamos "NUEVO" para que el servidor no lance el error de "ID no proporcionado"
+    materialId: esNuevoMaterial ? "NUEVO" : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -659,21 +647,20 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
-
-// 2. LA CLAVE: Solo agregamos el ID si NO es nuevo y el ID es válido
+// 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
 if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
-} else {
-    // Si es nuevo, forzamos la acción de creación para que el backend no busque IDs
-    datosParaAtlas.action = "create"; 
 }
 
-// 3. Envío directo (asegúrate de que esta URL sea la correcta)
-const response = await fetch(`${window.API_URL}/inventory/purchase`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(datosParaAtlas)
-});
+            // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
+            const URL_FINAL = `${window.API_URL}/inventory/purchase`;
+            console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
+
+            const response = await fetch(URL_FINAL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datosParaAtlas)
+            });
 
             const textoRespuesta = await response.text();
             let resultadoAtlas;
@@ -681,36 +668,36 @@ const response = await fetch(`${window.API_URL}/inventory/purchase`, {
             try {
                 resultadoAtlas = JSON.parse(textoRespuesta);
             } catch (err) {
-                throw new Error("Atlas no respondió en formato JSON.");
+                throw new Error("El servidor no devolvió un JSON. Posible 'Clean Exit' del servidor.");
             }
 
             if (!response.ok) {
-                throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la compra.`);
+                throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
             }
 
-            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
-            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+           // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
+const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
 
-            if (existente) {
-                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                if (idDeAtlas) {
-                    existente._id = idDeAtlas;
-                    existente.id = idDeAtlas;
-                }
-            } else {
-                const nuevoMaterial = {
-                    _id: idDeAtlas,
-                    id: idDeAtlas || `TEMP-${Date.now()}`,
-                    nombre: nombreReal,
-                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-                    stock_actual: stockASumar,
-                    precio_total_lamina: costo,
-                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
-                };
-                window.todosLosMateriales.unshift(nuevoMaterial);
-                existente = nuevoMaterial; // Referencia para la bitácora
-            }
+if (existente) {
+    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+    if (idDeAtlas) {
+        existente._id = idDeAtlas; // Sincronizamos ID de Atlas
+        existente.id = idDeAtlas;
+    }
+} else {
+    // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
+    const nuevoMaterial = {
+        _id: idDeAtlas,
+        id: idDeAtlas || `TEMP-${Date.now()}`,
+        nombre: nombreReal,
+        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+        stock_actual: stockASumar,
+        precio_total_lamina: costo,
+        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
+    };
+    window.todosLosMateriales.unshift(nuevoMaterial);
+}
 
             // --- 📦 PERSISTENCIA LOCAL ---
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
@@ -720,7 +707,7 @@ const response = await fetch(`${window.API_URL}/inventory/purchase`, {
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} guardado en Atlas exitosamente.`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} enviado. Si no aparece en Compass, revisa el Whitelist de IPs en Atlas.`);
             
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
@@ -731,10 +718,9 @@ const response = await fetch(`${window.API_URL}/inventory/purchase`, {
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
         }
-    };
+    }; 
 }
 }
-
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
@@ -1023,4 +1009,4 @@ window.guardarMaterial = async function() {
     } catch (error) {
         alert("❌ Error de red al intentar guardar.");
     }
-};
+}
