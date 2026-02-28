@@ -374,22 +374,27 @@ function renderTable(materiales) {
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
         // --- CORRECCIÓN DE MEDIDAS: Captura datos de Atlas/Compra ---
-        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || 0);
-        const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || 0);
+        // --- DETECCIÓN TOTAL DE MEDIDAS (PUNTO 1) ---
+        // Buscamos en todas las variantes posibles de nombres que usa Atlas
+        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || m.ancho_lamina || 0);
+        const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || m.largo_lamina || 0);
         
         let visualMedida = "";
         if (esMoldura) {
-            // Si es moldura y el largo es 0, ponemos 290 por defecto
             visualMedida = `${largo > 0 ? largo : 290} cm`;
         } else {
-            // Si encontró valores en cualquiera de las variables de arriba, los muestra
+            // Si el código encuentra CUALQUIER número mayor a 0 en las variables de arriba
             if (ancho > 0 && largo > 0) {
                 visualMedida = `${ancho}x${largo} cm`;
+            } else if (m.dimensiones) {
+                // Si Atlas guardó la medida como un texto completo
+                visualMedida = m.dimensiones;
             } else {
-                // Si sigue en 0, intentamos ver si Atlas guardó un campo llamado 'dimensiones'
-                visualMedida = m.dimensiones ? m.dimensiones : "Ver Ficha";
+                // Solo si de verdad no hay NADA en la base de datos, pone el botón
+                visualMedida = `<span style="opacity: 0.6;">Sin Medidas</span>`;
             }
         }
+        // --------------------------------------------
 
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
