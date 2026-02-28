@@ -451,11 +451,6 @@ function renderTable(materiales) {
                     ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre || 'Proveedor'}</span>
                 </div>
             </td>
-            <td style="text-align: center;">
-                <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${visualMedida}
-                </span>
-            </td>
             <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
                 ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
