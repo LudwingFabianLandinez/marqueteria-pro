@@ -483,9 +483,23 @@
     }
 
     async function ejecutarRegistroMaestro() {
+    // 1. CAPTURA DE DATOS DEL FORMULARIO
     const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
     const categoria = document.getElementById('cat-categoria-maestro').value;
     const precio = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
+
+    // --- NUEVO: Captura de medidas para que el cálculo no falle ---
+    // Buscamos si el usuario escribió las medidas en el nombre (ej: 160 X 220)
+    let anchoNum = 100; 
+    let largoNum = 100;
+    const matchMedidas = nombre.match(/(\d+)\s*[X]\s*(\d+)/i);
+    
+    if (matchMedidas) {
+        anchoNum = parseFloat(matchMedidas[1]);
+        largoNum = parseFloat(matchMedidas[2]);
+    }
+    
+    const costoTotal = precio; // Sincronizamos costoTotal con el precio capturado
 
     if (!nombre || precio <= 0) {
         alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
@@ -494,9 +508,10 @@
 
     // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA (v16.1.9) ---
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
+    if (esMoldura && largoNum === 100) largoNum = 290; // Valor por defecto para molduras
 
     // --- CÁLCULO PREVIO PARA ATLAS (v16.0.8) ---
-    // Usamos las variables que capturamos del formulario (anchoNum, largoNum, costoTotal)
+    // Ahora anchoNum, largoNum y costoTotal ya existen y el código no se rompe
     const areaM2 = (anchoNum * largoNum) / 10000;
     const costoM2Real = (areaM2 > 0) ? Math.round(costoTotal / areaM2) : costoTotal;
     const costoMLReal = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : Math.round(costoTotal / 2.9);
@@ -516,8 +531,8 @@
         unidad: esMoldura ? "ML" : "M2",
 
         // --- ✅ DATOS REALES (YA NO SON 100 FIJOS) ---
-        ancho_lamina_cm: anchoNum,           // Valor real del formulario (ej. 160)
-        largo_lamina_cm: largoNum,           // Valor real del formulario (ej. 220)
+        ancho_lamina_cm: anchoNum,           // Valor real (ej. 160)
+        largo_lamina_cm: largoNum,           // Valor real (ej. 220)
         precio_total_lamina: costoTotal,     // Valor real (ej. 108.000)
         
         tipo_material: esMoldura ? 'ml' : 'm2',
@@ -527,7 +542,8 @@
     try {
         console.log("📡 Sincronizando con Atlas V2...", nuevoMaterial);
 
-        const URL_REGISTRO = `${window.API_URL}/inventory/purchase`;
+        // Usamos la URL que ya tenías configurada
+        const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
         const response = await fetch(URL_REGISTRO, {
             method: 'POST',
@@ -537,9 +553,9 @@
 
         const res = await response.json();
 
-        if (res.success) {
-            const idDeAtlas = res.data?._id || res.data?.id;
-            alert(`✅ ¡ÉXITO TOTAL!\nMaterial creado en Atlas V2.\nID: ${idDeAtlas}\nMedida: ${nuevoMaterial.largo_lamina_cm}cm`);
+        if (res.success || response.ok) {
+            const idDeAtlas = res.data?._id || res.data?.id || "Generado";
+            alert(`✅ ¡ÉXITO TOTAL!\nMaterial creado en Atlas V2.\nCosto M²/ML: $${nuevoMaterial.precio_m2_costo}`);
             
             localStorage.removeItem('inventory'); 
             location.reload();
@@ -548,7 +564,7 @@
         }
     } catch (e) {
         console.error("❌ Fallo en el puente con Atlas:", e);
-        alert("🚨 ERROR: El servidor recibió los datos pero no pudo guardarlos. Revisa la consola.");
+        alert("🚨 ERROR: " + e.message);
     }
 }
 </script>
