@@ -373,18 +373,25 @@ function renderTable(materiales) {
         const esMoldura = m.nombre.toUpperCase().includes("MOLDURA") || m.nombre.toUpperCase().startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
-        const ancho = parseFloat(m.ancho_lamina_cm) || 0;
-        const largo = parseFloat(m.largo_lamina_cm) || 0;
+        // --- MEJORA PUNTO 1: DETECCIÓN ROBUSTA DE MEDIDAS (PRESERVADO) ---
+        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
+        const largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
+        
+        let visualMedida = "";
+        if (esMoldura) {
+            visualMedida = `${largo > 0 ? largo : 290} cm`;
+        } else {
+            visualMedida = (ancho > 0 && largo > 0) ? `${ancho}x${largo} cm` : "Ver Ficha";
+        }
+
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         // 3. CÁLCULO DE COSTO (Basado en tu regla: ML para molduras, M2 para el resto)
         let costoMostrar = 0;
         if (esMoldura) {
-            // Precio por Metro Lineal (Largo estándar 2.9m si viene en 0)
             const largoMetros = largo > 0 ? (largo / 100) : 2.9;
             costoMostrar = Math.round((m.precio_total_lamina || 0) / largoMetros) || m.precio_m2_costo || 0;
         } else {
-            // Precio por Metro Cuadrado
             if (areaUnaLaminaM2 > 0) {
                 costoMostrar = Math.round((m.precio_total_lamina || 0) / areaUnaLaminaM2);
             } else {
@@ -396,28 +403,32 @@ function renderTable(materiales) {
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
         
-        // 5. CONSTRUCCIÓN VISUAL DEL STOCK
+        // 5. --- MEJORA PUNTO 2: CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES + REMANENTE) ---
         let textoStockVisual = "";
         if (esMoldura) {
-            // MOLDURAS: Limpio, solo metros totales
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total disponible en ML)</div>
             `;
         } else {
-            // MATERIALES M2: Lógica de láminas + sobrante
             const laminasExactas = areaUnaLaminaM2 > 0 ? stockActualUnidad / areaUnaLaminaM2 : 0;
             const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
             let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
             if (sobranteM2 < 0.0001) sobranteM2 = 0;
 
-            let desglose = (laminasCompletas > 0) 
-                ? (sobranteM2 > 0 ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m²)` : `(${laminasCompletas} unidades)`)
-                : `(${sobranteM2.toFixed(2)} m²)`;
+            // Lógica Punto 2: Mostrar explícitamente unidades y remanente
+            let desglose = "";
+            if (laminasCompletas > 0) {
+                desglose = (sobranteM2 > 0.01) 
+                    ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m² remanente)` 
+                    : `(${laminasCompletas} unidades completas)`;
+            } else {
+                desglose = `(${sobranteM2.toFixed(2)} m² en retales)`;
+            }
             
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${desglose}</div>
+                <div style="font-size: 0.7rem; color: #475569; margin-top: 2px; font-weight: 500;">${desglose}</div>
             `;
         }
 
@@ -430,14 +441,14 @@ function renderTable(materiales) {
             </td>
             <td style="text-align: center;">
                 <span style="background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; border: 1px solid #e2e8f0;">
-                    ${esMoldura ? (largo > 0 ? `${largo} cm` : '290 cm') : `${ancho}x${largo} cm`}
+                    ${visualMedida}
                 </span>
             </td>
             <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
                 ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 145px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
+                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 155px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
                     ${textoStockVisual}
                 </div>
             </td>
@@ -458,7 +469,7 @@ function renderTable(materiales) {
         cuerpoTabla.appendChild(fila);
     });
 }
-     
+
 // --- FACTURACIÓN (PRESERVADO) ---
 
 async function facturarVenta() {
@@ -527,17 +538,36 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
+    // --- MEJORA PUNTO 4: AUTO-COMPLETAR COSTO + LÓGICA DE NUEVO MATERIAL ---
     document.getElementById('compraMaterial')?.addEventListener('change', (e) => {
+        const materialId = e.target.value;
         const nuevoContainer = document.getElementById('nuevoMaterialContainer');
         const comboProv = document.getElementById('compraProveedor');
-        if(e.target.value === "NUEVO") {
+        const inputCosto = document.getElementById('compraCosto'); // Campo de costo en compra
+
+        if(materialId === "NUEVO") {
             if(nuevoContainer) nuevoContainer.style.display = 'block';
             if(comboProv) comboProv.focus();
+            if(inputCosto) inputCosto.value = ""; // Limpiar si es nuevo
         } else {
             if(nuevoContainer) nuevoContainer.style.display = 'none';
+            
+            // LÓGICA PUNTO 4: Buscar el material y poner su precio actual por default
+            if (materialId && window.todosLosMateriales) {
+                const matEncontrado = window.todosLosMateriales.find(m => 
+                    String(m.id) === String(materialId) || String(m._id) === String(materialId)
+                );
+
+                if (matEncontrado && inputCosto) {
+                    // Colocamos el precio_total_lamina por defecto (pero el usuario puede editarlo)
+                    inputCosto.value = matEncontrado.precio_total_lamina || 0;
+                    console.log(`💰 Punto 4: Costo sugerido cargado (${matEncontrado.nombre})`);
+                }
+            }
         }
     });
 
+    // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -560,6 +590,7 @@ function configurarEventos() {
         } catch(err) { alert("❌ Error al guardar"); }
     });
 
+    // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('adjustId').value;
@@ -578,6 +609,7 @@ function configurarEventos() {
             }
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
+
 
     // === RECUPERANDO VERSIÓN ESTABLE v13.4.48 ===
 
@@ -954,30 +986,77 @@ window.actualizarDatalistMateriales = function() {
     }
 };
 
-window.verHistorial = async function(id, nombre) {
-    console.log("📜 Abriendo historial para:", nombre);
+window.verHistorial = async function(idRecibido, nombre) {
+    const modal = document.getElementById('modalHistorialPrecios');
+    const contenedor = document.getElementById('listaHistorialPrecios');
+    const tituloNombre = document.getElementById('historialMaterialNombre');
+    
+    // 1. Abrimos el modal de inmediato para dar respuesta visual
+    if (modal) modal.style.display = 'flex';
+    if (tituloNombre) tituloNombre.innerText = nombre;
+    if (contenedor) contenedor.innerHTML = '<div style="color:black; padding:20px; text-align:center;">🔄 Buscando movimientos en Atlas...</div>';
+
     try {
-        const resultado = await window.API.getHistory(id);
-        const modal = document.getElementById('modalHistorialPrecios');
-        const contenedor = document.getElementById('listaHistorialPrecios');
-        if (document.getElementById('historialMaterialNombre')) document.getElementById('historialMaterialNombre').innerText = nombre;
+        // 2. BUSQUEDA DE IDENTIDAD MAESTRA
+        // Buscamos en el array global para asegurarnos de tener el _id de Atlas
+        const m = window.todosLosMateriales.find(mat => 
+            String(mat.id) === String(idRecibido) || String(mat._id) === String(idRecibido)
+        );
         
+        // Si el material tiene _id (de Atlas), usamos ese. Si no, usamos el recibido.
+        const idParaConsulta = (m && m._id) ? m._id : idRecibido;
+
+        console.log(`📜 Consultando historial para: ${nombre} (ID: ${idParaConsulta})`);
+
+        // 3. LLAMADA AL SERVIDOR
+        const respuesta = await fetch(`${window.API_URL}/materials/${idParaConsulta}/history?t=${Date.now()}`);
+        
+        if (!respuesta.ok) throw new Error("Error al conectar con el servidor de historial");
+
+        const resultado = await respuesta.json();
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
-        
-        if (datos.length > 0) {
-            contenedor.innerHTML = datos.map(h => `
-                <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; font-size: 0.8rem;">
-                    <div>
-                        <strong>${h.tipo?.toUpperCase() || 'MOVIMIENTO'}</strong>
-                        <div style="color: #94a3b8;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
-                    </div>
-                    <div style="font-weight: bold; color: ${h.cantidad >= 0 ? '#10b981' : '#ef4444'};">
-                        ${h.cantidad >= 0 ? '+' : ''}${h.cantidad || 0}
-                    </div>
-                </div>`).join('');
-        } else {
-            contenedor.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">Sin movimientos.</div>`;
+
+        // 4. VALIDACIÓN DE DATOS
+        if (!datos || datos.length === 0) {
+            contenedor.innerHTML = `
+                <div style="color:#64748b; padding:30px; text-align:center; font-family: sans-serif;">
+                    <i class="fas fa-info-circle" style="font-size: 2rem; display:block; margin-bottom:10px; color: #cbd5e1;"></i>
+                    No se encontraron movimientos previos para este material.
+                </div>`;
+            return;
         }
-        if (modal) modal.style.display = 'block';
-    } catch (error) { console.error("Error historial:", error); }
+
+        // 5. RENDERIZADO (Pintamos los datos con el diseño limpio que te gusta)
+        contenedor.innerHTML = datos.map(h => {
+            const fecha = new Date(h.fecha || h.createdAt).toLocaleString();
+            const esEntrada = h.cantidad >= 0;
+            
+            return `
+                <div style="border-bottom:1px solid #e2e8f0; padding:12px; background: #fff; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; text-transform: uppercase;">
+                            ${h.tipo || 'Movimiento'}
+                        </div>
+                        <div style="font-size:0.7rem; color:#94a3b8;">${fecha}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
+                            ${esEntrada ? '+' : ''}${h.cantidad}
+                        </div>
+                        <div style="font-size:0.6rem; color:#64748b; font-weight: bold;">UNID / M2</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error("❌ Error Crítico en Historial:", error);
+        if (contenedor) {
+            contenedor.innerHTML = `
+                <div style="color:#dc2626; padding:20px; text-align:center; font-weight:bold;">
+                    ⚠️ FALLO DE CONEXIÓN<br>
+                    <span style="font-size:0.7rem; font-weight:normal;">${error.message}</span>
+                </div>`;
+        }
+    }
 };
