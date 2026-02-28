@@ -33,24 +33,29 @@
         .filter-bar { background: #f8fafc; padding: 20px; border-radius: 12px; display: flex; gap: 15px; align-items: center; margin-bottom: 20px; border: 1px solid #e2e8f0; }
         .filter-bar input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
 
-        /* NUEVA SECCIÓN: MAESTRO DE MATERIALES */
-        .catalogo-box {
-            background: #f8fafc; 
-            padding: 20px; 
-            border-radius: 12px; 
-            border: 2px solid #3b82f6; 
-            margin-bottom: 30px;
+        /* --- ESTILOS AGREGADOS PARA LA NUEVA SECCIÓN --- */
+        .catalogo-container {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 15px;
+            border-left: 5px solid #3b82f6;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
         }
-        .catalogo-grid {
-            display: grid; 
-            grid-template-columns: 1fr 1fr 1fr auto; 
-            gap: 15px; 
+        .form-grid-catalogo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto;
+            gap: 15px;
             align-items: end;
+            margin-top: 10px;
         }
-        .catalogo-grid label { display: block; font-size: 0.8rem; font-weight: bold; color: #1e3a8a; margin-bottom: 5px; }
-        .catalogo-grid input, .catalogo-grid select { 
-            width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; 
+        .form-grid-catalogo input, .form-grid-catalogo select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
         }
+        /* --- FIN ESTILOS NUEVOS --- */
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
@@ -78,36 +83,35 @@
     </aside>
 
     <main class="main-content">
-        
-        <div class="catalogo-box">
-            <h3 style="color: #1e3a8a; margin-top: 0;"><i class="fas fa-plus-circle"></i> Crear Nuevo Material (Catálogo)</h3>
-            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 15px;">
-                Crea el material aquí una sola vez para asignarle su ID eterno. Luego podrás comprarlo en la sección de stock.
-            </p>
+
+        <section class="catalogo-container">
+            <h2 style="color: #1e3a8a; margin: 0; font-size: 1.2rem;">
+                <i class="fas fa-plus-circle"></i> Registrar Nuevo Material en Catálogo
+            </h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 5px;">Crea el material aquí una sola vez para que tenga un ID fijo y el cotizador lo reconozca siempre.</p>
             
-            <div class="catalogo-grid">
+            <div class="form-grid-catalogo">
                 <div>
-                    <label>Nombre del Material</label>
-                    <input type="text" id="nuevo-nombre" placeholder="Ej: VIDRIO 3MM">
+                    <label style="display:block; font-size:0.75rem; font-weight:bold; color:#1e3a8a; margin-bottom:5px;">NOMBRE</label>
+                    <input type="text" id="cat-nombre" placeholder="Ej: VIDRIO 3MM">
                 </div>
                 <div>
-                    <label>Categoría</label>
-                    <select id="nueva-categoria">
+                    <label style="display:block; font-size:0.75rem; font-weight:bold; color:#1e3a8a; margin-bottom:5px;">CATEGORÍA</label>
+                    <select id="cat-categoria">
                         <option value="GENERAL">General / Vidrios</option>
-                        <option value="MOLDURAS">Molduras (Línea de Vida)</option>
+                        <option value="MOLDURAS">Molduras (ML)</option>
                         <option value="PASSEPARTOUT">Passepartout</option>
                     </select>
                 </div>
                 <div>
-                    <label>Precio de Costo Base</label>
-                    <input type="number" id="nuevo-precio" placeholder="0">
+                    <label style="display:block; font-size:0.75rem; font-weight:bold; color:#1e3a8a; margin-bottom:5px;">COSTO BASE</label>
+                    <input type="number" id="cat-precio" placeholder="0">
                 </div>
-                <button onclick="crearMaterialMaestro()" style="background: #3b82f6; color: white; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; height: 42px;">
+                <button onclick="registrarEnCatalogo()" style="background: #3b82f6; color: white; border: none; padding: 10px 25px; border-radius: 8px; font-weight: bold; cursor: pointer;">
                     REGISTRAR
                 </button>
             </div>
-        </div>
-
+        </section>
         <div class="history-container">
             <div class="header-flex">
                 <h2 style="color: #1e3a8a;">Historial de Órdenes</h2>
@@ -147,23 +151,22 @@
     </main>
 
     <script>
-        // --- FUNCIÓN PARA CREAR MATERIAL CON ID ETERNO ---
-        async function crearMaterialMaestro() {
-            const nombre = document.getElementById('nuevo-nombre').value.trim().toUpperCase();
-            const categoria = document.getElementById('nueva-categoria').value;
-            const precio = parseFloat(document.getElementById('nuevo-precio').value) || 0;
+        // --- FUNCIÓN AGREGADA PARA EL CATÁLOGO ---
+        async function registrarEnCatalogo() {
+            const nombre = document.getElementById('cat-nombre').value.trim().toUpperCase();
+            const categoria = document.getElementById('cat-categoria').value;
+            const precio = parseFloat(document.getElementById('cat-precio').value) || 0;
 
             if (!nombre || precio <= 0) {
-                alert("⚠️ Por favor ingresa un nombre y un precio válido.");
+                alert("⚠️ Por favor completa el nombre y un precio válido.");
                 return;
             }
 
-            // Generamos el ID ÚNICO que arrastraremos siempre
-            const idUnico = `ID-${nombre.replace(/\s+/g, '_')}-${Date.now().toString().slice(-4)}`;
+            const idLimpio = `ID-${nombre.replace(/\s+/g, '_')}`;
 
             const nuevoMaterial = {
-                _id: idUnico,
-                id: idUnico, // Doble etiqueta para el Cotizador
+                _id: idLimpio,
+                id: idLimpio, // Duplicado para compatibilidad con el cotizador
                 nombre: nombre,
                 categoria: categoria,
                 costo_base: precio,
@@ -173,31 +176,27 @@
             };
 
             try {
-                // 1. Guardar localmente para que el Cotizador lo vea de inmediato
-                let inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
-                inventarioLocal.push(nuevoMaterial);
-                localStorage.setItem('inventory', JSON.stringify(inventarioLocal));
+                // Guardar en el inventario local para que el cotizador lo vea YA
+                let inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                inv.push(nuevoMaterial);
+                localStorage.setItem('inventory', JSON.stringify(inv));
 
-                // 2. Intentar registrar en Atlas
-                // Nota: Asegúrate de tener esta ruta configurada en tu servidor
+                // Avisar al servidor
                 await fetch('/api/inventory/catalog', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(nuevoMaterial)
                 });
 
-                alert("✅ Material '" + nombre + "' registrado con éxito. ID: " + idUnico);
-                document.getElementById('nuevo-nombre').value = '';
-                document.getElementById('nuevo-precio').value = '';
-                
-                // Opcional: recargar para ver cambios en otras listas si existen en esta página
-            } catch (error) {
-                console.error("Error al registrar material:", error);
-                alert("Se registró localmente, pero hubo un problema con el servidor.");
+                alert("✅ Material registrado. Ahora el Cotizador lo reconocerá con ID fijo.");
+                location.reload();
+            } catch (e) {
+                console.error(e);
+                alert("Guardado localmente. Error de conexión con el servidor.");
             }
         }
+        // --- FIN FUNCIÓN CATÁLOGO ---
 
-        // --- TU LÓGICA DE HISTORIAL ORIGINAL (SIN CAMBIOS) ---
         async function cargarHistorial() {
             const tableBody = document.getElementById('historyBody');
             const noData = document.getElementById('noData');
