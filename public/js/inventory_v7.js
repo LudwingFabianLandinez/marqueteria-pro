@@ -580,45 +580,43 @@ function configurarEventos() {
     });
 
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
-    document.getElementById('matForm')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    // --- FUNCIÓN DE GUARDADO CORREGIDA (PUNTO 4) ---
+window.guardarMaterial = async function() {
+    // 1. Capturamos los valores usando los IDs que están en tu HTML
+    const anchoInput = document.getElementById('matAncho')?.value || document.getElementById('compraAncho')?.value || "0";
+    const largoInput = document.getElementById('matLargo')?.value || document.getElementById('compraLargo')?.value || "0";
+    
+    const payload = {
+        // Buscamos el ID (si es edición) o marcamos como NUEVO
+        id: document.getElementById('matId')?.value || "NUEVO",
+        nombre: document.getElementById('matNombre')?.value || document.getElementById('nombreNuevoMaterial')?.value,
+        // Si no hay categoría seleccionada, por defecto es GENERAL
+        categoria: document.getElementById('matCategoria')?.value || "GENERAL",
+        precio_total_lamina: parseFloat(document.getElementById('matCosto')?.value || document.getElementById('compraCosto')?.value) || 0,
+        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value) || 2,
         
-        // --- CAPTURA BLINDADA DE MEDIDAS ---
-        // Buscamos el valor en todos los IDs posibles que podrías tener en el HTML
-        const valorAncho = document.getElementById('matAncho')?.value || 
-                           document.getElementById('matAnchoCompra')?.value || 
-                           document.querySelector('input[placeholder*="Ancho"]')?.value || "0";
+        // ENVIAMOS A ATLAS CON LOS NOMBRES CORRECTOS
+        ancho_lamina_cm: parseFloat(anchoInput),
+        largo_lamina_cm: parseFloat(largoInput)
+    };
 
-        const valorLargo = document.getElementById('matLargo')?.value || 
-                           document.getElementById('matLargoCompra')?.value || 
-                           document.querySelector('input[placeholder*="Largo"]')?.value || "0";
+    console.log("📤 Intentando guardar en Atlas:", payload);
 
-        const payload = {
-            id: document.getElementById('matId')?.value,
-            nombre: document.getElementById('matNombre').value,
-            categoria: document.getElementById('matCategoria').value,
-            precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
-            stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
-            proveedorId: document.getElementById('proveedorSelect').value,
-            // Enviamos los nombres exactos que Atlas espera
-            ancho_lamina_cm: parseFloat(valorAncho),
-            largo_lamina_cm: parseFloat(valorLargo)
-        };
-
-        // ESTO ES PARA TI: Te dirá qué se va a enviar. Si ves ceros aquí, el problema es el HTML.
-        console.log("📤 Datos listos para Atlas:", payload);
-
-        try {
-            const res = await window.API.saveMaterial(payload);
-            if(res.success) {
-                window.cerrarModales();
-                await fetchInventory();
-                alert(`✅ Guardado: ${payload.ancho_lamina_cm}x${payload.largo_lamina_cm} cm registrados.`);
-            }
-        } catch(err) { 
-            alert("❌ Error de conexión con Atlas"); 
+    try {
+        const res = await window.API.saveMaterial(payload);
+        if(res.success) {
+            alert(`✅ Guardado con éxito: ${payload.ancho_lamina_cm}x${payload.largo_lamina_cm} cm`);
+            window.cerrarModales?.(); // Cerramos si existe la función
+            if(window.fetchInventory) await window.fetchInventory(); // Recargamos tabla
+            location.reload(); // Recarga física para asegurar limpieza
+        } else {
+            alert("❌ Atlas no pudo procesar el guardado");
         }
-    });
+    } catch(err) {
+        console.error("Error en el envío:", err);
+        alert("❌ Error de comunicación con el servidor");
+    }
+};
 
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
