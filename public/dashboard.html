@@ -493,14 +493,14 @@
         return;
     }
 
-    // 2. ESCÁNER DE MEDIDAS (Aislado)
-    let anchoReal = 0;
-    let largoReal = 0;
+    // 2. ESCÁNER DE MEDIDAS LOCAL (Para el cálculo interno, no para Atlas)
+    let anchoLocal = 0;
+    let largoLocal = 0;
     const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
 
     if (match) {
-        anchoReal = parseFloat(match[1]); // 160
-        largoReal = parseFloat(match[2]); // 220
+        anchoLocal = parseFloat(match[1]); // 160
+        largoLocal = parseFloat(match[2]); // 220
     }
 
     // 3. CÁLCULO DIRECTO (Excel: 108.000 / 3.52 = 30.682)
@@ -508,30 +508,30 @@
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
 
     if (esMoldura) {
-        // Regla ML: Precio / Metros Lineales
-        const metros = largoReal > 0 ? (largoReal / 100) : 2.9;
+        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.9;
         costoUnitarioFinal = Math.round(precioCompra / metros);
     } else {
-        // Regla M2: Precio / (Ancho * Largo / 10000)
-        const areaM2 = (anchoReal * largoReal) / 10000;
+        const areaM2 = (anchoLocal * largoLocal) / 10000;
+        // Calculamos el $30.682 aquí
         costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
     }
 
-    // 4. OBJETO PARA ATLAS (BLINDAJE ANTI-8716)
+    // 4. OBJETO PARA ATLAS (Sincronizado para BLOQUEAR la doble división)
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
-        nombre: nombre, // Mantiene el "160 X 220" visible para ti
+        nombre: nombre, // El nombre mantiene el "160 X 220" visible
         categoria: categoria,
         
-        // --- LA LLAVE DEL ÉXITO ---
-        // Enviamos el costo unitario ($30.682) como base.
+        // --- 🛡️ BLINDAJE ANTI-8716 ---
+        // Enviamos el costo unitario ya calculado como base.
         costo_base: costoUnitarioFinal, 
         precio_m2_costo: costoUnitarioFinal, 
         precio_total_lamina: precioCompra,
 
-        // Forzamos 100x100 para que el área sea EXACTAMENTE 1.
-        // Así, cualquier división posterior será: 30682 / 1 = 30682.
+        // Forzamos 100x100 para que el área en la base de datos sea 1.0.
+        // Esto evita que el Dashboard vuelva a dividir por 3.52.
+        // Resultado: 30.682 / 1.0 = 30.682 (Valor correcto del Excel).
         ancho_lamina_cm: 100, 
         largo_lamina_cm: 100, 
         
@@ -542,7 +542,7 @@
     };
     
     try {
-        console.log("📡 Enviando Blindaje Nivel 3 a Atlas (v16.2.7):", nuevoMaterial);
+        console.log("📡 Enviando con Escudo de Área Unitaria:", nuevoMaterial);
 
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
@@ -562,7 +562,7 @@
             throw new Error(res.error || "Error en Atlas");
         }
     } catch (e) {
-        console.error("❌ Fallo en el puente:", e);
+        console.error("❌ Fallo en el puente con Atlas:", e);
         alert("🚨 ERROR: " + e.message);
     }
 }
