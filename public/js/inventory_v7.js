@@ -584,6 +584,8 @@ function configurarEventos() {
 
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
 window.guardarMaterial = async function() {
+    console.log("🚀 Iniciando captura segura de datos...");
+
     // 1. CAPTURA DE NOMBRE E ID
     const nombreValue = (document.getElementById('matNombre')?.value || 
                          document.getElementById('nombreNuevoMaterial')?.value || 
@@ -596,25 +598,35 @@ window.guardarMaterial = async function() {
     const esMoldura = nombreValue.toUpperCase().includes("MOLDURA") || 
                       nombreValue.toUpperCase().startsWith("K ");
 
-    // 2. CAPTURA DE VALORES NUMÉRICOS (Búsqueda exhaustiva de IDs)
-    const anchoRaw = document.getElementById('ancho_lamina_cm')?.value || 
-                     document.getElementById('matAncho')?.value || 
-                     document.getElementById('compraAncho')?.value || "0";
-                     
-    const largoRaw = document.getElementById('largo_lamina_cm')?.value || 
-                     document.getElementById('matLargo')?.value || 
-                     document.getElementById('compraLargo')?.value || "0";
-                     
-    const costoRaw = document.getElementById('precio_total_lamina')?.value || 
-                     document.getElementById('matCosto')?.value || 
-                     document.getElementById('compraCosto')?.value || "0";
+    // 2. CAPTURA DE VALORES NUMÉRICOS (Búsqueda agresiva de IDs)
+    // Extraemos el valor directamente del DOM para evitar que Atlas reciba el "100" por defecto del HTML
+    const getVal = (ids) => {
+        for (let id of ids) {
+            let el = document.getElementById(id);
+            if (el && el.value && parseFloat(el.value) !== 0) return el.value;
+        }
+        return "0";
+    };
 
-    // 3. CONVERSIÓN Y LÓGICA DE MOLDURAS
-    const anchoNum = parseFloat(anchoRaw) || 0;
-    // Si es moldura y el largo es 0 o no existe, forzamos 290
-    let largoNum = parseFloat(largoRaw) || 0;
-    if (esMoldura && largoNum === 0) largoNum = 290;
+    let anchoRaw = getVal(['ancho_lamina_cm', 'matAncho', 'compraAncho']);
+    let largoRaw = getVal(['largo_lamina_cm', 'matLargo', 'compraLargo']);
+    let costoRaw = getVal(['precio_total_lamina', 'matCosto', 'compraCosto']);
+
+    // 3. VALIDACIÓN ANTI-100 (Si el input falla, leemos el nombre del material)
+    let anchoNum = parseFloat(anchoRaw);
+    let largoNum = parseFloat(largoRaw);
     
+    // Si el sistema detecta 100 pero el nombre dice otra cosa (ej: VIDRIO 160 X 220)
+    if ((anchoNum === 100 || anchoNum === 0) && !esMoldura) {
+        const extract = nombreValue.match(/(\d+)\s*[X]\s*(\d+)/i);
+        if (extract) {
+            anchoNum = parseFloat(extract[1]);
+            largoNum = parseFloat(extract[2]);
+            console.warn("⚠️ Medidas recuperadas del nombre para evitar el error de 100:", anchoNum, largoNum);
+        }
+    }
+
+    if (esMoldura && (largoNum === 0 || largoNum === 100)) largoNum = 290;
     const costoTotal = parseFloat(costoRaw) || 0;
 
     // 4. CÁLCULO ESTILO EXCEL ($30.682)
@@ -628,19 +640,20 @@ window.guardarMaterial = async function() {
         nombre: nombreValue.toUpperCase(),
         categoria: document.getElementById('matCategoria')?.value || (esMoldura ? "MOLDURAS" : "GENERAL"),
         
-        // CAMPOS QUE IBAN CON 100 Y AHORA VAN REALES
+        // ENVIAMOS LOS VALORES DEPURADOS
         ancho_lamina_cm: anchoNum,
         largo_lamina_cm: largoNum,
         precio_total_lamina: costoTotal,
         
-        // EL COSTO QUE TU EXCEL NECESITA
+        // Esto corrige el Dashboard definitivamente
         precio_m2_costo: esMoldura ? costoMLCalculado : costoM2Calculado,
         
-        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value) || 2,
-        unidad: esMoldura ? 'ML' : 'M2'
+        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value || document.getElementById('matStockMinimo')?.value) || 2,
+        unidad: esMoldura ? 'ML' : 'M2',
+        tipo: esMoldura ? 'ml' : 'm2'
     };
 
-    console.log("📡 Enviando actualización unificada a Atlas:", payload);
+    console.log("📡 Enviando a Atlas (v16.0.7):", payload);
     
     // ... aquí sigue tu código de fetch a la API ...
 

@@ -495,25 +495,35 @@
     // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA (v16.1.9) ---
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
+    // --- CÁLCULO PREVIO PARA ATLAS (v16.0.8) ---
+    // Usamos las variables que capturamos del formulario (anchoNum, largoNum, costoTotal)
+    const areaM2 = (anchoNum * largoNum) / 10000;
+    const costoM2Real = (areaM2 > 0) ? Math.round(costoTotal / areaM2) : costoTotal;
+    const costoMLReal = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : Math.round(costoTotal / 2.9);
+
     const nuevoMaterial = {
         // Sincronizado con router.post('/inventory/purchase') de tu server.js
         materialId: "NUEVO", 
         id: "NUEVO", 
         nombre: nombre,
         categoria: categoria,
-        costo_base: precio,
-        precio_m2_costo: precio,
+        
+        // --- COSTOS DINÁMICOS (Sincronizados con Excel) ---
+        costo_base: costoTotal,
+        precio_m2_costo: esMoldura ? costoMLReal : costoM2Real, // AQUÍ ESTÁ EL $30.682
+        
         stock_actual: 0,
         unidad: esMoldura ? "ML" : "M2",
 
-        // --- 💉 INYECCIÓN PARA EVITAR CEROS EN ATLAS ---
-        ancho_lamina_cm: esMoldura ? 1 : 100,      // Evita el cero en el servidor
-        largo_lamina_cm: esMoldura ? 290 : 100,    // Mapeo directo a req.body.largo_lamina_cm
-        precio_total_lamina: precio,               // Mapeo directo a req.body.precio_total_lamina
+        // --- ✅ DATOS REALES (YA NO SON 100 FIJOS) ---
+        ancho_lamina_cm: anchoNum,           // Valor real del formulario (ej. 160)
+        largo_lamina_cm: largoNum,           // Valor real del formulario (ej. 220)
+        precio_total_lamina: costoTotal,     // Valor real (ej. 108.000)
+        
         tipo_material: esMoldura ? 'ml' : 'm2',
         estado: 'Activo'
     };
-
+    
     try {
         console.log("📡 Sincronizando con Atlas V2...", nuevoMaterial);
 
