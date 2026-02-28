@@ -582,6 +582,8 @@ function configurarEventos() {
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // RECOLECCIÓN DE DATOS: Aseguramos que los nombres coincidan con tu base de datos Atlas
         const payload = {
             id: document.getElementById('matId')?.value,
             nombre: document.getElementById('matNombre').value,
@@ -589,17 +591,27 @@ function configurarEventos() {
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
             proveedorId: document.getElementById('proveedorSelect').value,
-            ancho_lamina_cm: parseFloat(document.getElementById('matAncho')?.value) || 0,
-            largo_lamina_cm: parseFloat(document.getElementById('matLargo')?.value) || 0
+            
+            // ¡IMPORTANTE! Estos nombres deben ser EXACTOS a como los lee renderTable
+            ancho_lamina_cm: parseFloat(document.getElementById('matAncho')?.value || document.getElementById('matAnchoCompra')?.value || 0),
+            largo_lamina_cm: parseFloat(document.getElementById('matLargo')?.value || document.getElementById('matLargoCompra')?.value || 0)
         };
+
+        console.log("🚀 Enviando a Atlas:", payload); // Para que veas en consola que no van en 0
+
         try {
             const res = await window.API.saveMaterial(payload);
             if(res.success) {
                 window.cerrarModales();
+                // Limpiamos el formulario para la próxima
+                e.target.reset(); 
                 await fetchInventory();
-                alert("✅ Material guardado correctamente");
+                alert("✅ Material guardado con éxito y medidas sincronizadas");
             }
-        } catch(err) { alert("❌ Error al guardar"); }
+        } catch(err) { 
+            console.error("Error al guardar:", err);
+            alert("❌ Error al guardar en Atlas"); 
+        }
     });
 
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
