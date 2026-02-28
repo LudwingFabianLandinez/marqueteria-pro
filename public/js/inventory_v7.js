@@ -622,6 +622,7 @@ if (formCompra) {
             // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
 
+// 1. Determinamos si es un material que ya existe en la base de datos
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
@@ -630,9 +631,8 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 2. CONSTRUCCIÓN DEL OBJETO (Versión para saltar el validador)
+// 2. Construimos el cuerpo del mensaje con los datos puros
 const datosParaAtlas = {
-    // Si es nuevo, NO mandamos la propiedad aquí arriba para evitar el error de "NUEVO"
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -645,13 +645,10 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// 3. EL TRUCO PARA EL SERVIDOR:
-if (esNuevoMaterial) {
-    // Usamos 'NEW_MATERIAL' en lugar de 'NUEVO'. 
-    // Muchos validadores aceptan este término técnico o simplemente no enviarlo.
-    // Prueba primero quitando la propiedad materialId totalmente:
-    delete datosParaAtlas.materialId; 
-} else {
+// 3. LA VERDADERA SOLUCIÓN: 
+// Solo inyectamos la propiedad 'materialId' si el material NO es nuevo.
+// Si es nuevo, el objeto NO llevará esa llave, evitando que Atlas intente validar "NUEVO" o "".
+if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
 }
 // NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
