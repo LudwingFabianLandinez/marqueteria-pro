@@ -218,7 +218,7 @@ router.post('/providers', async (req, res) => {
     }
 });
 
-// --- INVENTARIO (INTACTO) ---
+// --- INVENTARIO (AJUSTADO PARA IDS MAESTROS) ---
 router.get('/inventory', async (req, res) => {
     try {
         const materiales = await Material.find().sort({ nombre: 1 }).lean();
@@ -232,14 +232,23 @@ router.post('/inventory/save', async (req, res) => {
     try {
         const { id, ...datos } = req.body;
         let resultado;
-        if (id && id.length > 5) {
-            resultado = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
+
+        // Si viene un ID (ya sea ID-NOMBRE o un ID largo de Mongo)
+        if (id) {
+            // Usamos una operación 'upsert': Si existe lo actualiza, si no existe lo crea con ese ID
+            resultado = await Material.findByIdAndUpdate(
+                id, 
+                { $set: datos }, 
+                { new: true, upsert: true, runValidators: false }
+            );
         } else {
+            // Si por alguna razón no hay ID, creamos uno nuevo (Fallback)
             resultado = new Material(datos);
             await resultado.save();
         }
         res.json({ success: true, data: resultado });
     } catch (error) {
+        console.error("🚨 Error al guardar material maestro:", error.message);
         res.status(400).json({ success: false, error: error.message });
     }
 });
