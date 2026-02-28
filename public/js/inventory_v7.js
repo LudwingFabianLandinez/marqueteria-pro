@@ -662,80 +662,78 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// --- 🚀 LIMPIEZA PARA QUE ATLAS RECIBA LA COMPRA (IGUAL QUE PROVEEDORES) ---
-const paqueteLimpio = { ...datosParaAtlas };
-
-// 4. LA LLAVE: Si es nuevo o trae "NUEVO", borramos el materialId para que Atlas genere uno real
-if (esNuevoMaterial || paqueteLimpio.materialId === "NUEVO") {
-    delete paqueteLimpio.materialId;
-} else if (idAtlasReal) {
-    paqueteLimpio.materialId = idAtlasReal;
+// 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
+if (!esNuevoMaterial && idAtlasReal) {
+    datosParaAtlas.materialId = idAtlasReal;
 }
 
-// --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
-const URL_FINAL = `${window.API_URL}/inventory/purchase`;
-console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", paqueteLimpio);
+            // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
+            const URL_FINAL = `${window.API_URL}/inventory/purchase`;
+            console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
 
-const response = await fetch(URL_FINAL, {
-    method: 'POST',
-    headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    },
-    body: JSON.stringify(paqueteLimpio) // <--- Enviamos el paquete SIN "NUEVO"
-});
+            const response = await fetch(URL_FINAL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datosParaAtlas)
+            });
 
-const textoRespuesta = await response.text();
-let resultadoAtlas;
+            const textoRespuesta = await response.text();
+            let resultadoAtlas;
+            
+            try {
+                resultadoAtlas = JSON.parse(textoRespuesta);
+            } catch (err) {
+                throw new Error("El servidor no devolvió un JSON. Posible 'Clean Exit' del servidor.");
+            }
 
-try {
-    resultadoAtlas = JSON.parse(textoRespuesta);
-} catch (err) {
-    throw new Error("El servidor no devolvió un JSON válido. Revisa los logs de Netlify.");
-}
+            if (!response.ok) {
+                throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
+            }
 
-if (!response.ok) {
-    throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
-}
+            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
+            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+            let objetoFinal; // Variable clave para persistencia
 
-// --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
-const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id || resultadoAtlas._id;
-let objetoFinal; 
+            if (existente) {
+                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                if (idDeAtlas) {
+                    existente._id = idDeAtlas;
+                    existente.id = idDeAtlas;
+                }
+                objetoFinal = existente;
+            } else {
+                // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
+                const nuevoMaterial = {
+                    _id: idDeAtlas,
+                    id: idDeAtlas || `TEMP-${Date.now()}`,
+                    nombre: nombreReal,
+                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    stock_actual: stockASumar,
+                    precio_total_lamina: costo,
+                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
+                };
+                window.todosLosMateriales.unshift(nuevoMaterial);
+                objetoFinal = nuevoMaterial;
+            }
 
-if (existente) {
-    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-    if (idDeAtlas) {
-        existente._id = idDeAtlas;
-        existente.id = idDeAtlas;
-    }
-    objetoFinal = existente;
-} else {
-    // Si el material es nuevo, lo creamos con el ID REAL que devolvió Atlas
-    const nuevoMaterial = {
-        _id: idDeAtlas,
-        id: idDeAtlas || `TEMP-${Date.now()}`,
-        nombre: nombreReal,
-        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-        stock_actual: stockASumar,
-        precio_total_lamina: costo,
-        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
-    };
-    window.todosLosMateriales.unshift(nuevoMaterial);
-    objetoFinal = nuevoMaterial;
-}
+            // --- 📦 PERSISTENCIA LOCAL (CORREGIDA PARA REFRESH) ---
+            // 1. Bitácora de molduras
+            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
+            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-// --- 📦 PERSISTENCIA LOCAL ---
-let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
-localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
-
-localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
-
-alert(`✅ ¡LOGRADO REAL!\n${nombreReal} guardado en Atlas.`);
-if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
-formulario.reset();
+            // 2. ACTUALIZACIÓN TOTAL DEL INVENTARIO
+            // Forzamos el guardado de la lista completa ya actualizada
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            
+            // 3. UI
+            if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
+            
+            alert(`✅ ¡LOGRADO!\n${nombreReal} guardado permanentemente.`);
+            
+            if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
+            formulario.reset();
 
         } catch (error) {
             console.error("❌ Error Crítico:", error);
