@@ -638,6 +638,7 @@ const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
 // 3. Construimos el objeto forzando el campo materialId
 // 1. Construimos el objeto base con toda tu lógica de cálculo intacta
+// BUSCA ESTO EN TU formCompra.onsubmit
 const datosParaAtlas = {
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
@@ -651,14 +652,12 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// 2. LA LLAVE MAESTRA: 
-// Si NO es nuevo, le pasamos el ID para que actualice el existente.
-// Si ES NUEVO, NO enviamos la propiedad materialId (ni siquiera como "NUEVO").
-// Al no enviarla, Atlas entiende que debe generar un ID único automáticamente.
-if (!esNuevoMaterial && idAtlasReal) {
+// ESTA ES LA ÚNICA FORMA DE QUE ATLAS NO EXPLOTE:
+// Si es un material nuevo, NO PUEDE EXISTIR la propiedad materialId en el objeto.
+if (!esNuevoMaterial && idAtlasReal && idAtlasReal !== "NUEVO") {
     datosParaAtlas.materialId = idAtlasReal;
 }
-
+// NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
             console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
