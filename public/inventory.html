@@ -18,6 +18,40 @@
 
         .main-content { margin-left: 250px; flex-grow: 1; padding: 40px; }
 
+        /* --- NUEVOS ESTILOS PARA EL FORMULARIO DE CATÁLOGO (PRESERVANDO TU DISEÑO) --- */
+        .catalogo-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            border-left: 6px solid #3498db;
+        }
+        .form-grid-catalogo {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+            margin-top: 15px;
+        }
+        .form-grid-catalogo input, .form-grid-catalogo select {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .btn-crear-cat {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            height: 40px;
+        }
+        /* --- FIN ESTILOS NUEVOS --- */
+
         .history-container { 
             background: white; 
             padding: 30px; 
@@ -32,30 +66,6 @@
 
         .filter-bar { background: #f8fafc; padding: 20px; border-radius: 12px; display: flex; gap: 15px; align-items: center; margin-bottom: 20px; border: 1px solid #e2e8f0; }
         .filter-bar input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
-
-        /* --- ESTILOS AGREGADOS PARA LA NUEVA SECCIÓN --- */
-        .catalogo-container {
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 15px;
-            border-left: 5px solid #3b82f6;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            margin-bottom: 25px;
-        }
-        .form-grid-catalogo {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto;
-            gap: 15px;
-            align-items: end;
-            margin-top: 10px;
-        }
-        .form-grid-catalogo input, .form-grid-catalogo select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-        }
-        /* --- FIN ESTILOS NUEVOS --- */
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
@@ -84,19 +94,19 @@
 
     <main class="main-content">
 
-        <section class="catalogo-container">
+        <div class="catalogo-container">
             <h2 style="color: #1e3a8a; margin: 0; font-size: 1.2rem;">
-                <i class="fas fa-plus-circle"></i> Registrar Nuevo Material en Catálogo
+                <i class="fas fa-boxes"></i> Registro de Catálogo Maestro
             </h2>
-            <p style="font-size: 0.85rem; color: #64748b; margin-top: 5px;">Crea el material aquí una sola vez para que tenga un ID fijo y el cotizador lo reconozca siempre.</p>
+            <p style="font-size: 0.85rem; color: #64748b;">Registra el material aquí una sola vez para asignar un ID permanente.</p>
             
             <div class="form-grid-catalogo">
                 <div>
-                    <label style="display:block; font-size:0.75rem; font-weight:bold; color:#1e3a8a; margin-bottom:5px;">NOMBRE</label>
-                    <input type="text" id="cat-nombre" placeholder="Ej: VIDRIO 3MM">
+                    <label style="display:block; font-size:0.7rem; font-weight:bold; margin-bottom:5px;">NOMBRE MATERIAL</label>
+                    <input type="text" id="cat-nombre" placeholder="Ej: VIDRIO 3MM CLEAR">
                 </div>
                 <div>
-                    <label style="display:block; font-size:0.75rem; font-weight:bold; color:#1e3a8a; margin-bottom:5px;">CATEGORÍA</label>
+                    <label style="display:block; font-size:0.7rem; font-weight:bold; margin-bottom:5px;">CATEGORÍA</label>
                     <select id="cat-categoria">
                         <option value="GENERAL">General / Vidrios</option>
                         <option value="MOLDURAS">Molduras (ML)</option>
@@ -104,14 +114,12 @@
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-size:0.75rem; font-weight:bold; color:#1e3a8a; margin-bottom:5px;">COSTO BASE</label>
+                    <label style="display:block; font-size:0.7rem; font-weight:bold; margin-bottom:5px;">COSTO BASE ($)</label>
                     <input type="number" id="cat-precio" placeholder="0">
                 </div>
-                <button onclick="registrarEnCatalogo()" style="background: #3b82f6; color: white; border: none; padding: 10px 25px; border-radius: 8px; font-weight: bold; cursor: pointer;">
-                    REGISTRAR
-                </button>
+                <button class="btn-crear-cat" onclick="registrarEnCatalogo()">REGISTRAR</button>
             </div>
-        </section>
+        </div>
         <div class="history-container">
             <div class="header-flex">
                 <h2 style="color: #1e3a8a;">Historial de Órdenes</h2>
@@ -151,51 +159,41 @@
     </main>
 
     <script>
-        // --- FUNCIÓN AGREGADA PARA EL CATÁLOGO ---
+        // --- FUNCIÓN AGREGADA PARA EL CATÁLOGO SIN AFECTAR LO DEMÁS ---
         async function registrarEnCatalogo() {
             const nombre = document.getElementById('cat-nombre').value.trim().toUpperCase();
             const categoria = document.getElementById('cat-categoria').value;
             const precio = parseFloat(document.getElementById('cat-precio').value) || 0;
 
             if (!nombre || precio <= 0) {
-                alert("⚠️ Por favor completa el nombre y un precio válido.");
+                alert("⚠️ Completa nombre y precio.");
                 return;
             }
 
             const idLimpio = `ID-${nombre.replace(/\s+/g, '_')}`;
-
             const nuevoMaterial = {
-                _id: idLimpio,
-                id: idLimpio, // Duplicado para compatibilidad con el cotizador
-                nombre: nombre,
-                categoria: categoria,
-                costo_base: precio,
-                precio_m2_costo: precio,
-                stock_actual: 0,
+                _id: idLimpio, id: idLimpio, nombre: nombre,
+                categoria: categoria, costo_base: precio,
+                precio_m2_costo: precio, stock_actual: 0,
                 unidad: (categoria === "MOLDURAS") ? "ML" : "M2"
             };
 
             try {
-                // Guardar en el inventario local para que el cotizador lo vea YA
-                let inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                inv.push(nuevoMaterial);
-                localStorage.setItem('inventory', JSON.stringify(inv));
+                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                localInv.push(nuevoMaterial);
+                localStorage.setItem('inventory', JSON.stringify(localInv));
 
-                // Avisar al servidor
                 await fetch('/api/inventory/catalog', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(nuevoMaterial)
                 });
 
-                alert("✅ Material registrado. Ahora el Cotizador lo reconocerá con ID fijo.");
+                alert("✅ Registrado en Catálogo Maestro.");
                 location.reload();
-            } catch (e) {
-                console.error(e);
-                alert("Guardado localmente. Error de conexión con el servidor.");
-            }
+            } catch (e) { console.error(e); alert("Guardado localmente."); }
         }
-        // --- FIN FUNCIÓN CATÁLOGO ---
+        // --- FIN FUNCIÓN AGREGADA ---
 
         async function cargarHistorial() {
             const tableBody = document.getElementById('historyBody');
