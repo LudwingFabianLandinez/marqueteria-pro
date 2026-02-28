@@ -628,37 +628,33 @@ if (formCompra) {
             const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
             // 3. CONSTRUCCIÓN DEL OBJETO DE ENVÍO
-            const datosParaAtlas = {
-                nombre: nombreReal,
-                esNuevo: esNuevoMaterial,
-                categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
-                cantidad_laminas: cant,
-                precio_total_lamina: costo,
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costo * cant,
-                timestamp: new Date().toISOString()
-            };
+            // Reemplaza el bloque de construcción del objeto en inventory.js
+const datosParaAtlas = {
+    nombre: nombreReal,
+    esNuevo: esNuevoMaterial,
+    categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
+    cantidad_laminas: cant,
+    precio_total_lamina: costo,
+    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costo * cant,
+    timestamp: new Date().toISOString()
+};
 
-            // 🛡️ REGLA DE ORO: Solo incluimos materialId si REALMENTE existe.
-            // Si es nuevo, NO mandamos la propiedad. Ni null, ni undefined. 
-            // Esto evita que el backend busque un ID inexistente.
-            if (!esNuevoMaterial && idAtlasReal) {
-                datosParaAtlas.materialId = idAtlasReal;
-            } else {
-                datosParaAtlas.action = "create"; // Avisamos explícitamente que es creación
-            }
+// BLOQUE MAESTRO: Si es nuevo, NO agregamos materialId. Si existe, lo agregamos.
+if (!esNuevoMaterial && idAtlasReal) {
+    datosParaAtlas.materialId = idAtlasReal;
+} else {
+    datosParaAtlas.action = "create"; // Forzamos creación limpia
+}
 
-            // 4. 🚀 CONEXIÓN
-            const URL_FINAL = `${window.API_URL}/inventory/purchase`;
-            console.log("📡 Enviando a Atlas:", datosParaAtlas);
-
-            const response = await fetch(URL_FINAL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(datosParaAtlas)
-            });
+// Envío limpio a Atlas
+const response = await fetch(`${window.API_URL}/inventory/purchase`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(datosParaAtlas)
+});
 
             const textoRespuesta = await response.text();
             let resultadoAtlas;
