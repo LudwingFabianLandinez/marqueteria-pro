@@ -372,23 +372,34 @@ function renderTable(materiales) {
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // 2. RECUPERACIÓN DE ÁREA (LA CLAVE DEL $30.682)
-        // Usamos las propiedades directas que Atlas ya tiene o calculamos 160x220
-        const anchoL = parseFloat(m.ancho_lamina_cm || 160); 
-        const largoL = parseFloat(m.largo_lamina_cm || 220);
-        const areaLaminaM2 = (anchoL * largoL) / 10000; // Esto DA 3.52
+        // --- SEPARACIÓN DE LÓGICAS ---
+
+        // A. LÓGICA PARA EL ÁREA DEL COSTO (Para asegurar los $30.682)
+        // Buscamos medidas en el nombre (160x220) para el divisor del precio
+        const matchPrecio = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        let anchoCosto = parseFloat(m.ancho_lamina_cm || 160);
+        let largoCosto = parseFloat(m.largo_lamina_cm || 220);
+        
+        if (matchPrecio) {
+            anchoCosto = parseFloat(matchPrecio[1]);
+            largoCosto = parseFloat(matchPrecio[2]);
+        }
+        const areaParaCosto = (anchoCosto * largoCosto) / 10000;
+
+        // B. LÓGICA PARA EL ÁREA DEL DESGLOSE (Para asegurar 1 und + 0.00 m2)
+        // Usamos la misma lógica pero en una variable distinta para no interferir
+        const areaParaDesglose = areaParaCosto > 0 ? areaParaCosto : 3.52;
 
         // 3. CÁLCULO DE COSTO (PRECIO / ÁREA)
-        // $108.000 / 3.52 = $30.681.81... -> $30.682
         let costoMostrar = 0;
         const precioTotal = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
-            const mlPalo = (largoL > 0) ? (largoL / 100) : 2.9;
+            const mlPalo = (largoCosto > 0) ? (largoCosto / 100) : 2.9;
             costoMostrar = precioTotal / mlPalo;
         } else {
-            // FORZADO A 3.52 PARA EVITAR EL 8716
-            costoMostrar = areaLaminaM2 > 0 ? (precioTotal / areaLaminaM2) : precioTotal;
+            // Usa su propia área independiente
+            costoMostrar = areaParaCosto > 0 ? (precioTotal / areaParaCosto) : precioTotal;
         }
         costoMostrar = Math.round(costoMostrar);
 
@@ -396,7 +407,7 @@ function renderTable(materiales) {
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
 
-        // 5. DESGLOSE FÍSICO (1 und + 0.00 m2)
+        // 5. DESGLOSE FÍSICO (Separado de la lógica de costo)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
@@ -404,9 +415,10 @@ function renderTable(materiales) {
                 <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
             `;
         } else {
-            // Calculamos cuántas láminas de 3.52 m2 hay en el stock
-            const unidades = Math.floor((stockActualUnidad / areaLaminaM2) + 0.001);
-            let remanente = stockActualUnidad - (unidades * areaLaminaM2);
+            // Calculamos unidades usando el área de desglose independiente
+            const unidades = Math.floor((stockActualUnidad / areaParaDesglose) + 0.001);
+            let remanente = stockActualUnidad - (unidades * areaParaDesglose);
+            
             if (Math.abs(remanente) < 0.005) remanente = 0;
 
             textoStockVisual = `
@@ -417,7 +429,7 @@ function renderTable(materiales) {
             `;
         }
 
-        // 6. RENDERIZADO (Diseño que te gusta)
+        // 6. RENDERIZADO (Diseño original preservado)
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
