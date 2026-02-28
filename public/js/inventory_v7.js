@@ -628,6 +628,7 @@ if (formCompra) {
 // --- 🛡️ SOLUCIÓN FINAL (v15.3.9 - COMPATIBILIDAD CON SERVIDOR) ---
 // 1. Buscamos el ID real de Atlas
 // 1. Identificamos el ID real de Atlas
+// 1. Identificamos el ID real
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
@@ -636,11 +637,11 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 2. Construimos el objeto con la "llave" corregida
+// 2. EL OBJETO DEFINITIVO
 const datosParaAtlas = {
-    // CAMBIO CLAVE: Si es nuevo, mandamos "" (vacío). 
-    // Esto evita el error de "ID no proporcionado" pero NO causa el "Cast Error" en Atlas.
-    materialId: esNuevoMaterial ? "" : idAtlasReal, 
+    // LLAVE MAESTRA: Si es nuevo, mandamos null. 
+    // Esto evita el error de "ID no proporcionado" y TAMBIÉN evita el error de "NUEVO"
+    materialId: esNuevoMaterial ? null : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
