@@ -584,50 +584,65 @@ function configurarEventos() {
 
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
 window.guardarMaterial = async function() {
-    // --- CAPTURA INTELIGENTE DE DATOS (v16.0.4) ---
-    // Mantenemos tu lógica dual: si no está en un campo, busca en el otro.
-    const nombreValue = (document.getElementById('matNombre')?.value || document.getElementById('nombreNuevoMaterial')?.value || "SIN NOMBRE").trim();
-    const materialId = window.materialEditandoId || document.getElementById('matId')?.value || document.getElementById('compraMaterial')?.value || "NUEVO";
-    
-    // Identificamos si es Moldura para aplicar la regla de 2.90 ML
-    const esMoldura = nombreValue.toUpperCase().includes("MOLDURA") || nombreValue.toUpperCase().startsWith("K ");
+    // 1. CAPTURA DE NOMBRE E ID
+    const nombreValue = (document.getElementById('matNombre')?.value || 
+                         document.getElementById('nombreNuevoMaterial')?.value || 
+                         "SIN NOMBRE").trim();
+                         
+    const materialId = window.materialEditandoId || 
+                       document.getElementById('matId')?.value || 
+                       "NUEVO";
 
-    // Captura de valores numéricos
-    const anchoValue = document.getElementById('matAncho')?.value || document.getElementById('compraAncho')?.value || "0";
-    const largoValue = esMoldura ? "290" : (document.getElementById('matLargo')?.value || document.getElementById('compraLargo')?.value || "0");
-    const costoValue = document.getElementById('matCosto')?.value || document.getElementById('compraCosto')?.value || "0";
-    const stockMinimo = document.getElementById('matStockMin')?.value || "2";
+    const esMoldura = nombreValue.toUpperCase().includes("MOLDURA") || 
+                      nombreValue.toUpperCase().startsWith("K ");
 
-    // --- CÁLCULO DE ÁREA Y COSTO UNITARIO (v16.0.5) ---
-    const anchoNum = parseFloat(anchoValue) || 0;
-    const largoNum = parseFloat(largoValue) || 0;
-    const costoTotal = parseFloat(costoValue) || 0;
+    // 2. CAPTURA DE VALORES NUMÉRICOS (Búsqueda exhaustiva de IDs)
+    const anchoRaw = document.getElementById('ancho_lamina_cm')?.value || 
+                     document.getElementById('matAncho')?.value || 
+                     document.getElementById('compraAncho')?.value || "0";
+                     
+    const largoRaw = document.getElementById('largo_lamina_cm')?.value || 
+                     document.getElementById('matLargo')?.value || 
+                     document.getElementById('compraLargo')?.value || "0";
+                     
+    const costoRaw = document.getElementById('precio_total_lamina')?.value || 
+                     document.getElementById('matCosto')?.value || 
+                     document.getElementById('compraCosto')?.value || "0";
+
+    // 3. CONVERSIÓN Y LÓGICA DE MOLDURAS
+    const anchoNum = parseFloat(anchoRaw) || 0;
+    // Si es moldura y el largo es 0 o no existe, forzamos 290
+    let largoNum = parseFloat(largoRaw) || 0;
+    if (esMoldura && largoNum === 0) largoNum = 290;
     
-    // Calculamos el área real para obtener el costo m2 (como en tu Excel)
+    const costoTotal = parseFloat(costoRaw) || 0;
+
+    // 4. CÁLCULO ESTILO EXCEL ($30.682)
     const areaM2 = (anchoNum * largoNum) / 10000;
     const costoM2Calculado = (areaM2 > 0) ? Math.round(costoTotal / areaM2) : 0;
-    
-    // Calculamos el costo por ML si es moldura (Precio / 2.9 o largo)
-    const costoMLCalculado = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : Math.round(costoTotal / 2.9);
+    const costoMLCalculado = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : 0;
 
+    // 5. CONSTRUCCIÓN DEL PAYLOAD PARA ATLAS
     const payload = {
-        id: materialId, // ID Maestro (Atlas _id o Temporal)
+        id: materialId,
         nombre: nombreValue.toUpperCase(),
         categoria: document.getElementById('matCategoria')?.value || (esMoldura ? "MOLDURAS" : "GENERAL"),
         
-        // --- LOS TRES CAMPOS CRÍTICOS PARA ATLAS (CORREGIDOS) ---
+        // CAMPOS QUE IBAN CON 100 Y AHORA VAN REALES
         ancho_lamina_cm: anchoNum,
         largo_lamina_cm: largoNum,
         precio_total_lamina: costoTotal,
         
-        // NUEVO: Enviamos el costo unitario ya calculado para que el Dashboard no muestre el precio de la lámina
+        // EL COSTO QUE TU EXCEL NECESITA
         precio_m2_costo: esMoldura ? costoMLCalculado : costoM2Calculado,
         
-        stock_minimo: parseFloat(stockMinimo) || 2,
+        stock_minimo: parseFloat(document.getElementById('matStockMin')?.value) || 2,
         unidad: esMoldura ? 'ML' : 'M2'
     };
 
     console.log("📡 Enviando actualización unificada a Atlas:", payload);
+    
+    // ... aquí sigue tu código de fetch a la API ...
 
     try {
         // MANTENEMOS TU CONEXIÓN LOGRADA SIN DAÑAR NADA
