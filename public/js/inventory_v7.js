@@ -400,15 +400,15 @@ function renderTable(materiales) {
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         // 3. CÁLCULO DE COSTO (Basado en tu regla: ML para molduras, M2 para el resto)
-        let costoMostrar = 0;
-        if (esMoldura) {
-            const largoMetros = largo > 0 ? (largo / 100) : 2.9;
-            costoMostrar = Math.round((m.precio_total_lamina || 0) / largoMetros) || m.precio_m2_costo || 0;
-        } else {
-            if (areaUnaLaminaM2 > 0) {
-                costoMostrar = Math.round((m.precio_total_lamina || 0) / areaUnaLaminaM2);
-            } else {
-                costoMostrar = m.precio_m2_costo || 0;
+        let costoMostrar = parseFloat(m.precio_m2_costo || m.costo_unitario || 0);
+
+        // Si el costo directo es 0, intentamos calcularlo por el precio de la lámina
+        if (costoMostrar === 0 && (m.precio_total_lamina > 0)) {
+            if (esMoldura) {
+                const largoMetros = largo > 0 ? (largo / 100) : 2.9;
+                costoMostrar = Math.round(m.precio_total_lamina / largoMetros);
+            } else if (areaUnaLaminaM2 > 0) {
+                costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
             }
         }
 
