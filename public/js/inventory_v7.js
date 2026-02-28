@@ -648,7 +648,7 @@ const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
 // 3. Construimos el objeto forzando el campo materialId
 const datosParaAtlas = {
-    // Si es nuevo, enviamos "NUEVO" para que el servidor no lance el error de "ID no proporcionado"
+    // 1. 🛡️ LO QUE ATLAS NECESITA (Para no dar error 404/400)
     materialId: esNuevoMaterial ? "NUEVO" : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
@@ -659,7 +659,15 @@ const datosParaAtlas = {
     largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
     tipo_material: esMoldura ? 'ml' : 'm2',
     costo_total: costo * cant,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+
+    // 2. 🎯 LO QUE EL COTIZADOR NECESITA (Para que aparezca el material y calcule)
+    // Inyectamos las etiquetas exactas que quotes.js está buscando:
+    costo_base: costo, 
+    costo_m2: costo,
+    precio_m2_costo: costo,
+    unidad: esMoldura ? 'ML' : 'M2',
+    id: esNuevoMaterial ? `TEMP-${Date.now()}` : idAtlasReal
 };
 
 // 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
@@ -992,5 +1000,3 @@ window.verHistorial = async function(id, nombre) {
         if (modal) modal.style.display = 'block';
     } catch (error) { console.error("Error historial:", error); }
 };
-
-    
