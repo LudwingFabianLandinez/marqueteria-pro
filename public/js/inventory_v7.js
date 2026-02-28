@@ -216,38 +216,42 @@ window.guardarProveedor = async function(event) {
     }
 
     try {
-    console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
-    
-    // Usamos el puente que definimos al inicio para mayor seguridad
-    const res = await window.API.saveProvider ? await window.API.saveProvider(payload) : await fetch(`${window.API_URL}/providers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(r => r.json());
+        console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
+        
+        // REFUERZO: Fetch directo con URL limpia para evitar el Error 400
+        const response = await fetch(`${window.API_URL}/providers`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (res.success || res._id) {
-        alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
+        const res = await response.json();
+
+        if (response.ok && (res.success || res._id)) {
+            alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
             document.getElementById('provForm')?.reset();
             
-            // Cerrar modal si existe la función
+            // Cerrar modal
             if (typeof window.cerrarModales === 'function') {
                 window.cerrarModales();
             } else {
-                // Fallback manual para cerrar modal
                 const modal = document.getElementById('modalProveedor');
                 if(modal) modal.style.display = 'none';
             }
             
-            // Refrescar lista de proveedores
+            // Refrescar lista
             await fetchProviders(); 
             
         } else {
-            throw new Error(res.error || res.message || "Error en el servidor");
+            throw new Error(res.error || res.message || "Atlas rechazó los datos (Error 400)");
         }
 
     } catch (error) { 
         console.error("🚨 Error crítico al guardar proveedor:", error);
-        alert("❌ Error: No se pudo conectar con el servidor. El cambio se aplicará al subir el código."); 
+        alert("❌ Error: " + error.message); 
     } finally {
         if(btnGuardar) { 
             btnGuardar.disabled = false; 
