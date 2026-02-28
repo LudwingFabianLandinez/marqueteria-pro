@@ -219,26 +219,14 @@ window.guardarProveedor = async function(event) {
         console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
         
         // 3. ENVÍO DIRECTO Y SEGURO (Corrigiendo el error 400 del puente)
-        
-const copiaParaAtlas = { ...datosParaAtlas };
-
-if (copiaParaAtlas.materialId === "NUEVO") {
-    delete copiaParaAtlas.materialId; // Atlas feliz
-}
-
-// 3. ENVIAMOS LA COPIA, NO EL ORIGINAL
-const response = await fetch(`${window.API_URL}/inventory/purchase`, {
-    method: 'POST',
-    headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json' 
-    },
-    body: JSON.stringify(copiaParaAtlas) // <--- ESTO es lo que llega a Atlas
-});
-
-// 4. EL RESTO DE TU CÓDIGO SIGUE IGUAL
-// Como no tocamos 'datosParaAtlas', tu código local encontrará el material
-// y sumará el stock sin dar error.
+        const response = await fetch(`${window.API_URL}/providers`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
 
         // Validamos si la respuesta fue exitosa antes de convertir a JSON
         if (!response.ok) {
@@ -595,8 +583,8 @@ function configurarEventos() {
 // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
     // === VERSIÓN RECUPERADA Y BLINDADA v13.4.61 ===
 
-
-// === BLOQUE DE COMPRAS QUIRÚRGICO v19.9.0 (CONEXIÓN ATLAS FIX) ===
+// Reemplaza tu bloque formCompra.onsubmit con este corregido:
+// Actualización de conexión v15.3.0
 const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
@@ -618,7 +606,7 @@ if (formCompra) {
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
 
-            // 1. DETERMINAR NOMBRE Y TIPO
+            // 1. DETERMINAR NOMBRE Y TIPO (Mantenemos tu lógica de conversión)
             let nombreInput = (selectMat.value === "NUEVO") 
                 ? inputNuevo.value.trim() 
                 : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
@@ -628,6 +616,7 @@ if (formCompra) {
 
             const cant = parseFloat(inputCant.value) || 0;
             const costo = parseFloat(inputCosto.value) || 0;
+            let unidadFinal = esMoldura ? "ml" : "m²";
             
             let stockASumar = esMoldura 
                 ? (cant * 2.90) 
@@ -636,44 +625,56 @@ if (formCompra) {
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
             let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
 
-            // 2. 🛡️ LÓGICA DE IDENTIDAD (v15.3.9 - REFORZADA)
-            const idAtlasReal = (existente && (existente._id || existente.id) && 
-                                !String(existente._id || existente.id).startsWith('TEMP-') && 
-                                !String(existente._id || existente.id).startsWith('MAT-')) 
-                               ? (existente._id || existente.id) 
-                               : null;
+            // 2. 🛡️ LÓGICA DE IDENTIDAD REFORZADA (v15.3.2)
+            // --- 🛡️ LÓGICA DE IDENTIDAD DE ALTO NIVEL (v15.3.3) ---
+            const esAgregadoNuevo = (selectMat.value === "NUEVO");
 
-            const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
+            // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
+            // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
+// --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.6) ---
+// Usamos "" en lugar de null para que el servidor no aborte por "dato inválido"
+// --- 🛡️ LIMPIEZA DE ID (v15.3.8 - VERSIÓN FINAL SIN ERRORES) ---
+// 1. Buscamos el ID real de Atlas, si no existe o es temporal, queda como null internamente
+// --- 🛡️ SOLUCIÓN FINAL (v15.3.9 - COMPATIBILIDAD CON SERVIDOR) ---
+// 1. Buscamos el ID real de Atlas
+const idAtlasReal = (existente && (existente._id || existente.id) && 
+                    !String(existente._id || existente.id).startsWith('TEMP-') && 
+                    !String(existente._id || existente.id).startsWith('MAT-')) 
+                   ? (existente._id || existente.id) 
+                   : null;
 
-            // 3. CONSTRUCCIÓN DE OBJETO PARA ATLAS
-            const datosParaAtlas = {
-                materialId: esNuevoMaterial ? "NUEVO" : idAtlasReal, 
-                nombre: nombreReal,
-                esNuevo: esNuevoMaterial,
-                categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
-                cantidad_laminas: cant,
-                precio_total_lamina: costo,
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costo * cant,
-                timestamp: new Date().toISOString()
-            };
+// 2. Determinamos si es nuevo
+const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-            // --- 🛡️ FILTRO DE SEGURIDAD (SOLUCIONA ERROR 400) ---
-            const payloadLimpio = { ...datosParaAtlas };
-            if (payloadLimpio.materialId === "NUEVO") {
-                delete payloadLimpio.materialId; // Si es nuevo, Atlas no debe recibir este campo con texto
-            }
+// 3. Construimos el objeto forzando el campo materialId
+const datosParaAtlas = {
+    // Si es nuevo, enviamos "NUEVO" para que el servidor no lance el error de "ID no proporcionado"
+    materialId: esNuevoMaterial ? "NUEVO" : idAtlasReal, 
+    nombre: nombreReal,
+    esNuevo: esNuevoMaterial,
+    categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
+    cantidad_laminas: cant,
+    precio_total_lamina: costo,
+    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costo * cant,
+    timestamp: new Date().toISOString()
+};
+
+// 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
+if (!esNuevoMaterial && idAtlasReal) {
+    datosParaAtlas.materialId = idAtlasReal;
+}
 
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
-            console.log("📡 Escribiendo en Atlas:", payloadLimpio);
+            console.log("📡 Intentando escribir en Atlas vía:", URL_FINAL, "Datos:", datosParaAtlas);
 
             const response = await fetch(URL_FINAL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payloadLimpio)
+                body: JSON.stringify(datosParaAtlas)
             });
 
             const textoRespuesta = await response.text();
@@ -682,16 +683,16 @@ if (formCompra) {
             try {
                 resultadoAtlas = JSON.parse(textoRespuesta);
             } catch (err) {
-                throw new Error("El servidor no devolvió un JSON. Posible 'Clean Exit'.");
+                throw new Error("El servidor no devolvió un JSON. Posible 'Clean Exit' del servidor.");
             }
 
             if (!response.ok) {
-                throw new Error(resultadoAtlas.error || `Atlas rechazó la conexión (${response.status}).`);
+                throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
             }
 
             // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
-            let objetoFinal;
+            let objetoFinal; // Variable clave para persistencia
 
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
@@ -701,23 +702,32 @@ if (formCompra) {
                 }
                 objetoFinal = existente;
             } else {
+                // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
                 const nuevoMaterial = {
-                    ...datosParaAtlas,
                     _id: idDeAtlas,
                     id: idDeAtlas || `TEMP-${Date.now()}`,
-                    stock_actual: stockASumar
+                    nombre: nombreReal,
+                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    stock_actual: stockASumar,
+                    precio_total_lamina: costo,
+                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
                 };
                 window.todosLosMateriales.unshift(nuevoMaterial);
                 objetoFinal = nuevoMaterial;
             }
 
-            // --- 📦 PERSISTENCIA LOCAL ---
+            // --- 📦 PERSISTENCIA LOCAL (CORREGIDA PARA REFRESH) ---
+            // 1. Bitácora de molduras
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
+            // 2. ACTUALIZACIÓN TOTAL DEL INVENTARIO
+            // Forzamos el guardado de la lista completa ya actualizada
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
+            // 3. UI
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
             alert(`✅ ¡LOGRADO!\n${nombreReal} guardado permanentemente.`);
@@ -983,58 +993,4 @@ window.verHistorial = async function(id, nombre) {
     } catch (error) { console.error("Error historial:", error); }
 };
 
-    window.guardarMaterial = async function() {
-    const modal = document.getElementById('modalNuevoMaterial');
-    const btn = document.querySelector('#modalNuevoMaterial button[onclick="guardarMaterial()"]');
     
-    // 🕵️‍♂️ Búsqueda exhaustiva del ID (Tu lógica original intacta)
-    const id = modal.dataset.id || window.currentEditingId; 
-
-    if (!id || id === 'NUEVO') {
-        console.error("❌ ID inválido para actualización:", id);
-        return alert("⚠️ Error: No se puede actualizar un material sin ID real de Atlas. Realiza una compra primero.");
-    }
-
-    // Bloqueo de UI para evitar doble clic
-    if(btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SINCRONIZANDO...'; }
-
-    const materialData = {
-        nombre: document.getElementById('matNombre').value.trim(),
-        ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || 0,
-        largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || 0,
-        precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
-        stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
-    };
-
-    try {
-        console.log(`📡 Enviando actualización de ID ${id} a Atlas...`);
-        
-        // 🚀 CAMBIO CLAVE: Usamos el endpoint estándar de materiales
-        // Si tu backend usa /materials/:id o /inventory/:id, asegúrate de que coincida
-        const url = `${window.API_URL}/inventory/update/${id}`; 
-        
-        const response = await fetch(url, {
-            method: 'PUT', // Usamos PUT para actualizar, es lo que Atlas espera
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(materialData)
-        });
-
-        const res = await response.json();
-
-        if (response.ok && (res.success || res.modifiedCount > 0)) {
-            alert("✅ ¡ÉXITO! Datos guardados en la nube (Atlas).");
-            
-            // Actualizamos el inventario local para que el refresh no sea necesario, 
-            // pero lo dejamos por seguridad de que lea de Atlas al volver.
-            location.reload(); 
-        } else {
-            throw new Error(res.error || "El servidor rechazó la actualización en Atlas.");
-        }
-    } catch (error) {
-        console.error("🚨 Error de sincronización:", error);
-        alert("❌ FALLO DE CONEXIÓN CON ATLAS:\n" + error.message);
-    } finally {
-        if(btn) { btn.disabled = false; btn.innerHTML = 'Guardar Cambios'; }
-    }
-    
-};
