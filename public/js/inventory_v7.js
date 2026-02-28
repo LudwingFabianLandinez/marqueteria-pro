@@ -648,6 +648,7 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
+
 // 3. LIMPIEZA DE ÚLTIMO MOMENTO
 if (esNuevoMaterial) {
     // Si el servidor se pone pesado con el "undefined", lo mandamos como null 
