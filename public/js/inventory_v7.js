@@ -191,7 +191,7 @@ async function fetchProviders() {
 window.guardarProveedor = async function(event) {
     if(event) event.preventDefault();
     
-    // 1. UI: Feedback visual inmediato
+    // 1. UI: Feedback visual inmediato (Mantenemos tu lógica intacta)
     const btnGuardar = event.submitter || document.querySelector('#provForm button[type="submit"]');
     const originalText = btnGuardar ? btnGuardar.innerHTML : 'GUARDAR';
     if(btnGuardar) { 
@@ -216,17 +216,29 @@ window.guardarProveedor = async function(event) {
     }
 
     try {
-    console.log("🚀 Iniciando guardado de proveedor:", payload.nombre);
-    
-    // Usamos el puente que definimos al inicio para mayor seguridad
-    const res = await window.API.saveProvider ? await window.API.saveProvider(payload) : await fetch(`${window.API_URL}/providers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(r => r.json());
+        console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
+        
+        // 3. ENVÍO DIRECTO Y SEGURO (Corrigiendo el error 400 del puente)
+        const response = await fetch(`${window.API_URL}/providers`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (res.success || res._id) {
-        alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
+        // Validamos si la respuesta fue exitosa antes de convertir a JSON
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || `Error del servidor (${response.status})`);
+        }
+
+        const res = await response.json();
+
+        // 4. ÉXITO: Tu lógica de cierre y refresco (Intacta)
+        if (res.success || res._id || res.id) {
+            alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
             document.getElementById('provForm')?.reset();
             
             // Cerrar modal si existe la función
@@ -239,15 +251,17 @@ window.guardarProveedor = async function(event) {
             }
             
             // Refrescar lista de proveedores
-            await fetchProviders(); 
+            if (typeof fetchProviders === 'function') {
+                await fetchProviders(); 
+            }
             
         } else {
-            throw new Error(res.error || res.message || "Error en el servidor");
+            throw new Error("Atlas no devolvió confirmación de guardado");
         }
 
     } catch (error) { 
         console.error("🚨 Error crítico al guardar proveedor:", error);
-        alert("❌ Error: No se pudo conectar con el servidor. El cambio se aplicará al subir el código."); 
+        alert("❌ Error: " + error.message); 
     } finally {
         if(btnGuardar) { 
             btnGuardar.disabled = false; 
