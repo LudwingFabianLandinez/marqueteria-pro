@@ -483,75 +483,59 @@
     }
 
     async function ejecutarRegistroMaestro() {
-    // 1. CAPTURA DE DATOS DEL FORMULARIO
+    // 1. CAPTURA DE DATOS
     const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
     const categoria = document.getElementById('cat-categoria-maestro').value;
-    const precio = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
+    const precioCompra = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
 
-    if (!nombre || precio <= 0) {
+    if (!nombre || precioCompra <= 0) {
         alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
         return;
     }
 
-    // --- 2. ESCÁNER UNIVERSAL DE MEDIDAS (v16.2.1) ---
-    // Buscamos cualquier par de números (ej: 160 X 220, 183 X 244, 15 X 300)
-    let anchoNum = 0; 
-    let largoNum = 0;
-    
-    // Regex mejorada: busca Número - Espacio - X - Espacio - Número
-    const matchMedidas = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
-    
-    if (matchMedidas) {
-        anchoNum = parseFloat(matchMedidas[1]);
-        largoNum = parseFloat(matchMedidas[2]);
+    // 2. ESCÁNER DE MEDIDAS LOCAL (Aislado para evitar errores)
+    let anchoLocal = 0;
+    let largoLocal = 0;
+    const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
+
+    if (match) {
+        anchoLocal = parseFloat(match[1]); // Ejemplo: 160
+        largoLocal = parseFloat(match[2]); // Ejemplo: 220
     }
 
-    // --- 3. LÓGICA DE CATEGORÍA Y UNIDAD ---
-    const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
-    
-    // Si no se encontraron medidas en el nombre, usamos valores base para no romper el cálculo
-    if (anchoNum === 0) anchoNum = 100;
-    if (largoNum === 0) largoNum = esMoldura ? 290 : 100;
-
-    const costoTotal = precio; 
-
-    // --- 4. CÁLCULO DINÁMICO (Estilo Excel para todos los materiales) ---
+    // 3. CÁLCULO DIRECTO (Estilo Excel Puro)
     let costoUnitarioFinal = 0;
+    const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
 
     if (esMoldura) {
-        // Regla ML: Precio / (Largo en cm / 100)
-        const largoMetros = largoNum / 100;
-        costoUnitarioFinal = Math.round(costoTotal / largoMetros);
+        // Regla ML: Precio / Metros Lineales
+        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.9;
+        costoUnitarioFinal = Math.round(precioCompra / metros);
     } else {
         // Regla M2: Precio / (Ancho * Largo / 10000)
-        const areaM2 = (anchoNum * largoNum) / 10000;
-        costoUnitarioFinal = areaM2 > 0 ? Math.round(costoTotal / areaM2) : costoTotal;
+        // Para 160x220: 108000 / 3.52 = 30682
+        const areaM2 = (anchoLocal * largoLocal) / 10000;
+        costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
     }
 
+    // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
         nombre: nombre,
         categoria: categoria,
-        
-        // --- COSTOS SINCRONIZADOS ---
-        costo_base: costoTotal,
-        precio_m2_costo: costoUnitarioFinal, // Aquí queda el $30.682 (o el proporcional de cualquier material)
-        
-        stock_actual: 0,
+        costo_base: precioCompra,
+        precio_m2_costo: costoUnitarioFinal, // ESTA VARIABLE LLEVA EL 30682
+        ancho_lamina_cm: anchoLocal || 100,
+        largo_lamina_cm: largoLocal || (esMoldura ? 290 : 100),
+        precio_total_lamina: precioCompra,
         unidad: esMoldura ? "ML" : "M2",
-
-        // --- DATOS REALES ENVIADOS A ATLAS ---
-        ancho_lamina_cm: anchoNum,           
-        largo_lamina_cm: largoNum,           
-        precio_total_lamina: costoTotal,     
-        
         tipo_material: esMoldura ? 'ml' : 'm2',
         estado: 'Activo'
     };
     
     try {
-        console.log("📡 Sincronizando Universalmente con Atlas...", nuevoMaterial);
+        console.log("📡 Enviando a Atlas V2:", nuevoMaterial);
 
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
@@ -564,12 +548,11 @@
         const res = await response.json();
 
         if (res.success || response.ok) {
-            alert(`✅ ¡ÉXITO TOTAL!\nMaterial: ${nombre}\nCosto Unitario: $${nuevoMaterial.precio_m2_costo}\nÁrea: ${(anchoNum*largoNum/10000).toFixed(2)} m2`);
-            
+            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${nuevoMaterial.precio_m2_costo}\nÁrea: ${(anchoLocal*largoLocal/10000).toFixed(2)} m2`);
             localStorage.removeItem('inventory'); 
             location.reload();
         } else {
-            throw new Error(res.error || "Atlas rechazó el registro");
+            throw new Error(res.error || "Error en Atlas");
         }
     } catch (e) {
         console.error("❌ Fallo en el puente con Atlas:", e);
