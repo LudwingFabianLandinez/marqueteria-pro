@@ -598,17 +598,32 @@ window.guardarMaterial = async function() {
     const costoValue = document.getElementById('matCosto')?.value || document.getElementById('compraCosto')?.value || "0";
     const stockMinimo = document.getElementById('matStockMin')?.value || "2";
 
+    // --- CÁLCULO DE ÁREA Y COSTO UNITARIO (v16.0.5) ---
+    const anchoNum = parseFloat(anchoValue) || 0;
+    const largoNum = parseFloat(largoValue) || 0;
+    const costoTotal = parseFloat(costoValue) || 0;
+    
+    // Calculamos el área real para obtener el costo m2 (como en tu Excel)
+    const areaM2 = (anchoNum * largoNum) / 10000;
+    const costoM2Calculado = (areaM2 > 0) ? Math.round(costoTotal / areaM2) : 0;
+    
+    // Calculamos el costo por ML si es moldura (Precio / 2.9 o largo)
+    const costoMLCalculado = (largoNum > 0) ? Math.round(costoTotal / (largoNum / 100)) : Math.round(costoTotal / 2.9);
+
     const payload = {
         id: materialId, // ID Maestro (Atlas _id o Temporal)
         nombre: nombreValue.toUpperCase(),
         categoria: document.getElementById('matCategoria')?.value || (esMoldura ? "MOLDURAS" : "GENERAL"),
         
-        // --- LOS TRES CAMPOS CRÍTICOS PARA ATLAS (v16.0.4) ---
-        ancho_lamina_cm: esMoldura ? 1 : parseFloat(anchoValue),
-        largo_lamina_cm: parseFloat(largoValue), // Forzado a 290 si es moldura
-        precio_total_lamina: parseFloat(costoValue),
+        // --- LOS TRES CAMPOS CRÍTICOS PARA ATLAS (CORREGIDOS) ---
+        ancho_lamina_cm: anchoNum,
+        largo_lamina_cm: largoNum,
+        precio_total_lamina: costoTotal,
         
-        stock_minimo: parseFloat(stockMinimo),
+        // NUEVO: Enviamos el costo unitario ya calculado para que el Dashboard no muestre el precio de la lámina
+        precio_m2_costo: esMoldura ? costoMLCalculado : costoM2Calculado,
+        
+        stock_minimo: parseFloat(stockMinimo) || 2,
         unidad: esMoldura ? 'ML' : 'M2'
     };
 
