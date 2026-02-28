@@ -366,70 +366,64 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. STOCK REAL (ATLAS + LOCAL)
+        // 1. DATOS BASE
         const stockActualUnidad = calcularStockReal(m);
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // --- SEPARACIÓN DE LÓGICAS ---
+        // --- SEPARACIÓN TOTAL DE LÓGICAS ---
 
-        // A. LÓGICA PARA EL ÁREA DEL COSTO (Para asegurar los $30.682)
-        // Buscamos medidas en el nombre (160x220) para el divisor del precio
-        const matchPrecio = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        let anchoCosto = parseFloat(m.ancho_lamina_cm || 160);
-        let largoCosto = parseFloat(m.largo_lamina_cm || 220);
-        
-        if (matchPrecio) {
-            anchoCosto = parseFloat(matchPrecio[1]);
-            largoCosto = parseFloat(matchPrecio[2]);
-        }
-        const areaParaCosto = (anchoCosto * largoCosto) / 10000;
+        // LÓGICA A: COSTO (Blindada para dar $30.682)
+        // Extraemos las medidas solo para el precio. Si no hay, usamos 3.52 por defecto para Vidrios.
+        const matchCosto = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        const anchoC = matchCosto ? parseFloat(matchCosto[1]) : parseFloat(m.ancho_lamina_cm || 160);
+        const largoC = matchCosto ? parseFloat(matchCosto[2]) : parseFloat(m.largo_lamina_cm || 220);
+        const divisorPrecio = (anchoC * largoC) / 10000;
 
-        // B. LÓGICA PARA EL ÁREA DEL DESGLOSE (Para asegurar 1 und + 0.00 m2)
-        // Usamos la misma lógica pero en una variable distinta para no interferir
-        const areaParaDesglose = areaParaCosto > 0 ? areaParaCosto : 3.52;
-
-        // 3. CÁLCULO DE COSTO (PRECIO / ÁREA)
         let costoMostrar = 0;
         const precioTotal = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
-            const mlPalo = (largoCosto > 0) ? (largoCosto / 100) : 2.9;
+            const mlPalo = (largoC > 0) ? (largoC / 100) : 2.9;
             costoMostrar = precioTotal / mlPalo;
         } else {
-            // Usa su propia área independiente
-            costoMostrar = areaParaCosto > 0 ? (precioTotal / areaParaCosto) : precioTotal;
+            // Esta línea da los $30.682 sin importar lo que diga el stock
+            costoMostrar = divisorPrecio > 0 ? (precioTotal / divisorPrecio) : precioTotal;
         }
         costoMostrar = Math.round(costoMostrar);
 
-        // 4. SEMÁFORO
-        const stockMin = parseFloat(m.stock_minimo) || 2;
-        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
 
-        // 5. DESGLOSE FÍSICO (Separado de la lógica de costo)
+        // LÓGICA B: DESGLOSE VISUAL (Blindada para dar 1 und + 0.00 m2)
+        // Calculamos el área de la lámina de forma independiente para el texto
+        const areaLaminaTexto = (anchoC * largoC) / 10000; 
         let textoStockVisual = "";
+
         if (esMoldura) {
             textoStockVisual = `
                 <div style="font-weight: 700;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
             `;
         } else {
-            // Calculamos unidades usando el área de desglose independiente
-            const unidades = Math.floor((stockActualUnidad / areaParaDesglose) + 0.001);
-            let remanente = stockActualUnidad - (unidades * areaParaDesglose);
+            // Independizamos el cálculo de unidades del cálculo del precio
+            const unidadesEnteras = Math.floor((stockActualUnidad / areaLaminaTexto) + 0.001);
+            let remanenteM2 = stockActualUnidad - (unidadesEnteras * areaLaminaTexto);
             
-            if (Math.abs(remanente) < 0.005) remanente = 0;
+            // Limpieza total para el "0.00 m2"
+            if (Math.abs(remanenteM2) < 0.005) remanenteM2 = 0;
 
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${unidades} und + ${remanente.toFixed(2)} m² rem
+                    ${unidadesEnteras} und + ${remanenteM2.toFixed(2)} m² rem
                 </div>
             `;
         }
 
-        // 6. RENDERIZADO (Diseño original preservado)
+        // 4. SEMÁFORO Y RENDERIZADO (Sin cambios en tu diseño)
+        const stockMin = parseFloat(m.stock_minimo) || 2;
+        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
+
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
@@ -460,7 +454,7 @@ function renderTable(materiales) {
             </td>
         `;
         cuerpoTabla.appendChild(fila);
-    }); S
+    });
 }
 
 // --- FACTURACIÓN (PRESERVADO) ---
