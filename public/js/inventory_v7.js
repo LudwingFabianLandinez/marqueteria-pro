@@ -199,7 +199,8 @@ window.guardarProveedor = async function(event) {
         btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...'; 
     }
 
-    // 2. Captura de datos (Tu estructura original intacta)
+    // 2. Captura de datos (Limpieza total de campos para evitar el Error 400)
+    // Extraemos los valores y si están vacíos los enviamos como string vacío, NUNCA null.
     const payload = {
         nombre: document.getElementById('provNombre')?.value.trim() || "",
         nit: document.getElementById('provNit')?.value.trim() || "",
@@ -210,31 +211,41 @@ window.guardarProveedor = async function(event) {
         categoria: document.getElementById('provCategoria')?.value || "General"
     };
 
+    // Validación mínima local
     if (!payload.nombre) {
         if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
         return alert("⚠️ El nombre del proveedor es obligatorio");
     }
 
     try {
-        console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
+        // DETERMINAR URL (Si window.API_URL falla, usamos la ruta relativa)
+        const baseUrl = window.API_URL || '';
+        const endpoint = `${baseUrl}/providers`.replace('//providers', '/providers');
         
-        // REFUERZO: Fetch directo con URL limpia para evitar el Error 400
-        const response = await fetch(`${window.API_URL}/providers`, {
+        console.log("🚀 Intentando conexión directa a:", endpoint, payload);
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload)
         });
 
-        const res = await response.json();
+        // 3. Manejo de respuesta cruda para diagnóstico
+        const textoRespuesta = await response.text();
+        let res;
+        try {
+            res = JSON.parse(textoRespuesta);
+        } catch (e) {
+            throw new Error("El servidor no respondió un formato válido.");
+        }
 
-        if (response.ok && (res.success || res._id)) {
-            alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
-            document.getElementById('provForm')?.reset();
+        if (response.ok && (res.success || res._id || res.id)) {
+            alert(" ✅ ¡LOGRADO! Proveedor guardado en Atlas.");
             
-            // Cerrar modal
+            // Limpieza y cierre
+            document.getElementById('provForm')?.reset();
             if (typeof window.cerrarModales === 'function') {
                 window.cerrarModales();
             } else {
@@ -242,16 +253,22 @@ window.guardarProveedor = async function(event) {
                 if(modal) modal.style.display = 'none';
             }
             
-            // Refrescar lista
-            await fetchProviders(); 
+            // Intentar refrescar la lista si la función existe
+            if (typeof fetchProviders === 'function') {
+                await fetchProviders(); 
+            } else {
+                location.reload(); // Si falla todo, recargamos para ver los cambios
+            }
             
         } else {
-            throw new Error(res.error || res.message || "Atlas rechazó los datos (Error 400)");
+            // Si Atlas da error 400, aquí veremos exactamente por qué
+            console.error("❌ Respuesta de error Atlas:", res);
+            throw new Error(res.error || res.message || "Error 400: Datos rechazados.");
         }
 
     } catch (error) { 
-        console.error("🚨 Error crítico al guardar proveedor:", error);
-        alert("❌ Error: " + error.message); 
+        console.error("🚨 Error crítico:", error);
+        alert("❌ FALLO DE CONEXIÓN: " + error.message); 
     } finally {
         if(btnGuardar) { 
             btnGuardar.disabled = false; 
@@ -629,6 +646,7 @@ if (formCompra) {
 
             // 3. CONSTRUCCIÓN DEL OBJETO DE ENVÍO
             // Reemplaza el bloque de construcción del objeto en inventory.js
+// 1. Construcción base SIN materialId
 const datosParaAtlas = {
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
@@ -642,14 +660,15 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// BLOQUE MAESTRO: Si es nuevo, NO agregamos materialId. Si existe, lo agregamos.
+// 2. LA CLAVE: Solo agregamos el ID si NO es nuevo y el ID es válido
 if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
 } else {
-    datosParaAtlas.action = "create"; // Forzamos creación limpia
+    // Si es nuevo, forzamos la acción de creación para que el backend no busque IDs
+    datosParaAtlas.action = "create"; 
 }
 
-// Envío limpio a Atlas
+// 3. Envío directo (asegúrate de que esta URL sea la correcta)
 const response = await fetch(`${window.API_URL}/inventory/purchase`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
