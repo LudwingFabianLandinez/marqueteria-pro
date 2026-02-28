@@ -33,6 +33,25 @@
         .filter-bar { background: #f8fafc; padding: 20px; border-radius: 12px; display: flex; gap: 15px; align-items: center; margin-bottom: 20px; border: 1px solid #e2e8f0; }
         .filter-bar input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
 
+        /* NUEVA SECCIÓN: MAESTRO DE MATERIALES */
+        .catalogo-box {
+            background: #f8fafc; 
+            padding: 20px; 
+            border-radius: 12px; 
+            border: 2px solid #3b82f6; 
+            margin-bottom: 30px;
+        }
+        .catalogo-grid {
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr auto; 
+            gap: 15px; 
+            align-items: end;
+        }
+        .catalogo-grid label { display: block; font-size: 0.8rem; font-weight: bold; color: #1e3a8a; margin-bottom: 5px; }
+        .catalogo-grid input, .catalogo-grid select { 
+            width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; 
+        }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
         th { background-color: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
@@ -59,6 +78,36 @@
     </aside>
 
     <main class="main-content">
+        
+        <div class="catalogo-box">
+            <h3 style="color: #1e3a8a; margin-top: 0;"><i class="fas fa-plus-circle"></i> Crear Nuevo Material (Catálogo)</h3>
+            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 15px;">
+                Crea el material aquí una sola vez para asignarle su ID eterno. Luego podrás comprarlo en la sección de stock.
+            </p>
+            
+            <div class="catalogo-grid">
+                <div>
+                    <label>Nombre del Material</label>
+                    <input type="text" id="nuevo-nombre" placeholder="Ej: VIDRIO 3MM">
+                </div>
+                <div>
+                    <label>Categoría</label>
+                    <select id="nueva-categoria">
+                        <option value="GENERAL">General / Vidrios</option>
+                        <option value="MOLDURAS">Molduras (Línea de Vida)</option>
+                        <option value="PASSEPARTOUT">Passepartout</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Precio de Costo Base</label>
+                    <input type="number" id="nuevo-precio" placeholder="0">
+                </div>
+                <button onclick="crearMaterialMaestro()" style="background: #3b82f6; color: white; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; height: 42px;">
+                    REGISTRAR
+                </button>
+            </div>
+        </div>
+
         <div class="history-container">
             <div class="header-flex">
                 <h2 style="color: #1e3a8a;">Historial de Órdenes</h2>
@@ -98,6 +147,57 @@
     </main>
 
     <script>
+        // --- FUNCIÓN PARA CREAR MATERIAL CON ID ETERNO ---
+        async function crearMaterialMaestro() {
+            const nombre = document.getElementById('nuevo-nombre').value.trim().toUpperCase();
+            const categoria = document.getElementById('nueva-categoria').value;
+            const precio = parseFloat(document.getElementById('nuevo-precio').value) || 0;
+
+            if (!nombre || precio <= 0) {
+                alert("⚠️ Por favor ingresa un nombre y un precio válido.");
+                return;
+            }
+
+            // Generamos el ID ÚNICO que arrastraremos siempre
+            const idUnico = `ID-${nombre.replace(/\s+/g, '_')}-${Date.now().toString().slice(-4)}`;
+
+            const nuevoMaterial = {
+                _id: idUnico,
+                id: idUnico, // Doble etiqueta para el Cotizador
+                nombre: nombre,
+                categoria: categoria,
+                costo_base: precio,
+                precio_m2_costo: precio,
+                stock_actual: 0,
+                unidad: (categoria === "MOLDURAS") ? "ML" : "M2"
+            };
+
+            try {
+                // 1. Guardar localmente para que el Cotizador lo vea de inmediato
+                let inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
+                inventarioLocal.push(nuevoMaterial);
+                localStorage.setItem('inventory', JSON.stringify(inventarioLocal));
+
+                // 2. Intentar registrar en Atlas
+                // Nota: Asegúrate de tener esta ruta configurada en tu servidor
+                await fetch('/api/inventory/catalog', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(nuevoMaterial)
+                });
+
+                alert("✅ Material '" + nombre + "' registrado con éxito. ID: " + idUnico);
+                document.getElementById('nuevo-nombre').value = '';
+                document.getElementById('nuevo-precio').value = '';
+                
+                // Opcional: recargar para ver cambios en otras listas si existen en esta página
+            } catch (error) {
+                console.error("Error al registrar material:", error);
+                alert("Se registró localmente, pero hubo un problema con el servidor.");
+            }
+        }
+
+        // --- TU LÓGICA DE HISTORIAL ORIGINAL (SIN CAMBIOS) ---
         async function cargarHistorial() {
             const tableBody = document.getElementById('historyBody');
             const noData = document.getElementById('noData');
@@ -105,7 +205,6 @@
             const ventasTable = document.getElementById('ventasTable');
             
             try {
-                // AJUSTE: URL con parámetro anti-caché para forzar descarga limpia
                 const response = await fetch('/api/invoices?v=' + Date.now());
                 
                 if (!response.ok) {
@@ -113,8 +212,6 @@
                 }
 
                 const jsonResponse = await response.json();
-                
-                // AJUSTE DE FORMATO: Si es un arreglo directo lo usamos, si no, buscamos .data
                 const ventas = Array.isArray(jsonResponse) ? jsonResponse : (jsonResponse.data || []);
                 
                 if (ventas.length === 0) {
@@ -125,25 +222,17 @@
                     return;
                 }
 
-                // Si hay datos, activamos la vista de tabla
                 noData.style.display = 'none';
                 ventasTable.style.display = 'table';
                 tableBody.innerHTML = '';
 
-                // Ordenar por fecha (más reciente primero)
                 ventas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
                 ventas.forEach(venta => {
                     const row = document.createElement('tr');
-                    
-                    // --- BLINDAJE DE DATOS SEGÚN TU JSON REAL ---
                     const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : '---';
-                    
-                    // Manejo de cliente (si viene como objeto o string)
                     const clienteRaw = venta.clienteNombre || (typeof venta.cliente === 'string' ? venta.cliente : venta.cliente?.nombre);
                     const cliente = (clienteRaw || 'Consumidor Final').toUpperCase();
-                    
-                    // Manejo de montos (usando los nombres de tu captura)
                     const total = Number(venta.totalFactura || venta.total || 0);
                     const saldo = Number(venta.saldoPendiente || venta.saldo || 0);
                     const ot = venta.numeroFactura || venta.ot || 'S/N';
