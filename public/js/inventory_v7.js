@@ -901,7 +901,6 @@ window.prepararEdicionMaterial = function(id) {
 window.abrirModalEditar = function(idRecibido) {
     // 1. Limpiamos el ID
     const idLimpio = String(idRecibido).trim();
-    console.log("🚀 Intentando editar ID:", idLimpio);
 
     // 2. Buscamos el material (Búsqueda dual para no perder el rastro)
     const m = window.todosLosMateriales.find(mat => 
@@ -940,7 +939,6 @@ window.abrirModalEditar = function(idRecibido) {
     if(modal) {
         modal.dataset.id = idMaestro; // <--- Anclamos el ID Maestro Atlas
         modal.style.display = 'flex';     // <--- ABRIMOS LA VENTANA AQUÍ
-        console.log("📍 ID Maestro listo para guardar:", modal.dataset.id);
     }
 };
 
