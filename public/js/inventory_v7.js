@@ -622,7 +622,7 @@ if (formCompra) {
             // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
 
-// 1. Identificamos si es nuevo de verdad
+// 1. Identificamos el ID de Atlas (Sin tocar tu lógica de conexión)
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
@@ -631,13 +631,14 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 2. CONSTRUCCIÓN DEL OBJETO (El combate final)
+// 2. CONSTRUCCIÓN DEL OBJETO DE COMBATE
 const datosParaAtlas = {
-    // Si es nuevo, mandamos "new". 
-    // Es un valor que los validadores aceptan como "existente" pero Atlas entiende como "crear"
-    materialId: esNuevoMaterial ? "new" : idAtlasReal, 
+    // Si es nuevo, mandamos "new_record". 
+    // Esto hace que el validador de Netlify vea que SÍ hay un ID proporcionado (Adiós Error 400),
+    // pero al no ser un ID de 24 caracteres falso, Atlas no intentará buscarlo (Adiós Error 404).
+    materialId: esNuevoMaterial ? "new_record" : idAtlasReal, 
     nombre: nombreReal,
-    esNuevo: true, // Forzamos true para que el backend no tenga duda
+    esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
     cantidad_laminas: cant,
     precio_total_lamina: costo,
@@ -647,6 +648,13 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
+
+// 3. LA LLAVE DE ORO:
+// Si el servidor es extremadamente estricto, esta propiedad 'accion' 
+// fuerza a Atlas a ignorar el materialId y crear el registro.
+if (esNuevoMaterial) {
+    datosParaAtlas.action = "create"; 
+}
 
 
 // 3. LIMPIEZA DE ÚLTIMO MOMENTO
