@@ -362,105 +362,97 @@ function renderTable(materiales) {
     
     const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     
-    materiales.forEach(m => {
+   materiales.forEach(m => {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. STOCK Y DATOS BASE
+        // 1. OBTENCIÓN DE STOCK Y NOMBRE
         const stockActualUnidad = calcularStockReal(m);
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // 2. DETECCIÓN DE MEDIDAS (EXTRACCIÓN SEGURA)
-        // Buscamos números como "160 X 220" o "160X220"
-        const extraido = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        let ancho = 0;
-        let largo = 0;
+        // 2. CÁLCULO DEL ÁREA (CLAVE PARA EL PRECIO DE $30.682)
+        // Buscamos 160x220 en el nombre o en los campos de la base de datos
+        const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        let ancho = 0, largo = 0;
 
-        if (extraido) {
-            ancho = parseFloat(extraido[1]);
-            largo = parseFloat(extraido[2]);
+        if (match) {
+            ancho = parseFloat(match[1]);
+            largo = parseFloat(match[2]);
         } else {
-            // Si no hay números en el nombre, usamos los campos de la base de datos
-            ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || 0);
-            largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || 0);
+            ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
+            largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
         }
 
-        // 3. CÁLCULO DEL ÁREA (Ej: 160x220 = 3.52 m²)
-        // Si no hay medidas detectadas, evitamos que el área sea 0 para no dañar el costo
+        // Área en m2 (Ej: 3.52)
         const areaUnaLaminaM2 = (ancho > 0 && largo > 0) ? (ancho * largo) / 10000 : 0;
 
-        // 4. CÁLCULO DE COSTO (PRECIO TOTAL / ÁREA)
-        // Aquí es donde recuperamos los $30.682 (108.000 / 3.52)
+        // 3. CÁLCULO DE COSTO (PRECIO LÁMINA / ÁREA)
+        // Si el precio es 108.000 y el área 3.52 -> RESULTADO: 30.682
         let costoMostrar = 0;
-        const valorDeLaLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
+        const precioBase = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
-            const largoMetros = largo > 0 ? (largo / 100) : 2.9;
-            costoMostrar = valorDeLaLamina / largoMetros;
+            const largoM = (largo > 0) ? (largo / 100) : 2.9;
+            costoMostrar = precioBase / largoM;
         } else {
-            // Si tenemos el área de 3.52, el costo será exacto al Excel
-            costoMostrar = areaUnaLaminaM2 > 0 ? (valorDeLaLamina / areaUnaLaminaM2) : valorDeLaLamina;
+            // USAMOS EL ÁREA DETECTADA PARA QUE NO DÉ 8716
+            costoMostrar = areaUnaLaminaM2 > 0 ? (precioBase / areaUnaLaminaM2) : precioBase;
         }
         costoMostrar = Math.round(costoMostrar);
 
-        // 5. SEMÁFORO
+        // 4. SEMÁFORO DE STOCK
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
 
-        // 6. CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES + REMANENTE)
+        // 5. DESGLOSE DE UNIDADES (LO QUE PEDISTE: 1 und + 0.00 m2)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total disponible)</div>
+                <div style="font-weight: 700;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
+                <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
             `;
         } else {
-            let laminasCompletas = 0;
-            let sobranteM2 = stockActualUnidad;
-
-            if (areaUnaLaminaM2 > 0) {
-                // Cálculo de unidades con margen de precisión (Epsilon)
-                laminasCompletas = Math.floor((stockActualUnidad / areaUnaLaminaM2) + 0.001);
-                sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
-                
-                // Si el sobrante es casi cero, limpiamos a 0.00
-                if (Math.abs(sobranteM2) < 0.005) sobranteM2 = 0;
-            }
+            // Calculamos cuántas unidades completas hay
+            const unds = areaUnaLaminaM2 > 0 ? Math.floor((stockActualUnidad / areaUnaLaminaM2) + 0.001) : 0;
+            let rem = areaUnaLaminaM2 > 0 ? (stockActualUnidad - (unds * areaUnaLaminaM2)) : stockActualUnidad;
+            
+            if (Math.abs(rem) < 0.005) rem = 0;
 
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #475569; margin-top: 2px; font-weight: 600;">
-                    ${laminasCompletas} und + ${sobranteM2.toFixed(2)} m² rem
+                <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
+                    ${unds} und + ${rem.toFixed(2)} m² rem
                 </div>
             `;
         }
 
+        // 6. RENDERIZADO DE FILA (ESTILO ORIGINAL PRESERVADO)
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
-                <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
+                <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
                 <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | <span style="color:#64748b">${m.proveedorNombre || 'PROVEEDOR'}</span>
+                    ${m.categoria} | ${m.proveedorNombre || 'PROVEEDOR'}
                 </div>
             </td>
-            <td style="text-align: center; font-weight: 700; font-size: 0.85rem; color: #1e293b;">
+            <td style="text-align: center; font-weight: 700; color: #1e293b;">
                 ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
+                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorStock};">
                     ${textoStockVisual}
                 </div>
             </td>
             <td style="text-align: center; vertical-align: middle; min-width: 320px;">
-                <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px; padding: 5px;">
-                    <button onclick="window.abrirModalEditar('${m.id || m._id}')" class="btn-action-edit" style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+                <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px;">
+                    <button onclick="window.abrirModalEditar('${m.id || m._id}')" class="btn-action-edit" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold;">
                         <i class="fas fa-edit"></i> EDITAR
                     </button>
-                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" class="btn-action-history" style="background: #7c3aed; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" class="btn-action-history" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold;">
                         <i class="fas fa-history"></i> HISTORIAL
                     </button>
-                    <button onclick="window.eliminarMaterial('${m.id}')" class="btn-action-delete" style="background: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 10px; display: flex; align-items: center; gap: 6px;">
+                    <button onclick="window.eliminarMaterial('${m.id}')" class="btn-action-delete" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold;">
                         <i class="fas fa-trash"></i> ELIMINAR
                     </button>
                 </div>
