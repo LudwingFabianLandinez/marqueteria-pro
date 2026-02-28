@@ -374,8 +374,6 @@ function renderTable(materiales) {
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
         // --- CORRECCIÓN DE MEDIDAS: Captura datos de Atlas/Compra ---
-        // --- DETECCIÓN MAESTRA DE MEDIDAS (PUNTO 1) ---
-        // Buscamos en todas las variantes posibles, incluyendo las de la compra
         const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || m.ancho_compra || 0);
         const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || m.largo_compra || 0);
         
@@ -384,18 +382,12 @@ function renderTable(materiales) {
             visualMedida = `${largo > 0 ? largo : 290} cm`;
         } else {
             if (ancho > 0 && largo > 0) {
-                // SI ENCUENTRA LOS NÚMEROS, LOS MUESTRA ASÍ: 244x183 cm
                 visualMedida = `${ancho}x${largo} cm`;
-            } else if (m.medidas || m.dimensiones) {
-                // Si están guardados como un solo texto
-                visualMedida = m.medidas || m.dimensiones;
             } else {
-                // Si no hay nada, intentamos extraerlo del nombre por si acaso (ej: "Vidrio 244x183")
                 const extraido = m.nombre.match(/(\d+)\s*[xX*]\s*(\d+)/);
                 visualMedida = extraido ? `${extraido[1]}x${extraido[2]} cm` : "Ver Ficha";
             }
         }
-        // --------------------------------------------
 
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
@@ -404,27 +396,23 @@ function renderTable(materiales) {
         const valorDeLaLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
-            // Caso Moldura: Precio / 2.9 (o el largo que tenga)
             const largoMetros = largo > 0 ? (largo / 100) : 2.9;
             costoMostrar = valorDeLaLamina / largoMetros;
         } else {
-            // Caso Vidrio/Madera (EXCEL): $108.000 / (1.6 * 2.2) = $30.682
             if (areaUnaLaminaM2 > 0) {
                 costoMostrar = valorDeLaLamina / areaUnaLaminaM2;
             } else {
-                costoMostrar = valorDeLaLamina; // Fallback
+                costoMostrar = valorDeLaLamina;
             }
         }
         
-        // Redondeamos para que no salgan decimales feos
         costoMostrar = Math.round(costoMostrar);
         
-       
         // 4. SEMÁFORO (Basado en stock_minimo)
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
         
-        // 5. CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES + REMANENTE)
+        // 5. CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES COMPLETAS + REMANENTE)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
@@ -432,23 +420,21 @@ function renderTable(materiales) {
                 <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total disponible en ML)</div>
             `;
         } else {
-            const laminasExactas = areaUnaLaminaM2 > 0 ? stockActualUnidad / areaUnaLaminaM2 : 0;
-            const laminasCompletas = Math.floor(laminasExactas + 0.0001); 
-            let sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
-            if (sobranteM2 < 0.0001) sobranteM2 = 0;
+            // --- LÓGICA DE DESGLOSE SOLICITADA ---
+            // Calculamos cuántas unidades (láminas) caben enteras
+            const laminasCompletas = areaUnaLaminaM2 > 0 ? Math.floor((stockActualUnidad + 0.001) / areaUnaLaminaM2) : 0;
+            
+            // Calculamos el remanente exacto en m2
+            let sobranteM2 = areaUnaLaminaM2 > 0 ? stockActualUnidad - (laminasCompletas * areaUnaLaminaM2) : stockActualUnidad;
+            
+            // Limpieza de precisión: si el sobrante es casi nada, es 0
+            if (Math.abs(sobranteM2) < 0.005) sobranteM2 = 0;
 
-            let desglose = "";
-            if (laminasCompletas > 0) {
-                desglose = (sobranteM2 > 0.01) 
-                    ? `(${laminasCompletas} und + ${sobranteM2.toFixed(2)} m² remanente)` 
-                    : `(${laminasCompletas} unidades completas)`;
-            } else {
-                desglose = `(${sobranteM2.toFixed(2)} m² en retales)`;
-            }
+            let desglose = `${laminasCompletas} und + ${sobranteM2.toFixed(2)} m² rem`;
             
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #475569; margin-top: 2px; font-weight: 500;">${desglose}</div>
+                <div style="font-size: 0.7rem; color: #475569; margin-top: 2px; font-weight: 600;">${desglose}</div>
             `;
         }
 
@@ -463,7 +449,7 @@ function renderTable(materiales) {
                 ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 155px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
+                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); color: ${colorStock};">
                     ${textoStockVisual}
                 </div>
             </td>
