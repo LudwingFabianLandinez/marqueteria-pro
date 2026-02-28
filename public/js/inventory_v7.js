@@ -621,14 +621,7 @@ if (formCompra) {
 
             // Limpieza de ID: Si es nuevo, le damos un ID genérico de creación para que el servidor no aborte
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
-// --- 🛡️ LIMPIEZA DE ID (CORREGIDO v15.3.6) ---
-// Usamos "" en lugar de null para que el servidor no aborte por "dato inválido"
-// --- 🛡️ LIMPIEZA DE ID (v15.3.8 - VERSIÓN FINAL SIN ERRORES) ---
-// 1. Buscamos el ID real de Atlas, si no existe o es temporal, queda como null internamente
-// --- 🛡️ SOLUCIÓN FINAL (v15.3.9 - COMPATIBILIDAD CON SERVIDOR) ---
-// 1. Buscamos el ID real de Atlas
-// 1. Identificamos el ID real de Atlas
-// 1. Identificamos el ID real
+
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
@@ -637,11 +630,9 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 2. EL OBJETO DEFINITIVO
+// 2. CONSTRUCCIÓN DEL OBJETO (Versión para saltar el validador)
 const datosParaAtlas = {
-    // LLAVE MAESTRA: Si es nuevo, mandamos null. 
-    // Esto evita el error de "ID no proporcionado" y TAMBIÉN evita el error de "NUEVO"
-    materialId: esNuevoMaterial ? null : idAtlasReal, 
+    // Si es nuevo, NO mandamos la propiedad aquí arriba para evitar el error de "NUEVO"
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -654,9 +645,14 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// 3. Refuerzo opcional: solo si el servidor es muy estricto
+// 3. EL TRUCO PARA EL SERVIDOR:
 if (esNuevoMaterial) {
-    datosParaAtlas.materialId = ""; 
+    // Usamos 'NEW_MATERIAL' en lugar de 'NUEVO'. 
+    // Muchos validadores aceptan este término técnico o simplemente no enviarlo.
+    // Prueba primero quitando la propiedad materialId totalmente:
+    delete datosParaAtlas.materialId; 
+} else {
+    datosParaAtlas.materialId = idAtlasReal;
 }
 // NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
