@@ -903,9 +903,9 @@ window.abrirModalEditar = function(idRecibido) {
     const idLimpio = String(idRecibido).trim();
     console.log("🚀 Intentando editar ID:", idLimpio);
 
-    // 2. Buscamos el material
+    // 2. Buscamos el material (Búsqueda dual para no perder el rastro)
     const m = window.todosLosMateriales.find(mat => 
-        (mat.id === idLimpio || mat._id === idLimpio)
+        (String(mat.id) === idLimpio || String(mat._id) === idLimpio)
     );
 
     if (!m) {
@@ -914,13 +914,19 @@ window.abrirModalEditar = function(idRecibido) {
         return;
     }
 
-    // 3. Llenamos los campos (Respetando tus IDs de ARCHIVO.docx)
-    window.materialEditandoId = m.id || m._id;
+    // 3. IDENTIDAD MAESTRA (Prioridad absoluta al _id de Atlas para evitar 404)
+    const idMaestro = m._id || m.id;
+    window.materialEditandoId = idMaestro; 
     
-    if(document.getElementById('matId')) document.getElementById('matId').value = m.id || m._id;
+    // Llenamos los campos (Respetando tus IDs de ARCHIVO.docx)
+    if(document.getElementById('matId')) document.getElementById('matId').value = idMaestro;
     if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre || '';
     if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria || '';
-    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina || m.precio_m2_costo || 0;
+    
+    // Prioridad de costo para sincronizar con el Cotizador
+    const costoFinal = m.precio_m2_costo || m.precio_total_lamina || 0;
+    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = costoFinal;
+    
     if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo || 0;
     if(document.getElementById('matAncho')) document.getElementById('matAncho').value = m.ancho_lamina_cm || 0;
     if(document.getElementById('matLargo')) document.getElementById('matLargo').value = m.largo_lamina_cm || 0;
@@ -929,14 +935,14 @@ window.abrirModalEditar = function(idRecibido) {
         document.getElementById('proveedorSelect').value = m.proveedorId || m.proveedor?._id || "";
     }
 
-    // 4. ANCLAJE DE SEGURIDAD Y APERTURA (Esto es lo que faltaba)
+    // 4. ANCLAJE DE SEGURIDAD Y APERTURA
     const modal = document.getElementById('modalNuevoMaterial');
     if(modal) {
-        modal.dataset.id = m.id || m._id; // <--- Anclamos el ID para el 36
+        modal.dataset.id = idMaestro; // <--- Anclamos el ID Maestro Atlas
         modal.style.display = 'flex';     // <--- ABRIMOS LA VENTANA AQUÍ
-        console.log("📍 ID listo para guardar:", modal.dataset.id);
+        console.log("📍 ID Maestro listo para guardar:", modal.dataset.id);
     }
-}; 
+};
 
 // --- MANTENIMIENTO DE SELECTORES ---
 window.actualizarSelectProveedores = function() {
