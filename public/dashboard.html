@@ -326,7 +326,7 @@
 <div id="modalCompra" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">REGISTRAR COMPRA DE MATERIAL</div>
-        <form id="formNuevaCompra" class="modal-body" onsubmit="event.preventDefault(); window.guardarMaterial();">
+        <form id="formNuevaCompra" class="modal-body">
             <div class="form-group">
                 <label>Proveedor</label>
                 <select id="compraProveedor" name="providerId" required></select>
@@ -493,21 +493,31 @@
         return;
     }
 
-    // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA ---
+    // --- 🛡️ LÓGICA DE IDENTIDAD MAESTRA (v16.1.9) ---
+    const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
+
     const nuevoMaterial = {
-        id: "NUEVO", // Forzamos a Atlas a crear el ID real
+        // Sincronizado con router.post('/inventory/purchase') de tu server.js
+        materialId: "NUEVO", 
+        id: "NUEVO", 
         nombre: nombre,
         categoria: categoria,
         costo_base: precio,
         precio_m2_costo: precio,
         stock_actual: 0,
-        unidad: (categoria === "MOLDURAS" || nombre.includes("MOLDURA")) ? "ML" : "M2"
+        unidad: esMoldura ? "ML" : "M2",
+
+        // --- 💉 INYECCIÓN PARA EVITAR CEROS EN ATLAS ---
+        ancho_lamina_cm: esMoldura ? 1 : 100,      // Evita el cero en el servidor
+        largo_lamina_cm: esMoldura ? 290 : 100,    // Mapeo directo a req.body.largo_lamina_cm
+        precio_total_lamina: precio,               // Mapeo directo a req.body.precio_total_lamina
+        tipo_material: esMoldura ? 'ml' : 'm2',
+        estado: 'Activo'
     };
 
     try {
-        console.log("📡 Intentando registrar en Atlas vía window.API_URL...");
+        console.log("📡 Sincronizando con Atlas V2...", nuevoMaterial);
 
-        // USAMOS TU VARIABLE DE LA IMAGEN 3 + LA RUTA CORRECTA
         const URL_REGISTRO = `${window.API_URL}/inventory/purchase`;
 
         const response = await fetch(URL_REGISTRO, {
@@ -520,16 +530,16 @@
 
         if (res.success) {
             const idDeAtlas = res.data?._id || res.data?.id;
-            alert(`✅ ¡EXITO REAL!\nMaterial guardado en Atlas.\nID MAESTRO: ${idDeAtlas}`);
+            alert(`✅ ¡ÉXITO TOTAL!\nMaterial creado en Atlas V2.\nID: ${idDeAtlas}\nMedida: ${nuevoMaterial.largo_lamina_cm}cm`);
             
-            localStorage.removeItem('inventory'); // Limpiamos para recargar datos reales
+            localStorage.removeItem('inventory'); 
             location.reload();
         } else {
             throw new Error(res.error || "Atlas rechazó el registro");
         }
     } catch (e) {
-        console.error("❌ Error 404 evitado, pero hubo otro fallo:", e);
-        alert("🚨 ERROR: Revisa que la ruta /inventory/purchase esté activa en tu server.js");
+        console.error("❌ Fallo en el puente con Atlas:", e);
+        alert("🚨 ERROR: El servidor recibió los datos pero no pudo guardarlos. Revisa la consola.");
     }
 }
 </script>

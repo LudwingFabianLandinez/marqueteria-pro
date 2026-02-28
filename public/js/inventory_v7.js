@@ -711,25 +711,32 @@ if (formCompra) {
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
             // --- 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS Y COTIZADOR (v16.0.3) ---
-            const datosParaAtlas = {
-                materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
-                nombre: nombreReal,
-                esNuevo: esNuevoMaterial,
-                categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
-                cantidad_laminas: cant,
-                precio_total_lamina: costo,
-                ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costo * cant,
-                timestamp: new Date().toISOString(),
-                // Datos críticos para quotes.js (Cotizador)
-                costo_base: costo, 
-                costo_m2: costo,
-                precio_m2_costo: costo,
-                unidad: esMoldura ? 'ML' : 'M2',
-                id: esNuevoMaterial ? `TEMP-${Date.now()}` : idMasterAtlas
-            };
+            // --- 3. CONSTRUCCIÓN DEL OBJETO PARA ATLAS Y COTIZADOR (v16.0.4 - BLINDADO) ---
+// SE MANTIENE TODA LA LÓGICA DE IDENTIDADES Y COMPATIBILIDAD LOGRADA
+const datosParaAtlas = {
+    materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
+    nombre: nombreReal,
+    esNuevo: esNuevoMaterial,
+    categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
+    cantidad_laminas: cant,
+    
+    // --- CAMPOS CRÍTICOS PARA ATLAS (Sincronizados con el Servidor) ---
+    precio_total_lamina: costo,
+    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+    
+    // --- LÓGICA DE CÁLCULO Y TIEMPO ---
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costo * cant,
+    timestamp: new Date().toISOString(),
+    
+    // --- DATOS CRÍTICOS PARA QUOTES.JS Y COTIZADOR (PRESERVADOS) ---
+    costo_base: costo, 
+    costo_m2: costo,
+    precio_m2_costo: costo,
+    unidad: esMoldura ? 'ML' : 'M2',
+    id: esNuevoMaterial ? `TEMP-${Date.now()}` : idMasterAtlas
+};
 
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA A ATLAS ---
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
