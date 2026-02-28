@@ -623,6 +623,7 @@ if (formCompra) {
             // --- 🛡️ LIMPIEZA DE ID (Tu lógica original + Refuerzo Atlas) ---
 
 // 1. Determinamos si es un material que ya existe en la base de datos
+// 1. Identificamos si es nuevo de verdad
 const idAtlasReal = (existente && (existente._id || existente.id) && 
                     !String(existente._id || existente.id).startsWith('TEMP-') && 
                     !String(existente._id || existente.id).startsWith('MAT-')) 
@@ -631,8 +632,11 @@ const idAtlasReal = (existente && (existente._id || existente.id) &&
 
 const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
-// 2. Construimos el cuerpo del mensaje con los datos puros
+// 2. CONSTRUCCIÓN DEL OBJETO (El combate al error 400)
 const datosParaAtlas = {
+    // Si es nuevo mandamos null (no vacío, no "NUEVO"). 
+    // Esto satisface al validador del servidor y Atlas lo ignora para crear uno nuevo.
+    materialId: esNuevoMaterial ? null : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -645,12 +649,8 @@ const datosParaAtlas = {
     timestamp: new Date().toISOString()
 };
 
-// 3. LA VERDADERA SOLUCIÓN: 
-// Solo inyectamos la propiedad 'materialId' si el material NO es nuevo.
-// Si es nuevo, el objeto NO llevará esa llave, evitando que Atlas intente validar "NUEVO" o "".
-if (!esNuevoMaterial && idAtlasReal) {
-    datosParaAtlas.materialId = idAtlasReal;
-}
+
+
 // NOTA: No agregues un "else" para poner "NUEVO". Si es nuevo, deja que el objeto se vaya sin esa llave.
             // --- 🚀 RUTA DE CONEXIÓN UNIFICADA ---
             const URL_FINAL = `${window.API_URL}/inventory/purchase`;
