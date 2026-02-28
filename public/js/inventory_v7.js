@@ -366,47 +366,49 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. OBTENCIÓN DE STOCK Y NOMBRE
+        // 1. STOCK Y NOMBRE
         const stockActualUnidad = calcularStockReal(m);
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // 2. CÁLCULO DEL ÁREA (CLAVE PARA EL PRECIO DE $30.682)
-        // Buscamos 160x220 en el nombre o en los campos de la base de datos
+        // 2. EXTRACCIÓN DE MEDIDAS (LÓGICA PRIORITARIA)
+        // Buscamos "160 X 220" en el nombre. Si existe, MANDARÁ sobre cualquier otro dato.
         const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
         let ancho = 0, largo = 0;
 
         if (match) {
+            // Si el nombre dice 160x220, usamos esos números sí o sí
             ancho = parseFloat(match[1]);
             largo = parseFloat(match[2]);
         } else {
+            // Solo si NO hay números en el nombre, miramos la base de datos
             ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
             largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
         }
 
-        // Área en m2 (Ej: 3.52)
+        // 3. ÁREA MAESTRA (Ej: 3.52)
         const areaUnaLaminaM2 = (ancho > 0 && largo > 0) ? (ancho * largo) / 10000 : 0;
 
-        // 3. CÁLCULO DE COSTO (PRECIO LÁMINA / ÁREA)
-        // Si el precio es 108.000 y el área 3.52 -> RESULTADO: 30.682
+        // 4. CÁLCULO DE COSTO (PRECIO LÁMINA / ÁREA MAESTRA)
+        // Si precio = 108.000 y área = 3.52 -> Costo = 30.681.81 (Redondeado: 30.682)
         let costoMostrar = 0;
-        const precioBase = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
+        const precioLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
             const largoM = (largo > 0) ? (largo / 100) : 2.9;
-            costoMostrar = precioBase / largoM;
+            costoMostrar = precioLamina / largoM;
         } else {
-            // USAMOS EL ÁREA DETECTADA PARA QUE NO DÉ 8716
-            costoMostrar = areaUnaLaminaM2 > 0 ? (precioBase / areaUnaLaminaM2) : precioBase;
+            // FORZAMOS EL USO DEL ÁREA DE 3.52
+            costoMostrar = areaUnaLaminaM2 > 0 ? (precioLamina / areaUnaLaminaM2) : precioLamina;
         }
         costoMostrar = Math.round(costoMostrar);
 
-        // 4. SEMÁFORO DE STOCK
+        // 5. SEMÁFORO
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
 
-        // 5. DESGLOSE DE UNIDADES (LO QUE PEDISTE: 1 und + 0.00 m2)
+        // 6. DESGLOSE DE UNIDADES (1 und + 0.00 m2)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
@@ -414,7 +416,7 @@ function renderTable(materiales) {
                 <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
             `;
         } else {
-            // Calculamos cuántas unidades completas hay
+            // Calculamos unidades exactas basadas en el área de 3.52
             const unds = areaUnaLaminaM2 > 0 ? Math.floor((stockActualUnidad / areaUnaLaminaM2) + 0.001) : 0;
             let rem = areaUnaLaminaM2 > 0 ? (stockActualUnidad - (unds * areaUnaLaminaM2)) : stockActualUnidad;
             
@@ -428,7 +430,7 @@ function renderTable(materiales) {
             `;
         }
 
-        // 6. RENDERIZADO DE FILA (ESTILO ORIGINAL PRESERVADO)
+        // 7. RENDERIZADO (Tus estilos originales)
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
@@ -440,19 +442,19 @@ function renderTable(materiales) {
                 ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div class="stock-display-container" style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorStock};">
+                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorStock};">
                     ${textoStockVisual}
                 </div>
             </td>
-            <td style="text-align: center; vertical-align: middle; min-width: 320px;">
-                <div class="actions-cell" style="display: flex; justify-content: center; gap: 8px;">
-                    <button onclick="window.abrirModalEditar('${m.id || m._id}')" class="btn-action-edit" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold;">
+            <td style="text-align: center;">
+                <div style="display: flex; justify-content: center; gap: 8px;">
+                    <button onclick="window.abrirModalEditar('${m.id || m._id}')" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
                         <i class="fas fa-edit"></i> EDITAR
                     </button>
-                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" class="btn-action-history" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold;">
+                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
                         <i class="fas fa-history"></i> HISTORIAL
                     </button>
-                    <button onclick="window.eliminarMaterial('${m.id}')" class="btn-action-delete" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold;">
+                    <button onclick="window.eliminarMaterial('${m.id}')" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
                         <i class="fas fa-trash"></i> ELIMINAR
                     </button>
                 </div>
