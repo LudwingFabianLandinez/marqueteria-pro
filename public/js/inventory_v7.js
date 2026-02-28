@@ -661,6 +661,7 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
+
 // 4. LA LLAVE: Solo inyectamos el materialId si NO es nuevo y tenemos un ID real
 if (!esNuevoMaterial && idAtlasReal) {
     datosParaAtlas.materialId = idAtlasReal;
@@ -689,39 +690,47 @@ if (!esNuevoMaterial && idAtlasReal) {
                 throw new Error(resultadoAtlas.error || `Error ${response.status}: Atlas rechazó la conexión.`);
             }
 
-           // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
-const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+            // --- 🔄 SINCRONIZACIÓN TRAS ÉXITO ---
+            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+            let objetoFinal; // Variable clave para persistencia
 
-if (existente) {
-    existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-    if (idDeAtlas) {
-        existente._id = idDeAtlas; // Sincronizamos ID de Atlas
-        existente.id = idDeAtlas;
-    }
-} else {
-    // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
-    const nuevoMaterial = {
-        _id: idDeAtlas,
-        id: idDeAtlas || `TEMP-${Date.now()}`,
-        nombre: nombreReal,
-        categoria: esMoldura ? "MOLDURAS" : "GENERAL",
-        stock_actual: stockASumar,
-        precio_total_lamina: costo,
-        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
-    };
-    window.todosLosMateriales.unshift(nuevoMaterial);
-}
+            if (existente) {
+                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                if (idDeAtlas) {
+                    existente._id = idDeAtlas;
+                    existente.id = idDeAtlas;
+                }
+                objetoFinal = existente;
+            } else {
+                // Si el material es nuevo, lo creamos con el ID que devolvió Atlas
+                const nuevoMaterial = {
+                    _id: idDeAtlas,
+                    id: idDeAtlas || `TEMP-${Date.now()}`,
+                    nombre: nombreReal,
+                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    stock_actual: stockASumar,
+                    precio_total_lamina: costo,
+                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
+                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
+                };
+                window.todosLosMateriales.unshift(nuevoMaterial);
+                objetoFinal = nuevoMaterial;
+            }
 
-            // --- 📦 PERSISTENCIA LOCAL ---
+            // --- 📦 PERSISTENCIA LOCAL (CORREGIDA PARA REFRESH) ---
+            // 1. Bitácora de molduras
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            pendientes.push({ ...existente, fechaCompra: new Date().toISOString() });
+            pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
+            // 2. ACTUALIZACIÓN TOTAL DEL INVENTARIO
+            // Forzamos el guardado de la lista completa ya actualizada
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            
+            // 3. UI
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} enviado. Si no aparece en Compass, revisa el Whitelist de IPs en Atlas.`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} guardado permanentemente.`);
             
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
