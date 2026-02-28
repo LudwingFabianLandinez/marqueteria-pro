@@ -399,27 +399,27 @@ function renderTable(materiales) {
 
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
-        // 3. CÁLCULO DE COSTO (Basado en tu regla: ML para molduras, M2 para el resto)
-        // 3. CÁLCULO DE COSTO (Basado en Excel: Valor Total / Área Lámina)
+        // 3. CÁLCULO DE COSTO (FORZADO AL EXCEL: VALOR TOTAL / ÁREA)
         let costoMostrar = 0;
+        const valorDeLaLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
-        // Obtenemos los valores numéricos para el cálculo
-        const valorTotalLamina = parseFloat(m.precio_total_lamina || 0);
-        const areaM2 = parseFloat(areaUnaLaminaM2 || 0);
-
         if (esMoldura) {
-            // Para molduras: Valor Total / Largo en metros
+            // Caso Moldura: Precio / 2.9 (o el largo que tenga)
             const largoMetros = largo > 0 ? (largo / 100) : 2.9;
-            costoMostrar = valorTotalLamina > 0 ? Math.round(valorTotalLamina / largoMetros) : (m.precio_m2_costo || 0);
+            costoMostrar = valorDeLaLamina / largoMetros;
         } else {
-            // Para Vidrios/Maderas (como tu Excel): Valor Total / Metros Cuadrados
-            if (valorTotalLamina > 0 && areaM2 > 0) {
-                costoMostrar = Math.round(valorTotalLamina / areaM2); // Esto dará los $30.682
+            // Caso Vidrio/Madera (EXCEL): $108.000 / (1.6 * 2.2) = $30.682
+            if (areaUnaLaminaM2 > 0) {
+                costoMostrar = valorDeLaLamina / areaUnaLaminaM2;
             } else {
-                costoMostrar = parseFloat(m.precio_m2_costo || 0);
+                costoMostrar = valorDeLaLamina; // Fallback
             }
         }
-
+        
+        // Redondeamos para que no salgan decimales feos
+        costoMostrar = Math.round(costoMostrar);
+        
+       
         // 4. SEMÁFORO (Basado en stock_minimo)
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
