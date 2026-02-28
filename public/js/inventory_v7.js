@@ -374,24 +374,25 @@ function renderTable(materiales) {
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
         // --- CORRECCIÓN DE MEDIDAS: Captura datos de Atlas/Compra ---
-        // --- DETECCIÓN TOTAL DE MEDIDAS (PUNTO 1) ---
-        // Buscamos en todas las variantes posibles de nombres que usa Atlas
-        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || m.ancho_lamina || 0);
-        const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || m.largo_lamina || 0);
+        // --- DETECCIÓN MAESTRA DE MEDIDAS (PUNTO 1) ---
+        // Buscamos en todas las variantes posibles, incluyendo las de la compra
+        const ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || m.ancho_compra || 0);
+        const largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || m.largo_compra || 0);
         
         let visualMedida = "";
         if (esMoldura) {
             visualMedida = `${largo > 0 ? largo : 290} cm`;
         } else {
-            // Si el código encuentra CUALQUIER número mayor a 0 en las variables de arriba
             if (ancho > 0 && largo > 0) {
+                // SI ENCUENTRA LOS NÚMEROS, LOS MUESTRA ASÍ: 244x183 cm
                 visualMedida = `${ancho}x${largo} cm`;
-            } else if (m.dimensiones) {
-                // Si Atlas guardó la medida como un texto completo
-                visualMedida = m.dimensiones;
+            } else if (m.medidas || m.dimensiones) {
+                // Si están guardados como un solo texto
+                visualMedida = m.medidas || m.dimensiones;
             } else {
-                // Solo si de verdad no hay NADA en la base de datos, pone el botón
-                visualMedida = `<span style="opacity: 0.6;">Sin Medidas</span>`;
+                // Si no hay nada, intentamos extraerlo del nombre por si acaso (ej: "Vidrio 244x183")
+                const extraido = m.nombre.match(/(\d+)\s*[xX*]\s*(\d+)/);
+                visualMedida = extraido ? `${extraido[1]}x${extraido[2]} cm` : "Ver Ficha";
             }
         }
         // --------------------------------------------
