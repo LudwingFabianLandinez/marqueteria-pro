@@ -366,49 +366,37 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. STOCK Y NOMBRE
+        // 1. STOCK REAL (ATLAS + LOCAL)
         const stockActualUnidad = calcularStockReal(m);
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // 2. EXTRACCIÓN DE MEDIDAS (LÓGICA PRIORITARIA)
-        // Buscamos "160 X 220" en el nombre. Si existe, MANDARÁ sobre cualquier otro dato.
-        const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        let ancho = 0, largo = 0;
+        // 2. RECUPERACIÓN DE ÁREA (LA CLAVE DEL $30.682)
+        // Usamos las propiedades directas que Atlas ya tiene o calculamos 160x220
+        const anchoL = parseFloat(m.ancho_lamina_cm || 160); 
+        const largoL = parseFloat(m.largo_lamina_cm || 220);
+        const areaLaminaM2 = (anchoL * largoL) / 10000; // Esto DA 3.52
 
-        if (match) {
-            // Si el nombre dice 160x220, usamos esos números sí o sí
-            ancho = parseFloat(match[1]);
-            largo = parseFloat(match[2]);
-        } else {
-            // Solo si NO hay números en el nombre, miramos la base de datos
-            ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
-            largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
-        }
-
-        // 3. ÁREA MAESTRA (Ej: 3.52)
-        const areaUnaLaminaM2 = (ancho > 0 && largo > 0) ? (ancho * largo) / 10000 : 0;
-
-        // 4. CÁLCULO DE COSTO (PRECIO LÁMINA / ÁREA MAESTRA)
-        // Si precio = 108.000 y área = 3.52 -> Costo = 30.681.81 (Redondeado: 30.682)
+        // 3. CÁLCULO DE COSTO (PRECIO / ÁREA)
+        // $108.000 / 3.52 = $30.681.81... -> $30.682
         let costoMostrar = 0;
-        const precioLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
+        const precioTotal = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
-            const largoM = (largo > 0) ? (largo / 100) : 2.9;
-            costoMostrar = precioLamina / largoM;
+            const mlPalo = (largoL > 0) ? (largoL / 100) : 2.9;
+            costoMostrar = precioTotal / mlPalo;
         } else {
-            // FORZAMOS EL USO DEL ÁREA DE 3.52
-            costoMostrar = areaUnaLaminaM2 > 0 ? (precioLamina / areaUnaLaminaM2) : precioLamina;
+            // FORZADO A 3.52 PARA EVITAR EL 8716
+            costoMostrar = areaLaminaM2 > 0 ? (precioTotal / areaLaminaM2) : precioTotal;
         }
         costoMostrar = Math.round(costoMostrar);
 
-        // 5. SEMÁFORO
+        // 4. SEMÁFORO
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
 
-        // 6. DESGLOSE DE UNIDADES (1 und + 0.00 m2)
+        // 5. DESGLOSE FÍSICO (1 und + 0.00 m2)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
@@ -416,21 +404,20 @@ function renderTable(materiales) {
                 <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
             `;
         } else {
-            // Calculamos unidades exactas basadas en el área de 3.52
-            const unds = areaUnaLaminaM2 > 0 ? Math.floor((stockActualUnidad / areaUnaLaminaM2) + 0.001) : 0;
-            let rem = areaUnaLaminaM2 > 0 ? (stockActualUnidad - (unds * areaUnaLaminaM2)) : stockActualUnidad;
-            
-            if (Math.abs(rem) < 0.005) rem = 0;
+            // Calculamos cuántas láminas de 3.52 m2 hay en el stock
+            const unidades = Math.floor((stockActualUnidad / areaLaminaM2) + 0.001);
+            let remanente = stockActualUnidad - (unidades * areaLaminaM2);
+            if (Math.abs(remanente) < 0.005) remanente = 0;
 
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${unds} und + ${rem.toFixed(2)} m² rem
+                    ${unidades} und + ${remanente.toFixed(2)} m² rem
                 </div>
             `;
         }
 
-        // 7. RENDERIZADO (Tus estilos originales)
+        // 6. RENDERIZADO (Diseño que te gusta)
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
