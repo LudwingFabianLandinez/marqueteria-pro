@@ -366,14 +366,14 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. STOCK TOTAL (CONEXIÓN ATLAS)
+        // 1. DATOS BASE
         const stockActualUnidad = calcularStockReal(m);
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
-        
-        // 2. DETECCIÓN PRIORITARIA DE MEDIDAS (Para evitar el error de la imagen)
-        // Primero intentamos sacar la medida del nombre "160 X 220"
+
+        // 2. DETECCIÓN ÚNICA DE ÁREA (PARA COSTO Y PARA STOCK)
+        // Buscamos primero en el nombre (ej: 160 X 220)
         const extraido = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
         let ancho = 0;
         let largo = 0;
@@ -382,14 +382,13 @@ function renderTable(materiales) {
             ancho = parseFloat(extraido[1]);
             largo = parseFloat(extraido[2]);
         } else {
-            // Si no está en el nombre, buscamos en los campos de la base de datos
-            ancho = parseFloat(m.ancho_lamina_cm || m.ancho || m.ancho_cm || 0);
-            largo = parseFloat(m.largo_lamina_cm || m.largo || m.largo_cm || 0);
+            ancho = parseFloat(m.ancho_lamina_cm || m.ancho || 0);
+            largo = parseFloat(m.largo_lamina_cm || m.largo || 0);
         }
 
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
-        
-        // 3. CÁLCULO DE COSTO (PRECIO TOTAL / ÁREA REAL)
+
+        // 3. CÁLCULO DE COSTO (PRECIO TOTAL / ÁREA DETECTADA)
         let costoMostrar = 0;
         const valorDeLaLamina = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
@@ -397,33 +396,31 @@ function renderTable(materiales) {
             const largoMetros = largo > 0 ? (largo / 100) : 2.9;
             costoMostrar = valorDeLaLamina / largoMetros;
         } else {
+            // Si el área es 3.52 y el precio 108.000 -> Da 30.682
             costoMostrar = areaUnaLaminaM2 > 0 ? (valorDeLaLamina / areaUnaLaminaM2) : valorDeLaLamina;
         }
         costoMostrar = Math.round(costoMostrar);
-        
+
         // 4. SEMÁFORO
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
-        
-        // 5. CONSTRUCCIÓN VISUAL (1 UNIDAD + 0.00 M2)
+
+        // 5. CONSTRUCCIÓN VISUAL DEL STOCK (UNIDADES + REMANENTE)
         let textoStockVisual = "";
         if (esMoldura) {
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total ML)</div>
+                <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">(Total disponible)</div>
             `;
         } else {
-            // --- LÓGICA MATEMÁTICA CORREGIDA ---
             let laminasCompletas = 0;
             let sobranteM2 = stockActualUnidad;
 
             if (areaUnaLaminaM2 > 0) {
-                // Usamos un margen de error (epsilon) para que 3.52 / 3.52 sea 1 exacto
+                // Ajuste de precisión para que 3.52 / 3.52 sea 1 exacto
                 laminasCompletas = Math.floor((stockActualUnidad / areaUnaLaminaM2) + 0.001);
                 sobranteM2 = stockActualUnidad - (laminasCompletas * areaUnaLaminaM2);
-                
-                // Si el sobrante es insignificante (menos de 1cm2), lo ponemos en 0
-                if (Math.abs(sobranteM2) < 0.001) sobranteM2 = 0;
+                if (Math.abs(sobranteM2) < 0.005) sobranteM2 = 0;
             }
 
             textoStockVisual = `
@@ -434,7 +431,6 @@ function renderTable(materiales) {
             `;
         }
 
-        // --- EL RESTO DE TU FILA.INNERHTML IGUAL ---
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem;">${m.nombre}</div>
