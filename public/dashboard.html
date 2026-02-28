@@ -494,13 +494,13 @@
     }
 
     // 2. ESCÁNER DE MEDIDAS (Aislado)
-    let anchoLocal = 0;
-    let largoLocal = 0;
+    let anchoReal = 0;
+    let largoReal = 0;
     const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
 
     if (match) {
-        anchoLocal = parseFloat(match[1]); // 160
-        largoLocal = parseFloat(match[2]); // 220
+        anchoReal = parseFloat(match[1]); // 160
+        largoReal = parseFloat(match[2]); // 220
     }
 
     // 3. CÁLCULO DIRECTO (Excel: 108.000 / 3.52 = 30.682)
@@ -508,30 +508,32 @@
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
 
     if (esMoldura) {
-        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.9;
+        // Regla ML: Precio / Metros Lineales
+        const metros = largoReal > 0 ? (largoReal / 100) : 2.9;
         costoUnitarioFinal = Math.round(precioCompra / metros);
     } else {
-        const areaM2 = (anchoLocal * largoLocal) / 10000;
-        // Blindaje: Si no hay medidas, el costo m2 es el precio total
+        // Regla M2: Precio / (Ancho * Largo / 10000)
+        const areaM2 = (anchoReal * largoReal) / 10000;
         costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
     }
 
-    // 4. OBJETO PARA ATLAS (Sincronizado para evitar la doble división)
+    // 4. OBJETO PARA ATLAS (BLINDAJE ANTI-8716)
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
-        nombre: nombre,
+        nombre: nombre, // Mantiene el "160 X 220" visible para ti
         categoria: categoria,
         
-        // ENVIAMOS EL COSTO CALCULADO ($30.682) EN AMBOS CAMPOS
-        // Esto evita que si el servidor busca 'costo_base', use el de 108.000 para volver a dividir
+        // --- LA LLAVE DEL ÉXITO ---
+        // Enviamos el costo unitario ($30.682) como base.
         costo_base: costoUnitarioFinal, 
         precio_m2_costo: costoUnitarioFinal, 
-        
-        // Guardamos los datos de la lámina para referencia, pero no para cálculo
-        precio_total_lamina: precioCompra, 
-        ancho_lamina_cm: anchoLocal || 100,
-        largo_lamina_cm: largoLocal || (esMoldura ? 290 : 100),
+        precio_total_lamina: precioCompra,
+
+        // Forzamos 100x100 para que el área sea EXACTAMENTE 1.
+        // Así, cualquier división posterior será: 30682 / 1 = 30682.
+        ancho_lamina_cm: 100, 
+        largo_lamina_cm: 100, 
         
         stock_actual: 0,
         unidad: esMoldura ? "ML" : "M2",
@@ -540,7 +542,7 @@
     };
     
     try {
-        console.log("📡 Enviando Blindado a Atlas (v16.2.6):", nuevoMaterial);
+        console.log("📡 Enviando Blindaje Nivel 3 a Atlas (v16.2.7):", nuevoMaterial);
 
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
