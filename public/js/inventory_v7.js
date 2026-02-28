@@ -633,10 +633,10 @@ const esNuevoMaterial = (idAtlasReal === null || selectMat.value === "NUEVO");
 
 // 2. CONSTRUCCIÓN DEL OBJETO DE COMBATE
 const datosParaAtlas = {
-    // Si es nuevo, mandamos "new_record". 
-    // Esto hace que el validador de Netlify vea que SÍ hay un ID proporcionado (Adiós Error 400),
-    // pero al no ser un ID de 24 caracteres falso, Atlas no intentará buscarlo (Adiós Error 404).
-    materialId: esNuevoMaterial ? "new_record" : idAtlasReal, 
+    // Si es nuevo, mandamos el NOMBRE como ID temporal. 
+    // Esto satisface al validador de Netlify (porque NO está vacío) 
+    // y evita que Atlas busque un ID hexadecimal inexistente.
+    materialId: esNuevoMaterial ? nombreReal : idAtlasReal, 
     nombre: nombreReal,
     esNuevo: esNuevoMaterial,
     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
@@ -648,6 +648,11 @@ const datosParaAtlas = {
     costo_total: costo * cant,
     timestamp: new Date().toISOString()
 };
+
+// Refuerzo: Si es nuevo, nos aseguramos de que el servidor sepa que NO debe buscar un ID de Atlas
+if (esNuevoMaterial) {
+    datosParaAtlas.crearNuevo = true;
+}
 
 // 3. LA LLAVE DE ORO:
 // Si el servidor es extremadamente estricto, esta propiedad 'accion' 
