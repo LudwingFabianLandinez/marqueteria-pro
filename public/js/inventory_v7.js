@@ -400,15 +400,23 @@ function renderTable(materiales) {
         const areaUnaLaminaM2 = (ancho * largo) / 10000;
         
         // 3. CÁLCULO DE COSTO (Basado en tu regla: ML para molduras, M2 para el resto)
-        let costoMostrar = parseFloat(m.precio_m2_costo || m.costo_unitario || 0);
+        // 3. CÁLCULO DE COSTO (Basado en Excel: Valor Total / Área Lámina)
+        let costoMostrar = 0;
+        
+        // Obtenemos los valores numéricos para el cálculo
+        const valorTotalLamina = parseFloat(m.precio_total_lamina || 0);
+        const areaM2 = parseFloat(areaUnaLaminaM2 || 0);
 
-        // Si el costo directo es 0, intentamos calcularlo por el precio de la lámina
-        if (costoMostrar === 0 && (m.precio_total_lamina > 0)) {
-            if (esMoldura) {
-                const largoMetros = largo > 0 ? (largo / 100) : 2.9;
-                costoMostrar = Math.round(m.precio_total_lamina / largoMetros);
-            } else if (areaUnaLaminaM2 > 0) {
-                costoMostrar = Math.round(m.precio_total_lamina / areaUnaLaminaM2);
+        if (esMoldura) {
+            // Para molduras: Valor Total / Largo en metros
+            const largoMetros = largo > 0 ? (largo / 100) : 2.9;
+            costoMostrar = valorTotalLamina > 0 ? Math.round(valorTotalLamina / largoMetros) : (m.precio_m2_costo || 0);
+        } else {
+            // Para Vidrios/Maderas (como tu Excel): Valor Total / Metros Cuadrados
+            if (valorTotalLamina > 0 && areaM2 > 0) {
+                costoMostrar = Math.round(valorTotalLamina / areaM2); // Esto dará los $30.682
+            } else {
+                costoMostrar = parseFloat(m.precio_m2_costo || 0);
             }
         }
 
