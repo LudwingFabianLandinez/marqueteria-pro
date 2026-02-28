@@ -583,7 +583,16 @@ function configurarEventos() {
     document.getElementById('matForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        // RECOLECCIÓN DE DATOS: Aseguramos que los nombres coincidan con tu base de datos Atlas
+        // --- CAPTURA BLINDADA DE MEDIDAS ---
+        // Buscamos el valor en todos los IDs posibles que podrías tener en el HTML
+        const valorAncho = document.getElementById('matAncho')?.value || 
+                           document.getElementById('matAnchoCompra')?.value || 
+                           document.querySelector('input[placeholder*="Ancho"]')?.value || "0";
+
+        const valorLargo = document.getElementById('matLargo')?.value || 
+                           document.getElementById('matLargoCompra')?.value || 
+                           document.querySelector('input[placeholder*="Largo"]')?.value || "0";
+
         const payload = {
             id: document.getElementById('matId')?.value,
             nombre: document.getElementById('matNombre').value,
@@ -591,26 +600,23 @@ function configurarEventos() {
             precio_total_lamina: parseFloat(document.getElementById('matCosto').value) || 0,
             stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 2,
             proveedorId: document.getElementById('proveedorSelect').value,
-            
-            // ¡IMPORTANTE! Estos nombres deben ser EXACTOS a como los lee renderTable
-            ancho_lamina_cm: parseFloat(document.getElementById('matAncho')?.value || document.getElementById('matAnchoCompra')?.value || 0),
-            largo_lamina_cm: parseFloat(document.getElementById('matLargo')?.value || document.getElementById('matLargoCompra')?.value || 0)
+            // Enviamos los nombres exactos que Atlas espera
+            ancho_lamina_cm: parseFloat(valorAncho),
+            largo_lamina_cm: parseFloat(valorLargo)
         };
 
-        console.log("🚀 Enviando a Atlas:", payload); // Para que veas en consola que no van en 0
+        // ESTO ES PARA TI: Te dirá qué se va a enviar. Si ves ceros aquí, el problema es el HTML.
+        console.log("📤 Datos listos para Atlas:", payload);
 
         try {
             const res = await window.API.saveMaterial(payload);
             if(res.success) {
                 window.cerrarModales();
-                // Limpiamos el formulario para la próxima
-                e.target.reset(); 
                 await fetchInventory();
-                alert("✅ Material guardado con éxito y medidas sincronizadas");
+                alert(`✅ Guardado: ${payload.ancho_lamina_cm}x${payload.largo_lamina_cm} cm registrados.`);
             }
         } catch(err) { 
-            console.error("Error al guardar:", err);
-            alert("❌ Error al guardar en Atlas"); 
+            alert("❌ Error de conexión con Atlas"); 
         }
     });
 
