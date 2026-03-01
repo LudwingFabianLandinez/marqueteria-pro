@@ -362,7 +362,36 @@ function renderTable(materiales) {
     
     const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     
-   materiales.forEach(m => {
+   // --- NUEVA LÓGICA DE UNIFICACIÓN POR REPOSICIÓN ---
+    const materialesUnificados = {};
+
+    materiales.forEach(m => {
+        const nombreClave = m.nombre.toUpperCase().trim();
+        
+        if (!materialesUnificados[nombreClave]) {
+            // Si es la primera vez que vemos este nombre, lo guardamos
+            materialesUnificados[nombreClave] = { ...m };
+        } else {
+            // Si ya existe, unificamos:
+            // 1. Sumamos el stock (asumiendo que calcularStockReal devuelve el valor numérico)
+            const stockExistente = calcularStockReal(materialesUnificados[nombreClave]);
+            const stockNuevo = calcularStockReal(m);
+            
+            // 2. Mantenemos el PRECIO MÁS RECIENTE (Reposición)
+            // Si el nuevo registro tiene un precio mayor o más actual, actualizamos el principal
+            if (parseFloat(m.precio_total_lamina) > 0) {
+                materialesUnificados[nombreClave].precio_total_lamina = m.precio_total_lamina;
+                materialesUnificados[nombreClave].precio_m2_costo = m.precio_m2_costo;
+            }
+            
+            // Guardamos una referencia para que calcularStockReal sepa que ahora es la suma
+            // Nota: Esta parte depende de cómo manejes los objetos en tu función calcularStockReal
+            materialesUnificados[nombreClave].stock_unificado = stockExistente + stockNuevo;
+        }
+    });
+
+    // Ahora iteramos sobre los materiales unificados
+    Object.values(materialesUnificados).forEach(m => {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
@@ -370,60 +399,49 @@ function renderTable(materiales) {
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
-        const stockTotalM2 = calcularStockReal(m);
+        
+        // Usamos el stock unificado si existe, sino el normal
+        const stockTotalM2 = m.stock_unificado !== undefined ? m.stock_unificado : calcularStockReal(m);
 
-        // 2. DIMENSIONES MAESTRAS (160x220 = 3.52)
+        // 2. DIMENSIONES MAESTRAS
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
         const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
         const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
-        const areaReferencia = (anchoRef * largoRef) / 10000; 
+        const areaReferencia = (anchoRef * largoRef) / 10000;
 
-        // --- LÓGICA DE COSTO DE REPOSICIÓN (NUEVA COMPRA) ---
-
+        // --- LÓGICA DE COSTO DE REPOSICIÓN ---
         let precioFinalVisual = 0;
-        
-        // Priorizamos el precio de la lámina completa (los 200.000)
-        // Usamos m.precio_total_lamina que es el campo que actualiza la "Nueva Compra"
-        const precioUltimaCompra = parseFloat(m.precio_total_lamina || 0);
+        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
         
         if (esMoldura) {
             const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
-            precioFinalVisual = precioUltimaCompra / largoML;
+            precioFinalVisual = precioBase / largoML;
         } else {
-            // Si compraste a 200.000, dividimos por 3.52 directamente
-            if (precioUltimaCompra > 0) { 
-                precioFinalVisual = areaReferencia > 0 ? (precioUltimaCompra / areaReferencia) : precioUltimaCompra;
+            // Forzamos el nuevo precio (ej: 200.000 / 3.52 = 56.818)
+            if (precioBase > 50000) { 
+                precioFinalVisual = areaReferencia > 0 ? (precioBase / areaReferencia) : precioBase;
             } else {
-                // Si por alguna razón no hay precio de lámina, usamos el de m2 de la ficha
-                precioFinalVisual = parseFloat(m.precio_m2_costo) || 0;
+                precioFinalVisual = precioBase;
             }
         }
-        
-        // Redondeo final para limpieza visual
         precioFinalVisual = Math.round(precioFinalVisual);
 
-        // --- LÓGICA B: DESGLOSE DE STOCK (Independiente) ---
-        let textoStock = "";
-        if (esMoldura) {
-            textoStock = `
-                <div style="font-weight: 700;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
-            `;
-        } else {
-            const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
-            let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
-            
-            if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+        // --- LÓGICA B: DESGLOSE DE STOCK ---
+        const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
+        let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
+        if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
 
-            textoStock = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
-                </div>
-            `;
-        }
+        let textoStock = esMoldura ? `
+            <div style="font-weight: 700;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
+            <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
+        ` : `
+            <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
+            <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
+                ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
+            </div>
+        `;
 
-        // 3. SEMÁFORO Y RENDERIZADO
+        // 3. RENDERIZADO
         const sMin = parseFloat(m.stock_minimo) || 2;
         let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
 
