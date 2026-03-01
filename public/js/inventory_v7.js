@@ -795,13 +795,13 @@ window.verHistorial = async function(idRecibido, nombre) {
   window.eliminarMaterial = async function(id) {
     if (confirm("⚠️ ¿ELIMINAR PERMANENTEMENTE?\nEsta acción limpia el inventario de Atlas y de este dispositivo de forma definitiva.")) {
         try {
-            // 1. LOCALIZACIÓN DEL MATERIAL EN MEMORIA
+            // 1. IDENTIFICACIÓN INMEDIATA
             const materialEnMemoria = window.todosLosMateriales.find(m => 
                 String(m.id) === String(id) || String(m._id) === String(id)
             );
 
             if (!materialEnMemoria) {
-                console.error("❌ El material ya no existe en la memoria actual.");
+                console.error("❌ El material no está en memoria.");
                 return;
             }
 
@@ -809,42 +809,38 @@ window.verHistorial = async function(idRecibido, nombre) {
             const nombreParaBorradoEstricto = materialEnMemoria.nombre;
             const esIdTemporal = String(id).startsWith('TEMP-') || String(id).startsWith('MAT-');
 
-            // 2. 📡 COMUNICACIÓN CON ATLAS (Envío con manejo de errores)
-            // Intentamos avisar al servidor, pero no dejamos que un fallo de red bloquee la limpieza local
-            if (!esIdTemporal && window.API && window.API.deleteMaterial) {
-                console.log("📡 Intentando borrar en Atlas:", idParaBorrarEnAtlas);
-                try {
-                    await window.API.deleteMaterial(idParaBorrarEnAtlas);
-                    console.log("✅ Atlas recibió la orden.");
-                } catch (apiErr) {
-                    console.warn("⚠️ Atlas no respondió (404 o red), pero forzaremos el borrado local.");
-                }
-            }
-
-            // 3. 🧹 LIMPIEZA RADICAL DE MEMORIA Y LOCALSTORAGE (Crucial para el Refresh)
-            // Filtramos el array global: quitamos lo que coincida por ID o por Nombre exacto
+            // 2. 🧹 LIMPIEZA PREVENTIVA (Antes de la red para evitar bloqueos)
+            // Filtramos window.todosLosMateriales INMEDIATAMENTE
             window.todosLosMateriales = window.todosLosMateriales.filter(m => {
                 const coincideID = String(m.id) === String(id) || String(m._id) === String(idParaBorrarEnAtlas);
                 const coincideNombre = m.nombre.trim().toUpperCase() === nombreParaBorradoEstricto.trim().toUpperCase();
                 return !(coincideID || coincideNombre); 
             });
 
-            // SOBREESCRIBIMOS el LocalStorage de inmediato para que el Refresh no lo encuentre
+            // GUARDADO FORZADO: Esto mata la resurrección en el siguiente Refresh
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // Limpieza de bitácora de molduras
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes = pendientes.filter(p => p.nombre.trim().toUpperCase() !== nombreParaBorradoEstricto.trim().toUpperCase());
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // 4. 🛡️ SEGURO DE VIDA (Lista Negra de IDs)
+            // 3. 🛡️ LISTA NEGRA ACTIVA (Filtro de seguridad para fetchInventory)
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
             if (!eliminados.includes(String(idParaBorrarEnAtlas))) {
                 eliminados.push(String(idParaBorrarEnAtlas));
                 localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
             }
 
-            // 5. ACTUALIZACIÓN DE INTERFAZ
+            // 4. 📡 COMUNICACIÓN CON ATLAS (En segundo plano)
+            // Intentamos borrar en la nube, pero si falla (404), la limpieza local ya está hecha y guardada
+            if (!esIdTemporal && window.API && window.API.deleteMaterial) {
+                console.log("📡 Intentando borrar en Atlas:", idParaBorrarEnAtlas);
+                window.API.deleteMaterial(idParaBorrarEnAtlas)
+                    .then(() => console.log("✅ Atlas confirmó borrado remoto."))
+                    .catch(err => console.warn("⚠️ Atlas no pudo borrar (posible 404), pero el local ya está limpio."));
+            }
+
+            // 5. REFRESCAR INTERFAZ
             if (typeof renderTable === 'function') {
                 renderTable(window.todosLosMateriales);
             }
@@ -852,11 +848,11 @@ window.verHistorial = async function(idRecibido, nombre) {
             const modal = document.getElementById('modalNuevoMaterial');
             if(modal) modal.style.display = 'none';
 
-            alert(`✅ ¡LOGRADO!\n${nombreParaBorradoEstricto} ha sido eliminado localmente.`);
+            alert(`✅ ¡LOGRADO!\n${nombreParaBorradoEstricto} eliminado (Cambio persistente).`);
 
         } catch (error) {
             console.error("❌ Error Crítico:", error);
-            alert("⚠️ Hubo un problema al procesar la eliminación. Intenta de nuevo.");
+            alert("⚠️ Error al procesar la eliminación.");
         }
     }
 };
