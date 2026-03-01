@@ -366,69 +366,69 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. DATOS BASE
-        const stockActualUnidad = calcularStockReal(m);
+        // 1. VARIABLES BASE
+        const stockActualm2 = calcularStockReal(m); // Lo que hay en m2
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // --- SEPARACIÓN ABSOLUTA DE MOTORES ---
+        // 2. OBTENER DIMENSIONES (Independiente para cada uso)
+        const matchDim = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        const anchoRef = matchDim ? parseFloat(matchDim[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
+        const largoRef = matchDim ? parseFloat(matchDim[2]) : (parseFloat(m.largo_lamina_cm) || 220);
+        const areaLaminaRef = (anchoRef * largoRef) / 10000; // El famoso 3.52
 
-        // MOTOR A: CÁLCULO DE ÁREA REAL (160x220 = 3.52)
-        // Buscamos medidas en el nombre. Si están, MANDAN sobre la base de datos.
-        const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        let anchoFinal = 0, largoFinal = 0;
+        // --- INICIO DE INDEPENDENCIA ---
 
-        if (matchM) {
-            anchoFinal = parseFloat(matchM[1]);
-            largoFinal = parseFloat(matchM[2]);
-        } else {
-            anchoFinal = parseFloat(m.ancho_lamina_cm || m.ancho || 160);
-            largoFinal = parseFloat(m.largo_lamina_cm || m.largo || 220);
-        }
-        const areaMaestra = (anchoFinal * largoFinal) / 10000; // DEBE DAR 3.52
-
-        // MOTOR B: LÓGICA DEL COSTO (Independiente)
-        // Precio 108.000 / 3.52 = $30.682
-        let costoMostrar = 0;
-        const precioDeLaBase = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
+        // LOGICA A: COSTO (Blindada a la ficha técnica)
+        let costoFinalm2 = 0;
+        const precioTotalLamina = parseFloat(m.precio_total_lamina || 0);
         
         if (esMoldura) {
-            const largoM = (largoFinal > 0) ? (largoFinal / 100) : 2.9;
-            costoMostrar = precioDeLaBase / largoM;
+            const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
+            costoFinalm2 = precioTotalLamina / largoML;
         } else {
-            // AQUÍ SE FUERZA EL $30.682 usando el área maestra
-            costoMostrar = areaMaestra > 0 ? (precioDeLaBase / areaMaestra) : precioDeLaBase;
+            // Aquí forzamos el cálculo: 108.000 / 3.52 = 30.682
+            // No le importa cuánto stock haya, solo mira la lámina teórica
+            costoFinalm2 = areaLaminaRef > 0 ? (precioTotalLamina / areaLaminaRef) : (parseFloat(m.precio_m2_costo) || 0);
         }
-        costoMostrar = Math.round(costoMostrar);
+        costoFinalm2 = Math.round(costoFinalm2);
 
-        // MOTOR C: LÓGICA DEL DESGLOSE (Independiente)
-        // Stock 3.52 / Area 3.52 = 1 unidad + 0.00 rem
-        let textoStockVisual = "";
+        // LOGICA B: DESGLOSE DE STOCK (Blindada a la visualización)
+        let visualUnds = 0;
+        let visualRemanente = 0;
+
+        if (!esMoldura && areaLaminaRef > 0) {
+            // Calculamos cuántas caben
+            visualUnds = Math.floor((stockActualm2 / areaLaminaRef) + 0.001);
+            // Calculamos el resto
+            visualRemanente = stockActualm2 - (visualUnds * areaLaminaRef);
+            
+            // INDEPENDENCIA VISUAL: Si el remanente es una basura de decimales, lo matamos a 0
+            if (Math.abs(visualRemanente) < 0.01) {
+                visualRemanente = 0;
+            }
+        }
+
+        // 3. CONSTRUCCIÓN DEL TEXTO DE STOCK
+        let textoStockHTML = "";
         if (esMoldura) {
-            textoStockVisual = `
-                <div style="font-weight: 700;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
+            textoStockHTML = `
+                <div style="font-weight: 700;">${stockActualm2.toFixed(2)} ${unidadFinal}</div>
+                <div style="font-size: 0.7rem; color: #64748b;">(Total ML)</div>
             `;
         } else {
-            // Cálculo de unidades con margen de error para evitar el fallo visual
-            const unds = areaMaestra > 0 ? Math.floor((stockActualUnidad / areaMaestra) + 0.001) : 0;
-            let rem = areaMaestra > 0 ? (stockActualUnidad - (unds * areaMaestra)) : stockActualUnidad;
-            
-            // Si el remanente es casi 0, forzamos 0.00
-            if (Math.abs(rem) < 0.009) rem = 0;
-
-            textoStockVisual = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
+            textoStockHTML = `
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualm2.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${unds} und + ${rem.toFixed(2)} m² rem
+                    ${visualUnds} und + ${visualRemanente.toFixed(2)} m² rem
                 </div>
             `;
         }
 
-        // --- RENDERIZADO (Diseño Dashboard) ---
+        // 4. SEMÁFORO Y RENDERIZADO
         const stockMin = parseFloat(m.stock_minimo) || 2;
-        let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
+        let colorSemaforo = stockActualm2 <= 0 ? '#ef4444' : (stockActualm2 <= stockMin ? '#f59e0b' : '#059669');
 
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
@@ -438,11 +438,11 @@ function renderTable(materiales) {
                 </div>
             </td>
             <td style="text-align: center; font-weight: 700; color: #1e293b;">
-                ${formateador.format(costoMostrar)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
+                ${formateador.format(costoFinalm2)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorStock};">
-                    ${textoStockVisual}
+                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorSemaforo};">
+                    ${textoStockHTML}
                 </div>
             </td>
             <td style="text-align: center;">
