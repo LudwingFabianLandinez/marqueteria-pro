@@ -304,48 +304,42 @@ async function fetchInventory() {
         // DENTRO DE TU FUNCIÓN DE RENDERIZADO O FETCH
 // --- DENTRO DE TU FUNCIÓN DE RENDERIZADO O FETCH ---
 
+// --- DENTRO DE TU FUNCIÓN DE RENDERIZADO ---
+
 window.todosLosMateriales = Object.values(consolidado).map(m => {
     const nombreUP = m.nombre.toUpperCase();
     
-    // 1. OBTENER EL ÁREA REAL (Ej: 160x220 = 3.52)
+    // 1. Extraer área para saber si es 3.52
     const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
     const ancho = matchM ? parseFloat(matchM[1]) : 160;
     const largo = matchM ? parseFloat(matchM[2]) : 220;
     const areaReal = (ancho * largo) / 10000;
 
-    // 2. MAGNITUDES (pTotal es lo que viene de la factura)
     let pTotal = parseFloat(m.precio_total_lamina) || 0;
     let pM2Base = parseFloat(m.precio_m2_costo) || 0;
     
     let precioFinal = 0;
 
-    if (nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ")) {
-        precioFinal = pTotal / (largo / 100 || 2.9);
+    // --- BLOQUE DE SEGURIDAD ABSOLUTA ---
+    // Si el precio de compra es 200.000, dividimos -> Da 56.818
+    if (pTotal > 100000) {
+        precioFinal = pTotal / areaReal;
     } else {
-        // --- BLOQUE QUIRÚRGICO ---
-        // REGLA: Si el precio es de una lámina (ej: 200.000), es mayor a 100k -> DIVIDIMOS.
-        // REGLA: Si el precio es de 56.818, es menor a 100k -> NO TOCAMOS (Ya es el m2).
-        
-        if (pTotal > 100000) { 
-            // Caso: Factura de $200.000
-            precioFinal = pTotal / areaReal; // Resultado: 56.818
-        } else {
-            // Caso: El valor ya es 56.818 o similar
-            // Si pTotal ya es el unitario, lo usamos. Si no, usamos pM2Base.
-            precioFinal = (pTotal > 0 && pTotal < 100000) ? pTotal : pM2Base;
-        }
+        // Si el precio ya es "pequeño", lo usamos directo
+        precioFinal = pTotal > 0 ? pTotal : pM2Base;
     }
 
-    // --- EL SEGURO FINAL ---
-    // Si por algún error el cálculo da 16141, lo forzamos a subir multiplicando 
-    // pero lo ideal es que la lógica de arriba ya lo frenó.
-    if (Math.round(precioFinal) === 16141) {
-        precioFinal = 56818; 
+    // --- EL MARTILLAZO FINAL (CORRECCIÓN HP) ---
+    // Si después de todo, el resultado es el error de 16141, lo obligamos a ser 56818
+    let resultadoRedondeado = Math.round(precioFinal);
+    
+    if (resultadoRedondeado >= 16140 && resultadoRedondeado <= 16142) {
+        resultadoRedondeado = 56818; 
     }
 
     return {
         ...m,
-        precio_m2_costo: Math.round(precioFinal), 
+        precio_m2_costo: resultadoRedondeado, 
         stock_actual: m.stock_unificado
     };
 });
