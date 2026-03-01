@@ -322,6 +322,7 @@ window.guardarProveedor = async function(event) {
     } catch (error) {
         console.error("Error en inventario:", error);
         const tabla = document.getElementById('cuerpoTabla');
+        
         if (tabla) tabla.innerHTML = '<tr><td colspan="4">Error cargando datos.</td></tr>';
     }
 }
