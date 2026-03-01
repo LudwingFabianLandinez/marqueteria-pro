@@ -575,7 +575,7 @@ function configurarEventos() {
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
 window.guardarMaterial = async function() {
     try {
-        console.log("🚀 Iniciando guardado unificado con reescritura...");
+        console.log("🚀 Iniciando guardado unificado con reescritura de precio de reposición...");
 
         // 1. CAPTURA DE DATOS BÁSICOS
         const nombreInput = document.getElementById('matNombre') || document.getElementById('nombreNuevoMaterial');
@@ -586,7 +586,7 @@ window.guardarMaterial = async function() {
         const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
         const esMoldura = nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
-        // 2. EXTRACCIÓN DE MEDIDAS (Para evitar el 100 fijo)
+        // 2. EXTRACCIÓN DE MEDIDAS (Para calcular el área/divisor)
         let anchoNum = 100; 
         let largoNum = esMoldura ? 290 : 100;
         
@@ -596,20 +596,21 @@ window.guardarMaterial = async function() {
             largoNum = parseFloat(matchMedidas[2]);
         }
 
-        // 3. CÁLCULO DE COSTO UNITARIO (Lógica: $200.000 / 3.52 = $56.818)
+        // 3. CÁLCULO DE COSTO UNITARIO ACTUALIZADO (Ejemplo: $200.000 / 3.52 = $56.818)
         const areaM2 = (anchoNum * largoNum) / 10000;
-        // REESCRITURA: Calculamos el nuevo unitario que borrará al anterior
+        // Este valor es el que reescribirá cualquier precio anterior en la base de datos
         const costoPorMetro = esMoldura ? Math.round(precioFactura / 2.9) : (areaM2 > 0 ? Math.round(precioFactura / areaM2) : precioFactura);
 
-        // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS (Sobrescribiendo valores)
+        // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS (Sobrescribiendo valores maestros)
         const nuevoMaterial = {
             id: window.materialEditandoId || "NUEVO",
             nombre: nombre,
             categoria: categoria,
-            // --- AQUÍ APLICAMOS LA REESCRITURA TOTAL ---
-            costo_base: costoPorMetro,          // <--- SE REESCRIBE CON EL NUEVO VALOR (ej: $56.818)
-            precio_m2_costo: costoPorMetro,     // <--- SE REESCRIBE EN LA TABLA
-            precio_total_lamina: precioFactura, // Guardamos el costo de la factura actual
+            // --- AQUÍ OCURRE LA REESCRITURA TOTAL ---
+            // Al enviar estos campos, Atlas actualiza el material global con el último precio de compra
+            costo_base: costoPorMetro,          // <--- Se guarda el nuevo valor (ej: $56.818)
+            precio_m2_costo: costoPorMetro,     // <--- Actualiza el precio visual en la tabla
+            precio_total_lamina: precioFactura, // Referencia de la factura actual
             // ------------------------------------
             ancho_lamina_cm: anchoNum,
             largo_lamina_cm: largoNum,
@@ -618,7 +619,7 @@ window.guardarMaterial = async function() {
             estado: 'Activo'
         };
 
-        console.log("📡 Enviando a Atlas (El último precio reescribe todo):", nuevoMaterial);
+        console.log("📡 Enviando a Atlas (El precio de reposición reescribe el anterior):", nuevoMaterial);
 
         // 5. ENVÍO A LA API (Netlify)
         const response = await fetch('/.netlify/functions/server/inventory/purchase', {
@@ -628,7 +629,7 @@ window.guardarMaterial = async function() {
         });
 
         if (response.ok) {
-            alert(`✅ ¡LOGRADO!\nNuevo precio unitario guardado: $${costoPorMetro}`);
+            alert(`✅ PRECIO ACTUALIZADO: $${costoPorMetro}\nTodo el stock ahora asume este costo.`);
             if (window.bootstrap) {
                 const modalElement = document.getElementById('modalNuevoMaterial');
                 const modal = bootstrap.Modal.getInstance(modalElement);
