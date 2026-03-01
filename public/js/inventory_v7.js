@@ -381,18 +381,18 @@ function renderTable(materiales) {
 
         // --- INDEPENDENCIA TOTAL ---
 
-        // LÓGICA A: COSTO (Para que de $30.682 y nunca $0)
+        // LÓGICA A: COSTO (Actualizado para reflejar cambios de precio en todo el stock)
         let precioFinalVisual = 0;
-        // Buscamos el precio en todos los campos posibles de Atlas
+        
+        // Al usar m.precio_total_lamina, si el precio sube en Atlas, 
+        // todo el stock se recalcula con ese valor nuevo inmediatamente.
         const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
         
         if (esMoldura) {
             const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
             precioFinalVisual = precioBase / largoML;
         } else {
-            // Si el precio base es 108.000 y el área es 3.52 -> DA 30.682
-            // Si el precio base ya viene por m2 (30.682) y el área es 3.52, 
-            // ponemos una validación para que no divida si el número ya es pequeño.
+            // Si el precio sube de 108.000 a 120.000, aquí se reflejará el nuevo costo/m2
             if (precioBase > 50000) { 
                 precioFinalVisual = areaReferencia > 0 ? (precioBase / areaReferencia) : precioBase;
             } else {
