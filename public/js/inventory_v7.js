@@ -869,14 +869,25 @@ window.cargarListasModal = function() {
     const matSelect = document.getElementById('compraMaterial');
     const provRegisterSelect = document.getElementById('proveedorSelect');
     
+    // 1. Cargar Proveedores (Sincronizados)
     if (window.todosLosProveedores.length > 0) {
-        const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
+        const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
+            window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
         if (provSelect) provSelect.innerHTML = opcionesProv;
         if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
     }
     
+    // 2. Cargar Materiales (BLINDADO: Usa el ID de Atlas prioritariamente)
     if (matSelect) {
-        let opcionesMat = '<option value="">-- Seleccionar Material --</option><option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>' + window.todosLosMateriales.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        let opcionesMat = '<option value="">-- Seleccionar Material --</option>' + 
+                         '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
+        
+        // Usamos el array ya consolidado para que el selector no muestre duplicados
+        opcionesMat += window.todosLosMateriales.map(m => {
+            const idCorrecto = m._id || m.id; // Prioridad al ID de MongoDB
+            return `<option value="${idCorrecto}">${m.nombre.toUpperCase()}</option>`;
+        }).join('');
+        
         matSelect.innerHTML = opcionesMat;
     }
 };
@@ -885,41 +896,56 @@ window.cerrarModales = function() {
     document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
 };
 
-window.verHistorial = async function(id, nombre) {
+window.verHistorial = async function(idRecibido, nombre) {
     const modal = document.getElementById('modalHistorialPrecios');
     const contenedor = document.getElementById('listaHistorialPrecios');
+    const titulo = document.getElementById('historialMaterialNombre');
     
     if (modal) modal.style.display = 'flex';
-    if (contenedor) contenedor.innerHTML = '<div style="color:black; padding:20px;">🔄 Buscando movimientos de hoy 22/02...</div>';
+    if (titulo) titulo.innerText = nombre || "Historial";
+    if (contenedor) contenedor.innerHTML = '<div style="color:#1e293b; padding:20px; text-align:center;">🔄 Consultando movimientos en Atlas...</div>';
 
     try {
-        // Forzamos al servidor a darnos lo último de hoy
-        const respuesta = await fetch(`${window.API_URL}/materials/${id}/history?t=${Date.now()}`);
+        // Buscamos el material en memoria para asegurar que enviamos el _id de Atlas
+        const material = window.todosLosMateriales.find(m => String(m.id) === String(idRecibido) || String(m._id) === String(idRecibido));
+        const idConsulta = (material && material._id) ? material._id : idRecibido;
+
+        const respuesta = await fetch(`${window.API_URL}/materials/${idConsulta}/history?t=${Date.now()}`);
         const resultado = await respuesta.json();
         
         const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
 
         if (!datos || datos.length === 0) {
-            contenedor.innerHTML = `<div style="color:red; padding:20px; text-align:center; font-weight:bold;">
-                ⚠️ ATENCIÓN: No se encontraron movimientos registrados después del 16/02.<br>
-                Verifica si el servidor está guardando las compras.
-            </div>`;
+            contenedor.innerHTML = `
+                <div style="color:#dc2626; padding:20px; text-align:center; font-weight:bold;">
+                    ⚠️ Sin movimientos recientes.<br>
+                    <span style="font-size:0.75rem; font-weight:normal; color:#64748b;">
+                        Si acabas de hacer una compra, recarga para ver los cambios sincronizados.
+                    </span>
+                </div>`;
             return;
         }
 
-        // Si hay datos, los pintamos con fuerza (Color NEGRO puro)
-        contenedor.innerHTML = datos.map(h => `
-            <div style="border-bottom:2px solid #eee; padding:15px; color: #000 !important; background: #fff;">
-                <div style="font-weight:bold; font-size:14px;">${h.tipo?.toUpperCase()}</div>
-                <div style="font-size:12px; color:#555;">Fecha: ${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
-                <div style="font-size:16px; font-weight:900; color:${h.cantidad > 0 ? 'green' : 'red'};">
-                    ${h.cantidad > 0 ? '+' : ''}${h.cantidad} Unid/m2
+        // Renderizado limpio y profesional (Color Negro Puro para legibilidad)
+        contenedor.innerHTML = datos.map(h => {
+            const esEntrada = h.cantidad > 0;
+            return `
+            <div style="border-bottom:1px solid #e2e8f0; padding:12px; color: #000; background: #fff; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight:800; font-size:13px; text-transform:uppercase;">${h.tipo || 'MOVIMIENTO'}</div>
+                    <div style="font-size:11px; color:#64748b;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:16px; font-weight:900; color:${esEntrada ? '#059669' : '#dc2626'};">
+                        ${esEntrada ? '+' : ''}${h.cantidad} <span style="font-size:10px;">u/m²</span>
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
     } catch (error) {
-        contenedor.innerHTML = `<div style="color:red; padding:20px;">❌ Error de conexión al 22/02: ${error.message}</div>`;
+        console.error("Error historial:", error);
+        contenedor.innerHTML = `<div style="color:#dc2626; padding:20px; text-align:center;">❌ Error de conexión con Atlas</div>`;
     }
 };
 
