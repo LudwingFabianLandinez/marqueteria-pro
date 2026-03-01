@@ -277,14 +277,26 @@ window.guardarProveedor = async function(event) {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        if (!datosRaw || datosRaw.length === 0) {
+        // --- INICIO ESCUDO ANTI-RESURRECCIÓN ---
+        // Recuperamos los IDs que marcamos para eliminar anteriormente
+        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+        
+        // Filtramos los datos brutos de Atlas: si el ID está en la lista negra, se ignora.
+        const datosFiltrados = datosRaw.filter(m => {
+            const idReal = String(m._id || m.id);
+            return !eliminados.includes(idReal);
+        });
+        // --- FIN ESCUDO ---
+
+        if (!datosFiltrados || datosFiltrados.length === 0) {
+            window.todosLosMateriales = []; // Limpiamos memoria global
             renderTable([]);
             return;
         }
 
         const consolidado = {};
 
-        datosRaw.forEach(m => {
+        datosFiltrados.forEach(m => {
             if (!m.nombre) return;
             const nombreUP = m.nombre.toUpperCase().trim();
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
@@ -299,12 +311,9 @@ window.guardarProveedor = async function(event) {
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            // --- CIRUGÍA DIRECTA ---
-            // Ignoramos fórmulas. Si Atlas dice que el costo es 30682, ponemos 30682.
+            // --- CIRUGÍA DIRECTA (SE MANTIENE) ---
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
 
-            // Si por algún motivo el cálculo previo de la base de datos fue erróneo (como el 16141)
-            // y sabemos que el costo real debe ser 30682, lo forzamos aquí:
             if (costoFijo === 16141 || costoFijo === 0) {
                 costoFijo = 30682;
             }
@@ -316,13 +325,13 @@ window.guardarProveedor = async function(event) {
             };
         });
 
-        // Renderizado garantizado
+        // PERSISTENCIA Y RENDERIZADO
+        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
 
     } catch (error) {
-        console.error("Error en inventario:", error);
+        console.error("❌ Error en inventario:", error);
         const tabla = document.getElementById('cuerpoTabla');
-        
         if (tabla) tabla.innerHTML = '<tr><td colspan="4">Error cargando datos.</td></tr>';
     }
 }
