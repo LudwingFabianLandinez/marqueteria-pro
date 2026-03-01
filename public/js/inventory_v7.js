@@ -573,86 +573,113 @@ function configurarEventos() {
     });
 
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
-window.guardarMaterial = async function() {
-    try {
-        console.log("💉 Iniciando intervención quirúrgica de reescritura...");
+// 1. FILTRO DE CONSOLIDACIÓN AGRESIVA
+    // Vamos a agrupar todo por nombre para ignorar que Atlas creó IDs diferentes
+    const consolidadoPorNombre = {};
 
-        // 1. CAPTURA DE INPUTS
-        const nombreInput = document.getElementById('matNombre') || document.getElementById('nombreNuevoMaterial');
-        const costoInput = document.getElementById('matCosto') || document.getElementById('precio_total_lamina');
-        
-        const nombreMaterial = (nombreInput?.value || "").trim().toUpperCase();
-        const precioFacturaNUEVA = parseFloat(costoInput?.value) || 0;
-        const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
-        const esMoldura = nombreMaterial.includes("MOLDURA") || nombreMaterial.startsWith("K ");
+    materiales.forEach(m => {
+        const nombreClave = m.nombre.toUpperCase().trim();
+        const stockActual = calcularStockReal(m);
+        const fechaCreacion = new Date(m.createdAt || 0);
 
-        // 2. CÁLCULO DE ÁREA (Divisor: 3.52 para 160x220)
-        let ancho = 100, largo = esMoldura ? 290 : 100;
-        const match = nombreMaterial.match(/(\d+)\s*[X]\s*(\d+)/i);
-        if (match) {
-            ancho = parseFloat(match[1]);
-            largo = parseFloat(match[2]);
-        }
-        const areaM2 = (ancho * largo) / 10000;
-
-        // 3. EL NUEVO PRECIO MAESTRO (Ej: $56.818)
-        const nuevoCostoUnitario = esMoldura 
-            ? Math.round(precioFacturaNUEVA / 2.9) 
-            : Math.round(precioFacturaNUEVA / areaM2);
-
-        // 4. BÚSQUEDA DE IDENTIDAD (Crucial para no duplicar)
-        const materialExistente = (window.todosLosMateriales || []).find(m => m.nombre.toUpperCase() === nombreMaterial);
-        const idAtlas = window.materialEditandoId || materialExistente?._id || materialExistente?.id;
-
-        // 5. OBJETO DE REESCRITURA TOTAL
-        const datosCirugia = {
-            id: idAtlas,
-            materialId: idAtlas,
-            nombre: nombreMaterial,
-            categoria: categoria,
-            // FORZADO DE PRECIO DE REPOSICIÓN
-            costo_base: nuevoCostoUnitario,         // Machaca el $30.682
-            precio_m2_costo: nuevoCostoUnitario,    // Actualiza la tabla
-            precio_total_lamina: precioFacturaNUEVA,
-            ancho_lamina_cm: ancho,
-            largo_lamina_cm: largo,
-            unidad: esMoldura ? "ML" : "M2",
-            tipo_material: esMoldura ? 'ml' : 'm2',
-            forceUpdate: true, // Flag para el servidor
-            timestamp: new Date().getTime()
-        };
-
-        console.log("📡 Mandando pulso de reescritura:", datosCirugia);
-
-        // Enviamos a la ruta de compra pero con instrucción de actualización maestra
-        const response = await fetch('/.netlify/functions/server/inventory/purchase', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(datosCirugia)
-        });
-
-        if (response.ok) {
-            console.log("✅ Servidor respondió correctamente");
-            alert(`✅ REESCRITURA EXITOSA\nNuevo valor maestro: $${nuevoCostoUnitario}`);
-            window.materialEditandoId = null;
-            
-            // Forzamos limpieza de caché local antes de recargar
-            if(window.todosLosMateriales) {
-                const index = window.todosLosMateriales.findIndex(m => m.nombre.toUpperCase() === nombreMaterial);
-                if(index !== -1) window.todosLosMateriales[index].costo_base = nuevoCostoUnitario;
-            }
-
-            location.reload(); 
+        if (!consolidadoPorNombre[nombreClave]) {
+            // Primer registro encontrado de este material
+            consolidadoPorNombre[nombreClave] = { 
+                ...m, 
+                stock_unificado: stockActual,
+                fecha_ref: fechaCreacion 
+            };
         } else {
-            const errData = await response.json();
-            throw new Error(errData.message || "Error en Atlas");
+            // SI EL NOMBRE YA EXISTE (Duplicado de ID en Atlas):
+            
+            // A. Sumamos el stock de este ID al ID principal
+            consolidadoPorNombre[nombreClave].stock_unificado += stockActual;
+            
+            // B. REESCRITURA POR REPOSICIÓN:
+            // Si este ID es más nuevo que el que ya guardamos, le robamos el precio.
+            if (fechaCreacion > consolidadoPorNombre[nombreClave].fecha_ref) {
+                consolidadoPorNombre[nombreClave].precio_m2_costo = m.precio_m2_costo;
+                consolidadoPorNombre[nombreClave].precio_total_lamina = m.precio_total_lamina;
+                consolidadoPorNombre[nombreClave].fecha_ref = fechaCreacion;
+            }
         }
+    });
 
-    } catch (error) {
-        console.error("❌ Fallo en la cirugía:", error);
-        alert("No se pudo reescribir el precio. Verifica la consola.");
-    }
-};
+    // 2. RENDERIZADO SOBRE LOS DATOS YA LIMPIOS
+    Object.values(consolidadoPorNombre).forEach(m => {
+        const fila = document.createElement('tr');
+        fila.setAttribute('data-nombre', m.nombre.toLowerCase());
+        
+        const nombreUP = m.nombre.toUpperCase();
+        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
+        const unidadFinal = esMoldura ? 'ml' : 'm²';
+        
+        // Usamos el stock que sumamos de todos los IDs
+        const stockTotal = m.stock_unificado;
+
+        // DIMENSIONES MAESTRAS (Ignoramos el 100x100 erróneo de Atlas y usamos el nombre)
+        const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        const anchoRef = matchM ? parseFloat(matchM[1]) : 160;
+        const largoRef = matchM ? parseFloat(matchM[2]) : 220;
+        const areaRealLamina = (anchoRef * largoRef) / 10000; // Esto nos da el 3.52 m²
+
+        // LÓGICA DE COSTO REESCRITO
+        let precioFinal = 0;
+        // Tomamos el precio_m2_costo que ya viene del registro más nuevo
+        const pM2 = parseFloat(m.precio_m2_costo) || 0;
+        const pTotal = parseFloat(m.precio_total_lamina) || 0;
+
+        if (esMoldura) {
+            precioFinal = pTotal / (largoRef / 100 || 2.9);
+        } else {
+            // Si el precio viene de una lámina (ej: 200.000), dividimos por 3.52
+            // Si el precio ya viene por m2 (56.818), lo usamos directo.
+            precioFinal = pTotal > 50000 ? (pTotal / areaRealLamina) : pM2;
+        }
+        precioFinal = Math.round(precioFinal);
+
+        // DESGLOSE VISUAL UNIFICADO
+        const unds = areaRealLamina > 0 ? Math.floor((stockTotal / areaRealLamina) + 0.001) : 0;
+        let rem = areaRealLamina > 0 ? (stockTotal - (unds * areaRealLamina)) : stockTotal;
+        if (Math.abs(rem) < 0.01) rem = 0;
+
+        const sMin = parseFloat(m.stock_minimo) || 2;
+        let colorS = stockTotal <= 0 ? '#ef4444' : (stockTotal <= sMin ? '#f59e0b' : '#059669');
+
+        fila.innerHTML = `
+            <td style="text-align: left; padding: 10px 15px;">
+                <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
+                <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
+                    ${m.categoria} | ${m.proveedorNombre || 'PROVEEDOR'}
+                </div>
+            </td>
+            <td style="text-align: center; font-weight: 700; color: #1e293b;">
+                ${formateador.format(precioFinal)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
+            </td>
+            <td style="text-align: center; padding: 8px;">
+                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorS};">
+                   <div style="font-weight: 700; font-size: 0.95rem;">${stockTotal.toFixed(2)} ${unidadFinal}</div>
+                   <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
+                       ${esMoldura ? '(Total ML)' : `${unds} und + ${rem.toFixed(2)} m² rem`}
+                   </div>
+                </div>
+            </td>
+            <td style="text-align: center;">
+                <div style="display: flex; justify-content: center; gap: 8px;">
+                    <button onclick="window.abrirModalEditar('${m._id}')" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                        <i class="fas fa-edit"></i> EDITAR
+                    </button>
+                    <button onclick="window.verHistorial('${m._id}', '${m.nombre}')" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                        <i class="fas fa-history"></i> HISTORIAL
+                    </button>
+                    <button onclick="window.eliminarMaterial('${m._id}')" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                        <i class="fas fa-trash"></i> ELIMINAR
+                    </button>
+                </div>
+            </td>
+        `;
+        cuerpoTabla.appendChild(fila);
+    });
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
         e.preventDefault();
