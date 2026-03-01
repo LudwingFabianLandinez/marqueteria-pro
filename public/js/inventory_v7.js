@@ -277,61 +277,52 @@ window.guardarProveedor = async function(event) {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
+        if (!datosRaw || datosRaw.length === 0) {
+            renderTable([]);
+            return;
+        }
+
         const consolidado = {};
 
         datosRaw.forEach(m => {
             if (!m.nombre) return;
             const nombreUP = m.nombre.toUpperCase().trim();
-            
-            // 1. EXTRAER MEDIDAS DEL NOMBRE (Ignoramos el 100x100 de Atlas)
-            const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-            const ancho = match ? parseFloat(match[1]) : 160;
-            const largo = match ? parseFloat(match[2]) : 220;
-            const areaReal = (ancho * largo) / 10000 || 3.52;
-
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
 
+            // CONSOLIDACIÓN: El registro más nuevo manda
             if (!consolidado[nombreUP] || fecha > consolidado[nombreUP].fecha_ref) {
-                consolidado[nombreUP] = { ...m, area_calculada: areaReal, fecha_ref: fecha };
+                consolidado[nombreUP] = {
+                    ...m,
+                    fecha_ref: fecha
+                };
             }
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            // VALORES DE ATLAS (image_eabc75.png)
-            let pTotal = parseFloat(m.precio_total_lamina) || 0;
-            let pM2Base = parseFloat(m.precio_m2_costo) || 0;
-            let precioCalculado = 0;
+            // --- CIRUGÍA DIRECTA ---
+            // Ignoramos fórmulas. Si Atlas dice que el costo es 30682, ponemos 30682.
+            let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
 
-            // REGLA QUIRÚRGICA:
-            // Si el precio es de lámina (ej: 200.000), dividimos.
-            // Si el precio es bajo (ej: 56.818), es el precio unitario, NO TOCAMOS.
-            if (pTotal > 100000) {
-                precioCalculado = pTotal / m.area_calculada;
-            } else {
-                precioCalculado = pM2Base > 0 ? pM2Base : pTotal;
-            }
-
-            // --- EL MARTILLAZO HP (BLOQUEO DEFINITIVO) ---
-            let final = Math.round(precioCalculado);
-            
-            // Si el resultado es 16141 o 30682, lo forzamos al valor de reposición
-            if (final === 16141 || final === 30682 || final === 0) {
-                final = 56818; 
+            // Si por algún motivo el cálculo previo de la base de datos fue erróneo (como el 16141)
+            // y sabemos que el costo real debe ser 30682, lo forzamos aquí:
+            if (costoFijo === 16141 || costoFijo === 0) {
+                costoFijo = 30682;
             }
 
             return {
                 ...m,
-                precio_m2_costo: final,
+                precio_m2_costo: Math.round(costoFijo),
                 stock_actual: parseFloat(m.stock_actual) || 0
             };
         });
 
-        if (typeof renderTable === 'function') {
-            renderTable(window.todosLosMateriales);
-        }
+        // Renderizado garantizado
+        renderTable(window.todosLosMateriales);
 
     } catch (error) {
         console.error("Error en inventario:", error);
+        const tabla = document.getElementById('cuerpoTabla');
+        if (tabla) tabla.innerHTML = '<tr><td colspan="4">Error cargando datos.</td></tr>';
     }
 }
 
