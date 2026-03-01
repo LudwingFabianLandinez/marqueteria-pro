@@ -411,14 +411,21 @@
 
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js"></script>
+
 <script>
     window.API_URL = "/.netlify/functions/server";
-</script>
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        if (window.loadInventory) window.loadInventory();
-        if (window.loadProviders) window.loadProviders();
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        console.log("🚀 Iniciando Dashboard...");
+        
+        // Intentamos cargar los datos base desde inventory_v7.js
+        if (typeof window.loadInventory === 'function') await window.loadInventory();
+        if (typeof window.loadProviders === 'function') await window.loadProviders();
+        
+        // Si tienes una función de inicialización de formularios, llámala aquí
+        if (typeof window.initInventoryEvents === 'function') window.initInventoryEvents();
     });
+</script>
 
     function manejarCambioMaterial() {
         const select = document.getElementById('compraMaterial');
