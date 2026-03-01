@@ -365,51 +365,50 @@ function renderTable(materiales) {
    // --- NUEVA LÓGICA DE UNIFICACIÓN POR REPOSICIÓN ---
     const materialesUnificados = {};
 
+    // 1. CREAMOS UN MAPA PARA UNIFICAR (Aplanar registros duplicados)
+    const mapaUnificado = {};
+
     materiales.forEach(m => {
+        // Usamos el nombre como clave única para agrupar
         const nombreClave = m.nombre.toUpperCase().trim();
         
-        if (!materialesUnificados[nombreClave]) {
-            // Si es la primera vez que vemos este nombre, lo guardamos
-            materialesUnificados[nombreClave] = { ...m };
+        if (!mapaUnificado[nombreClave]) {
+            mapaUnificado[nombreClave] = { ...m, stock_acumulado: calcularStockReal(m) };
         } else {
-            // Si ya existe, unificamos:
-            // 1. Sumamos el stock (asumiendo que calcularStockReal devuelve el valor numérico)
-            const stockExistente = calcularStockReal(materialesUnificados[nombreClave]);
-            const stockNuevo = calcularStockReal(m);
+            // SUMAMOS el stock del registro viejo y el nuevo
+            mapaUnificado[nombreClave].stock_acumulado += calcularStockReal(m);
             
-            // 2. Mantenemos el PRECIO MÁS RECIENTE (Reposición)
-            // Si el nuevo registro tiene un precio mayor o más actual, actualizamos el principal
-            if (parseFloat(m.precio_total_lamina) > 0) {
-                materialesUnificados[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                materialesUnificados[nombreClave].precio_m2_costo = m.precio_m2_costo;
+            // REESCRITURA DE PRECIO (Reposición):
+            // Si este registro tiene un precio mayor, actualizamos el registro maestro
+            const precioActual = parseFloat(m.precio_total_lamina) || 0;
+            const precioMaestro = parseFloat(mapaUnificado[nombreClave].precio_total_lamina) || 0;
+            
+            if (precioActual > precioMaestro) {
+                mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
+                mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
             }
-            
-            // Guardamos una referencia para que calcularStockReal sepa que ahora es la suma
-            // Nota: Esta parte depende de cómo manejes los objetos en tu función calcularStockReal
-            materialesUnificados[nombreClave].stock_unificado = stockExistente + stockNuevo;
         }
     });
 
-    // Ahora iteramos sobre los materiales unificados
-    Object.values(materialesUnificados).forEach(m => {
+    // 2. RENDERIZAMOS LAS FILAS YA UNIFICADAS
+    Object.values(mapaUnificado).forEach(m => {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. DATOS DE IDENTIFICACIÓN
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
-        // Usamos el stock unificado si existe, sino el normal
-        const stockTotalM2 = m.stock_unificado !== undefined ? m.stock_unificado : calcularStockReal(m);
+        // El stock es ahora la suma de todos los ingresos
+        const stockTotalM2 = m.stock_acumulado;
 
-        // 2. DIMENSIONES MAESTRAS
+        // DIMENSIONES MAESTRAS (Fijo 3.52)
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
         const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
         const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
         const areaReferencia = (anchoRef * largoRef) / 10000;
 
-        // --- LÓGICA DE COSTO DE REPOSICIÓN ---
+        // CÁLCULO DE COSTO REESCRITO (200.000 / 3.52 = 56.818)
         let precioFinalVisual = 0;
         const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
         
@@ -417,7 +416,6 @@ function renderTable(materiales) {
             const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
             precioFinalVisual = precioBase / largoML;
         } else {
-            // Forzamos el nuevo precio (ej: 200.000 / 3.52 = 56.818)
             if (precioBase > 50000) { 
                 precioFinalVisual = areaReferencia > 0 ? (precioBase / areaReferencia) : precioBase;
             } else {
@@ -426,7 +424,7 @@ function renderTable(materiales) {
         }
         precioFinalVisual = Math.round(precioFinalVisual);
 
-        // --- LÓGICA B: DESGLOSE DE STOCK ---
+        // DESGLOSE DE STOCK UNIFICADO
         const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
         let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
         if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
@@ -441,7 +439,6 @@ function renderTable(materiales) {
             </div>
         `;
 
-        // 3. RENDERIZADO
         const sMin = parseFloat(m.stock_minimo) || 2;
         let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
 
