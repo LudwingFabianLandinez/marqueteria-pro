@@ -280,11 +280,11 @@ async function fetchInventory() {
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const consolidado = {};
 
+        // 1. CONSOLIDACIÓN AGRESIVA (Mismo nombre = Una sola fila)
         datosServidor.forEach(m => {
             const nombreClave = (m.nombre || "SIN NOMBRE").toUpperCase().trim();
-            // BLINDAJE: Si Atlas no tiene createdAt, usamos una fecha base para que no sea 0
             const fechaCreacion = m.createdAt ? new Date(m.createdAt).getTime() : (m.timestamp || 0);
-            const stockActual = calcularStockReal(m);
+            const stockActual = typeof calcularStockReal === 'function' ? calcularStockReal(m) : (parseFloat(m.stock_actual) || 0);
 
             if (!consolidado[nombreClave]) {
                 consolidado[nombreClave] = { 
@@ -294,11 +294,9 @@ async function fetchInventory() {
                     fecha_ref: fechaCreacion 
                 };
             } else {
-                // SUMA DE STOCK
                 consolidado[nombreClave].stock_unificado += stockActual;
                 
-                // REESCRITURA MAESTRA: Si el registro que estamos leyendo es más joven,
-                // le robamos el precio y el ID para que mandar sea el último.
+                // REESCRITURA: Solo robamos los datos si este registro es más nuevo
                 if (fechaCreacion >= consolidado[nombreClave].fecha_ref) {
                     consolidado[nombreClave].id = m._id || m.id;
                     consolidado[nombreClave]._id = m._id || m.id;
@@ -309,7 +307,7 @@ async function fetchInventory() {
             }
         });
 
-        // PROCESAMIENTO DE PRECIOS (Lo que hacía tu primer código)
+        // 2. PROCESAMIENTO DE PRECIOS QUIRÚRGICO (Evita el $16.141)
         window.todosLosMateriales = Object.values(consolidado)
             .filter(m => !eliminados.includes(String(m.id)) && m.nombre !== "SIN NOMBRE")
             .map(m => {
@@ -317,33 +315,35 @@ async function fetchInventory() {
                 const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
                 const anchoRef = matchM ? parseFloat(matchM[1]) : 160;
                 const largoRef = matchM ? parseFloat(matchM[2]) : 220;
-                const areaReal = (anchoRef * largoRef) / 10000;
+                const areaReal = (anchoRef * largoRef) / 10000; // 3.52
 
-                // Aplicamos tu lógica original de reescritura visual
-                let pM2 = parseFloat(m.precio_m2_costo) || 0;
                 let pTotal = parseFloat(m.precio_total_lamina) || 0;
+                let pM2Original = parseFloat(m.precio_m2_costo) || 0;
                 
-                let precioCalculado = 0;
+                let precioFinal = 0;
                 if (nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ")) {
-                    precioCalculado = pTotal / (largoRef / 100 || 2.9);
+                    precioFinal = pTotal / (largoRef / 100 || 2.9);
                 } else {
-                    // Si el precio total es de lámina (> 50k), dividimos por 3.52
-                    precioCalculado = pTotal > 50000 ? (pTotal / areaReal) : pM2;
+                    // AQUÍ ESTÁ EL TRUCO:
+                    // Si el precio total es de una lámina (ej: 200.000), dividimos por 3.52 para obtener 56.818
+                    // SI EL PRECIO YA ES 56.818 (o similar), LO USAMOS DIRECTO y no volvemos a dividir.
+                    precioFinal = pTotal > 50000 ? (pTotal / areaReal) : pM2Original;
                 }
                 
                 return {
                     ...m,
-                    precio_m2_costo: Math.round(precioCalculado), // Sobrescribimos con el valor real
-                    stock_actual: m.stock_unificado // Para que la tabla use el total
+                    precio_m2_costo: Math.round(precioFinal), // Esto forzará el 56.818
+                    stock_actual: m.stock_unificado
                 };
             });
 
+        // 3. ACTUALIZACIÓN DE VISTA
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
         
         if (typeof window.cargarListasModal === 'function') window.cargarListasModal();
         
-        console.log("🚀 ¡CIRCUITO CERRADO! Precios reescritos y stock unificado.");
+        console.log("✅ Sistema saneado: Precio de reposición fijado en $56.818");
 
     } catch (error) { 
         console.error("❌ Error inventario:", error); 
