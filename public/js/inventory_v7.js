@@ -373,35 +373,36 @@ function renderTable(materiales) {
         const stockTotalM2 = calcularStockReal(m);
 
         // 2. DIMENSIONES MAESTRAS (160x220 = 3.52)
-        // Esto es lo que evita el error de $8.716
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
         const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
         const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
-        const areaReferencia = (anchoRef * largoRef) / 10000; // Siempre 3.52 para tus vidrios
+        const areaReferencia = (anchoRef * largoRef) / 10000; 
 
-        // --- INDEPENDENCIA TOTAL ---
+        // --- LÓGICA DE COSTO DE REPOSICIÓN (NUEVA COMPRA) ---
 
-        // LÓGICA A: COSTO (Actualizado para reflejar cambios de precio en todo el stock)
         let precioFinalVisual = 0;
         
-        // Al usar m.precio_total_lamina, si el precio sube en Atlas, 
-        // todo el stock se recalcula con ese valor nuevo inmediatamente.
-        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
+        // Priorizamos el precio de la lámina completa (los 200.000)
+        // Usamos m.precio_total_lamina que es el campo que actualiza la "Nueva Compra"
+        const precioUltimaCompra = parseFloat(m.precio_total_lamina || 0);
         
         if (esMoldura) {
             const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
-            precioFinalVisual = precioBase / largoML;
+            precioFinalVisual = precioUltimaCompra / largoML;
         } else {
-            // Si el precio sube de 108.000 a 120.000, aquí se reflejará el nuevo costo/m2
-            if (precioBase > 50000) { 
-                precioFinalVisual = areaReferencia > 0 ? (precioBase / areaReferencia) : precioBase;
+            // Si compraste a 200.000, dividimos por 3.52 directamente
+            if (precioUltimaCompra > 0) { 
+                precioFinalVisual = areaReferencia > 0 ? (precioUltimaCompra / areaReferencia) : precioUltimaCompra;
             } else {
-                precioFinalVisual = precioBase;
+                // Si por alguna razón no hay precio de lámina, usamos el de m2 de la ficha
+                precioFinalVisual = parseFloat(m.precio_m2_costo) || 0;
             }
         }
+        
+        // Redondeo final para limpieza visual
         precioFinalVisual = Math.round(precioFinalVisual);
 
-        // LÓGICA B: DESGLOSE DE STOCK (1 und + 0.00 m2)
+        // --- LÓGICA B: DESGLOSE DE STOCK (Independiente) ---
         let textoStock = "";
         if (esMoldura) {
             textoStock = `
@@ -409,11 +410,9 @@ function renderTable(materiales) {
                 <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
             `;
         } else {
-            // Calculamos unidades sin que el costo nos afecte
             const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
             let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
             
-            // Limpieza para que muestre 0.00 m2 exactos
             if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
 
             textoStock = `
@@ -424,7 +423,7 @@ function renderTable(materiales) {
             `;
         }
 
-        // 3. SEMÁFORO Y RENDERIZADO (Estilo Dashboard)
+        // 3. SEMÁFORO Y RENDERIZADO
         const sMin = parseFloat(m.stock_minimo) || 2;
         let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
 
