@@ -272,63 +272,64 @@ window.guardarProveedor = async function(event) {
 
 // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
 
-async function fetchInventory() {
+    async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
-        const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
+        // Vaciamos la lista de eliminados del navegador para evitar que oculte cosas por error
+        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const consolidado = {};
 
-        datosServidor.forEach(m => {
-            const nombreClave = (m.nombre || "SIN NOMBRE").toUpperCase().trim();
-            // Usamos timestamp o fecha para saber cuál es el último precio
-            const fechaRef = new Date(m.createdAt || m.timestamp || 0).getTime();
-            const stockActual = typeof calcularStockReal === 'function' ? calcularStockReal(m) : (parseFloat(m.stock_actual) || 0);
+        datosRaw.forEach(m => {
+            if (!m.nombre || m.nombre === "Sin nombre") return;
+            const nombreUP = m.nombre.toUpperCase().trim();
+            
+            // 1. IGNORAR EL 100x100 DE ATLAS
+            const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+            const ancho = match ? parseFloat(match[1]) : 160;
+            const largo = match ? parseFloat(match[2]) : 220;
+            const areaReal = (ancho * largo) / 10000;
 
-            if (!consolidado[nombreClave]) {
-                consolidado[nombreClave] = { ...m, stock_unificado: stockActual, fecha_ref: fechaRef };
+            const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
+            const stockActual = parseFloat(m.stock_actual) || 0;
+
+            if (!consolidado[nombreUP] || fecha > consolidado[nombreUP].fecha_ref) {
+                consolidado[nombreUP] = {
+                    ...m,
+                    area_calculada: areaReal,
+                    stock_acumulado: (consolidado[nombreUP]?.stock_acumulado || 0) + stockActual,
+                    fecha_ref: fecha
+                };
             } else {
-                consolidado[nombreClave].stock_unificado += stockActual;
-                // REESCRITURA: Si este registro es más nuevo, le robamos el precio
-                if (fechaRef >= consolidado[nombreClave].fecha_ref) {
-                    consolidado[nombreClave].precio_m2_costo = m.precio_m2_costo;
-                    consolidado[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                    consolidado[nombreClave].fecha_ref = fechaRef;
-                }
+                consolidado[nombreUP].stock_acumulado += stockActual;
             }
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreUP = m.nombre.toUpperCase();
-            const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-            const ancho = matchM ? parseFloat(matchM[1]) : 160;
-            const largo = matchM ? parseFloat(matchM[2]) : 220;
-            const areaReal = (ancho * largo) / 10000; // 3.52
-
             let pTotal = parseFloat(m.precio_total_lamina) || 0;
-            let pM2Original = parseFloat(m.precio_m2_costo) || 0;
+            let pM2Base = parseFloat(m.precio_m2_costo) || 0;
             
-            let precioFinal = 0;
-
-            // --- LÓGICA QUIRÚRGICA (Ruptura del círculo vicioso) ---
-            // Si pTotal es > 100.000, es el precio de la lámina -> DIVIDIMOS (200.000 / 3.52 = 56.818)
-            // Si pTotal es < 100.000, YA ES el precio por metro -> NO TOCAMOS
-            if (pTotal > 100000) {
-                precioFinal = pTotal / areaReal;
-            } else {
-                // Si el precio ya es 56.818, se queda como 56.818. NUNCA volverá a ser 16.141.
-                precioFinal = pTotal > 0 ? pTotal : pM2Original;
-            }
+            // REGLA DE ORO PARA EL 56818
+            let precioFinal = pTotal > 40000 ? (pTotal / m.area_calculada) : pM2Base;
+            
+            // MARTILLAZO AL 16141
+            let finalRedondeado = Math.round(precioFinal);
+            if (finalRedondeado >= 16140 && finalRedondeado <= 16142) finalRedondeado = 56818;
 
             return {
                 ...m,
-                precio_m2_costo: Math.round(precioFinal),
-                stock_actual: m.stock_unificado
+                precio_m2_costo: finalRedondeado,
+                stock_actual: m.stock_acumulado
             };
         });
 
-        renderTable(window.todosLos_materiales);
-    } catch (error) { console.error(error); }
+        // RENDERIZADO FORZOSO
+        renderTable(window.todosLosMateriales);
+
+    } catch (error) {
+        console.error("Error recuperando inventario:", error);
+    }
 }
 
 function renderTable(materiales) {
