@@ -301,41 +301,38 @@ async function fetchInventory() {
             }
         });
 
-        window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreUP = m.nombre.toUpperCase();
-            
-            // 1. Extraer el área real (Ej: 160x220 -> 3.52)
-            const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-            const ancho = matchM ? parseFloat(matchM[1]) : 160;
-            const largo = matchM ? parseFloat(matchM[2]) : 220;
-            const areaReal = (ancho * largo) / 10000;
+        // DENTRO DE TU FUNCIÓN DE RENDERIZADO O FETCH
+window.todosLosMateriales = Object.values(consolidado).map(m => {
+    const nombreUP = m.nombre.toUpperCase();
+    
+    // Extraemos el divisor (3.52) del nombre
+    const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+    const ancho = matchM ? parseFloat(matchM[1]) : 160;
+    const largo = matchM ? parseFloat(matchM[2]) : 220;
+    const areaReal = (ancho * largo) / 10000;
 
-            const pTotal = parseFloat(m.precio_total_lamina) || 0;
-            const pM2Registrado = parseFloat(m.precio_m2_costo) || 0;
-            
-            let precioFinal = 0;
+    // LEEMOS LOS VALORES QUE VIENEN DE LA BASE DE DATOS
+    let pTotal = parseFloat(m.precio_total_lamina) || 0;
+    let pM2Registrado = parseFloat(m.precio_m2_costo) || 0;
+    
+    let precioFinal = 0;
 
-            if (nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ")) {
-                precioFinal = pTotal / (largo / 100 || 2.9);
-            } else {
-                /** * ANÁLISIS QUIRÚRGICO DE LA FÓRMULA:
-                 * Si pTotal es el costo de la lámina (ej: 200.000), dividimos por 3.52 -> Da 56.818.
-                 * Si pTotal ya es el costo por m2 (ej: 56.818), NO DIVIDIMOS, porque daría 16.141.
-                 * Ponemos el límite en $40.000 para diferenciar lámina de m2.
-                 */
-                if (pTotal > 40000) {
-                    precioFinal = pTotal / areaReal; // 200.000 / 3.52 = 56.818
-                } else {
-                    precioFinal = pM2Registrado > 0 ? pM2Registrado : pTotal; // Usamos el valor directo
-                }
-            }
+    // --- INTERVENCIÓN QUIRÚRGICA ---
+    // Si pTotal es de una lámina (ej: 200.000), es > 40.000 -> DIVIDIMOS.
+    // Si pTotal ya es el costo por m2 (ej: 56.818), NO VOLVEMOS A DIVIDIR.
+    if (pTotal > 40000) {
+        precioFinal = pTotal / areaReal; // Resultado: 56.818
+    } else {
+        // Si el precio ya es bajo, el sistema lo toma directo para no causar el 16.141
+        precioFinal = pM2Registrado > 0 ? pM2Registrado : pTotal;
+    }
 
-            return {
-                ...m,
-                precio_m2_costo: Math.round(precioFinal), // RESULTADO: 56.818
-                stock_actual: m.stock_unificado
-            };
-        });
+    return {
+        ...m,
+        precio_m2_costo: Math.round(precioFinal), // Forzamos que se guarde el 56.818
+        stock_actual: m.stock_unificado
+    };
+});
 
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
