@@ -368,30 +368,40 @@ function renderTable(materiales) {
     // 1. CREAMOS UN MAPA PARA UNIFICAR (Aplanar registros duplicados)
     const mapaUnificado = {};
 
+    // 1. FILTRO DE CONSOLIDACIÓN AGRESIVA
+    // Vamos a agrupar todo por nombre para ignorar que Atlas creó IDs diferentes
+    const consolidadoPorNombre = {};
+
     materiales.forEach(m => {
-        // Usamos el nombre como clave única para agrupar
         const nombreClave = m.nombre.toUpperCase().trim();
-        
-        if (!mapaUnificado[nombreClave]) {
-            mapaUnificado[nombreClave] = { ...m, stock_acumulado: calcularStockReal(m) };
+        const stockActual = calcularStockReal(m);
+        const fechaCreacion = new Date(m.createdAt || 0);
+
+        if (!consolidadoPorNombre[nombreClave]) {
+            // Primer registro encontrado de este material
+            consolidadoPorNombre[nombreClave] = { 
+                ...m, 
+                stock_unificado: stockActual,
+                fecha_ref: fechaCreacion 
+            };
         } else {
-            // SUMAMOS el stock del registro viejo y el nuevo
-            mapaUnificado[nombreClave].stock_acumulado += calcularStockReal(m);
+            // SI EL NOMBRE YA EXISTE (Duplicado de ID en Atlas):
             
-            // REESCRITURA DE PRECIO (Reposición):
-            // Si este registro tiene un precio mayor, actualizamos el registro maestro
-            const precioActual = parseFloat(m.precio_total_lamina) || 0;
-            const precioMaestro = parseFloat(mapaUnificado[nombreClave].precio_total_lamina) || 0;
+            // A. Sumamos el stock de este ID al ID principal
+            consolidadoPorNombre[nombreClave].stock_unificado += stockActual;
             
-            if (precioActual > precioMaestro) {
-                mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
+            // B. REESCRITURA POR REPOSICIÓN:
+            // Si este ID es más nuevo que el que ya guardamos, le robamos el precio.
+            if (fechaCreacion > consolidadoPorNombre[nombreClave].fecha_ref) {
+                consolidadoPorNombre[nombreClave].precio_m2_costo = m.precio_m2_costo;
+                consolidadoPorNombre[nombreClave].precio_total_lamina = m.precio_total_lamina;
+                consolidadoPorNombre[nombreClave].fecha_ref = fechaCreacion;
             }
         }
     });
 
-    // 2. RENDERIZAMOS LAS FILAS YA UNIFICADAS
-    Object.values(mapaUnificado).forEach(m => {
+    // 2. RENDERIZADO SOBRE LOS DATOS YA LIMPIOS
+    Object.values(consolidadoPorNombre).forEach(m => {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
@@ -399,73 +409,65 @@ function renderTable(materiales) {
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
         
-        // El stock es ahora la suma de todos los ingresos
-        const stockTotalM2 = m.stock_acumulado;
+        // Usamos el stock que sumamos de todos los IDs
+        const stockTotal = m.stock_unificado;
 
-        // DIMENSIONES MAESTRAS (Fijo 3.52)
+        // DIMENSIONES MAESTRAS (Ignoramos el 100x100 erróneo de Atlas y usamos el nombre)
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
-        const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
-        const areaReferencia = (anchoRef * largoRef) / 10000;
+        const anchoRef = matchM ? parseFloat(matchM[1]) : 160;
+        const largoRef = matchM ? parseFloat(matchM[2]) : 220;
+        const areaRealLamina = (anchoRef * largoRef) / 10000; // Esto nos da el 3.52 m²
 
-        // CÁLCULO DE COSTO REESCRITO (200.000 / 3.52 = 56.818)
-        let precioFinalVisual = 0;
-        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
-        
+        // LÓGICA DE COSTO REESCRITO
+        let precioFinal = 0;
+        // Tomamos el precio_m2_costo que ya viene del registro más nuevo
+        const pM2 = parseFloat(m.precio_m2_costo) || 0;
+        const pTotal = parseFloat(m.precio_total_lamina) || 0;
+
         if (esMoldura) {
-            const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
-            precioFinalVisual = precioBase / largoML;
+            precioFinal = pTotal / (largoRef / 100 || 2.9);
         } else {
-            if (precioBase > 50000) { 
-                precioFinalVisual = areaReferencia > 0 ? (precioBase / areaReferencia) : precioBase;
-            } else {
-                precioFinalVisual = precioBase;
-            }
+            // Si el precio viene de una lámina (ej: 200.000), dividimos por 3.52
+            // Si el precio ya viene por m2 (56.818), lo usamos directo.
+            precioFinal = pTotal > 50000 ? (pTotal / areaRealLamina) : pM2;
         }
-        precioFinalVisual = Math.round(precioFinalVisual);
+        precioFinal = Math.round(precioFinal);
 
-        // DESGLOSE DE STOCK UNIFICADO
-        const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
-        let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
-        if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
-
-        let textoStock = esMoldura ? `
-            <div style="font-weight: 700;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
-            <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
-        ` : `
-            <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
-            <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
-            </div>
-        `;
+        // DESGLOSE VISUAL UNIFICADO
+        const unds = areaRealLamina > 0 ? Math.floor((stockTotal / areaRealLamina) + 0.001) : 0;
+        let rem = areaRealLamina > 0 ? (stockTotal - (unds * areaRealLamina)) : stockTotal;
+        if (Math.abs(rem) < 0.01) rem = 0;
 
         const sMin = parseFloat(m.stock_minimo) || 2;
-        let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
+        let colorS = stockTotal <= 0 ? '#ef4444' : (stockTotal <= sMin ? '#f59e0b' : '#059669');
 
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
                 <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | ${m.proveedorNombre || 'SIN PROVEEDOR'}
+                    ${m.categoria} | ${m.proveedorNombre || 'PROVEEDOR'}
                 </div>
             </td>
             <td style="text-align: center; font-weight: 700; color: #1e293b;">
-                ${formateador.format(precioFinalVisual)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
+                ${formateador.format(precioFinal)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
                 <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorS};">
-                    ${textoStock}
+                   <div style="font-weight: 700; font-size: 0.95rem;">${stockTotal.toFixed(2)} ${unidadFinal}</div>
+                   <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
+                       ${esMoldura ? '(Total ML)' : `${unds} und + ${rem.toFixed(2)} m² rem`}
+                   </div>
                 </div>
             </td>
             <td style="text-align: center;">
                 <div style="display: flex; justify-content: center; gap: 8px;">
-                    <button onclick="window.abrirModalEditar('${m.id || m._id}')" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                    <button onclick="window.abrirModalEditar('${m._id}')" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
                         <i class="fas fa-edit"></i> EDITAR
                     </button>
-                    <button onclick="window.verHistorial('${m.id}', '${m.nombre}')" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                    <button onclick="window.verHistorial('${m._id}', '${m.nombre}')" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
                         <i class="fas fa-history"></i> HISTORIAL
                     </button>
-                    <button onclick="window.eliminarMaterial('${m.id}')" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                    <button onclick="window.eliminarMaterial('${m._id}')" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
                         <i class="fas fa-trash"></i> ELIMINAR
                     </button>
                 </div>
