@@ -575,53 +575,56 @@ function configurarEventos() {
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
 window.guardarMaterial = async function() {
     try {
-        console.log("🚀 Iniciando guardado unificado con reescritura de precio de reposición...");
+        console.log("🚀 Iniciando reescritura forzada de precio...");
 
-        // 1. CAPTURA DE DATOS BÁSICOS
+        // 1. CAPTURA DE DATOS
         const nombreInput = document.getElementById('matNombre') || document.getElementById('nombreNuevoMaterial');
         const costoInput = document.getElementById('matCosto') || document.getElementById('precio_total_lamina');
         
-        const nombre = (nombreInput?.value || "SIN NOMBRE").trim().toUpperCase();
+        const nombre = (nombreInput?.value || "").trim().toUpperCase();
         const precioFactura = parseFloat(costoInput?.value) || 0;
         const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
         const esMoldura = nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
-        // 2. EXTRACCIÓN DE MEDIDAS (Para calcular el área/divisor)
+        // 2. EXTRACCIÓN DE MEDIDAS
         let anchoNum = 100; 
         let largoNum = esMoldura ? 290 : 100;
-        
         const matchMedidas = nombre.match(/(\d+)\s*[X]\s*(\d+)/i);
         if (matchMedidas) {
             anchoNum = parseFloat(matchMedidas[1]);
             largoNum = parseFloat(matchMedidas[2]);
         }
 
-        // 3. CÁLCULO DE COSTO UNITARIO ACTUALIZADO (Ejemplo: $200.000 / 3.52 = $56.818)
+        // 3. CÁLCULO DE COSTO UNITARIO (Reposición)
         const areaM2 = (anchoNum * largoNum) / 10000;
-        // Este valor es el que reescribirá cualquier precio anterior en la base de datos
         const costoPorMetro = esMoldura ? Math.round(precioFactura / 2.9) : (areaM2 > 0 ? Math.round(precioFactura / areaM2) : precioFactura);
 
-        // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS (Sobrescribiendo valores maestros)
+        // 4. BÚSQUEDA DE IDENTIDAD (Para asegurar que Atlas REESCRIBA el mismo registro)
+        // Buscamos el material en el array global por nombre para obtener su ID real de Atlas (_id)
+        const existente = window.todosLosMateriales?.find(m => m.nombre.toUpperCase() === nombre);
+        const idFinal = window.materialEditandoId || existente?._id || existente?.id || "NUEVO";
+
         const nuevoMaterial = {
-            id: window.materialEditandoId || "NUEVO",
+            id: idFinal, // Si este ID existe en Atlas, el servidor SOBREESCRIBIRÁ
+            materialId: idFinal, 
             nombre: nombre,
             categoria: categoria,
-            // --- AQUÍ OCURRE LA REESCRITURA TOTAL ---
-            // Al enviar estos campos, Atlas actualiza el material global con el último precio de compra
-            costo_base: costoPorMetro,          // <--- Se guarda el nuevo valor (ej: $56.818)
-            precio_m2_costo: costoPorMetro,     // <--- Actualiza el precio visual en la tabla
-            precio_total_lamina: precioFactura, // Referencia de la factura actual
-            // ------------------------------------
+            
+            // --- BLOQUE DE REESCRITURA ---
+            costo_base: costoPorMetro,          // El nuevo valor de $56.818
+            precio_m2_costo: costoPorMetro,     // Forzamos el cambio visual
+            precio_total_lamina: precioFactura,
+            // -----------------------------
+            
             ancho_lamina_cm: anchoNum,
             largo_lamina_cm: largoNum,
             unidad: esMoldura ? "ML" : "M2",
             tipo_material: esMoldura ? 'ml' : 'm2',
-            estado: 'Activo'
+            timestamp: new Date().toISOString()
         };
 
-        console.log("📡 Enviando a Atlas (El precio de reposición reescribe el anterior):", nuevoMaterial);
+        console.log("📡 Mandando reescritura al ID:", idFinal, nuevoMaterial);
 
-        // 5. ENVÍO A LA API (Netlify)
         const response = await fetch('/.netlify/functions/server/inventory/purchase', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -629,20 +632,16 @@ window.guardarMaterial = async function() {
         });
 
         if (response.ok) {
-            alert(`✅ PRECIO ACTUALIZADO: $${costoPorMetro}\nTodo el stock ahora asume este costo.`);
-            if (window.bootstrap) {
-                const modalElement = document.getElementById('modalNuevoMaterial');
-                const modal = bootstrap.Modal.getInstance(modalElement);
-                modal?.hide();
-            }
+            alert(`✅ REESCRITO: $${costoPorMetro}\nTodo el stock ahora asume este costo.`);
+            window.materialEditandoId = null; // Limpiamos el ID para la próxima
             location.reload(); 
         } else {
-            throw new Error("Error en la respuesta del servidor");
+            throw new Error("Atlas no procesó la reescritura.");
         }
 
     } catch (error) {
-        console.error("❌ Error al guardar:", error);
-        alert("Hubo un error al guardar el material. Revisa la consola.");
+        console.error("❌ Error:", error);
+        alert("Error al reescribir. Revisa la consola.");
     }
 };
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
