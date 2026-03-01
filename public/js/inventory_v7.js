@@ -793,61 +793,63 @@ window.verHistorial = async function(idRecibido, nombre) {
 };
 
   window.eliminarMaterial = async function(id) {
-    if (confirm("⚠️ ¿Estás seguro de eliminar este material permanentemente?\nEsta acción no se puede deshacer en Atlas.")) {
+    if (confirm("⚠️ ¿EstÁS SEGURO?\nEsta acción eliminará el material PERMANENTEMENTE de Atlas y no se podrá recuperar al refrescar.")) {
         try {
-            // 1. IDENTIFICACIÓN DE IDENTIDAD MAESTRA (v16.0.6 - Blindaje por Nombre)
+            // 1. IDENTIFICACIÓN DE IDENTIDAD MAESTRA (v16.1.5 - Blindaje de Persistencia)
             const esIdTemporal = String(id).startsWith('TEMP-') || String(id).startsWith('MAT-');
             
-            // Buscamos el material en el array global
+            // Buscamos el material en el array global para obtener su ADN real
             const materialEnMemoria = window.todosLosMateriales.find(m => 
                 String(m.id) === String(id) || String(m._id) === String(id)
             );
 
             if (!materialEnMemoria) {
-                console.error("❌ No se encontró el material en memoria para eliminar.");
+                console.error("❌ No se encontró el material en memoria.");
                 return;
             }
 
+            // PRIORIDAD MÁXIMA: Usar _id (Mongo) para que Atlas lo reconozca
             const idParaBorrarEnAtlas = materialEnMemoria._id || id;
-            const nombreParaBorradoEstricto = materialEnMemoria.nombre; // Guardamos el nombre para el filtro
+            const nombreParaBorradoEstricto = materialEnMemoria.nombre;
 
-            // 2. 🛡️ PROTECCIÓN DE "RESURRECCIÓN" (Lista Negra Local)
+            // 2. 📡 COMUNICACIÓN PRIORITARIA CON ATLAS (Borrado Físico)
+            // Si el material existe en la nube, lo borramos PRIMERO allá.
+            if (!esIdTemporal && window.API && window.API.deleteMaterial) {
+                console.log("📡 Solicitando a Atlas borrado permanente de:", nombreParaBorradoEstricto);
+                
+                // Forzamos la espera de la respuesta de Atlas para asegurar que se eliminó
+                const resultado = await window.API.deleteMaterial(idParaBorrarEnAtlas);
+                
+                // Si Atlas confirma (o si el objeto de respuesta es exitoso)
+                console.log("✅ Atlas procesó la solicitud de eliminación.");
+            }
+
+            // 3. 🛡️ PROTECCIÓN DE "RESURRECCIÓN" (Lista Negra Local)
+            // Bloqueamos este ID para que, incluso si Atlas tarda en actualizar, el navegador lo ignore
             let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-            if (!eliminados.includes(String(id))) {
-                eliminados.push(String(id));
-                if (idParaBorrarEnAtlas !== id) eliminados.push(String(idParaBorrarEnAtlas));
+            const idString = String(idParaBorrarEnAtlas);
+            if (!eliminados.includes(idString)) {
+                eliminados.push(idString);
                 localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
             }
 
-            // 3. 🧹 LIMPIEZA PROFUNDA (Filtro por ID y Nombre para evitar borrado doble)
-            // Solo filtramos si coincide el ID O el nombre exacto (evita que queden rastros)
+            // 4. 🧹 LIMPIEZA PROFUNDA DE MEMORIA (Sincronización Inmediata)
+            // Filtramos por ID y por Nombre Exacto para no dejar rastros
             window.todosLosMateriales = window.todosLosMateriales.filter(m => {
                 const coincideID = String(m.id) === String(id) || String(m._id) === String(idParaBorrarEnAtlas);
-                const coincideNombre = m.nombre === nombreParaBorradoEstricto;
+                const coincideNombre = m.nombre.trim().toUpperCase() === nombreParaBorradoEstricto.trim().toUpperCase();
                 return !(coincideID || coincideNombre); 
             });
             
-            // Filtramos de molduras_pendientes
+            // Limpieza de bitácoras secundarias
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            pendientes = pendientes.filter(p => p.nombre !== nombreParaBorradoEstricto);
+            pendientes = pendientes.filter(p => p.nombre.trim().toUpperCase() !== nombreParaBorradoEstricto.trim().toUpperCase());
             
-            // Guardamos el estado limpio
+            // ACTUALIZACIÓN DE LOCALSTORAGE (Crucial para el Refresh)
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            // 4. 📡 COMUNICACIÓN CON ATLAS
-            if (!esIdTemporal && window.API && window.API.deleteMaterial) {
-                console.log("📡 Solicitando a Atlas borrado permanente del ID:", idParaBorrarEnAtlas);
-                try {
-                    await window.API.deleteMaterial(idParaBorrarEnAtlas);
-                    console.log("✅ Atlas confirmó la eliminación.");
-                } catch (e) {
-                    console.warn("⚠️ No se pudo eliminar en Atlas, pero se quitó localmente.");
-                }
-            }
-
-            // 5. ACTUALIZACIÓN DE INTERFAZ
-            // Usamos window.todosLosMateriales para asegurar que la tabla se redibuje sin el borrado
+            // 5. ACTUALIZACIÓN DE INTERFAZ EN TIEMPO REAL
             if (typeof renderTable === 'function') {
                 renderTable(window.todosLosMateriales);
             }
@@ -855,11 +857,11 @@ window.verHistorial = async function(idRecibido, nombre) {
             const modal = document.getElementById('modalNuevoMaterial');
             if(modal) modal.style.display = 'none';
 
-            alert(`✅ ¡LOGRADO!\n${nombreParaBorradoEstricto} eliminado correctamente.`);
+            alert(`✅ ELIMINACIÓN TOTAL\n${nombreParaBorradoEstricto} ha sido borrado de Atlas y de la memoria local.`);
 
         } catch (error) {
             console.error("❌ Error Crítico en Eliminación:", error);
-            alert("⚠️ Hubo un problema al procesar la eliminación.");
+            alert("⚠️ ERROR DE CONEXIÓN: No se pudo confirmar el borrado en Atlas. Verifica tu internet y refresca.");
         }
     }
 };
