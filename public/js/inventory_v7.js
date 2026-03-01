@@ -336,6 +336,7 @@ function renderTable(materiales) {
     if (!cuerpoTabla) return;
     cuerpoTabla.innerHTML = '';
     
+    
     const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     
    // --- NUEVA LÓGICA DE UNIFICACIÓN POR REPOSICIÓN ---
