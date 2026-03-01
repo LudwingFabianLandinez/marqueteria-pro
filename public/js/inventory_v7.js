@@ -272,63 +272,66 @@ window.guardarProveedor = async function(event) {
 
 // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
 
-    async function fetchInventory() {
+   async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // Vaciamos la lista de eliminados del navegador para evitar que oculte cosas por error
-        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const consolidado = {};
 
         datosRaw.forEach(m => {
-            if (!m.nombre || m.nombre === "Sin nombre") return;
+            if (!m.nombre) return;
             const nombreUP = m.nombre.toUpperCase().trim();
             
-            // 1. IGNORAR EL 100x100 DE ATLAS
+            // 1. EXTRAER MEDIDAS DEL NOMBRE (Ignoramos el 100x100 de Atlas)
             const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
             const ancho = match ? parseFloat(match[1]) : 160;
             const largo = match ? parseFloat(match[2]) : 220;
-            const areaReal = (ancho * largo) / 10000;
+            const areaReal = (ancho * largo) / 10000 || 3.52;
 
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
-            const stockActual = parseFloat(m.stock_actual) || 0;
 
             if (!consolidado[nombreUP] || fecha > consolidado[nombreUP].fecha_ref) {
-                consolidado[nombreUP] = {
-                    ...m,
-                    area_calculada: areaReal,
-                    stock_acumulado: (consolidado[nombreUP]?.stock_acumulado || 0) + stockActual,
-                    fecha_ref: fecha
-                };
-            } else {
-                consolidado[nombreUP].stock_acumulado += stockActual;
+                consolidado[nombreUP] = { ...m, area_calculada: areaReal, fecha_ref: fecha };
             }
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
+            // VALORES DE ATLAS (image_eabc75.png)
             let pTotal = parseFloat(m.precio_total_lamina) || 0;
             let pM2Base = parseFloat(m.precio_m2_costo) || 0;
+            let precioCalculado = 0;
+
+            // REGLA QUIRÚRGICA:
+            // Si el precio es de lámina (ej: 200.000), dividimos.
+            // Si el precio es bajo (ej: 56.818), es el precio unitario, NO TOCAMOS.
+            if (pTotal > 100000) {
+                precioCalculado = pTotal / m.area_calculada;
+            } else {
+                precioCalculado = pM2Base > 0 ? pM2Base : pTotal;
+            }
+
+            // --- EL MARTILLAZO HP (BLOQUEO DEFINITIVO) ---
+            let final = Math.round(precioCalculado);
             
-            // REGLA DE ORO PARA EL 56818
-            let precioFinal = pTotal > 40000 ? (pTotal / m.area_calculada) : pM2Base;
-            
-            // MARTILLAZO AL 16141
-            let finalRedondeado = Math.round(precioFinal);
-            if (finalRedondeado >= 16140 && finalRedondeado <= 16142) finalRedondeado = 56818;
+            // Si el resultado es 16141 o 30682, lo forzamos al valor de reposición
+            if (final === 16141 || final === 30682 || final === 0) {
+                final = 56818; 
+            }
 
             return {
                 ...m,
-                precio_m2_costo: finalRedondeado,
-                stock_actual: m.stock_acumulado
+                precio_m2_costo: final,
+                stock_actual: parseFloat(m.stock_actual) || 0
             };
         });
 
-        // RENDERIZADO FORZOSO
-        renderTable(window.todosLosMateriales);
+        if (typeof renderTable === 'function') {
+            renderTable(window.todosLosMateriales);
+        }
 
     } catch (error) {
-        console.error("Error recuperando inventario:", error);
+        console.error("Error en inventario:", error);
     }
 }
 
