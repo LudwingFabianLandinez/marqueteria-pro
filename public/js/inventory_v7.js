@@ -582,12 +582,11 @@ window.guardarMaterial = async function() {
         const costoInput = document.getElementById('matCosto') || document.getElementById('precio_total_lamina');
         
         const nombre = (nombreInput?.value || "SIN NOMBRE").trim().toUpperCase();
-        const precio = parseFloat(costoInput?.value) || 0;
+        const precioFactura = parseFloat(costoInput?.value) || 0;
         const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
         const esMoldura = nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
         // 2. EXTRACCIÓN DE MEDIDAS (Para evitar el 100 fijo)
-        // Buscamos números en el nombre (ej: 160 X 220)
         let anchoNum = 100; 
         let largoNum = esMoldura ? 290 : 100;
         
@@ -597,18 +596,21 @@ window.guardarMaterial = async function() {
             largoNum = parseFloat(matchMedidas[2]);
         }
 
-        // 3. CÁLCULO DE COSTO UNITARIO (Como tu Excel: $30.682)
+        // 3. CÁLCULO DE COSTO UNITARIO (Lógica: $108.000 / 3.52 = $30.682)
         const areaM2 = (anchoNum * largoNum) / 10000;
-        const costoUnitario = areaM2 > 0 ? Math.round(precio / areaM2) : precio;
+        // Si es moldura divide por 2.9, si es lámina por su área
+        const costoPorMetro = esMoldura ? Math.round(precioFactura / 2.9) : (areaM2 > 0 ? Math.round(precioFactura / areaM2) : precioFactura);
 
-        // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS
+        // 4. CONSTRUCCIÓN DEL OBJETO PARA ATLAS (Sobrescribiendo valores)
         const nuevoMaterial = {
             id: window.materialEditandoId || "NUEVO",
             nombre: nombre,
             categoria: categoria,
-            costo_base: precio,
-            precio_total_lamina: precio,
-            precio_m2_costo: esMoldura ? Math.round(precio / 2.9) : costoUnitario,
+            // --- AQUÍ APLICAMOS LA REESCRITURA ---
+            costo_base: costoPorMetro,          // <--- Ahora guarda $30.682 (o $56.818), NO el total
+            precio_m2_costo: costoPorMetro,     // <--- Esto actualiza la tabla
+            precio_total_lamina: precioFactura, // Guardamos el costo de la lámina como referencia
+            // ------------------------------------
             ancho_lamina_cm: anchoNum,
             largo_lamina_cm: largoNum,
             unidad: esMoldura ? "ML" : "M2",
@@ -616,7 +618,7 @@ window.guardarMaterial = async function() {
             estado: 'Activo'
         };
 
-        console.log("📡 Enviando a Atlas:", nuevoMaterial);
+        console.log("📡 Enviando a Atlas con nuevo precio unitario:", nuevoMaterial);
 
         // 5. ENVÍO A LA API (Netlify)
         const response = await fetch('/.netlify/functions/server/inventory/purchase', {
@@ -626,12 +628,13 @@ window.guardarMaterial = async function() {
         });
 
         if (response.ok) {
-            alert("✅ Material guardado y sincronizado con Atlas");
+            alert(`✅ ¡LOGRADO!\nNuevo precio unitario: $${costoPorMetro}`);
             if (window.bootstrap) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevoMaterial'));
+                const modalElement = document.getElementById('modalNuevoMaterial');
+                const modal = bootstrap.Modal.getInstance(modalElement);
                 modal?.hide();
             }
-            location.reload(); // Recargamos para ver los $30.682
+            location.reload(); 
         } else {
             throw new Error("Error en la respuesta del servidor");
         }
@@ -640,7 +643,7 @@ window.guardarMaterial = async function() {
         console.error("❌ Error al guardar:", error);
         alert("Hubo un error al guardar el material. Revisa la consola.");
     }
-}; 
+};
 
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
