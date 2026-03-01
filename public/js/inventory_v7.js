@@ -281,76 +281,54 @@ async function fetchInventory() {
 
         datosServidor.forEach(m => {
             const nombreClave = (m.nombre || "SIN NOMBRE").toUpperCase().trim();
-            const fechaCreacion = m.createdAt ? new Date(m.createdAt).getTime() : (m.timestamp || 0);
+            // Usamos timestamp o fecha para saber cuál es el último precio
+            const fechaRef = new Date(m.createdAt || m.timestamp || 0).getTime();
             const stockActual = typeof calcularStockReal === 'function' ? calcularStockReal(m) : (parseFloat(m.stock_actual) || 0);
 
             if (!consolidado[nombreClave]) {
-                consolidado[nombreClave] = { 
-                    ...m, 
-                    stock_unificado: stockActual,
-                    fecha_ref: fechaCreacion 
-                };
+                consolidado[nombreClave] = { ...m, stock_unificado: stockActual, fecha_ref: fechaRef };
             } else {
                 consolidado[nombreClave].stock_unificado += stockActual;
-                // REESCRITURA: El más nuevo siempre manda sobre el precio
-                if (fechaCreacion >= consolidado[nombreClave].fecha_ref) {
+                // REESCRITURA: Si este registro es más nuevo, le robamos el precio
+                if (fechaRef >= consolidado[nombreClave].fecha_ref) {
                     consolidado[nombreClave].precio_m2_costo = m.precio_m2_costo;
                     consolidado[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                    consolidado[nombreClave].fecha_ref = fechaCreacion;
+                    consolidado[nombreClave].fecha_ref = fechaRef;
                 }
             }
         });
 
-        // DENTRO DE TU FUNCIÓN DE RENDERIZADO O FETCH
-// --- DENTRO DE TU FUNCIÓN DE RENDERIZADO O FETCH ---
+        window.todosLosMateriales = Object.values(consolidado).map(m => {
+            const nombreUP = m.nombre.toUpperCase();
+            const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+            const ancho = matchM ? parseFloat(matchM[1]) : 160;
+            const largo = matchM ? parseFloat(matchM[2]) : 220;
+            const areaReal = (ancho * largo) / 10000; // 3.52
 
-// --- DENTRO DE TU FUNCIÓN DE RENDERIZADO ---
+            let pTotal = parseFloat(m.precio_total_lamina) || 0;
+            let pM2Original = parseFloat(m.precio_m2_costo) || 0;
+            
+            let precioFinal = 0;
 
-window.todosLosMateriales = Object.values(consolidado).map(m => {
-    const nombreUP = m.nombre.toUpperCase();
-    
-    // 1. Extraer área para saber si es 3.52
-    const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-    const ancho = matchM ? parseFloat(matchM[1]) : 160;
-    const largo = matchM ? parseFloat(matchM[2]) : 220;
-    const areaReal = (ancho * largo) / 10000;
+            // --- LÓGICA QUIRÚRGICA (Ruptura del círculo vicioso) ---
+            // Si pTotal es > 100.000, es el precio de la lámina -> DIVIDIMOS (200.000 / 3.52 = 56.818)
+            // Si pTotal es < 100.000, YA ES el precio por metro -> NO TOCAMOS
+            if (pTotal > 100000) {
+                precioFinal = pTotal / areaReal;
+            } else {
+                // Si el precio ya es 56.818, se queda como 56.818. NUNCA volverá a ser 16.141.
+                precioFinal = pTotal > 0 ? pTotal : pM2Original;
+            }
 
-    let pTotal = parseFloat(m.precio_total_lamina) || 0;
-    let pM2Base = parseFloat(m.precio_m2_costo) || 0;
-    
-    let precioFinal = 0;
+            return {
+                ...m,
+                precio_m2_costo: Math.round(precioFinal),
+                stock_actual: m.stock_unificado
+            };
+        });
 
-    // --- BLOQUE DE SEGURIDAD ABSOLUTA ---
-    // Si el precio de compra es 200.000, dividimos -> Da 56.818
-    if (pTotal > 100000) {
-        precioFinal = pTotal / areaReal;
-    } else {
-        // Si el precio ya es "pequeño", lo usamos directo
-        precioFinal = pTotal > 0 ? pTotal : pM2Base;
-    }
-
-    // --- EL MARTILLAZO FINAL (CORRECCIÓN HP) ---
-    // Si después de todo, el resultado es el error de 16141, lo obligamos a ser 56818
-    let resultadoRedondeado = Math.round(precioFinal);
-    
-    if (resultadoRedondeado >= 16140 && resultadoRedondeado <= 16142) {
-        resultadoRedondeado = 56818; 
-    }
-
-    return {
-        ...m,
-        precio_m2_costo: resultadoRedondeado, 
-        stock_actual: m.stock_unificado
-    };
-});
-
-        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-        renderTable(window.todosLosMateriales);
-        if (typeof window.cargarListasModal === 'function') window.cargarListasModal();
-
-    } catch (error) { 
-        console.error("❌ Error en cirugía:", error); 
-    }
+        renderTable(window.todosLos_materiales);
+    } catch (error) { console.error(error); }
 }
 
 function renderTable(materiales) {
