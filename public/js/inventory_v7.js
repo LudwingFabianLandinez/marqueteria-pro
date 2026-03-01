@@ -277,10 +277,8 @@ async function fetchInventory() {
         const resultado = await window.API.getInventory();
         const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const consolidado = {};
 
-        // 1. CONSOLIDACIÓN AGRESIVA (Mismo nombre = Una sola fila)
         datosServidor.forEach(m => {
             const nombreClave = (m.nombre || "SIN NOMBRE").toUpperCase().trim();
             const fechaCreacion = m.createdAt ? new Date(m.createdAt).getTime() : (m.timestamp || 0);
@@ -289,17 +287,13 @@ async function fetchInventory() {
             if (!consolidado[nombreClave]) {
                 consolidado[nombreClave] = { 
                     ...m, 
-                    id: m._id || m.id,
                     stock_unificado: stockActual,
                     fecha_ref: fechaCreacion 
                 };
             } else {
                 consolidado[nombreClave].stock_unificado += stockActual;
-                
-                // REESCRITURA: Solo robamos los datos si este registro es más nuevo
+                // REESCRITURA: El más nuevo siempre manda sobre el precio
                 if (fechaCreacion >= consolidado[nombreClave].fecha_ref) {
-                    consolidado[nombreClave].id = m._id || m.id;
-                    consolidado[nombreClave]._id = m._id || m.id;
                     consolidado[nombreClave].precio_m2_costo = m.precio_m2_costo;
                     consolidado[nombreClave].precio_total_lamina = m.precio_total_lamina;
                     consolidado[nombreClave].fecha_ref = fechaCreacion;
@@ -307,46 +301,48 @@ async function fetchInventory() {
             }
         });
 
-        // 2. PROCESAMIENTO DE PRECIOS QUIRÚRGICO (Evita el $16.141)
-        window.todosLosMateriales = Object.values(consolidado)
-            .filter(m => !eliminados.includes(String(m.id)) && m.nombre !== "SIN NOMBRE")
-            .map(m => {
-                const nombreUP = m.nombre.toUpperCase();
-                const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-                const anchoRef = matchM ? parseFloat(matchM[1]) : 160;
-                const largoRef = matchM ? parseFloat(matchM[2]) : 220;
-                const areaReal = (anchoRef * largoRef) / 10000; // 3.52
+        window.todosLosMateriales = Object.values(consolidado).map(m => {
+            const nombreUP = m.nombre.toUpperCase();
+            
+            // 1. Extraer el área real (Ej: 160x220 -> 3.52)
+            const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+            const ancho = matchM ? parseFloat(matchM[1]) : 160;
+            const largo = matchM ? parseFloat(matchM[2]) : 220;
+            const areaReal = (ancho * largo) / 10000;
 
-                let pTotal = parseFloat(m.precio_total_lamina) || 0;
-                let pM2Original = parseFloat(m.precio_m2_costo) || 0;
-                
-                let precioFinal = 0;
-                if (nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ")) {
-                    precioFinal = pTotal / (largoRef / 100 || 2.9);
+            const pTotal = parseFloat(m.precio_total_lamina) || 0;
+            const pM2Registrado = parseFloat(m.precio_m2_costo) || 0;
+            
+            let precioFinal = 0;
+
+            if (nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ")) {
+                precioFinal = pTotal / (largo / 100 || 2.9);
+            } else {
+                /** * ANÁLISIS QUIRÚRGICO DE LA FÓRMULA:
+                 * Si pTotal es el costo de la lámina (ej: 200.000), dividimos por 3.52 -> Da 56.818.
+                 * Si pTotal ya es el costo por m2 (ej: 56.818), NO DIVIDIMOS, porque daría 16.141.
+                 * Ponemos el límite en $40.000 para diferenciar lámina de m2.
+                 */
+                if (pTotal > 40000) {
+                    precioFinal = pTotal / areaReal; // 200.000 / 3.52 = 56.818
                 } else {
-                    // AQUÍ ESTÁ EL TRUCO:
-                    // Si el precio total es de una lámina (ej: 200.000), dividimos por 3.52 para obtener 56.818
-                    // SI EL PRECIO YA ES 56.818 (o similar), LO USAMOS DIRECTO y no volvemos a dividir.
-                    precioFinal = pTotal > 50000 ? (pTotal / areaReal) : pM2Original;
+                    precioFinal = pM2Registrado > 0 ? pM2Registrado : pTotal; // Usamos el valor directo
                 }
-                
-                return {
-                    ...m,
-                    precio_m2_costo: Math.round(precioFinal), // Esto forzará el 56.818
-                    stock_actual: m.stock_unificado
-                };
-            });
+            }
 
-        // 3. ACTUALIZACIÓN DE VISTA
+            return {
+                ...m,
+                precio_m2_costo: Math.round(precioFinal), // RESULTADO: 56.818
+                stock_actual: m.stock_unificado
+            };
+        });
+
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
-        
         if (typeof window.cargarListasModal === 'function') window.cargarListasModal();
-        
-        console.log("✅ Sistema saneado: Precio de reposición fijado en $56.818");
 
     } catch (error) { 
-        console.error("❌ Error inventario:", error); 
+        console.error("❌ Error en cirugía:", error); 
     }
 }
 
