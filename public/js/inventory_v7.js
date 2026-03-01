@@ -366,83 +366,81 @@ function renderTable(materiales) {
         const fila = document.createElement('tr');
         fila.setAttribute('data-nombre', m.nombre.toLowerCase());
         
-        // 1. VARIABLES BASE
-        const stockActualm2 = calcularStockReal(m); // Lo que hay en m2
+        // 1. DATOS DE IDENTIFICACIÓN
         const nombreUP = m.nombre.toUpperCase();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
+        const stockTotalM2 = calcularStockReal(m);
 
-        // 2. OBTENER DIMENSIONES (Independiente para cada uso)
-        const matchDim = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        const anchoRef = matchDim ? parseFloat(matchDim[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
-        const largoRef = matchDim ? parseFloat(matchDim[2]) : (parseFloat(m.largo_lamina_cm) || 220);
-        const areaLaminaRef = (anchoRef * largoRef) / 10000; // El famoso 3.52
+        // 2. DIMENSIONES MAESTRAS (160x220 = 3.52)
+        // Esto es lo que evita el error de $8.716
+        const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
+        const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
+        const areaReferencia = (anchoRef * largoRef) / 10000; // Siempre 3.52 para tus vidrios
 
-        // --- INICIO DE INDEPENDENCIA ---
+        // --- INDEPENDENCIA TOTAL ---
 
-        // LOGICA A: COSTO (Blindada a la ficha técnica)
-        let costoFinalm2 = 0;
-        const precioTotalLamina = parseFloat(m.precio_total_lamina || 0);
+        // LÓGICA A: COSTO (Para que de $30.682 y nunca $0)
+        let precioFinalVisual = 0;
+        // Buscamos el precio en todos los campos posibles de Atlas
+        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
         
         if (esMoldura) {
             const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
-            costoFinalm2 = precioTotalLamina / largoML;
+            precioFinalVisual = precioBase / largoML;
         } else {
-            // Aquí forzamos el cálculo: 108.000 / 3.52 = 30.682
-            // No le importa cuánto stock haya, solo mira la lámina teórica
-            costoFinalm2 = areaLaminaRef > 0 ? (precioTotalLamina / areaLaminaRef) : (parseFloat(m.precio_m2_costo) || 0);
-        }
-        costoFinalm2 = Math.round(costoFinalm2);
-
-        // LOGICA B: DESGLOSE DE STOCK (Blindada a la visualización)
-        let visualUnds = 0;
-        let visualRemanente = 0;
-
-        if (!esMoldura && areaLaminaRef > 0) {
-            // Calculamos cuántas caben
-            visualUnds = Math.floor((stockActualm2 / areaLaminaRef) + 0.001);
-            // Calculamos el resto
-            visualRemanente = stockActualm2 - (visualUnds * areaLaminaRef);
-            
-            // INDEPENDENCIA VISUAL: Si el remanente es una basura de decimales, lo matamos a 0
-            if (Math.abs(visualRemanente) < 0.01) {
-                visualRemanente = 0;
+            // Si el precio base es 108.000 y el área es 3.52 -> DA 30.682
+            // Si el precio base ya viene por m2 (30.682) y el área es 3.52, 
+            // ponemos una validación para que no divida si el número ya es pequeño.
+            if (precioBase > 50000) { 
+                precioFinalVisual = areaReferencia > 0 ? (precioBase / areaReferencia) : precioBase;
+            } else {
+                precioFinalVisual = precioBase;
             }
         }
+        precioFinalVisual = Math.round(precioFinalVisual);
 
-        // 3. CONSTRUCCIÓN DEL TEXTO DE STOCK
-        let textoStockHTML = "";
+        // LÓGICA B: DESGLOSE DE STOCK (1 und + 0.00 m2)
+        let textoStock = "";
         if (esMoldura) {
-            textoStockHTML = `
-                <div style="font-weight: 700;">${stockActualm2.toFixed(2)} ${unidadFinal}</div>
-                <div style="font-size: 0.7rem; color: #64748b;">(Total ML)</div>
+            textoStock = `
+                <div style="font-weight: 700;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
+                <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
             `;
         } else {
-            textoStockHTML = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockActualm2.toFixed(2)} ${unidadFinal}</div>
+            // Calculamos unidades sin que el costo nos afecte
+            const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
+            let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
+            
+            // Limpieza para que muestre 0.00 m2 exactos
+            if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+
+            textoStock = `
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${visualUnds} und + ${visualRemanente.toFixed(2)} m² rem
+                    ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
                 </div>
             `;
         }
 
-        // 4. SEMÁFORO Y RENDERIZADO
-        const stockMin = parseFloat(m.stock_minimo) || 2;
-        let colorSemaforo = stockActualm2 <= 0 ? '#ef4444' : (stockActualm2 <= stockMin ? '#f59e0b' : '#059669');
+        // 3. SEMÁFORO Y RENDERIZADO (Estilo Dashboard)
+        const sMin = parseFloat(m.stock_minimo) || 2;
+        let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
 
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
                 <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | ${m.proveedorNombre || 'PROVEEDOR'}
+                    ${m.categoria} | ${m.proveedorNombre || 'SIN PROVEEDOR'}
                 </div>
             </td>
             <td style="text-align: center; font-weight: 700; color: #1e293b;">
-                ${formateador.format(costoFinalm2)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
+                ${formateador.format(precioFinalVisual)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
             <td style="text-align: center; padding: 8px;">
-                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorSemaforo};">
-                    ${textoStockHTML}
+                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorS};">
+                    ${textoStock}
                 </div>
             </td>
             <td style="text-align: center;">
