@@ -372,55 +372,61 @@ function renderTable(materiales) {
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         const unidadFinal = esMoldura ? 'ml' : 'm²';
 
-        // --- SEPARACIÓN TOTAL DE LÓGICAS ---
+        // --- SEPARACIÓN ABSOLUTA DE MOTORES ---
 
-        // LÓGICA A: COSTO (Blindada para dar $30.682)
-        // Extraemos las medidas solo para el precio. Si no hay, usamos 3.52 por defecto para Vidrios.
-        const matchCosto = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        const anchoC = matchCosto ? parseFloat(matchCosto[1]) : parseFloat(m.ancho_lamina_cm || 160);
-        const largoC = matchCosto ? parseFloat(matchCosto[2]) : parseFloat(m.largo_lamina_cm || 220);
-        const divisorPrecio = (anchoC * largoC) / 10000;
+        // MOTOR A: CÁLCULO DE ÁREA REAL (160x220 = 3.52)
+        // Buscamos medidas en el nombre. Si están, MANDAN sobre la base de datos.
+        const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+        let anchoFinal = 0, largoFinal = 0;
 
+        if (matchM) {
+            anchoFinal = parseFloat(matchM[1]);
+            largoFinal = parseFloat(matchM[2]);
+        } else {
+            anchoFinal = parseFloat(m.ancho_lamina_cm || m.ancho || 160);
+            largoFinal = parseFloat(m.largo_lamina_cm || m.largo || 220);
+        }
+        const areaMaestra = (anchoFinal * largoFinal) / 10000; // DEBE DAR 3.52
+
+        // MOTOR B: LÓGICA DEL COSTO (Independiente)
+        // Precio 108.000 / 3.52 = $30.682
         let costoMostrar = 0;
-        const precioTotal = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
+        const precioDeLaBase = parseFloat(m.precio_total_lamina || m.precio_m2_costo || 0);
         
         if (esMoldura) {
-            const mlPalo = (largoC > 0) ? (largoC / 100) : 2.9;
-            costoMostrar = precioTotal / mlPalo;
+            const largoM = (largoFinal > 0) ? (largoFinal / 100) : 2.9;
+            costoMostrar = precioDeLaBase / largoM;
         } else {
-            // Esta línea da los $30.682 sin importar lo que diga el stock
-            costoMostrar = divisorPrecio > 0 ? (precioTotal / divisorPrecio) : precioTotal;
+            // AQUÍ SE FUERZA EL $30.682 usando el área maestra
+            costoMostrar = areaMaestra > 0 ? (precioDeLaBase / areaMaestra) : precioDeLaBase;
         }
         costoMostrar = Math.round(costoMostrar);
 
-
-        // LÓGICA B: DESGLOSE VISUAL (Blindada para dar 1 und + 0.00 m2)
-        // Calculamos el área de la lámina de forma independiente para el texto
-        const areaLaminaTexto = (anchoC * largoC) / 10000; 
+        // MOTOR C: LÓGICA DEL DESGLOSE (Independiente)
+        // Stock 3.52 / Area 3.52 = 1 unidad + 0.00 rem
         let textoStockVisual = "";
-
         if (esMoldura) {
             textoStockVisual = `
                 <div style="font-weight: 700;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #64748b;">(Total disponible)</div>
             `;
         } else {
-            // Independizamos el cálculo de unidades del cálculo del precio
-            const unidadesEnteras = Math.floor((stockActualUnidad / areaLaminaTexto) + 0.001);
-            let remanenteM2 = stockActualUnidad - (unidadesEnteras * areaLaminaTexto);
+            // Cálculo de unidades con margen de error para evitar el fallo visual
+            const unds = areaMaestra > 0 ? Math.floor((stockActualUnidad / areaMaestra) + 0.001) : 0;
+            let rem = areaMaestra > 0 ? (stockActualUnidad - (unds * areaMaestra)) : stockActualUnidad;
             
-            // Limpieza total para el "0.00 m2"
-            if (Math.abs(remanenteM2) < 0.005) remanenteM2 = 0;
+            // Si el remanente es casi 0, forzamos 0.00
+            if (Math.abs(rem) < 0.009) rem = 0;
 
             textoStockVisual = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockActualUnidad.toFixed(2)} ${unidadFinal}</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${unidadesEnteras} und + ${remanenteM2.toFixed(2)} m² rem
+                    ${unds} und + ${rem.toFixed(2)} m² rem
                 </div>
             `;
         }
 
-        // 4. SEMÁFORO Y RENDERIZADO (Sin cambios en tu diseño)
+        // --- RENDERIZADO (Diseño Dashboard) ---
         const stockMin = parseFloat(m.stock_minimo) || 2;
         let colorStock = stockActualUnidad <= 0 ? '#ef4444' : (stockActualUnidad <= stockMin ? '#f59e0b' : '#059669');
 
