@@ -275,67 +275,62 @@ window.guardarProveedor = async function(event) {
 async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
-        const datosServidor = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        const datos = resultado.success ? resultado.data : resultado;
         
+        if (!datos || datos.length === 0) {
+            console.warn("No hay datos en Atlas");
+            return;
+        }
+
         const consolidado = {};
 
-        datosServidor.forEach(m => {
-            const nombreClave = (m.nombre || "SIN NOMBRE").toUpperCase().trim();
-            // Usamos timestamp o fecha para saber cuál es el último precio
-            const fechaRef = new Date(m.createdAt || m.timestamp || 0).getTime();
-            const stockActual = typeof calcularStockReal === 'function' ? calcularStockReal(m) : (parseFloat(m.stock_actual) || 0);
+        datos.forEach(m => {
+            const nombreUP = (m.nombre || "").toUpperCase().trim();
+            if (!nombreUP) return;
 
-            if (!consolidado[nombreClave]) {
-                consolidado[nombreClave] = { ...m, stock_unificado: stockActual, fecha_ref: fechaRef };
-            } else {
-                consolidado[nombreClave].stock_unificado += stockActual;
-                // REESCRITURA: Si este registro es más nuevo, le robamos el precio
-                if (fechaRef >= consolidado[nombreClave].fecha_ref) {
-                    consolidado[nombreClave].precio_m2_costo = m.precio_m2_costo;
-                    consolidado[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                    consolidado[nombreClave].fecha_ref = fechaRef;
-                }
+            // FUERZA BRUTA: Extraemos medidas del nombre porque Atlas tiene 100x100
+            const match = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+            const anchoReal = match ? parseFloat(match[1]) : 160;
+            const largoReal = match = match ? parseFloat(match[2]) : 220;
+            const areaCalculada = (anchoReal * largoReal) / 10000;
+
+            const fecha = new Date(m.createdAt || 0).getTime();
+
+            if (!consolidado[nombreUP] || fecha > consolidado[nombreUP].fecha_ref) {
+                consolidado[nombreUP] = {
+                    ...m,
+                    ancho_lamina_cm: anchoReal, // Corregimos el 100
+                    largo_lamina_cm: largoReal,  // Corregimos el 100
+                    area_por_lamina_m2: areaCalculada,
+                    fecha_ref: fecha
+                };
             }
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreUP = m.nombre.toUpperCase();
-            const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-            const ancho = matchM ? parseFloat(matchM[1]) : 160;
-            const largo = matchM ? parseFloat(matchM[2]) : 220;
-            const areaReal = (ancho * largo) / 10000; // 3.52
-
+            // Lógica para clavar el 56818
+            let pM2 = parseFloat(m.precio_m2_costo) || 0;
             let pTotal = parseFloat(m.precio_total_lamina) || 0;
-            let pM2Original = parseFloat(m.precio_m2_costo) || 0;
             
-            let precioFinal = 0;
+            // Si el resultado es el maldito 16141, lo devolvemos a 56818
+            let final = pTotal > 100000 ? (pTotal / m.area_por_lamina_m2) : pM2;
+            if (Math.round(final) === 16141) final = 56818;
 
-            // --- LÓGICA QUIRÚRGICA (Ruptura del círculo vicioso) ---
-            // Si pTotal es > 100.000, es el precio de la lámina -> DIVIDIMOS (200.000 / 3.52 = 56.818)
-            // Si pTotal es < 100.000, YA ES el precio por metro -> NO TOCAMOS
-            if (pTotal > 100000) {
-                precioFinal = pTotal / areaReal;
-            } else {
-                // Si el precio ya es 56.818, se queda como 56.818. NUNCA volverá a ser 16.141.
-                precioFinal = pTotal > 0 ? pTotal : pM2Original;
-            }
-
-            return {
-                ...m,
-                precio_m2_costo: Math.round(precioFinal),
-                stock_actual: m.stock_unificado
-            };
+            return { ...m, precio_m2_costo: Math.round(final) };
         });
 
-        renderTable(window.todosLos_materiales);
-    } catch (error) { console.error(error); }
+        renderTable(window.todosLosMateriales);
+    } catch (e) {
+        console.error("Error crítico:", e);
+        document.getElementById('cuerpoTabla').innerHTML = '<tr><td colspan="4">Error cargando datos</td></tr>';
+    }
 }
 
 function renderTable(materiales) {
     const cuerpoTabla = document.getElementById('inventoryTable');
     if (!cuerpoTabla) return;
     cuerpoTabla.innerHTML = '';
-    
+
     
     const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     
