@@ -575,73 +575,71 @@ function configurarEventos() {
     // --- FORMULARIO DE MATERIALES (SE MANTIENE IGUAL - LOGRADO) ---
 window.guardarMaterial = async function() {
     try {
-        console.log("🚀 Iniciando reescritura forzada de precio...");
+        console.log("🚀 Iniciando reescritura de precio de reposición...");
 
         // 1. CAPTURA DE DATOS
         const nombreInput = document.getElementById('matNombre') || document.getElementById('nombreNuevoMaterial');
         const costoInput = document.getElementById('matCosto') || document.getElementById('precio_total_lamina');
         
-        const nombre = (nombreInput?.value || "").trim().toUpperCase();
-        const precioFactura = parseFloat(costoInput?.value) || 0;
+        const nombreMaterial = (nombreInput?.value || "").trim().toUpperCase();
+        const precioFacturaNUEVA = parseFloat(costoInput?.value) || 0;
         const categoria = document.getElementById('matCategoria')?.value || "GENERAL";
-        const esMoldura = nombre.includes("MOLDURA") || nombre.startsWith("K ");
+        const esMoldura = nombreMaterial.includes("MOLDURA") || nombreMaterial.startsWith("K ");
 
-        // 2. EXTRACCIÓN DE MEDIDAS
-        let anchoNum = 100; 
-        let largoNum = esMoldura ? 290 : 100;
-        const matchMedidas = nombre.match(/(\d+)\s*[X]\s*(\d+)/i);
-        if (matchMedidas) {
-            anchoNum = parseFloat(matchMedidas[1]);
-            largoNum = parseFloat(matchMedidas[2]);
+        // 2. CÁLCULO DE MEDIDAS Y ÁREA
+        let ancho = 100, largo = esMoldura ? 290 : 100;
+        const match = nombreMaterial.match(/(\d+)\s*[X]\s*(\d+)/i);
+        if (match) {
+            ancho = parseFloat(match[1]);
+            largo = parseFloat(match[2]);
         }
+        const areaM2 = (ancho * largo) / 10000;
 
-        // 3. CÁLCULO DE COSTO UNITARIO (Reposición)
-        const areaM2 = (anchoNum * largoNum) / 10000;
-        const costoPorMetro = esMoldura ? Math.round(precioFactura / 2.9) : (areaM2 > 0 ? Math.round(precioFactura / areaM2) : precioFactura);
+        // 3. EL NUEVO PRECIO QUE DEBE MANDAR (Ej: $56.818)
+        const nuevoCostoUnitario = esMoldura ? Math.round(precioFacturaNUEVA / 2.9) : Math.round(precioFacturaNUEVA / areaM2);
 
-        // 4. BÚSQUEDA DE IDENTIDAD (Para asegurar que Atlas REESCRIBA el mismo registro)
-        // Buscamos el material en el array global por nombre para obtener su ID real de Atlas (_id)
-        const existente = window.todosLosMateriales?.find(m => m.nombre.toUpperCase() === nombre);
-        const idFinal = window.materialEditandoId || existente?._id || existente?.id || "NUEVO";
+        // 4. LÓGICA DE IDENTIFICACIÓN (Para obligar la reescritura)
+        // Buscamos el material en la memoria de la página para obtener su ID de Atlas
+        const materialExistente = window.todosLosMateriales?.find(m => m.nombre.trim().toUpperCase() === nombreMaterial);
+        
+        // Si existe, usamos su ID. Si no, es NUEVO.
+        const idParaAtlas = window.materialEditandoId || materialExistente?._id || materialExistente?.id || "NUEVO";
 
-        const nuevoMaterial = {
-            id: idFinal, // Si este ID existe en Atlas, el servidor SOBREESCRIBIRÁ
-            materialId: idFinal, 
-            nombre: nombre,
+        const datosFinales = {
+            id: idParaAtlas,
+            materialId: idParaAtlas, // Enviamos ambos para asegurar compatibilidad
+            nombre: nombreMaterial,
             categoria: categoria,
-            
-            // --- BLOQUE DE REESCRITURA ---
-            costo_base: costoPorMetro,          // El nuevo valor de $56.818
-            precio_m2_costo: costoPorMetro,     // Forzamos el cambio visual
-            precio_total_lamina: precioFactura,
-            // -----------------------------
-            
-            ancho_lamina_cm: anchoNum,
-            largo_lamina_cm: largoNum,
+            // AQUÍ FORZAMOS LA REESCRITURA:
+            costo_base: nuevoCostoUnitario,      // $56.818
+            precio_m2_costo: nuevoCostoUnitario, // $56.818
+            precio_total_lamina: precioFacturaNUEVA,
+            ancho_lamina_cm: ancho,
+            largo_lamina_cm: largo,
             unidad: esMoldura ? "ML" : "M2",
             tipo_material: esMoldura ? 'ml' : 'm2',
-            timestamp: new Date().toISOString()
+            estado: 'Activo'
         };
 
-        console.log("📡 Mandando reescritura al ID:", idFinal, nuevoMaterial);
+        console.log("📡 Enviando actualización para:", nombreMaterial, "con ID:", idParaAtlas);
 
         const response = await fetch('/.netlify/functions/server/inventory/purchase', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(nuevoMaterial)
+            body: JSON.stringify(datosFinales)
         });
 
         if (response.ok) {
-            alert(`✅ REESCRITO: $${costoPorMetro}\nTodo el stock ahora asume este costo.`);
-            window.materialEditandoId = null; // Limpiamos el ID para la próxima
-            location.reload(); 
+            alert(`✅ REGISTRO CORRECTO\nCosto M2: $${nuevoCostoUnitario}\nLa tabla se actualizará ahora.`);
+            window.materialEditandoId = null;
+            location.reload(); // Esto forzará a la tabla a mostrar el nuevo valor
         } else {
-            throw new Error("Atlas no procesó la reescritura.");
+            alert("❌ Error al sincronizar con Atlas.");
         }
 
     } catch (error) {
         console.error("❌ Error:", error);
-        alert("Error al reescribir. Revisa la consola.");
+        alert("Hubo un fallo en la reescritura.");
     }
 };
     // --- FORMULARIO DE AJUSTE DE STOCK (SE MANTIENE IGUAL - LOGRADO) ---
