@@ -658,7 +658,16 @@ if (formCompra) {
                 : ((largoCm * anchoCm / 10000) * cant);
 
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
-            let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
+            // --- 🛡️ MEJORA DE DETECCIÓN v19.2 (EVITA DUPLICADOS GENERAL/ACABADO) ---
+let existente = window.todosLosMateriales.find(m => 
+    m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
+);
+
+// Si existe pero tiene la categoría mal (ej. "GENERAL"), la corregimos de inmediato
+if (existente) {
+    console.log(`♻️ Corrigiendo categoría de ${existente.nombre}: ${existente.categoria} -> ${categoriaDeterminada}`);
+    existente.categoria = categoriaDeterminada; 
+}
 
             const idMasterAtlas = (existente && existente._id) ? existente._id : 
                                  (existente && existente.id && !String(existente.id).startsWith('TEMP-') ? existente.id : null);
