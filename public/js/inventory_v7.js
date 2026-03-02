@@ -790,15 +790,16 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 // --- UTILIDADES DE UI (PRESERVADO) ---
 
 
-    window.cargarListasModal = function() {
+ window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
-    const matSelect = document.getElementById('compraMaterial'); 
+    const matSelect = document.getElementById('compraMaterial');
     const provRegisterSelect = document.getElementById('proveedorSelect');
     
+    // Selectores del Cotizador (Dashboard)
     const selVidrio = document.getElementById('materialVidrio'); 
     const selRespaldo = document.getElementById('materialRespaldo'); 
 
-    // 1. Cargar Proveedores
+    // 1. Cargar Proveedores (Sin cambios, manteniendo blindaje)
     if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
@@ -806,57 +807,48 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
         if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
     }
     
-    // 2. Cargar Materiales
+    // 2. Cargar Materiales (REESTRUCTURACIÓN TOTAL)
     if (window.todosLosMateriales && window.todosLosMateriales.length > 0) {
-        let opcionesCompra = '<option value="">-- Seleccionar Material --</option>' + 
-                             '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
         
-        let opcionesVidrio = '<option value="">-- Seleccionar Vidrio/Espejo --</option>';
-        let opcionesRespaldo = '<option value="">-- Seleccionar Respaldo --</option>';
+        // --- PASO A: SEPARACIÓN DE DATOS ANTES DE RENDERIZAR ---
+        const esMaterialRespaldo = (m) => {
+            const n = String(m.nombre).toUpperCase();
+            const c = String(m.categoria).toUpperCase();
+            return n.includes("TRIPLEX") || n.includes("MADERA") || n.includes("MDF") || n.includes("RH") || c === "RESPALDO";
+        };
 
-        window.todosLosMateriales.forEach(m => {
-            const idCorrecto = m._id || m.id;
-            const nombreUP = String(m.nombre).toUpperCase();
-            const optionHtml = `<option value="${idCorrecto}">${nombreUP}</option>`;
-            
-            // --- DETECTOR ULTRA-ESTRICTO ---
-            const esRespaldo = nombreUP.includes("TRIPLEX") || 
-                               nombreUP.includes("MADERA") || 
-                               nombreUP.includes("MDF") || 
-                               nombreUP.includes("RH") ||
-                               String(m.categoria).toUpperCase() === "RESPALDO";
-            
-            const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
+        const esMaterialMoldura = (m) => {
+            const n = String(m.nombre).toUpperCase();
+            return n.startsWith("K ") || n.includes("MOLDURA");
+        };
 
-            // ASIGNACIÓN EXCLUSIVA
-            if (esRespaldo) {
-                opcionesRespaldo += optionHtml;
-            } else if (!esMoldura) {
-                // SOLO ENTRA SI NO ES RESPALDO
-                opcionesVidrio += optionHtml;
-            }
-            
-            opcionesCompra += optionHtml;
-        });
+        // --- PASO B: CREACIÓN DE GRUPOS AISLADOS ---
+        const listaRespaldos = window.todosLosMateriales.filter(m => esMaterialRespaldo(m));
+        
+        // Vidrios es TODO lo que NO sea respaldo y NO sea moldura
+        const listaVidrios = window.todosLosMateriales.filter(m => !esMaterialRespaldo(m) && !esMaterialMoldura(m));
 
-        // Inyectar HTML
-        if (matSelect) matSelect.innerHTML = opcionesCompra;
-        if (selRespaldo) selRespaldo.innerHTML = opcionesRespaldo;
-        if (selVidrio) {
-            selVidrio.innerHTML = opcionesVidrio;
+        // --- PASO C: GENERACIÓN DE HTML SEGURO ---
+        const mapearOpciones = (lista) => lista.map(m => `<option value="${m._id || m.id}">${String(m.nombre).toUpperCase()}</option>`).join('');
 
-            // --- 🛡️ ESCUDO FINAL DE SEGURIDAD (FUERZA BRUTA) ---
-            // Revisamos el selector de vidrios una vez lleno y borramos cualquier residuo de madera
-            Array.from(selVidrio.options).forEach(opt => {
-                const txt = opt.text.toUpperCase();
-                if (txt.includes("TRIPLEX") || txt.includes("MADERA") || txt.includes("MDF")) {
-                    console.log("🚫 Eliminando residuo de Triplex de Vidrios:", txt);
-                    opt.remove();
-                }
-            });
+        // 1. Llenar Compras (Lleva todo)
+        if (matSelect) {
+            matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
+                                 '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>' + 
+                                 mapearOpciones(window.todosLosMateriales);
         }
 
-        console.log("✅ Limpieza profunda de selectores completada.");
+        // 2. Llenar Vidrios (Filtro garantizado por exclusión previa)
+        if (selVidrio) {
+            selVidrio.innerHTML = '<option value="">-- Seleccionar Vidrio/Espejo --</option>' + mapearOpciones(listaVidrios);
+        }
+
+        // 3. Llenar Respaldos (Solo los filtrados arriba)
+        if (selRespaldo) {
+            selRespaldo.innerHTML = '<option value="">-- Seleccionar Respaldo --</option>' + mapearOpciones(listaRespaldos);
+        }
+
+        console.log("🔥 RESTRUCTURACIÓN COMPLETA: Respaldos y Vidrios separados por arrays independientes.");
     }
 };
 
