@@ -34,22 +34,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 1. UNIFICACIÓN TOTAL MEJORADA (Iniciamos con lo del servidor)
             let inventarioCompleto = cat.todos || [];
 
-            // 🚀 --- INICIO BLOQUE DE RESCATE LOCAL (MOLDURA 2311) ---
-            const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
-            localMaterials.forEach(lm => {
-                const yaExiste = inventarioCompleto.some(m => 
-                    (m.nombre || "").trim().toUpperCase() === (lm.nombre || "").trim().toUpperCase()
-                );
-                if (!yaExiste) {
-                    inventarioCompleto.push({
-                        ...lm,
-                        costo_base: lm.costo_m2 || lm.precio_m2_costo || 0,
-                        stock_actual: lm.stock_actual || 0,
-                        unidad: (lm.tipo || 'm2').toUpperCase()
-                    });
-                }
-            });
-            // 🚀 --- FIN BLOQUE DE RESCATE ---
+            // 🚀 --- INICIO BLOQUE DE RESCATE LOCAL (MEJORADO V13.8) ---
+const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
+localMaterials.forEach(lm => {
+    // Convertimos a mayúsculas y quitamos espacios para una comparación exacta
+    const nombreLimpioLocal = (lm.nombre || "").trim().toUpperCase();
+    
+    const yaExisteEnServidor = inventarioCompleto.some(m => 
+        (m.nombre || "").trim().toUpperCase() === nombreLimpioLocal
+    );
+
+    // SOLO lo agregamos si NO existe en el servidor. 
+    // Si ya existe, el servidor manda y lo del LocalStorage se ignora.
+    if (!yaExisteEnServidor && nombreLimpioLocal !== "") {
+        inventarioCompleto.push({
+            ...lm,
+            costo_base: lm.costo_m2 || lm.precio_m2_costo || 0,
+            stock_actual: lm.stock_actual || 0,
+            unidad: (lm.tipo || 'm2').toUpperCase()
+        });
+    }
+});
+// 🚀 --- FIN BLOQUE DE RESCATE ---
 
             // ALERT DE VERIFICACIÓN (Actualizado para detectar ambas)
             const busquedaCritica = inventarioCompleto.filter(m => 
