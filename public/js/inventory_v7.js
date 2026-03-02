@@ -621,20 +621,21 @@ function configurarEventos() {
                 const anchoCm = parseFloat(inputAncho?.value) || 0;
                 
                 // --- 🛡️ MEJORA ESPECÍFICA MATERIALES POR M2 (v16.3) ---
-let costoFinalAtlas = costoIngresado;
-const esEspecialM2 = nombreReal.toUpperCase().includes("PASSEPARTOUT") || 
-                     nombreReal.toUpperCase().includes("CHAPILLA");
+                // Detectamos Passepartout y Chapilla (incluyendo Africana)
+                let costoFinalAtlas = costoIngresado;
+                const nombreUP = nombreReal.toUpperCase();
+                const esEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
+                                     nombreUP.includes("CHAPILLA") || 
+                                     nombreUP.includes("AFRICANA");
 
-if (!esMoldura && esEspecialM2) {
-    const areaM2 = (largoCm * anchoCm) / 10000;
-    if (areaM2 > 0) {
-        // Convertimos el costo de la lámina a costo por M2
-        // Ejemplo Chapilla: 88.000 / 1.4m2 = 62.857
-        costoFinalAtlas = Math.round(costoIngresado / areaM2);
-        console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
-    }
-}
-             
+                if (!esMoldura && esEspecialM2) {
+                    const areaM2 = (largoCm * anchoCm) / 10000;
+                    if (areaM2 > 0) {
+                        // Ejemplo Chapilla: 88.000 / 1.4m2 = 62.857
+                        costoFinalAtlas = Math.round(costoIngresado / areaM2);
+                        console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
+                    }
+                }
 
                 // LA REGLA DE ORO: 2.90 ML para molduras
                 let stockASumar = esMoldura 
@@ -655,7 +656,7 @@ if (!esMoldura && esEspecialM2) {
                     esNuevo: esNuevoMaterial,
                     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
                     cantidad_laminas: cant,
-                    precio_total_lamina: costoFinalAtlas, // Enviamos el costo corregido
+                    precio_total_lamina: costoFinalAtlas, // Enviamos el costo corregido por m2
                     ancho_lamina_cm: esMoldura ? 1 : anchoCm,
                     largo_lamina_cm: esMoldura ? 290 : largoCm,
                     tipo_material: esMoldura ? 'ml' : 'm2',
