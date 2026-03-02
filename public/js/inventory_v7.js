@@ -297,20 +297,12 @@ window.guardarProveedor = async function(event) {
             const nombreUP = m.nombre.toUpperCase().trim();
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
             const stockM = parseFloat(m.stock_actual) || 0;
-            const esMoldura = nombreUP.includes('MOLDURA');
 
-            // --- 2. FILTRO DE INTEGRIDAD DE COMPRA (NUEVO) ---
-            // Si es moldura y el registro de Atlas es un residuo (menor a 0.50), lo ignoramos.
-            // Esto evita que el 0.44 o el 0.17 dañen tu inventario real.
-            if (esMoldura && stockM > 0 && stockM < 0.50) {
-                console.warn(`🚫 Saltando registro basura de moldura: ${stockM}`);
-                return; 
-            }
-
+            // --- 2. CONSOLIDACIÓN ACUMULATIVA SIN FILTROS EXPULSIVOS ---
+            // Ya no usamos "return" para no borrar la línea. Sumamos todo lo que venga.
             if (!consolidado[nombreUP]) {
                 consolidado[nombreUP] = { ...m, fecha_ref: fecha, stock_actual: stockM };
             } else {
-                // SUMATORIA: Sumamos solo registros válidos (compras reales)
                 consolidado[nombreUP].stock_actual += stockM;
                 if (fecha > consolidado[nombreUP].fecha_ref) {
                     consolidado[nombreUP].fecha_ref = fecha;
@@ -330,15 +322,17 @@ window.guardarProveedor = async function(event) {
                 if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK DINÁMICA ACUMULADA ---
+            // --- 4. LÓGICA DE STOCK DE RESCATE (GARANTÍA DE LÍNEA) ---
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Si tras filtrar y sumar, el stock es muy bajo o cero por error de Atlas,
-                // aseguramos el mínimo de tu tira base de 2.90.
-                if (stockFinal < 1.0) {
+                // Si el stock acumulado es basura (menor a 0.60) o el registro de Atlas está corrupto,
+                // forzamos 2.90 ML. Esto asegura que la línea JAMÁS desaparezca.
+                if (stockFinal < 0.60) {
+                    console.log(`🛡️ Rescatando visibilidad para ${m.nombre}: ${stockFinal} -> 2.90`);
                     stockFinal = 2.90; 
                 }
+                // Si stockFinal es >= 0.60 (una compra real), se muestra el valor real sumado.
             }
 
             return {
