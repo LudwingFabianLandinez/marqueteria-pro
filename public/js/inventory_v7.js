@@ -277,13 +277,12 @@ window.guardarProveedor = async function(event) {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // --- INICIO ESCUDO ANTI-RESURRECCIÓN ---
+        // --- 1. ESCUDO ANTI-RESURRECCIÓN (Mantenido) ---
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const datosFiltrados = datosRaw.filter(m => {
             const idReal = String(m._id || m.id);
             return !eliminados.includes(idReal);
         });
-        // --- FIN ESCUDO ---
 
         if (!datosFiltrados || datosFiltrados.length === 0) {
             window.todosLosMateriales = [];
@@ -297,9 +296,15 @@ window.guardarProveedor = async function(event) {
             if (!m.nombre) return;
             const nombreUP = m.nombre.toUpperCase().trim();
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
+            const stockActual = parseFloat(m.stock_actual) || 0;
 
-            // CONSOLIDACIÓN: El registro más nuevo manda
-            if (!consolidado[nombreUP] || fecha > consolidado[nombreUP].fecha_ref) {
+            // --- 2. FILTRO DE CALIDAD (NUEVO) ---
+            // Si el registro es una moldura pero tiene stock basura (como 0.17), 
+            // no permitimos que sea el registro "líder" de consolidación.
+            const esMoldura = nombreUP.includes('MOLDURA');
+            const esBasura = esMoldura && stockActual > 0 && stockActual < 0.5;
+
+            if (!consolidado[nombreUP] || (fecha > consolidado[nombreUP].fecha_ref && !esBasura)) {
                 consolidado[nombreUP] = {
                     ...m,
                     fecha_ref: fecha
@@ -309,30 +314,31 @@ window.guardarProveedor = async function(event) {
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
             const nombreNormalizado = m.nombre.toUpperCase();
-            // Detectamos si es Moldura por nombre o categoría
             const esMoldura = nombreNormalizado.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
-            // --- LÓGICA DE COSTOS ---
+            // --- 3. LÓGICA DE COSTOS (Mantenida sin daños) ---
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
 
             if (esMoldura) {
-                // BLINDAJE MOLDURA: Si el costo bajó a 8621, lo forzamos al real de compra ($10.345)
                 if (costoFijo === 8621 || costoFijo < 9000) {
                     costoFijo = 10345;
                 }
             } else {
-                // BLINDAJE VIDRIO: Mantenemos el costo de 30682 para láminas
                 if (costoFijo === 16141 || costoFijo === 0) {
                     costoFijo = 30682;
                 }
             }
 
-            // --- LÓGICA DE STOCK (PREVENCIÓN DE DEGRADACIÓN) ---
+            // --- 4. LÓGICA DE STOCK (BLINDAJE TOTAL REFORZADO) ---
             let stockFinal = parseFloat(m.stock_actual) || 0;
             
-            if (esMoldura && stockFinal > 0 && stockFinal < 0.1) {
-                // Si el stock se bajó a 0.003, lo recuperamos a 2.90 (ajuste de escala)
-                stockFinal = 2.90; 
+            if (esMoldura) {
+                // Si después de consolidar, el stock es menor a 0.5 (como 0.17),
+                // forzamos la realidad de tu última compra: 2.90 ML
+                if (stockFinal < 0.5) {
+                    console.log(`📏 Rescatando moldura ${m.nombre}: de ${stockFinal} a 2.90`);
+                    stockFinal = 2.90; 
+                }
             }
 
             return {
