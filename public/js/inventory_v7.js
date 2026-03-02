@@ -638,7 +638,6 @@ if (formCompra) {
             if (!esMoldura && esEspecialM2) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
-                    // Cálculo de costo por M2 para Atlas
                     costoFinalAtlas = Math.round(costoIngresado / areaM2);
                     console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
                 }
@@ -657,11 +656,21 @@ if (formCompra) {
 
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
+            // --- 🚀 MEJORA: CLASIFICACIÓN INTELIGENTE DE CATEGORÍA ---
+            let categoriaDeterminada;
+            if (esMoldura) {
+                categoriaDeterminada = "MOLDURAS";
+            } else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF")) {
+                categoriaDeterminada = "RESPALDO"; // <--- Esta es la clave del cambio
+            } else {
+                categoriaDeterminada = existente?.categoria || "GENERAL";
+            }
+
             const datosParaAtlas = {
                 materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
                 nombre: nombreReal,
                 esNuevo: esNuevoMaterial,
-                categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
+                categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas, 
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
@@ -689,7 +698,8 @@ if (formCompra) {
 
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                existente.precio_total_lamina = costoFinalAtlas; 
+                existente.precio_total_lamina = costoFinalAtlas;
+                existente.categoria = categoriaDeterminada; // Actualizar categoría en memoria
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
                 objetoFinal = existente;
             } else {
@@ -697,7 +707,7 @@ if (formCompra) {
                     _id: idDeAtlas,
                     id: idDeAtlas || `TEMP-${Date.now()}`,
                     nombre: nombreReal,
-                    categoria: esMoldura ? "MOLDURAS" : "GENERAL",
+                    categoria: categoriaDeterminada,
                     stock_actual: stockASumar,
                     precio_total_lamina: costoFinalAtlas,
                     ancho_lamina_cm: esMoldura ? 1 : anchoCm,
@@ -719,6 +729,9 @@ if (formCompra) {
             alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado con Atlas.`);
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
+
+            // Refrescar selectores para que aparezca en la lista correcta del cotizador inmediatamente
+            if (typeof cargarListasModal === 'function') cargarListasModal();
 
         } catch (error) {
             console.error("❌ Error en Proceso de Compra:", error);
