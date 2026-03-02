@@ -277,12 +277,9 @@ window.guardarProveedor = async function(event) {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // --- 1. ESCUDO ANTI-RESURRECCIÓN (Mantenido) ---
+        // --- 1. ESCUDO ANTI-RESURRECCIÓN ---
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-        const datosFiltrados = datosRaw.filter(m => {
-            const idReal = String(m._id || m.id);
-            return !eliminados.includes(idReal);
-        });
+        const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
 
         if (!datosFiltrados || datosFiltrados.length === 0) {
             window.todosLosMateriales = [];
@@ -290,18 +287,18 @@ window.guardarProveedor = async function(event) {
             return;
         }
 
+        const limpiarNombre = (t) => String(t).toUpperCase().trim();
         const consolidado = {};
 
         datosFiltrados.forEach(m => {
             if (!m.nombre) return;
-            const nombreUP = m.nombre.toUpperCase().trim();
+            const nombreUP = limpiarNombre(m.nombre);
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
             const stockM = parseFloat(m.stock_actual) || 0;
 
             if (!consolidado[nombreUP]) {
                 consolidado[nombreUP] = { ...m, fecha_ref: fecha, stock_actual: stockM };
             } else {
-                // SUMATORIA ACUMULATIVA (Para no perder ninguna tira comprada)
                 consolidado[nombreUP].stock_actual += stockM;
                 if (fecha > consolidado[nombreUP].fecha_ref) {
                     consolidado[nombreUP].fecha_ref = fecha;
@@ -310,10 +307,10 @@ window.guardarProveedor = async function(event) {
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreUP = m.nombre.toUpperCase().trim();
+            const nombreUP = limpiarNombre(m.nombre);
             const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
-            // --- 3. LÓGICA DE COSTOS (Mantenida Intacta) ---
+            // --- 3. LÓGICA DE COSTOS (Vidrio $30.682 / Moldura $10.345) ---
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
             if (esMoldura) {
                 if (costoFijo < 9000) costoFijo = 10345;
@@ -321,25 +318,24 @@ window.guardarProveedor = async function(event) {
                 if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK HÍBRIDA CON ESCUDO INDIVIDUAL ---
+            // --- 4. LÓGICA DE STOCK HÍBRIDA CON ESCUDO NORMALIZADO ---
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Buscamos si este material específico tiene un escudo activo
-                const escudoKey = `escudo_stock_${nombreUP}`;
-                const memoria = JSON.parse(localStorage.getItem(escudoKey) || 'null');
+                // Buscamos el escudo usando la misma clave normalizada
+                const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
+                const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
 
-                // Si hay memoria de las últimas 24 horas, ese valor MANDA sobre lo que diga Atlas
+                // Si hay memoria de las últimas 24 horas, MANDAMOS nosotros
                 if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-                    // Solo aplicamos el escudo si el valor de la memoria es mayor al de Atlas
-                    // Esto evita que si Atlas finalmente se actualiza a un valor mayor, lo frenemos.
+                    // Si el valor guardado es mayor al que Atlas reporta, lo protegemos
                     if (memoria.stock > stockFinal) {
-                        console.log(`⭐ ESCUDO ACTIVO para ${nombreUP}: Protegiendo ${memoria.stock} ML`);
+                        console.log(`⭐ ESCUDO ACTIVO para ${nombreUP}: Forzando ${memoria.stock} ML`);
                         stockFinal = memoria.stock;
                     }
                 }
 
-                // RESCATE DE LÍNEA: Si después de todo el stock es basura (< 0.60), forzamos 2.90
+                // RESCATE: Si tras todo el proceso sigue siendo basura (< 0.60), tiramos del 2.90
                 if (stockFinal < 0.60) {
                     stockFinal = 2.90; 
                 }
@@ -357,8 +353,6 @@ window.guardarProveedor = async function(event) {
 
     } catch (error) {
         console.error("❌ Error en inventario:", error);
-        const tabla = document.getElementById('cuerpoTabla');
-        if (tabla) tabla.innerHTML = '<tr><td colspan="4">Error cargando datos.</td></tr>';
     }
 }
 
@@ -718,11 +712,13 @@ function configurarEventos() {
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
     
+    // Función de limpieza para asegurar que el nombre coincida siempre
+    const limpiarNombre = (t) => String(t).toUpperCase().trim();
+
     filas.forEach(fila => {
-        // Normalizamos el nombre para evitar fallos por mayúsculas/minúsculas
-        const nombreFila = fila.getAttribute('data-nombre') ? fila.getAttribute('data-nombre').toLowerCase() : "";
+        const nombreFila = fila.getAttribute('data-nombre') ? limpiarNombre(fila.getAttribute('data-nombre')) : "";
         
-        if (nombreFila === nombre.toLowerCase()) {
+        if (nombreFila === limpiarNombre(nombre)) {
             const container = fila.querySelector('.stock-display-container');
             
             if (container) {
@@ -730,24 +726,24 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
                 const valorActual = parseFloat(textoActual.replace(/[^\d.]/g, '')) || 0;
                 const nuevoValor = valorActual + parseFloat(cantidadASumar);
                 
-                // 1. Actualización Visual (Mantenida intacta)
+                // 1. Actualización Visual
                 container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
                 container.style.color = '#059669'; 
                 container.style.transition = 'all 0.5s ease';
                 container.style.backgroundColor = '#ecfdf5'; 
                 
-                // --- 🛡️ 2. ESCUDO INDIVIDUAL POR MATERIAL (CIRUGÍA FINAL) ---
-                // Guardamos con una clave única para este material específico
+                // --- 🛡️ 2. ESCUDO NORMALIZADO (v17.8.0) ---
                 const registroMemoria = {
-                    nombre: nombre.toUpperCase().trim(),
+                    nombre: limpiarNombre(nombre),
                     stock: nuevoValor,
                     timestamp: Date.now()
                 };
                 
-                // Clave única: memoria_stock_NOMBRE_DE_LA_MOLDURA
-                localStorage.setItem(`escudo_stock_${nombre.toUpperCase().trim()}`, JSON.stringify(registroMemoria));
+                // Usamos una clave que ignore espacios para que fetchInventory la encuentre siempre
+                const claveEscudo = `escudo_v18_${limpiarNombre(nombre).replace(/\s+/g, '_')}`;
+                localStorage.setItem(claveEscudo, JSON.stringify(registroMemoria));
                 
-                console.log(`🚨 ESCUDO ACTIVADO para ${nombre}: ${nuevoValor.toFixed(2)} guardado en persistencia.`);
+                console.log(`🚨 ESCUDO REFORZADO para ${nombre}: Guardado como ${nuevoValor.toFixed(2)}`);
             }
         }
     }); 
