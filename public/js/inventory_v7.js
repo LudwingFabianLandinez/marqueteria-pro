@@ -789,8 +789,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 
 // --- UTILIDADES DE UI (PRESERVADO) ---
 
-
- window.cargarListasModal = function() {
+window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
     const provRegisterSelect = document.getElementById('proveedorSelect');
@@ -799,7 +798,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const selVidrio = document.getElementById('materialVidrio'); 
     const selRespaldo = document.getElementById('materialRespaldo'); 
 
-    // 1. Cargar Proveedores (Sin cambios, manteniendo blindaje)
+    // 1. Cargar Proveedores (Mantenemos blindaje de IDs)
     if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
@@ -807,48 +806,56 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
         if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
     }
     
-    // 2. Cargar Materiales (REESTRUCTURACIÓN TOTAL)
+    // 2. Cargar Materiales (UNIFICACIÓN TOTAL DE RESPALDOS)
     if (window.todosLosMateriales && window.todosLosMateriales.length > 0) {
         
-        // --- PASO A: SEPARACIÓN DE DATOS ANTES DE RENDERIZAR ---
-        const esMaterialRespaldo = (m) => {
+        // --- DETECTOR UNIFICADO DE RESPALDOS ---
+        // Aquí metemos Triplex, Cartón, MDF y Madera para que vivan en el mismo selector
+        const esRespaldoOMadera = (m) => {
             const n = String(m.nombre).toUpperCase();
             const c = String(m.categoria).toUpperCase();
-            return n.includes("TRIPLEX") || n.includes("MADERA") || n.includes("MDF") || n.includes("RH") || c === "RESPALDO";
+            return n.includes("TRIPLEX") || 
+                   n.includes("CARTON") || 
+                   n.includes("CARTÓN") || 
+                   n.includes("MDF") || 
+                   n.includes("MADERA") || 
+                   n.includes("RH") || 
+                   c === "RESPALDO";
         };
 
-        const esMaterialMoldura = (m) => {
+        const esMoldura = (m) => {
             const n = String(m.nombre).toUpperCase();
             return n.startsWith("K ") || n.includes("MOLDURA");
         };
 
-        // --- PASO B: CREACIÓN DE GRUPOS AISLADOS ---
-        const listaRespaldos = window.todosLosMateriales.filter(m => esMaterialRespaldo(m));
+        // --- CREACIÓN DE LISTAS AISLADAS ---
+        // Filtrar para que el Triplex y el Cartón queden en la misma lista
+        const listaRespaldos = window.todosLosMateriales.filter(m => esRespaldoOMadera(m));
         
-        // Vidrios es TODO lo que NO sea respaldo y NO sea moldura
-        const listaVidrios = window.todosLosMateriales.filter(m => !esMaterialRespaldo(m) && !esMaterialMoldura(m));
+        // Vidrios es todo lo que NO es respaldo y NO es moldura
+        const listaVidrios = window.todosLosMateriales.filter(m => !esRespaldoOMadera(m) && !esMoldura(m));
 
-        // --- PASO C: GENERACIÓN DE HTML SEGURO ---
-        const mapearOpciones = (lista) => lista.map(m => `<option value="${m._id || m.id}">${String(m.nombre).toUpperCase()}</option>`).join('');
+        // --- RENDERIZADO DE OPCIONES ---
+        const generarOptions = (lista) => lista.map(m => `<option value="${m._id || m.id}">${String(m.nombre).toUpperCase()}</option>`).join('');
 
-        // 1. Llenar Compras (Lleva todo)
+        // A. Selector de Compras (Lleva absolutamente todo)
         if (matSelect) {
             matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
                                  '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>' + 
-                                 mapearOpciones(window.todosLosMateriales);
+                                 generarOptions(window.todosLosMateriales);
         }
 
-        // 2. Llenar Vidrios (Filtro garantizado por exclusión previa)
+        // B. Selector de Vidrios (Ahora sí, libre de Triplex y Cartón)
         if (selVidrio) {
-            selVidrio.innerHTML = '<option value="">-- Seleccionar Vidrio/Espejo --</option>' + mapearOpciones(listaVidrios);
+            selVidrio.innerHTML = '<option value="">-- Seleccionar Vidrio/Espejo --</option>' + generarOptions(listaVidrios);
         }
 
-        // 3. Llenar Respaldos (Solo los filtrados arriba)
+        // C. Selector de Respaldos (Aquí aparecerán juntos Triplex y Cartón)
         if (selRespaldo) {
-            selRespaldo.innerHTML = '<option value="">-- Seleccionar Respaldo --</option>' + mapearOpciones(listaRespaldos);
+            selRespaldo.innerHTML = '<option value="">-- Seleccionar Respaldo --</option>' + generarOptions(listaRespaldos);
         }
 
-        console.log("🔥 RESTRUCTURACIÓN COMPLETA: Respaldos y Vidrios separados por arrays independientes.");
+        console.log("🚀 UNIFICACIÓN COMPLETADA: Triplex y Cartón ahora comparten el selector de Respaldo.");
     }
 };
 
