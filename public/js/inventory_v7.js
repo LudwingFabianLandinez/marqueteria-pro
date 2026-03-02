@@ -309,9 +309,6 @@ window.guardarProveedor = async function(event) {
             }
         });
 
-        // --- 2. RECUPERAR MEMORIA DE COMPRA RECIENTE (CIRUGÍA FINAL) ---
-        const compraReciente = JSON.parse(localStorage.getItem('ultima_compra_manual') || '{}');
-
         window.todosLosMateriales = Object.values(consolidado).map(m => {
             const nombreUP = m.nombre.toUpperCase().trim();
             const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
@@ -324,16 +321,21 @@ window.guardarProveedor = async function(event) {
                 if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK HÍBRIDA (ATLAS + MEMORIA LOCAL) ---
+            // --- 4. LÓGICA DE STOCK HÍBRIDA CON ESCUDO INDIVIDUAL ---
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // REGLA DE ORO: Si hay una compra manual guardada hace menos de 10 min, 
-                // usamos el valor más alto entre Atlas y nuestra memoria.
-                if (compraReciente.nombre === nombreUP && (Date.now() - compraReciente.timestamp < 600000)) {
-                    if (compraReciente.stock > stockFinal) {
-                        console.log(`🧠 Protegiendo stock de ${m.nombre} con memoria local: ${compraReciente.stock}`);
-                        stockFinal = compraReciente.stock;
+                // Buscamos si este material específico tiene un escudo activo
+                const escudoKey = `escudo_stock_${nombreUP}`;
+                const memoria = JSON.parse(localStorage.getItem(escudoKey) || 'null');
+
+                // Si hay memoria de las últimas 24 horas, ese valor MANDA sobre lo que diga Atlas
+                if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
+                    // Solo aplicamos el escudo si el valor de la memoria es mayor al de Atlas
+                    // Esto evita que si Atlas finalmente se actualiza a un valor mayor, lo frenemos.
+                    if (memoria.stock > stockFinal) {
+                        console.log(`⭐ ESCUDO ACTIVO para ${nombreUP}: Protegiendo ${memoria.stock} ML`);
+                        stockFinal = memoria.stock;
                     }
                 }
 
@@ -715,14 +717,12 @@ function configurarEventos() {
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const filas = document.querySelectorAll('#inventoryTable tr');
-    let encontrado = false;
     
     filas.forEach(fila => {
         // Normalizamos el nombre para evitar fallos por mayúsculas/minúsculas
         const nombreFila = fila.getAttribute('data-nombre') ? fila.getAttribute('data-nombre').toLowerCase() : "";
         
         if (nombreFila === nombre.toLowerCase()) {
-            encontrado = true;
             const container = fila.querySelector('.stock-display-container');
             
             if (container) {
@@ -736,16 +736,18 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
                 container.style.transition = 'all 0.5s ease';
                 container.style.backgroundColor = '#ecfdf5'; 
                 
-                // --- 🛡️ 2. MEMORIA QUIRÚRGICA CONTRA REFRESH (NUEVO) ---
-                // Guardamos el nuevo valor calculado en el "guardaespaldas" local
+                // --- 🛡️ 2. ESCUDO INDIVIDUAL POR MATERIAL (CIRUGÍA FINAL) ---
+                // Guardamos con una clave única para este material específico
                 const registroMemoria = {
                     nombre: nombre.toUpperCase().trim(),
                     stock: nuevoValor,
-                    timestamp: Date.now() // Esta marca de tiempo la usa fetchInventory para saber si es reciente
+                    timestamp: Date.now()
                 };
-                localStorage.setItem('ultima_compra_manual', JSON.stringify(registroMemoria));
                 
-                console.log(`✅ UI y Memoria Reforzadas: ${nombre} actualizado a ${nuevoValor.toFixed(2)}`);
+                // Clave única: memoria_stock_NOMBRE_DE_LA_MOLDURA
+                localStorage.setItem(`escudo_stock_${nombre.toUpperCase().trim()}`, JSON.stringify(registroMemoria));
+                
+                console.log(`🚨 ESCUDO ACTIVADO para ${nombre}: ${nuevoValor.toFixed(2)} guardado en persistencia.`);
             }
         }
     }); 
