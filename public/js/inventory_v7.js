@@ -272,7 +272,7 @@ window.guardarProveedor = async function(event) {
 
 // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
 
-   async function fetchInventory() {
+  async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
@@ -296,22 +296,20 @@ window.guardarProveedor = async function(event) {
             if (!m.nombre) return;
             const nombreUP = m.nombre.toUpperCase().trim();
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
-            const stockActual = parseFloat(m.stock_actual) || 0;
+            const stockM = parseFloat(m.stock_actual) || 0;
             const esMoldura = nombreUP.includes('MOLDURA');
 
-            // --- 2. CONSOLIDACIÓN POR PRIORIDAD DE VOLUMEN (CIRUGÍA) ---
-            // Elegimos el registro si: 
-            // a) Es el primero que encontramos.
-            // b) Es más nuevo por fecha.
-            // c) (Para molduras) Si tiene MÁS stock que el que ya guardamos (evita que el 0.17 gane).
             if (!consolidado[nombreUP]) {
-                consolidado[nombreUP] = { ...m, fecha_ref: fecha };
+                // Primer registro encontrado: lo inicializamos
+                consolidado[nombreUP] = { ...m, fecha_ref: fecha, stock_actual: stockM };
             } else {
-                const esMasNuevo = fecha > consolidado[nombreUP].fecha_ref;
-                const tieneMasStock = esMoldura && stockActual > (parseFloat(consolidado[nombreUP].stock_actual) || 0);
-
-                if (esMasNuevo || tieneMasStock) {
-                    consolidado[nombreUP] = { ...m, fecha_ref: fecha };
+                // --- 2. SUMATORIA QUIRÚRGICA (NUEVO) ---
+                // En lugar de elegir, SUMAMOS los stocks encontrados en Atlas para ese nombre
+                consolidado[nombreUP].stock_actual += stockM;
+                
+                // Mantenemos la fecha del más reciente solo por registro
+                if (fecha > consolidado[nombreUP].fecha_ref) {
+                    consolidado[nombreUP].fecha_ref = fecha;
                 }
             }
         });
@@ -328,13 +326,13 @@ window.guardarProveedor = async function(event) {
                 if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK DINÁMICA REFORZADA ---
-            let stockFinal = parseFloat(m.stock_actual) || 0;
+            // --- 4. LÓGICA DE STOCK DINÁMICA ACUMULADA ---
+            let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Si después de todo, el stock que "ganó" es menor a 0.5 (basura residual),
-                // forzamos el rescate a una tira mínima (2.90).
-                if (stockFinal < 0.5) {
+                // Si la suma total es basura (menor a 0.1), rescatamos al mínimo de 2.90
+                // Pero si la suma dio 5.80 o más, se queda el valor sumado.
+                if (stockFinal > 0 && stockFinal < 0.1) {
                     stockFinal = 2.90; 
                 }
             }
@@ -342,7 +340,7 @@ window.guardarProveedor = async function(event) {
             return {
                 ...m,
                 precio_m2_costo: Math.round(costoFijo),
-                stock_actual: stockFinal
+                stock_actual: Number(stockFinal.toFixed(2)) // Redondeo a 2 decimales para limpieza
             };
         });
 
