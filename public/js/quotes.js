@@ -31,41 +31,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (result.success) {
             const cat = result.data;
             
-            // 1. UNIFICACIÓN TOTAL MEJORADA (Iniciamos con lo del servidor)
-            let inventarioCompleto = cat.todos || [];
+            // 1. UNIFICACIÓN INICIAL (Servidor)
+            let inventarioHibrido = cat.todos || [];
 
-            // 🚀 --- INICIO BLOQUE DE RESCATE LOCAL (MEJORADO V13.8) ---
-const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
-localMaterials.forEach(lm => {
-    // Convertimos a mayúsculas y quitamos espacios para una comparación exacta
-    const nombreLimpioLocal = (lm.nombre || "").trim().toUpperCase();
-    
-    const yaExisteEnServidor = inventarioCompleto.some(m => 
-        (m.nombre || "").trim().toUpperCase() === nombreLimpioLocal
-    );
+            // 🚀 --- BLOQUE DE RESCATE LOCAL ---
+            const localMaterials = JSON.parse(localStorage.getItem('inventory') || '[]');
+            localMaterials.forEach(lm => {
+                const nombreLimpioLocal = (lm.nombre || "").trim().toUpperCase();
+                
+                const yaExisteEnServidor = inventarioHibrido.some(m => 
+                    (m.nombre || "").trim().toUpperCase() === nombreLimpioLocal
+                );
 
-    // SOLO lo agregamos si NO existe en el servidor. 
-    // Si ya existe, el servidor manda y lo del LocalStorage se ignora.
-    if (!yaExisteEnServidor && nombreLimpioLocal !== "") {
-        inventarioCompleto.push({
-            ...lm,
-            costo_base: lm.costo_m2 || lm.precio_m2_costo || 0,
-            stock_actual: lm.stock_actual || 0,
-            unidad: (lm.tipo || 'm2').toUpperCase()
-        });
-    }
-});
-// 🚀 --- FIN BLOQUE DE RESCATE ---
+                if (!yaExisteEnServidor && nombreLimpioLocal !== "") {
+                    inventarioHibrido.push({
+                        ...lm,
+                        costo_base: lm.costo_m2 || lm.precio_m2_costo || 0,
+                        stock_actual: lm.stock_actual || 0,
+                        unidad: (lm.tipo || 'm2').toUpperCase()
+                    });
+                }
+            });
 
-            // ALERT DE VERIFICACIÓN (Actualizado para detectar ambas)
+            // 🔥 --- EL FILTRO MAESTRO ANTI-DUPLICADOS (VERSIÓN FINAL) ---
+            // Este bloque asegura que si queda algún duplicado por caché, se elimine aquí.
+            let inventarioCompleto = [];
+            let nombresVistos = new Set();
+
+            inventarioHibrido.forEach(m => {
+                const nombreKey = (m.nombre || "").trim().toUpperCase();
+                if (!nombresVistos.has(nombreKey) && nombreKey !== "" && !nombreKey.includes("UNDEFINED")) {
+                    nombresVistos.add(nombreKey);
+                    inventarioCompleto.push(m);
+                }
+            });
+
+            // ALERT DE VERIFICACIÓN
             const busquedaCritica = inventarioCompleto.filter(m => 
                 m.nombre && (m.nombre.toUpperCase().includes("2312") || m.nombre.toUpperCase().includes("2311"))
             );
 
             if (busquedaCritica.length === 0) {
-                console.warn("🚨 ALERTA: Molduras críticas no encontradas en el inventario híbrido.");
+                console.warn("🚨 ALERTA: Molduras críticas no encontradas.");
             } else {
-                console.log("✅ MOLDURAS DETECTADAS (SERVIDOR + LOCAL):", busquedaCritica);
+                console.log("✅ MOLDURAS DETECTADAS:", busquedaCritica);
             }
 
             materialesOriginales = inventarioCompleto;
@@ -73,7 +82,7 @@ localMaterials.forEach(lm => {
             const datalist = document.getElementById('lista-molduras');
             if (datalist) datalist.innerHTML = '';
 
-            // 2. FUNCIÓN DE LLENADO INTELIGENTE (VEREDICTO V13.5)
+            // 2. FUNCIÓN DE LLENADO INTELIGENTE
             const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
@@ -86,16 +95,13 @@ localMaterials.forEach(lm => {
                 }
                 
                 listaFiltrada.forEach(m => {
-                    // --- EL ESCUDO ANTIFANTASMAS ---
                     if (!m.nombre || m.nombre.trim() === "" || m.nombre.includes("undefined")) return;
 
                     const stock = m.stock_actual || 0;
-                    // REFUERZO: Si m.unidad no existe, usamos m.tipo (que es el campo real de la DB)
                     const unidad = (m.unidad || m.tipo || "m2").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
                     
                     const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
-                    
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${unidad})`;
                     
@@ -104,7 +110,6 @@ localMaterials.forEach(lm => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // Ajuste de costo: Usamos costo_base que ya calculó el server
                     const precio = m.costo_base || m.costo_m2 || m.precio_m2_costo || 0;
                     
                     option.dataset.costo = precio;
@@ -120,36 +125,30 @@ localMaterials.forEach(lm => {
                 });
             };
 
-            // 3. REPARTO QUIRÚRGICO (MANTENIDO Y REFORZADO)
-            // 3. REPARTO QUIRÚRGICO (CORREGIDO PARA UNIFICAR TRIPLEX + CARTÓN)
-llenar(selects.Vidrio, m => {
-    const n = (m.nombre || "").toUpperCase();
-    // EXCLUSIÓN: Si es Triplex o Cartón, NO puede entrar en Vidrio aunque diga 3mm
-    const esRespaldo = n.includes("TRIPLEX") || n.includes("CARTON") || n.includes("CARTÓN") || n.includes("MDF");
-    return (n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM")) && !esRespaldo;
-});
+            // 3. REPARTO QUIRÚRGICO (TRIPLEX + CARTÓN UNIFICADOS)
+            llenar(selects.Vidrio, m => {
+                const n = (m.nombre || "").toUpperCase();
+                const esRespaldo = n.includes("TRIPLEX") || n.includes("CARTON") || n.includes("CARTÓN") || n.includes("MDF");
+                return (n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM")) && !esRespaldo;
+            });
 
-llenar(selects.Respaldo, m => {
-    const n = (m.nombre || "").toUpperCase();
-    // UNIFICACIÓN: Aquí agrupamos Triplex, Cartón y MDF en el mismo selector
-    return n.includes("RESPALDO") || n.includes("MDF") || n.includes("CARTON") || n.includes("CARTÓN") || n.includes("TRIPLEX") || n.includes("CELTEX");
-});
+            llenar(selects.Respaldo, m => {
+                const n = (m.nombre || "").toUpperCase();
+                return n.includes("RESPALDO") || n.includes("MDF") || n.includes("CARTON") || n.includes("CARTÓN") || n.includes("TRIPLEX") || n.includes("CELTEX");
+            });
 
-llenar(selects.Paspartu, m => {
-    const n = (m.nombre || "").toUpperCase();
-    return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
-});
+            llenar(selects.Paspartu, m => {
+                const n = (m.nombre || "").toUpperCase();
+                return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
+            });
             
-            // MARCOS (Radar ML activo y K 2312 blindada)
             llenar(selects.Marco, m => {
                 const n = (m.nombre || "").toUpperCase();
                 const u = (m.unidad || m.tipo || "").toUpperCase();
                 const c = (m.categoria || "").toUpperCase();
-
                 const esMolduraPorNombre = n.includes("MOLDURA") || n.includes("MARCO") || n.includes("MADERA") || n.includes("2312");
                 const esMolduraPorUnidad = u === "ML";
                 const esMolduraPorCategoria = c.includes("MOLDURA") || c.includes("MARCO");
-
                 return esMolduraPorNombre || esMolduraPorUnidad || esMolduraPorCategoria;
             }, true);
             
@@ -162,10 +161,10 @@ llenar(selects.Paspartu, m => {
             
             llenar(selects.Chapilla, m => (m.nombre || "").toUpperCase().includes("CHAPILLA"));
             
-            console.log("🚀 Sincronización terminada. Total:", inventarioCompleto.length);
+            console.log("🚀 Sincronización terminada. Únicos:", inventarioCompleto.length);
         }
     } catch (error) {
-        console.error("🚨 Error en la reconstrucción:", error);
+        console.error("🚨 Error:", error);
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Error de conexión</option>'; });
     }
 });
