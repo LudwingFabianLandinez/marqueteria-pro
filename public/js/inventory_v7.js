@@ -299,15 +299,19 @@ window.guardarProveedor = async function(event) {
             const stockM = parseFloat(m.stock_actual) || 0;
             const esMoldura = nombreUP.includes('MOLDURA');
 
+            // --- 2. FILTRO DE INTEGRIDAD DE COMPRA (NUEVO) ---
+            // Si es moldura y el registro de Atlas es un residuo (menor a 0.50), lo ignoramos.
+            // Esto evita que el 0.44 o el 0.17 dañen tu inventario real.
+            if (esMoldura && stockM > 0 && stockM < 0.50) {
+                console.warn(`🚫 Saltando registro basura de moldura: ${stockM}`);
+                return; 
+            }
+
             if (!consolidado[nombreUP]) {
-                // Primer registro encontrado: lo inicializamos
                 consolidado[nombreUP] = { ...m, fecha_ref: fecha, stock_actual: stockM };
             } else {
-                // --- 2. SUMATORIA QUIRÚRGICA (NUEVO) ---
-                // En lugar de elegir, SUMAMOS los stocks encontrados en Atlas para ese nombre
+                // SUMATORIA: Sumamos solo registros válidos (compras reales)
                 consolidado[nombreUP].stock_actual += stockM;
-                
-                // Mantenemos la fecha del más reciente solo por registro
                 if (fecha > consolidado[nombreUP].fecha_ref) {
                     consolidado[nombreUP].fecha_ref = fecha;
                 }
@@ -330,9 +334,9 @@ window.guardarProveedor = async function(event) {
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Si la suma total es basura (menor a 0.1), rescatamos al mínimo de 2.90
-                // Pero si la suma dio 5.80 o más, se queda el valor sumado.
-                if (stockFinal > 0 && stockFinal < 0.1) {
+                // Si tras filtrar y sumar, el stock es muy bajo o cero por error de Atlas,
+                // aseguramos el mínimo de tu tira base de 2.90.
+                if (stockFinal < 1.0) {
                     stockFinal = 2.90; 
                 }
             }
@@ -340,7 +344,7 @@ window.guardarProveedor = async function(event) {
             return {
                 ...m,
                 precio_m2_costo: Math.round(costoFijo),
-                stock_actual: Number(stockFinal.toFixed(2)) // Redondeo a 2 decimales para limpieza
+                stock_actual: Number(stockFinal.toFixed(2))
             };
         });
 
