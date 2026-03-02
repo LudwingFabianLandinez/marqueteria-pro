@@ -588,7 +588,7 @@ function configurarEventos() {
     });
 
     // === LÓGICA DE COMPRA (BLINDADA v16.1.0) ===
-    const formCompra = document.getElementById('formNuevaCompra');
+const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
         e.preventDefault();
@@ -624,7 +624,7 @@ if (formCompra) {
             let costoFinalAtlas = costoIngresado;
             const nombreUP = nombreReal.toUpperCase();
             
-            // Analizamos si es un material que se vende por M2 (Passepartout o Chapilla)
+            // Lógica Unificada: Chapilla y Passepartout son tratados como iguales
             const esEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
                                  nombreUP.includes("CHAPILLA") || 
                                  nombreUP.includes("AFRICANA");
@@ -632,7 +632,7 @@ if (formCompra) {
             if (!esMoldura && esEspecialM2) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
-                    // CÁLCULO CRÍTICO: Aquí aseguramos que el costo guardado sea por M2
+                    // Cálculo de costo por M2 para Atlas
                     costoFinalAtlas = Math.round(costoIngresado / areaM2);
                     console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
                 }
@@ -657,7 +657,7 @@ if (formCompra) {
                 esNuevo: esNuevoMaterial,
                 categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
                 cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas, // Enviamos el costo corregido por m2
+                precio_total_lamina: costoFinalAtlas, 
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
                 largo_lamina_cm: esMoldura ? 290 : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
@@ -683,7 +683,6 @@ if (formCompra) {
 
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                // 🔥 IMPORTANTE: Actualizamos el precio base con el nuevo cálculo por M2
                 existente.precio_total_lamina = costoFinalAtlas; 
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
                 objetoFinal = existente;
