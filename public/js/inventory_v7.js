@@ -795,14 +795,14 @@ window.cargarListasModal = function() {
     const selVidrio = document.getElementById('materialVidrio'); 
     const selRespaldo = document.getElementById('materialRespaldo'); 
 
-    // 1. Cargar Proveedores (Manteniendo blindaje de IDs)
+    // 1. Cargar Proveedores (Sin cambios)
     if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
         if (provSelect) provSelect.innerHTML = opcionesProv;
     }
     
-    // 2. Cargar Materiales (LÓGICA DE UNIFICACIÓN TRIPLEX + CARTÓN)
+    // 2. Cargar Materiales (BLOQUEO TOTAL)
     if (window.todosLosMateriales && window.todosLosMateriales.length > 0) {
         
         let htmlVidrios = '<option value="">-- Seleccionar --</option>';
@@ -814,42 +814,49 @@ window.cargarListasModal = function() {
             const id = m._id || m.id;
             const nombreUP = String(m.nombre).toUpperCase();
             
-            // Estilo visual según stock (Como se ve en tus imágenes)
+            // Estilo visual según stock
             const stockActual = Number(m.stock_actual) || 0;
             const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : ` (${stockActual.toFixed(2)} M2)`;
             const styleColor = (stockActual <= 0) ? 'style="color: #dc2626;"' : ''; 
             
             const optionHtml = `<option value="${id}" ${styleColor}>${nombreUP}${stockTxt}</option>`;
 
-            // --- REGLA DE FILTRADO CONTUNDENTE ---
-            // Si es Triplex o Cartón, se agrupan en el selector de la derecha
-            const esParaRespaldo = nombreUP.includes("TRIPLEX") || 
-                                   nombreUP.includes("CARTON") || 
-                                   nombreUP.includes("CARTÓN") || 
-                                   nombreUP.includes("MDF") || 
-                                   nombreUP.includes("MADERA") || 
-                                   nombreUP.includes("RH");
+            // --- FILTRO RADICAL ---
+            const esTriplexOMadera = nombreUP.includes("TRIPLEX") || 
+                                     nombreUP.includes("MADERA") || 
+                                     nombreUP.includes("MDF") || 
+                                     nombreUP.includes("CARTON") || 
+                                     nombreUP.includes("CARTÓN");
             
             const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
 
-            if (esParaRespaldo) {
-                // Obligamos a que el Triplex y el Cartón aparezcan juntos aquí
+            // SEPARACIÓN FORZADA
+            if (esTriplexOMadera) {
+                // VA PARA RESPALDO SÍ O SÍ
                 htmlRespaldos += optionHtml;
             } else if (!esMoldura) {
-                // Solo si NO es respaldo, se permite su entrada en Vidrios
+                // SOLO SI NO ES NADA DE LO ANTERIOR VA A VIDRIOS
                 htmlVidrios += optionHtml;
             }
 
-            // El selector de compras siempre muestra la lista completa
             htmlCompras += optionHtml;
         });
 
-        // Inyección final en el DOM (Limpiando lo anterior)
-        if (selVidrio) selVidrio.innerHTML = htmlVidrios;
+        // Inyección con limpieza de DOM inmediata
+        if (selVidrio) {
+            selVidrio.innerHTML = htmlVidrios;
+            // Doble chequeo: Si algo con "TRIPLEX" se coló por error de caché, lo borramos del selector de vidrios
+            Array.from(selVidrio.options).forEach(opt => {
+                if (opt.text.includes("TRIPLEX") || opt.text.includes("MADERA") || opt.text.includes("CARTON")) {
+                    opt.remove();
+                }
+            });
+        }
+        
         if (selRespaldo) selRespaldo.innerHTML = htmlRespaldos;
         if (matSelect) matSelect.innerHTML = htmlCompras;
 
-        console.log("✅ Logrado: Triplex y Cartón unificados en el selector de Respaldo.");
+        console.log("🔥 Filtrado Contundente: El Triplex ha sido expulsado de Vidrios.");
     }
 };
 
