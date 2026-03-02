@@ -792,70 +792,68 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
-    const provRegisterSelect = document.getElementById('proveedorSelect');
-    
-    // Selectores del Cotizador (Dashboard)
     const selVidrio = document.getElementById('materialVidrio'); 
     const selRespaldo = document.getElementById('materialRespaldo'); 
 
-    // 1. Cargar Proveedores (Mantenemos blindaje de IDs)
+    // 1. Cargar Proveedores
     if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
         if (provSelect) provSelect.innerHTML = opcionesProv;
-        if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
     }
     
-    // 2. Cargar Materiales (UNIFICACIÓN TOTAL DE RESPALDOS)
+    // 2. Cargar Materiales (SISTEMA DE EXCLUSIÓN TOTAL)
     if (window.todosLosMateriales && window.todosLosMateriales.length > 0) {
         
-        // --- DETECTOR UNIFICADO DE RESPALDOS ---
-        // Aquí metemos Triplex, Cartón, MDF y Madera para que vivan en el mismo selector
-        const esRespaldoOMadera = (m) => {
-            const n = String(m.nombre).toUpperCase();
-            const c = String(m.categoria).toUpperCase();
-            return n.includes("TRIPLEX") || 
-                   n.includes("CARTON") || 
-                   n.includes("CARTÓN") || 
-                   n.includes("MDF") || 
-                   n.includes("MADERA") || 
-                   n.includes("RH") || 
-                   c === "RESPALDO";
+        // --- FILTROS DE SEGURIDAD ---
+        const esRespaldoFisico = (m) => {
+            const nombre = String(m.nombre).toUpperCase();
+            // Si tiene cualquiera de estas palabras, ES RESPALDO SÍ O SÍ
+            return nombre.includes("TRIPLEX") || 
+                   nombre.includes("CARTON") || 
+                   nombre.includes("CARTÓN") || 
+                   nombre.includes("MDF") || 
+                   nombre.includes("MADERA") || 
+                   nombre.includes("RH");
         };
 
         const esMoldura = (m) => {
-            const n = String(m.nombre).toUpperCase();
-            return n.startsWith("K ") || n.includes("MOLDURA");
+            const nombre = String(m.nombre).toUpperCase();
+            return nombre.startsWith("K ") || nombre.includes("MOLDURA");
         };
 
-        // --- CREACIÓN DE LISTAS AISLADAS ---
-        // Filtrar para que el Triplex y el Cartón queden en la misma lista
-        const listaRespaldos = window.todosLosMateriales.filter(m => esRespaldoOMadera(m));
-        
-        // Vidrios es todo lo que NO es respaldo y NO es moldura
-        const listaVidrios = window.todosLosMateriales.filter(m => !esRespaldoOMadera(m) && !esMoldura(m));
+        // --- GENERACIÓN DE CONTENIDO ---
+        let htmlVidrios = '<option value="">-- Seleccionar --</option>';
+        let htmlRespaldos = '<option value="">-- Seleccionar --</option>';
+        let htmlCompras = '<option value="">-- Seleccionar Material --</option>' + 
+                          '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
 
-        // --- RENDERIZADO DE OPCIONES ---
-        const generarOptions = (lista) => lista.map(m => `<option value="${m._id || m.id}">${String(m.nombre).toUpperCase()}</option>`).join('');
+        window.todosLosMateriales.forEach(m => {
+            const id = m._id || m.id;
+            const nombre = String(m.nombre).toUpperCase();
+            const stockTxt = (m.stock_actual <= 0) ? " (SIN STOCK)" : ` (${Number(m.stock_actual).toFixed(2)} M2)`;
+            const colorStyle = (m.stock_actual <= 0) ? 'style="color: red;"' : '';
+            
+            const optionHtml = `<option value="${id}" ${colorStyle}>${nombre}${stockTxt}</option>`;
 
-        // A. Selector de Compras (Lleva absolutamente todo)
-        if (matSelect) {
-            matSelect.innerHTML = '<option value="">-- Seleccionar Material --</option>' + 
-                                 '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>' + 
-                                 generarOptions(window.todosLosMateriales);
-        }
+            // LÓGICA DE DISTRIBUCIÓN
+            if (esRespaldoFisico(m)) {
+                // SI ES TRIPLEX/CARTÓN/MDF -> VA AQUÍ
+                htmlRespaldos += optionHtml;
+            } else if (!esMoldura) {
+                // SI NO ES RESPALDO Y NO ES MOLDURA -> VA A VIDRIOS
+                htmlVidrios += optionHtml;
+            }
 
-        // B. Selector de Vidrios (Ahora sí, libre de Triplex y Cartón)
-        if (selVidrio) {
-            selVidrio.innerHTML = '<option value="">-- Seleccionar Vidrio/Espejo --</option>' + generarOptions(listaVidrios);
-        }
+            htmlCompras += optionHtml;
+        });
 
-        // C. Selector de Respaldos (Aquí aparecerán juntos Triplex y Cartón)
-        if (selRespaldo) {
-            selRespaldo.innerHTML = '<option value="">-- Seleccionar Respaldo --</option>' + generarOptions(listaRespaldos);
-        }
+        // INYECCIÓN FINAL EN EL DOM
+        if (selVidrio) selVidrio.innerHTML = htmlVidrios;
+        if (selRespaldo) selRespaldo.innerHTML = htmlRespaldos;
+        if (matSelect) matSelect.innerHTML = htmlCompras;
 
-        console.log("🚀 UNIFICACIÓN COMPLETADA: Triplex y Cartón ahora comparten el selector de Respaldo.");
+        console.log("✅ Movimiento completado: Triplex y Cartón enviados a columna de Respaldo.");
     }
 };
 
