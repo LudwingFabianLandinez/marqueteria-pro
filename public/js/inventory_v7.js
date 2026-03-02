@@ -618,32 +618,38 @@ if (formCompra) {
                 ? inputNuevo.value.trim() 
                 : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
             
-            const esMoldura = nombreInput.toUpperCase().includes("MOLDURAS") || nombreInput.toUpperCase().startsWith("K ");
-            let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
+            const nombreUP = nombreInput.toUpperCase();
+            const esMoldura = nombreUP.includes("MOLDURAS") || nombreUP.startsWith("K ");
+            let nombreReal = esMoldura ? nombreUP : nombreInput;
 
             const cant = parseFloat(inputCant.value) || 0;
             const costoIngresado = parseFloat(inputCosto.value) || 0;
             const largoCm = parseFloat(inputLargo?.value) || 0;
             const anchoCm = parseFloat(inputAncho?.value) || 0;
             
-            // --- 🛡️ MEJORA ESPECÍFICA MATERIALES POR M2 (v16.3) ---
+            // --- 🛡️ MEJORA ESPECÍFICA MATERIALES POR M2 (v18.8 - TRIPLEX Y CARTÓN INCLUIDOS) ---
             let costoFinalAtlas = costoIngresado;
-            const nombreUP = nombreReal.toUpperCase();
             
-            // Lógica Unificada: Chapilla y Passepartout son tratados como iguales
-            const esEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
-                                 nombreUP.includes("CHAPILLA") || 
-                                 nombreUP.includes("AFRICANA");
+            // Lógica Unificada: Ahora incluimos TRIPLEX, CARTON y MDF en el cálculo por M2
+            const esMaterialSuperficie = nombreUP.includes("PASSEPARTOUT") || 
+                                         nombreUP.includes("CHAPILLA") || 
+                                         nombreUP.includes("AFRICANA") ||
+                                         nombreUP.includes("TRIPLEX") || 
+                                         nombreUP.includes("CARTON") || 
+                                         nombreUP.includes("CARTÓN") || 
+                                         nombreUP.includes("MDF") || 
+                                         nombreUP.includes("MADERA");
 
-            if (!esMoldura && esEspecialM2) {
+            if (!esMoldura && esMaterialSuperficie) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
+                    // Dividimos el costo total de la lámina por su área para obtener el costo real por M2
                     costoFinalAtlas = Math.round(costoIngresado / areaM2);
-                    console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
+                    console.log(`📏 Ajuste Automático M2: ${nombreReal} -> $${costoFinalAtlas} por m2 (Calculado desde lámina de ${areaM2.toFixed(2)} m2)`);
                 }
             }
 
-            // LA REGLA DE ORO: 2.90 ML para molduras
+            // LA REGLA DE ORO: 2.90 ML para molduras, cálculo de área para el resto
             let stockASumar = esMoldura 
                 ? (cant * 2.90) 
                 : ((largoCm * anchoCm / 10000) * cant);
@@ -656,12 +662,12 @@ if (formCompra) {
 
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
-            // --- 🚀 MEJORA: CLASIFICACIÓN INTELIGENTE DE CATEGORÍA ---
+            // --- 🚀 CLASIFICACIÓN INTELIGENTE DE CATEGORÍA ---
             let categoriaDeterminada;
             if (esMoldura) {
                 categoriaDeterminada = "MOLDURAS";
-            } else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF")) {
-                categoriaDeterminada = "RESPALDO"; // <--- Esta es la clave del cambio
+            } else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF") || nombreUP.includes("CARTON") || nombreUP.includes("CARTÓN")) {
+                categoriaDeterminada = "RESPALDO";
             } else {
                 categoriaDeterminada = existente?.categoria || "GENERAL";
             }
@@ -672,11 +678,11 @@ if (formCompra) {
                 esNuevo: esNuevoMaterial,
                 categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas, 
+                precio_total_lamina: costoFinalAtlas, // Guardamos el costo UNITARIO por m2
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
                 largo_lamina_cm: esMoldura ? 290 : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costoIngresado * cant,
+                costo_total: costoIngresado * cant, // Este es el valor de la inversión total
                 timestamp: new Date().toISOString(),
                 id: esNuevoMaterial ? `TEMP-${Date.now()}` : idMasterAtlas
             };
@@ -699,7 +705,7 @@ if (formCompra) {
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
                 existente.precio_total_lamina = costoFinalAtlas;
-                existente.categoria = categoriaDeterminada; // Actualizar categoría en memoria
+                existente.categoria = categoriaDeterminada;
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
                 objetoFinal = existente;
             } else {
@@ -726,11 +732,10 @@ if (formCompra) {
 
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado con Atlas.`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado. Costo por M2: $${costoFinalAtlas}`);
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
 
-            // Refrescar selectores para que aparezca en la lista correcta del cotizador inmediatamente
             if (typeof cargarListasModal === 'function') cargarListasModal();
 
         } catch (error) {
