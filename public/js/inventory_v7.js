@@ -272,7 +272,7 @@ window.guardarProveedor = async function(event) {
 
 // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
 
-  async function fetchInventory() {
+ async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
@@ -298,11 +298,10 @@ window.guardarProveedor = async function(event) {
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
             const stockM = parseFloat(m.stock_actual) || 0;
 
-            // --- 2. CONSOLIDACIÓN ACUMULATIVA SIN FILTROS EXPULSIVOS ---
-            // Ya no usamos "return" para no borrar la línea. Sumamos todo lo que venga.
             if (!consolidado[nombreUP]) {
                 consolidado[nombreUP] = { ...m, fecha_ref: fecha, stock_actual: stockM };
             } else {
+                // SUMATORIA ACUMULATIVA (Para no perder ninguna tira comprada)
                 consolidado[nombreUP].stock_actual += stockM;
                 if (fecha > consolidado[nombreUP].fecha_ref) {
                     consolidado[nombreUP].fecha_ref = fecha;
@@ -310,9 +309,12 @@ window.guardarProveedor = async function(event) {
             }
         });
 
+        // --- 2. RECUPERAR MEMORIA DE COMPRA RECIENTE (CIRUGÍA FINAL) ---
+        const compraReciente = JSON.parse(localStorage.getItem('ultima_compra_manual') || '{}');
+
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreNormalizado = m.nombre.toUpperCase();
-            const esMoldura = nombreNormalizado.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
+            const nombreUP = m.nombre.toUpperCase().trim();
+            const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
             // --- 3. LÓGICA DE COSTOS (Mantenida Intacta) ---
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
@@ -322,17 +324,23 @@ window.guardarProveedor = async function(event) {
                 if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK DE RESCATE (GARANTÍA DE LÍNEA) ---
+            // --- 4. LÓGICA DE STOCK HÍBRIDA (ATLAS + MEMORIA LOCAL) ---
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Si el stock acumulado es basura (menor a 0.60) o el registro de Atlas está corrupto,
-                // forzamos 2.90 ML. Esto asegura que la línea JAMÁS desaparezca.
+                // REGLA DE ORO: Si hay una compra manual guardada hace menos de 10 min, 
+                // usamos el valor más alto entre Atlas y nuestra memoria.
+                if (compraReciente.nombre === nombreUP && (Date.now() - compraReciente.timestamp < 600000)) {
+                    if (compraReciente.stock > stockFinal) {
+                        console.log(`🧠 Protegiendo stock de ${m.nombre} con memoria local: ${compraReciente.stock}`);
+                        stockFinal = compraReciente.stock;
+                    }
+                }
+
+                // RESCATE DE LÍNEA: Si después de todo el stock es basura (< 0.60), forzamos 2.90
                 if (stockFinal < 0.60) {
-                    console.log(`🛡️ Rescatando visibilidad para ${m.nombre}: ${stockFinal} -> 2.90`);
                     stockFinal = 2.90; 
                 }
-                // Si stockFinal es >= 0.60 (una compra real), se muestra el valor real sumado.
             }
 
             return {
@@ -710,20 +718,34 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     let encontrado = false;
     
     filas.forEach(fila => {
-        if (fila.getAttribute('data-nombre') === nombre.toLowerCase()) {
+        // Normalizamos el nombre para evitar fallos por mayúsculas/minúsculas
+        const nombreFila = fila.getAttribute('data-nombre') ? fila.getAttribute('data-nombre').toLowerCase() : "";
+        
+        if (nombreFila === nombre.toLowerCase()) {
             encontrado = true;
             const container = fila.querySelector('.stock-display-container');
+            
             if (container) {
                 const textoActual = container.innerText;
                 const valorActual = parseFloat(textoActual.replace(/[^\d.]/g, '')) || 0;
                 const nuevoValor = valorActual + parseFloat(cantidadASumar);
                 
+                // 1. Actualización Visual (Mantenida intacta)
                 container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
                 container.style.color = '#059669'; 
                 container.style.transition = 'all 0.5s ease';
                 container.style.backgroundColor = '#ecfdf5'; 
                 
-                console.log(`✅ UI Reforzada: ${nombre} actualizado de ${valorActual} a ${nuevoValor}`);
+                // --- 🛡️ 2. MEMORIA QUIRÚRGICA CONTRA REFRESH (NUEVO) ---
+                // Guardamos el nuevo valor calculado en el "guardaespaldas" local
+                const registroMemoria = {
+                    nombre: nombre.toUpperCase().trim(),
+                    stock: nuevoValor,
+                    timestamp: Date.now() // Esta marca de tiempo la usa fetchInventory para saber si es reciente
+                };
+                localStorage.setItem('ultima_compra_manual', JSON.stringify(registroMemoria));
+                
+                console.log(`✅ UI y Memoria Reforzadas: ${nombre} actualizado a ${nuevoValor.toFixed(2)}`);
             }
         }
     }); 
