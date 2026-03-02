@@ -793,7 +793,8 @@ window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
     const matSelect = document.getElementById('compraMaterial');
     const selVidrio = document.getElementById('materialVidrio'); 
-    const selRespaldo = document.getElementById('materialRespaldo'); 
+    const selRespaldo = document.getElementById('materialRespaldo');
+    const selChapilla = document.getElementById('materialAcabado'); // Agregado para sintonía con cotizador
 
     if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
@@ -805,21 +806,34 @@ window.cargarListasModal = function() {
         
         let htmlVidrios = '<option value="">-- Seleccionar --</option>';
         let htmlRespaldos = '<option value="">-- Seleccionar --</option>';
+        let htmlChapillas = '<option value="">-- Seleccionar --</option>'; 
         let htmlCompras = '<option value="">-- Seleccionar Material --</option>' + 
                           '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
 
-        window.todosLosMateriales.forEach(m => {
+        // --- 🛡️ ESCUDO ANTI-DUPLICADOS (Priorizando el que tiene Stock) ---
+        const materialesParaMostrar = [...window.todosLosMateriales].sort((a, b) => 
+            (Number(b.stock_actual) || 0) - (Number(a.stock_actual) || 0)
+        );
+        const nombresVistos = new Set();
+
+        materialesParaMostrar.forEach(m => {
             const id = m._id || m.id;
-            const nombreUP = String(m.nombre).toUpperCase();
+            const nombreUP = String(m.nombre).toUpperCase().trim();
+
+            // Si ya procesamos este nombre (ej. Chapilla repetida), saltamos la versión sin stock
+            if (nombresVistos.has(nombreUP)) return;
+            nombresVistos.add(nombreUP);
             
-            // Estilo visual (Rojo si no hay stock)
+            // --- 📏 LÓGICA DE COSTO VISUAL ---
+            // Si es respaldo o chapilla, calculamos el precio por m2 real para mostrar en el select si fuera necesario
+            // Aunque aquí nos enfocamos en que el texto del select sea limpio.
             const stockActual = Number(m.stock_actual) || 0;
             const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : ` (${stockActual.toFixed(2)} M2)`;
             const styleColor = (stockActual <= 0) ? 'style="color: #dc2626;"' : ''; 
             
             const optionHtml = `<option value="${id}" ${styleColor}>${nombreUP}${stockTxt}</option>`;
 
-            // --- LA REGLA UNIFICADA (TRIPLEX + CARTÓN) ---
+            // --- LA REGLA UNIFICADA INTEGRADA ---
             const esFondoRespaldo = nombreUP.includes("TRIPLEX") || 
                                     nombreUP.includes("CARTON") || 
                                     nombreUP.includes("CARTÓN") || 
@@ -827,12 +841,18 @@ window.cargarListasModal = function() {
                                     nombreUP.includes("MADERA");
             
             const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
+            
+            const esAcabadoEspecial = nombreUP.includes("CHAPILLA") || 
+                                      nombreUP.includes("AFRICANA") || 
+                                      nombreUP.includes("PASSEPARTOUT");
 
-            // ASIGNACIÓN DIRECTA: Si es fondo/respaldo, va con el cartón.
+            // ASIGNACIÓN POR CATEGORÍA
             if (esFondoRespaldo) {
                 htmlRespaldos += optionHtml;
             } 
-            // Si NO es fondo y NO es moldura, es VIDRIO.
+            else if (esAcabadoEspecial) {
+                htmlChapillas += optionHtml;
+            }
             else if (!esMoldura) {
                 htmlVidrios += optionHtml;
             }
@@ -840,12 +860,13 @@ window.cargarListasModal = function() {
             htmlCompras += optionHtml;
         });
 
-        // Inyectamos y limpiamos
+        // Inyectamos respetando la integridad del DOM
         if (selVidrio) selVidrio.innerHTML = htmlVidrios;
         if (selRespaldo) selRespaldo.innerHTML = htmlRespaldos;
+        if (selChapilla) selChapilla.innerHTML = htmlChapillas;
         if (matSelect) matSelect.innerHTML = htmlCompras;
 
-        console.log("🛠️ UNIFICADOS: Triplex y Cartón ahora están en el mismo selector de Respaldo.");
+        console.log("✅ INTEGRIDAD MANTENIDA: Duplicados eliminados y Respaldos unificados correctamente.");
     }
 };
 
