@@ -835,7 +835,8 @@ window.cargarListasModal = function() {
         let htmlCompras = '<option value="">-- Seleccionar Material --</option>' + 
                           '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
 
-        // --- 🛡️ ESCUDO ANTI-DUPLICADOS (Priorizando el que tiene Stock) ---
+
+        // --- 🛡️ ESCUDO ANTI-DUPLICADOS ULTRA (v19.5 - ELIMINA FANTASMAS) ---
         const materialesParaMostrar = [...window.todosLosMateriales].sort((a, b) => 
             (Number(b.stock_actual) || 0) - (Number(a.stock_actual) || 0)
         );
@@ -844,21 +845,24 @@ window.cargarListasModal = function() {
         materialesParaMostrar.forEach(m => {
             const id = m._id || m.id;
             const nombreUP = String(m.nombre).toUpperCase().trim();
+            const stockActual = Number(m.stock_actual) || 0;
 
-            // Si ya procesamos este nombre (ej. Chapilla repetida), saltamos la versión sin stock
+            // 1. SI YA VIMOS EL NOMBRE, SALTAMOS (Evita que el de stock 0 entre si ya está el de stock real)
             if (nombresVistos.has(nombreUP)) return;
+
+            // 2. FILTRO FANTASMA: Si no tiene stock y es categoría GENERAL, lo ignoramos de las listas
+            // Esto evita que "CHAPILLA AFRICANA (GENERAL)" aparezca si existe la de categoría ACABADO
+            if (stockActual <= 0 && (m.categoria === "GENERAL" || !m.categoria)) return;
+
             nombresVistos.add(nombreUP);
             
             // --- 📏 LÓGICA DE COSTO VISUAL ---
-            // Si es respaldo o chapilla, calculamos el precio por m2 real para mostrar en el select si fuera necesario
-            // Aunque aquí nos enfocamos en que el texto del select sea limpio.
-            const stockActual = Number(m.stock_actual) || 0;
             const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : ` (${stockActual.toFixed(2)} M2)`;
             const styleColor = (stockActual <= 0) ? 'style="color: #dc2626;"' : ''; 
             
             const optionHtml = `<option value="${id}" ${styleColor}>${nombreUP}${stockTxt}</option>`;
 
-            // --- LA REGLA UNIFICADA INTEGRADA ---
+            // --- LA REGLA UNIFICADA INTEGRADA (No tocar lo anterior) ---
             const esFondoRespaldo = nombreUP.includes("TRIPLEX") || 
                                     nombreUP.includes("CARTON") || 
                                     nombreUP.includes("CARTÓN") || 
