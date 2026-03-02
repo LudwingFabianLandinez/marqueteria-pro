@@ -277,40 +277,32 @@ window.guardarProveedor = async function(event) {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // --- 1. ESCUDO ANTI-RESURRECCIÓN ---
+        // --- 1. ESCUDO ANTI-RESURRECCIÓN (Eliminados) ---
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
-
-        if (!datosFiltrados || datosFiltrados.length === 0) {
-            window.todosLosMateriales = [];
-            renderTable([]);
-            return;
-        }
 
         const limpiarNombre = (t) => String(t).toUpperCase().trim();
         const consolidado = {};
 
+        // --- 2. CONSOLIDACIÓN DE DATOS ATLAS ---
         datosFiltrados.forEach(m => {
             if (!m.nombre) return;
             const nombreUP = limpiarNombre(m.nombre);
-            const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
             const stockM = parseFloat(m.stock_actual) || 0;
 
             if (!consolidado[nombreUP]) {
-                consolidado[nombreUP] = { ...m, fecha_ref: fecha, stock_actual: stockM };
+                consolidado[nombreUP] = { ...m, stock_actual: stockM };
             } else {
                 consolidado[nombreUP].stock_actual += stockM;
-                if (fecha > consolidado[nombreUP].fecha_ref) {
-                    consolidado[nombreUP].fecha_ref = fecha;
-                }
             }
         });
 
+        // --- 3. FILTRO DE RECHAZO PARA EL LAG DE ATLAS ---
         window.todosLosMateriales = Object.values(consolidado).map(m => {
             const nombreUP = limpiarNombre(m.nombre);
             const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
-            // --- 3. LÓGICA DE COSTOS (Vidrio $30.682 / Moldura $10.345) ---
+            // LÓGICA DE COSTOS (Mantenida Intacta: Vidrio $30.682 / Moldura $10.345)
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
             if (esMoldura) {
                 if (costoFijo < 9000) costoFijo = 10345;
@@ -318,24 +310,23 @@ window.guardarProveedor = async function(event) {
                 if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK HÍBRIDA CON ESCUDO NORMALIZADO ---
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Buscamos el escudo usando la misma clave normalizada
+                // Buscamos el Escudo Atómico
                 const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
                 const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
 
-                // Si hay memoria de las últimas 24 horas, MANDAMOS nosotros
+                // REGLA SUPREMA: Si existe memoria de hoy, Atlas NO PUEDE bajar el stock.
                 if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-                    // Si el valor guardado es mayor al que Atlas reporta, lo protegemos
+                    // Si el valor de Atlas es menor al que tú sumaste manualmente, Atlas se ignora.
                     if (memoria.stock > stockFinal) {
-                        console.log(`⭐ ESCUDO ACTIVO para ${nombreUP}: Forzando ${memoria.stock} ML`);
+                        console.warn(`🛡️ BLOQUEADO: Atlas reporta ${stockFinal} pero el escudo v18 manda ${memoria.stock}`);
                         stockFinal = memoria.stock;
                     }
                 }
 
-                // RESCATE: Si tras todo el proceso sigue siendo basura (< 0.60), tiramos del 2.90
+                // RESCATE FINAL: Si después de todo sigue siendo basura (< 0.60), forzamos 2.90
                 if (stockFinal < 0.60) {
                     stockFinal = 2.90; 
                 }
@@ -710,40 +701,44 @@ function configurarEventos() {
 }
 
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
+    const limpiarNombre = (t) => String(t).toUpperCase().trim();
+    const nombreNormalizado = limpiarNombre(nombre);
+    const claveEscudo = `escudo_v18_${nombreNormalizado.replace(/\s+/g, '_')}`;
+
     const filas = document.querySelectorAll('#inventoryTable tr');
     
-    // Función de limpieza para asegurar que el nombre coincida siempre
-    const limpiarNombre = (t) => String(t).toUpperCase().trim();
-
     filas.forEach(fila => {
         const nombreFila = fila.getAttribute('data-nombre') ? limpiarNombre(fila.getAttribute('data-nombre')) : "";
         
-        if (nombreFila === limpiarNombre(nombre)) {
+        if (nombreFila === nombreNormalizado) {
             const container = fila.querySelector('.stock-display-container');
-            
             if (container) {
-                const textoActual = container.innerText;
-                const valorActual = parseFloat(textoActual.replace(/[^\d.]/g, '')) || 0;
+                const valorActual = parseFloat(container.innerText.replace(/[^\d.]/g, '')) || 0;
                 const nuevoValor = valorActual + parseFloat(cantidadASumar);
-                
-                // 1. Actualización Visual
-                container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
-                container.style.color = '#059669'; 
-                container.style.transition = 'all 0.5s ease';
-                container.style.backgroundColor = '#ecfdf5'; 
-                
-                // --- 🛡️ 2. ESCUDO NORMALIZADO (v17.8.0) ---
-                const registroMemoria = {
-                    nombre: limpiarNombre(nombre),
+
+                // --- 🚀 PASO 1: GUARDADO ATÓMICO (Inmediato) ---
+                const registro = {
+                    nombre: nombreNormalizado,
                     stock: nuevoValor,
                     timestamp: Date.now()
                 };
+                localStorage.setItem(claveEscudo, JSON.stringify(registro));
+
+                // --- 🚀 PASO 2: ACTUALIZAR MEMORIA VOLÁTIL ---
+                if (window.todosLosMateriales) {
+                    const idx = window.todosLosMateriales.findIndex(m => limpiarNombre(m.nombre) === nombreNormalizado);
+                    if (idx !== -1) {
+                        window.todosLosMateriales[idx].stock_actual = nuevoValor;
+                        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+                    }
+                }
+
+                // --- 🚀 PASO 3: UI (Visual) ---
+                container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
+                container.style.color = '#059669'; 
+                container.style.backgroundColor = '#ecfdf5'; 
                 
-                // Usamos una clave que ignore espacios para que fetchInventory la encuentre siempre
-                const claveEscudo = `escudo_v18_${limpiarNombre(nombre).replace(/\s+/g, '_')}`;
-                localStorage.setItem(claveEscudo, JSON.stringify(registroMemoria));
-                
-                console.log(`🚨 ESCUDO REFORZADO para ${nombre}: Guardado como ${nuevoValor.toFixed(2)}`);
+                console.log(`⚓ ESCUDO ATÓMICO ACTIVADO: ${nombreNormalizado} fijado en ${nuevoValor.toFixed(2)}`);
             }
         }
     }); 
