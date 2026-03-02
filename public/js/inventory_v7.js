@@ -589,7 +589,7 @@ function configurarEventos() {
 
     // === LÓGICA DE COMPRA (BLINDADA v16.1.0) ===
     const formCompra = document.getElementById('formNuevaCompra');
-    if (formCompra) {
+if (formCompra) {
     formCompra.onsubmit = async function(e) {
         e.preventDefault();
 
@@ -621,9 +621,10 @@ function configurarEventos() {
             const anchoCm = parseFloat(inputAncho?.value) || 0;
             
             // --- 🛡️ MEJORA ESPECÍFICA MATERIALES POR M2 (v16.3) ---
-            // Detectamos Passepartout y Chapilla (incluyendo Africana)
             let costoFinalAtlas = costoIngresado;
             const nombreUP = nombreReal.toUpperCase();
+            
+            // Analizamos si es un material que se vende por M2 (Passepartout o Chapilla)
             const esEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
                                  nombreUP.includes("CHAPILLA") || 
                                  nombreUP.includes("AFRICANA");
@@ -631,7 +632,7 @@ function configurarEventos() {
             if (!esMoldura && esEspecialM2) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
-                    // Ejemplo Chapilla: 88.000 / 1.4m2 = 62.857
+                    // CÁLCULO CRÍTICO: Aquí aseguramos que el costo guardado sea por M2
                     costoFinalAtlas = Math.round(costoIngresado / areaM2);
                     console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
                 }
@@ -660,7 +661,7 @@ function configurarEventos() {
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
                 largo_lamina_cm: esMoldura ? 290 : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costoIngresado * cant, // El desembolso total sigue siendo el mismo
+                costo_total: costoIngresado * cant,
                 timestamp: new Date().toISOString(),
                 id: esNuevoMaterial ? `TEMP-${Date.now()}` : idMasterAtlas
             };
@@ -682,7 +683,8 @@ function configurarEventos() {
 
             if (existente) {
                 existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
-                existente.precio_total_lamina = costoFinalAtlas; // Actualizamos precio en memoria
+                // 🔥 IMPORTANTE: Actualizamos el precio base con el nuevo cálculo por M2
+                existente.precio_total_lamina = costoFinalAtlas; 
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
                 objetoFinal = existente;
             } else {
@@ -702,13 +704,11 @@ function configurarEventos() {
 
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // Actualizar Bitácora
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // REFRESCAR TABLA usando la función global estable
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
             alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado con Atlas.`);
