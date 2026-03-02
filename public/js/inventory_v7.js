@@ -792,14 +792,13 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 
     window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
-    const matSelect = document.getElementById('compraMaterial'); // Selector del modal de Compras
+    const matSelect = document.getElementById('compraMaterial'); 
     const provRegisterSelect = document.getElementById('proveedorSelect');
     
-    // Selectores del Cotizador (Dashboard)
     const selVidrio = document.getElementById('materialVidrio'); 
     const selRespaldo = document.getElementById('materialRespaldo'); 
 
-    // 1. Cargar Proveedores (Sincronizados y Blindados)
+    // 1. Cargar Proveedores
     if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
@@ -807,9 +806,8 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
         if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
     }
     
-    // 2. Cargar Materiales (BLINDADO + CLASIFICACIÓN PARA COTIZADOR)
+    // 2. Cargar Materiales
     if (window.todosLosMateriales && window.todosLosMateriales.length > 0) {
-        // Inicializamos las listas
         let opcionesCompra = '<option value="">-- Seleccionar Material --</option>' + 
                              '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
         
@@ -817,12 +815,11 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
         let opcionesRespaldo = '<option value="">-- Seleccionar Respaldo --</option>';
 
         window.todosLosMateriales.forEach(m => {
-            const idCorrecto = m._id || m.id; // Prioridad ID Atlas
+            const idCorrecto = m._id || m.id;
             const nombreUP = String(m.nombre).toUpperCase();
             const optionHtml = `<option value="${idCorrecto}">${nombreUP}</option>`;
             
-            // --- REGLA DE CLASIFICACIÓN MAESTRA ---
-            // Detectamos si es respaldo por nombre o por categoría guardada
+            // --- DETECTOR ULTRA-ESTRICTO ---
             const esRespaldo = nombreUP.includes("TRIPLEX") || 
                                nombreUP.includes("MADERA") || 
                                nombreUP.includes("MDF") || 
@@ -831,25 +828,35 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
             
             const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
 
-            // --- DISTRIBUCIÓN CON EXCLUSIÓN CRÍTICA ---
+            // ASIGNACIÓN EXCLUSIVA
             if (esRespaldo) {
-                // Si es respaldo, se va DIRECTO a su lista y se salta el resto de validaciones
                 opcionesRespaldo += optionHtml;
             } else if (!esMoldura) {
-                // SOLO si NO es respaldo y NO es moldura, puede entrar a vidrios
+                // SOLO ENTRA SI NO ES RESPALDO
                 opcionesVidrio += optionHtml;
             }
             
-            // La lista de compras (el selector general) siempre lleva todo para poder re-abastecer
             opcionesCompra += optionHtml;
         });
 
-        // Inyectamos el HTML en los elementos existentes en el DOM
+        // Inyectar HTML
         if (matSelect) matSelect.innerHTML = opcionesCompra;
-        if (selVidrio) selVidrio.innerHTML = opcionesVidrio;
         if (selRespaldo) selRespaldo.innerHTML = opcionesRespaldo;
+        if (selVidrio) {
+            selVidrio.innerHTML = opcionesVidrio;
 
-        console.log("🎯 Sincronización Exitosa: El Triplex ha sido filtrado de Vidrios.");
+            // --- 🛡️ ESCUDO FINAL DE SEGURIDAD (FUERZA BRUTA) ---
+            // Revisamos el selector de vidrios una vez lleno y borramos cualquier residuo de madera
+            Array.from(selVidrio.options).forEach(opt => {
+                const txt = opt.text.toUpperCase();
+                if (txt.includes("TRIPLEX") || txt.includes("MADERA") || txt.includes("MDF")) {
+                    console.log("🚫 Eliminando residuo de Triplex de Vidrios:", txt);
+                    opt.remove();
+                }
+            });
+        }
+
+        console.log("✅ Limpieza profunda de selectores completada.");
     }
 };
 
