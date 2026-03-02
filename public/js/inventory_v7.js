@@ -1,531 +1,537 @@
-/**
- * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
- * Versión: 13.4.48 - STOCK REAL CON RECONCILIACIÓN LOCAL
- * * CAMBIOS v13.4.48:
- * 1. GANCHO 'calcularStockReal': Suma compras locales al stock del servidor antes de renderizar.
- * 2. PERSISTENCIA DE MOLDURAS: Solución definitiva para que los 2.9 ML aparezcan en pantalla.
- * 3. MANTENIMIENTO: Se preserva al 100% la estructura visual y lógica de m2/ml.
- * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
- */
+    /**
+     * SISTEMA DE GESTIÓN - MARQUETERÍA LA CHICA MORALES
+     * Versión: 13.4.48 - STOCK REAL CON RECONCILIACIÓN LOCAL
+     * * CAMBIOS v13.4.48:
+     * 1. GANCHO 'calcularStockReal': Suma compras locales al stock del servidor antes de renderizar.
+     * 2. PERSISTENCIA DE MOLDURAS: Solución definitiva para que los 2.9 ML aparezcan en pantalla.
+     * 3. MANTENIMIENTO: Se preserva al 100% la estructura visual y lógica de m2/ml.
+     * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
+     */
 
-// --- CONFIGURACIÓN DE CONEXIÓN GLOBAL (Arreglo Punto 1 - Virginia) ---
-window.API_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/.netlify/functions/server' 
-    : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
+    // --- CONFIGURACIÓN DE CONEXIÓN GLOBAL (Arreglo Punto 1 - Virginia) ---
+    window.API_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000/.netlify/functions/server' 
+        : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
 
-// Puente de compatibilidad para window.API
-window.API = {
-    getInvoices: () => fetch(`${window.API_URL}/invoices`).then(r => r.json()),
-    getInventory: () => fetch(`${window.API_URL}/inventory`).then(r => r.json()),
-    getProviders: (query = "") => fetch(`${window.API_URL}/providers${query}`).then(r => r.json()),
-    saveInvoice: (data) => fetch(`${window.API_URL}/invoices`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-    saveMaterial: (data) => fetch(`${window.API_URL}/inventory`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-    updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-    getHistory: (id) => fetch(`${window.API_URL}/materials/${id}/history`).then(r => r.json()),
-    deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
-};
-
-// 1. VARIABLES GLOBALES
-window.todosLosMateriales = [];
-window.todosLosProveedores = [];
-let datosCotizacionActual = null; 
-
-// 2. INICIO DEL SISTEMA
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("🚀 Sistema v13.4.48 - Motor de Precisión con Reconciliación Activo");
-    fetchInventory();
-    fetchProviders(); 
-    configurarEventos();
-    
-    if (window.location.pathname.includes('history')) {
-        cargarHistorialVentas();
-    }
-});
-
-window.toggleMenu = function() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.classList.toggle('active');
-}
-
-// --- SECCIÓN UTILIDADES DE RECONCILIACIÓN (NUEVO GANCHO) ---
-
-/**
- * Calcula el stock sumando lo que dice el servidor + compras locales no sincronizadas
- * Blindaje: No altera el objeto original del servidor, solo el valor visual.
- */
-// PEGA ESTO EN SU LUGAR (Versión v13.4.49) [cite: 784, 792]
-function calcularStockReal(material) {
-    let stockServidor = parseFloat(material.stock_actual) || 0;
-    const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
-    
-    // Normalizamos el ID del material del servidor
-    const idMaterialTabla = String(material.id || material._id || "");
-
-    const sumaExtra = comprasLocales.reduce((acc, compra) => {
-        // Normalizamos el ID guardado en la compra
-        const idEnCompra = (compra.materialId && typeof compra.materialId === 'object') 
-            ? String(compra.materialId._id || compra.materialId.id) 
-            : String(compra.materialId);
-
-        if (idEnCompra === idMaterialTabla) {
-            // Sumamos los 2.9 ml (totalM2 o cantidad_m2)
-            const valorASumar = parseFloat(compra.totalM2 || compra.cantidad_m2 || 0);
-            return acc + valorASumar;
-        }
-        return acc;
-    }, 0);
-
-    return stockServidor + sumaExtra;
-}
-
-// --- SECCIÓN HISTORIAL (PRESERVADO) ---
-
-async function cargarHistorialVentas() {
-    const cuerpoTabla = document.getElementById('lista-ventas');
-    if (!cuerpoTabla) {
-        console.warn("⚠️ Elemento 'lista-ventas' no encontrado en esta página.");
-        return;
-    }
-
-    cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando historial...</td></tr>';
-
-    try {
-        const res = await window.API.getInvoices();
-        const ventas = res.success ? res.data : (Array.isArray(res) ? res : []);
-        
-        const formateador = new Intl.NumberFormat('es-CO', { 
-            style: 'currency', 
-            currency: 'COP', 
-            maximumFractionDigits: 0 
-        });
-
-        if (Array.isArray(ventas) && ventas.length > 0) {
-            cuerpoTabla.innerHTML = ventas.map(venta => {
-                const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
-                const orden = venta.numeroOrden || venta.ot || venta.numeroFactura || "S/N";
-                
-                const nombreCliente = (typeof venta.clienteNombre === 'string') ? venta.clienteNombre : 
-                                    (typeof venta.cliente === 'string' ? venta.cliente : "Cliente General");
-
-                const totalVenta = Number(venta.total || venta.totalVenta || 0);
-                const abono = Number(venta.abono || 0);
-                const saldo = venta.saldo !== undefined ? Number(venta.saldo) : (totalVenta - abono);
-                const estado = venta.estado || "Completado";
-
-                return `
-                    <tr>
-                        <td>${fecha}</td>
-                        <td style="font-weight: bold; color: #1e293b;">${orden}</td>
-                        <td>${nombreCliente}</td>
-                        <td style="font-weight: bold;">${formateador.format(totalVenta)}</td>
-                        <td class="text-danger" style="font-weight: bold;">${formateador.format(saldo)}</td>
-                        <td>
-                            <span class="badge" style="background:#10b981; color:white; padding:4px 8px; border-radius:12px; font-size:0.7rem;">
-                                ${estado}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn-table-action" onclick="window.verDetalleVenta('${venta._id || venta.id}')" title="Ver Detalle">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </td>
-                    </tr>`;
-            }).join('');
-        } else {
-            cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#94a3b8;">No se encontraron órdenes registradas.</td></tr>';
-        }
-    } catch (error) {
-        console.error("❌ Error en cargarHistorialVentas:", error);
-        cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#ef4444; padding:20px;">Error de comunicación con el servidor.</td></tr>';
-    }
-}
-
-// --- SECCIÓN PROVEEDORES (PRESERVADO) ---
-
-async function fetchProviders() {
-    const directorio = document.getElementById('directorioProveedores');
-    if (directorio) directorio.innerHTML = '<div style="text-align:center; padding:10px;"><i class="fas fa-sync fa-spin"></i></div>';
-
-    try {
-        const timestamp = Date.now();
-        const resultado = await window.API.getProviders(`?t=${timestamp}`);
-        
-        const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
-        
-        if (Array.isArray(listaBruta)) {
-            window.todosLosProveedores = listaBruta
-                .filter(p => p !== null && typeof p === 'object')
-                .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
-            
-            localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
-            
-            actualizarSelectProveedores();
-            window.cargarListasModal();
-
-            if (directorio) {
-                directorio.innerHTML = ''; 
-                
-                if (window.todosLosProveedores.length === 0) {
-                    directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
-                } else {
-                    directorio.innerHTML = window.todosLosProveedores.map(p => {
-                        const nombreSeguro = String(p.nombre || 'S/N').toUpperCase();
-                        return `
-                        <div class="provider-card">
-                            <h4>${nombreSeguro}</h4>
-                            <div class="provider-detail"><strong>NIT:</strong> ${p.nit || 'N/A'}</div>
-                            <div class="provider-detail"><strong>Tel:</strong> ${p.telefono || 'Sin Tel.'}</div>
-                            <div class="provider-detail"><strong>Cont:</strong> ${p.contacto || 'N/A'}</div>
-                            <span class="cat-tag">${p.categoria || 'General'}</span>
-                        </div>
-                    `}).join('');
-                }
-            }
-        }
-    } catch (error) { 
-        console.error("❌ Error proveedores:", error);
-        if (directorio) directorio.innerHTML = '<p style="color:red; font-size:0.7rem;">Error al cargar lista.</p>';
-    }
-}
-
-window.guardarProveedor = async function(event) {
-    if(event) event.preventDefault();
-    
-    // 1. UI: Feedback visual inmediato (Mantenemos tu lógica intacta)
-    const btnGuardar = event.submitter || document.querySelector('#provForm button[type="submit"]');
-    const originalText = btnGuardar ? btnGuardar.innerHTML : 'GUARDAR';
-    if(btnGuardar) { 
-        btnGuardar.disabled = true; 
-        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...'; 
-    }
-
-    // 2. Captura de datos (Tu estructura original intacta)
-    const payload = {
-        nombre: document.getElementById('provNombre')?.value.trim() || "",
-        nit: document.getElementById('provNit')?.value.trim() || "",
-        contacto: document.getElementById('provContacto')?.value.trim() || "",
-        telefono: document.getElementById('provTelefono')?.value.trim() || "",
-        email: document.getElementById('provEmail')?.value.trim() || "",
-        direccion: document.getElementById('provDireccion')?.value.trim() || "",
-        categoria: document.getElementById('provCategoria')?.value || "General"
+    // Puente de compatibilidad para window.API
+    window.API = {
+        getInvoices: () => fetch(`${window.API_URL}/invoices`).then(r => r.json()),
+        getInventory: () => fetch(`${window.API_URL}/inventory`).then(r => r.json()),
+        getProviders: (query = "") => fetch(`${window.API_URL}/providers${query}`).then(r => r.json()),
+        saveInvoice: (data) => fetch(`${window.API_URL}/invoices`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+        saveMaterial: (data) => fetch(`${window.API_URL}/inventory`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+        updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+        getHistory: (id) => fetch(`${window.API_URL}/materials/${id}/history`).then(r => r.json()),
+        deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
     };
 
-    if (!payload.nombre) {
-        if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
-        return alert("⚠️ El nombre del proveedor es obligatorio");
+    // 1. VARIABLES GLOBALES
+    window.todosLosMateriales = [];
+    window.todosLosProveedores = [];
+    let datosCotizacionActual = null; 
+
+    // 2. INICIO DEL SISTEMA
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("🚀 Sistema v13.4.48 - Motor de Precisión con Reconciliación Activo");
+        fetchInventory();
+        fetchProviders(); 
+        configurarEventos();
+        
+        if (window.location.pathname.includes('history')) {
+            cargarHistorialVentas();
+        }
+    });
+
+    window.toggleMenu = function() {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.toggle('active');
     }
 
-    try {
-        console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
+    // --- SECCIÓN UTILIDADES DE RECONCILIACIÓN (NUEVO GANCHO) ---
+
+    /**
+     * Calcula el stock sumando lo que dice el servidor + compras locales no sincronizadas
+     * Blindaje: No altera el objeto original del servidor, solo el valor visual.
+     */
+    // PEGA ESTO EN SU LUGAR (Versión v13.4.49) [cite: 784, 792]
+    function calcularStockReal(material) {
+        let stockServidor = parseFloat(material.stock_actual) || 0;
+        const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
         
-        // 3. ENVÍO DIRECTO Y SEGURO (Corrigiendo el error 400 del puente)
-        const response = await fetch(`${window.API_URL}/providers`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+        // Normalizamos el ID del material del servidor
+        const idMaterialTabla = String(material.id || material._id || "");
 
-        // Validamos si la respuesta fue exitosa antes de convertir a JSON
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || errorData.message || `Error del servidor (${response.status})`);
+        const sumaExtra = comprasLocales.reduce((acc, compra) => {
+            // Normalizamos el ID guardado en la compra
+            const idEnCompra = (compra.materialId && typeof compra.materialId === 'object') 
+                ? String(compra.materialId._id || compra.materialId.id) 
+                : String(compra.materialId);
+
+            if (idEnCompra === idMaterialTabla) {
+                // Sumamos los 2.9 ml (totalM2 o cantidad_m2)
+                const valorASumar = parseFloat(compra.totalM2 || compra.cantidad_m2 || 0);
+                return acc + valorASumar;
+            }
+            return acc;
+        }, 0);
+
+        return stockServidor + sumaExtra;
+    }
+
+    // --- SECCIÓN HISTORIAL (PRESERVADO) ---
+
+    async function cargarHistorialVentas() {
+        const cuerpoTabla = document.getElementById('lista-ventas');
+        if (!cuerpoTabla) {
+            console.warn("⚠️ Elemento 'lista-ventas' no encontrado en esta página.");
+            return;
         }
 
-        const res = await response.json();
+        cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando historial...</td></tr>';
 
-        // 4. ÉXITO: Tu lógica de cierre y refresco (Intacta)
-        if (res.success || res._id || res.id) {
-            alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
-            document.getElementById('provForm')?.reset();
+        try {
+            const res = await window.API.getInvoices();
+            const ventas = res.success ? res.data : (Array.isArray(res) ? res : []);
             
-            // Cerrar modal si existe la función
-            if (typeof window.cerrarModales === 'function') {
-                window.cerrarModales();
+            const formateador = new Intl.NumberFormat('es-CO', { 
+                style: 'currency', 
+                currency: 'COP', 
+                maximumFractionDigits: 0 
+            });
+
+            if (Array.isArray(ventas) && ventas.length > 0) {
+                cuerpoTabla.innerHTML = ventas.map(venta => {
+                    const fecha = venta.createdAt ? new Date(venta.createdAt).toLocaleDateString() : 'N/A';
+                    const orden = venta.numeroOrden || venta.ot || venta.numeroFactura || "S/N";
+                    
+                    const nombreCliente = (typeof venta.clienteNombre === 'string') ? venta.clienteNombre : 
+                                        (typeof venta.cliente === 'string' ? venta.cliente : "Cliente General");
+
+                    const totalVenta = Number(venta.total || venta.totalVenta || 0);
+                    const abono = Number(venta.abono || 0);
+                    const saldo = venta.saldo !== undefined ? Number(venta.saldo) : (totalVenta - abono);
+                    const estado = venta.estado || "Completado";
+
+                    return `
+                        <tr>
+                            <td>${fecha}</td>
+                            <td style="font-weight: bold; color: #1e293b;">${orden}</td>
+                            <td>${nombreCliente}</td>
+                            <td style="font-weight: bold;">${formateador.format(totalVenta)}</td>
+                            <td class="text-danger" style="font-weight: bold;">${formateador.format(saldo)}</td>
+                            <td>
+                                <span class="badge" style="background:#10b981; color:white; padding:4px 8px; border-radius:12px; font-size:0.7rem;">
+                                    ${estado}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn-table-action" onclick="window.verDetalleVenta('${venta._id || venta.id}')" title="Ver Detalle">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>`;
+                }).join('');
             } else {
-                // Fallback manual para cerrar modal
-                const modal = document.getElementById('modalProveedor');
-                if(modal) modal.style.display = 'none';
+                cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#94a3b8;">No se encontraron órdenes registradas.</td></tr>';
             }
-            
-            // Refrescar lista de proveedores
-            if (typeof fetchProviders === 'function') {
-                await fetchProviders(); 
-            }
-            
-        } else {
-            throw new Error("Atlas no devolvió confirmación de guardado");
+        } catch (error) {
+            console.error("❌ Error en cargarHistorialVentas:", error);
+            cuerpoTabla.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#ef4444; padding:20px;">Error de comunicación con el servidor.</td></tr>';
         }
+    }
 
-    } catch (error) { 
-        console.error("🚨 Error crítico al guardar proveedor:", error);
-        alert("❌ Error: " + error.message); 
-    } finally {
+    // --- SECCIÓN PROVEEDORES (PRESERVADO) ---
+
+    async function fetchProviders() {
+        const directorio = document.getElementById('directorioProveedores');
+        if (directorio) directorio.innerHTML = '<div style="text-align:center; padding:10px;"><i class="fas fa-sync fa-spin"></i></div>';
+
+        try {
+            const timestamp = Date.now();
+            const resultado = await window.API.getProviders(`?t=${timestamp}`);
+            
+            const listaBruta = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []); 
+            
+            if (Array.isArray(listaBruta)) {
+                window.todosLosProveedores = listaBruta
+                    .filter(p => p !== null && typeof p === 'object')
+                    .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+                
+                localStorage.setItem('providers', JSON.stringify(window.todosLosProveedores));
+                
+                actualizarSelectProveedores();
+                window.cargarListasModal();
+
+                if (directorio) {
+                    directorio.innerHTML = ''; 
+                    
+                    if (window.todosLosProveedores.length === 0) {
+                        directorio.innerHTML = '<p style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">Sin proveedores registrados.</p>';
+                    } else {
+                        directorio.innerHTML = window.todosLosProveedores.map(p => {
+                            const nombreSeguro = String(p.nombre || 'S/N').toUpperCase();
+                            return `
+                            <div class="provider-card">
+                                <h4>${nombreSeguro}</h4>
+                                <div class="provider-detail"><strong>NIT:</strong> ${p.nit || 'N/A'}</div>
+                                <div class="provider-detail"><strong>Tel:</strong> ${p.telefono || 'Sin Tel.'}</div>
+                                <div class="provider-detail"><strong>Cont:</strong> ${p.contacto || 'N/A'}</div>
+                                <span class="cat-tag">${p.categoria || 'General'}</span>
+                            </div>
+                        `}).join('');
+                    }
+                }
+            }
+        } catch (error) { 
+            console.error("❌ Error proveedores:", error);
+            if (directorio) directorio.innerHTML = '<p style="color:red; font-size:0.7rem;">Error al cargar lista.</p>';
+        }
+    }
+
+    window.guardarProveedor = async function(event) {
+        if(event) event.preventDefault();
+        
+        // 1. UI: Feedback visual inmediato (Mantenemos tu lógica intacta)
+        const btnGuardar = event.submitter || document.querySelector('#provForm button[type="submit"]');
+        const originalText = btnGuardar ? btnGuardar.innerHTML : 'GUARDAR';
         if(btnGuardar) { 
-            btnGuardar.disabled = false; 
-            btnGuardar.innerHTML = originalText; 
+            btnGuardar.disabled = true; 
+            btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO...'; 
         }
-    }
-};
 
-// --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
+        // 2. Captura de datos (Tu estructura original intacta)
+        const payload = {
+            nombre: document.getElementById('provNombre')?.value.trim() || "",
+            nit: document.getElementById('provNit')?.value.trim() || "",
+            contacto: document.getElementById('provContacto')?.value.trim() || "",
+            telefono: document.getElementById('provTelefono')?.value.trim() || "",
+            email: document.getElementById('provEmail')?.value.trim() || "",
+            direccion: document.getElementById('provDireccion')?.value.trim() || "",
+            categoria: document.getElementById('provCategoria')?.value || "General"
+        };
 
- async function fetchInventory() {
-    try {
-        const resultado = await window.API.getInventory();
-        const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
-        
-        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-        const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
+        if (!payload.nombre) {
+            if(btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = originalText; }
+            return alert("⚠️ El nombre del proveedor es obligatorio");
+        }
 
-        const limpiarNombre = (t) => String(t).toUpperCase().trim();
-        const consolidado = {};
-
-        // --- 🛡️ FILTRO ANTI-BASURA DE ATLAS ---
-        datosFiltrados.forEach(m => {
-            if (!m.nombre) return;
-            const nombreUP = limpiarNombre(m.nombre);
-            const stockM = parseFloat(m.stock_actual) || 0;
-
-            // Si el registro individual es basura (ej: 0.44), lo ignoramos para no restar mal
-            if (stockM > 0 && stockM < 0.50) {
-                console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
-                return;
-            }
-
-            if (!consolidado[nombreUP]) {
-                consolidado[nombreUP] = { ...m, stock_actual: stockM };
-            } else {
-                consolidado[nombreUP].stock_actual += stockM;
-            }
-        });
-
-        window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreUP = limpiarNombre(m.nombre);
-            const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
-
-            // Costos Blindados ($30.682 Vidrio / $10.345 Moldura)
-            let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
-            if (esMoldura && costoFijo < 9000) costoFijo = 10345;
-            else if (!esMoldura && (costoFijo === 16141 || costoFijo === 0)) costoFijo = 30682;
-
-            let stockFinal = m.stock_actual;
+        try {
+            console.log("🚀 Enviando proveedor a Atlas:", payload.nombre);
             
-            if (esMoldura) {
-                const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
-                const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
+            // 3. ENVÍO DIRECTO Y SEGURO (Corrigiendo el error 400 del puente)
+            const response = await fetch(`${window.API_URL}/providers`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
 
-                // PRIORIDAD AL ESCUDO: Si sumaste hoy, Atlas NO MANDA si el valor es menor.
-                if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-                    if (memoria.stock > stockFinal) {
-                        stockFinal = memoria.stock;
+            // Validamos si la respuesta fue exitosa antes de convertir a JSON
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || errorData.message || `Error del servidor (${response.status})`);
+            }
+
+            const res = await response.json();
+
+            // 4. ÉXITO: Tu lógica de cierre y refresco (Intacta)
+            if (res.success || res._id || res.id) {
+                alert(" ✅ Proveedor guardado correctamente en MongoDB Atlas");
+                document.getElementById('provForm')?.reset();
+                
+                // Cerrar modal si existe la función
+                if (typeof window.cerrarModales === 'function') {
+                    window.cerrarModales();
+                } else {
+                    // Fallback manual para cerrar modal
+                    const modal = document.getElementById('modalProveedor');
+                    if(modal) modal.style.display = 'none';
+                }
+                
+                // Refrescar lista de proveedores
+                if (typeof fetchProviders === 'function') {
+                    await fetchProviders(); 
+                }
+                
+            } else {
+                throw new Error("Atlas no devolvió confirmación de guardado");
+            }
+
+        } catch (error) { 
+            console.error("🚨 Error crítico al guardar proveedor:", error);
+            alert("❌ Error: " + error.message); 
+        } finally {
+            if(btnGuardar) { 
+                btnGuardar.disabled = false; 
+                btnGuardar.innerHTML = originalText; 
+            }
+        }
+    };
+
+    // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
+
+    async function fetchInventory() {
+        try {
+            const resultado = await window.API.getInventory();
+            const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+            
+            const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+            const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
+
+            const limpiarNombre = (t) => String(t).toUpperCase().trim();
+            const consolidado = {};
+
+            // --- 🛡️ FILTRO ANTI-BASURA DE ATLAS ---
+            datosFiltrados.forEach(m => {
+                if (!m.nombre) return;
+                const nombreUP = limpiarNombre(m.nombre);
+                const stockM = parseFloat(m.stock_actual) || 0;
+
+                // Si el registro individual es basura (ej: 0.44), lo ignoramos para no restar mal
+                if (stockM > 0 && stockM < 0.50) {
+                    console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
+                    return;
+                }
+
+                if (!consolidado[nombreUP]) {
+                    consolidado[nombreUP] = { ...m, stock_actual: stockM };
+                } else {
+                    consolidado[nombreUP].stock_actual += stockM;
+                }
+            });
+
+            window.todosLosMateriales = Object.values(consolidado).map(m => {
+                const nombreUP = limpiarNombre(m.nombre);
+                const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
+
+                // Costos Blindados ($30.682 Vidrio / $10.345 Moldura)
+                let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
+                if (esMoldura && costoFijo < 9000) costoFijo = 10345;
+                else if (!esMoldura && (costoFijo === 16141 || costoFijo === 0)) costoFijo = 30682;
+
+                let stockFinal = m.stock_actual;
+                
+                if (esMoldura) {
+                    const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
+                    const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
+
+                    // PRIORIDAD AL ESCUDO: Si sumaste hoy, Atlas NO MANDA si el valor es menor.
+                    if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
+                        if (memoria.stock > stockFinal) {
+                            stockFinal = memoria.stock;
+                        }
+                    }
+
+                    // --- 🛡️ BLOQUEO DE SEGURIDAD v18.3 ---
+                    // Si el stock cae por debajo de 2.90, es error de Atlas. Forzamos mínimo.
+                    if (stockFinal < 2.90) {
+                        stockFinal = 2.90; 
                     }
                 }
 
-                // --- 🛡️ BLOQUEO DE SEGURIDAD v18.3 ---
-                // Si el stock cae por debajo de 2.90, es error de Atlas. Forzamos mínimo.
-                if (stockFinal < 2.90) {
-                    stockFinal = 2.90; 
+                return {
+                    ...m,
+                    precio_m2_costo: Math.round(costoFijo),
+                    stock_actual: Number(stockFinal.toFixed(2))
+                };
+            });
+
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            renderTable(window.todosLosMateriales);
+
+        } catch (error) {
+            console.error("❌ Error en inventario:", error);
+        }
+    }
+
+    function renderTable(materiales) {
+        const cuerpoTabla = document.getElementById('inventoryTable');
+        if (!cuerpoTabla) return;
+        cuerpoTabla.innerHTML = '';
+
+        const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+        
+        // 1. CREAMOS UN MAPA PARA UNIFICAR (Aplanar registros duplicados)
+        const mapaUnificado = {};
+
+        materiales.forEach(m => {
+            // Usamos el nombre como clave única para agrupar
+            const nombreClave = m.nombre.toUpperCase().trim();
+            
+            if (!mapaUnificado[nombreClave]) {
+                // Clonamos el objeto y aseguramos que tenga un ID de referencia (preferencia al de Atlas _id)
+                mapaUnificado[nombreClave] = { ...m, id_referencia: m._id || m.id, stock_acumulado: calcularStockReal(m) };
+            } else {
+                // SUMAMOS el stock del registro viejo y el nuevo
+                mapaUnificado[nombreClave].stock_acumulado += calcularStockReal(m);
+                
+                // REESCRITURA DE PRECIO (Reposición):
+                const precioActual = parseFloat(m.precio_total_lamina) || 0;
+                const precioMaestro = parseFloat(mapaUnificado[nombreClave].precio_total_lamina) || 0;
+                
+                if (precioActual > precioMaestro) {
+                    mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
+                    mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
+                    // Actualizamos el ID de referencia al del precio más nuevo/alto para Atlas
+                    mapaUnificado[nombreClave].id_referencia = m._id || m.id;
                 }
             }
-
-            return {
-                ...m,
-                precio_m2_costo: Math.round(costoFijo),
-                stock_actual: Number(stockFinal.toFixed(2))
-            };
         });
 
-        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-        renderTable(window.todosLosMateriales);
+        // 2. RENDERIZAMOS LAS FILAS YA UNIFICADAS
+        Object.values(mapaUnificado).forEach(m => {
+            const fila = document.createElement('tr');
+            // IMPORTANTE: El data-id ahora es el nombreClave para evitar colisiones de IDs nulos
+            const nombreClaveAttr = m.nombre.toLowerCase().trim();
+            fila.setAttribute('data-nombre', nombreClaveAttr);
+            
+            const nombreUP = m.nombre.toUpperCase();
+            const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
+            const unidadFinal = esMoldura ? 'ml' : 'm²';
+            
+            const stockTotalM2 = m.stock_acumulado;
 
-    } catch (error) {
-        console.error("❌ Error en inventario:", error);
+            // DIMENSIONES MAESTRAS (Lógica preservada)
+            const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
+            const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
+            const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
+            const areaReferencia = (anchoRef * largoRef) / 10000;
+
+            // CÁLCULO DE COSTO (Lógica preservada)
+            let precioFinalVisual = 0;
+            const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
+            
+            if (esMoldura) {
+    const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
+    precioFinalVisual = precioBase / largoML;
+} else {
+    // Si el nombre contiene PASSEPARTOUT, NO dividimos (ya viene calculado de la compra)
+    if (nombreUP.includes("PASSEPARTOUT")) {
+        precioFinalVisual = precioBase; 
+    } else {
+        // Solo dividimos vidrios normales si superan los 50.000
+        precioFinalVisual = (precioBase > 50000 && areaReferencia > 0) ? (precioBase / areaReferencia) : precioBase;
     }
 }
+            precioFinalVisual = Math.round(precioFinalVisual);
 
-function renderTable(materiales) {
-    const cuerpoTabla = document.getElementById('inventoryTable');
-    if (!cuerpoTabla) return;
-    cuerpoTabla.innerHTML = '';
+            // TEXTO DE STOCK (Lógica preservada)
+            const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
+            let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
+            if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
 
-    const formateador = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-    
-    // 1. CREAMOS UN MAPA PARA UNIFICAR (Aplanar registros duplicados)
-    const mapaUnificado = {};
+            let textoStock = esMoldura ? `
+                <div style="font-weight: 700;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
+                <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
+            ` : `
+                <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
+                <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
+                    ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
+                </div>
+            `;
 
-    materiales.forEach(m => {
-        // Usamos el nombre como clave única para agrupar
-        const nombreClave = m.nombre.toUpperCase().trim();
+            const sMin = parseFloat(m.stock_minimo) || 2;
+            let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
+
+            // IDENTIFICADOR PARA ELIMINAR: Usamos el ID de referencia único
+            const idParaAcciones = m.id_referencia;
+
+            fila.innerHTML = `
+                <td style="text-align: left; padding: 10px 15px;">
+                    <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
+                    <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
+                        ${m.categoria} | ${m.proveedorNombre || 'SIN PROVEEDOR'}
+                    </div>
+                </td>
+                <td style="text-align: center; font-weight: 700; color: #1e293b;">
+                    ${formateador.format(precioFinalVisual)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
+                </td>
+                <td style="text-align: center; padding: 8px;">
+                    <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorS};">
+                        ${textoStock}
+                    </div>
+                </td>
+                <td style="text-align: center;">
+                    <div style="display: flex; justify-content: center; gap: 8px;">
+                        <button onclick="window.abrirModalEditar('${idParaAcciones}')" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                            <i class="fas fa-edit"></i> EDITAR
+                        </button>
+                        <button onclick="window.verHistorial('${idParaAcciones}', '${m.nombre}')" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                            <i class="fas fa-history"></i> HISTORIAL
+                        </button>
+                        <button onclick="window.eliminarMaterial('${idParaAcciones}')" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
+                            <i class="fas fa-trash"></i> ELIMINAR
+                        </button>
+                    </div>
+                </td>
+            `;
+            cuerpoTabla.appendChild(fila);
+        });
+    }
+
+    // --- FACTURACIÓN (PRESERVADO) ---
+
+    async function facturarVenta() {
+        if (!datosCotizacionActual) {
+            const backup = localStorage.getItem('ultima_cotizacion');
+            if (backup) datosCotizacionActual = JSON.parse(backup);
+        }
+
+        if (!datosCotizacionActual) {
+            alert("⚠️ No hay datos de cotización activos.");
+            return;
+        }
+
+        const nombre = document.getElementById('nombreCliente')?.value.trim();
+        if (!nombre) { alert("⚠️ Nombre cliente requerido."); return; }
+
+        const btnVenta = document.getElementById('btnFinalizarVenta');
+        const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
         
-        if (!mapaUnificado[nombreClave]) {
-            // Clonamos el objeto y aseguramos que tenga un ID de referencia (preferencia al de Atlas _id)
-            mapaUnificado[nombreClave] = { ...m, id_referencia: m._id || m.id, stock_acumulado: calcularStockReal(m) };
-        } else {
-            // SUMAMOS el stock del registro viejo y el nuevo
-            mapaUnificado[nombreClave].stock_acumulado += calcularStockReal(m);
-            
-            // REESCRITURA DE PRECIO (Reposición):
-            const precioActual = parseFloat(m.precio_total_lamina) || 0;
-            const precioMaestro = parseFloat(mapaUnificado[nombreClave].precio_total_lamina) || 0;
-            
-            if (precioActual > precioMaestro) {
-                mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
-                // Actualizamos el ID de referencia al del precio más nuevo/alto para Atlas
-                mapaUnificado[nombreClave].id_referencia = m._id || m.id;
+        const facturaData = {
+            clienteNombre: nombre, 
+            clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
+            total: datosCotizacionActual.precioSugeridoCliente,
+            abono: abono,
+            items: datosCotizacionActual.detalles.materiales.map(m => ({
+                productoId: m.id, 
+                materialNombre: m.nombre,
+                ancho: datosCotizacionActual.anchoOriginal,
+                largo: datosCotizacionActual.largoOriginal,
+                area_m2: datosCotizacionActual.areaFinal,
+                costo_unitario: m.costoUnitario
+            })),
+            mano_obra_total: datosCotizacionActual.valor_mano_obra
+        };
+
+        try {
+            if(btnVenta) {
+                btnVenta.disabled = true;
+                btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
             }
-        }
-    });
-
-    // 2. RENDERIZAMOS LAS FILAS YA UNIFICADAS
-    Object.values(mapaUnificado).forEach(m => {
-        const fila = document.createElement('tr');
-        // IMPORTANTE: El data-id ahora es el nombreClave para evitar colisiones de IDs nulos
-        const nombreClaveAttr = m.nombre.toLowerCase().trim();
-        fila.setAttribute('data-nombre', nombreClaveAttr);
-        
-        const nombreUP = m.nombre.toUpperCase();
-        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
-        const unidadFinal = esMoldura ? 'ml' : 'm²';
-        
-        const stockTotalM2 = m.stock_acumulado;
-
-        // DIMENSIONES MAESTRAS (Lógica preservada)
-        const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
-        const anchoRef = matchM ? parseFloat(matchM[1]) : (parseFloat(m.ancho_lamina_cm) || 160);
-        const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || 220);
-        const areaReferencia = (anchoRef * largoRef) / 10000;
-
-        // CÁLCULO DE COSTO (Lógica preservada)
-        let precioFinalVisual = 0;
-        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
-        
-        if (esMoldura) {
-            const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
-            precioFinalVisual = precioBase / largoML;
-        } else {
-            precioFinalVisual = (precioBase > 50000 && areaReferencia > 0) ? (precioBase / areaReferencia) : precioBase;
-        }
-        precioFinalVisual = Math.round(precioFinalVisual);
-
-        // TEXTO DE STOCK (Lógica preservada)
-        const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
-        let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
-        if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
-
-        let textoStock = esMoldura ? `
-            <div style="font-weight: 700;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
-            <div style="font-size: 0.7rem; color: #64748b;">(Total Disponible)</div>
-        ` : `
-            <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ${unidadFinal}</div>
-            <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
-            </div>
-        `;
-
-        const sMin = parseFloat(m.stock_minimo) || 2;
-        let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
-
-        // IDENTIFICADOR PARA ELIMINAR: Usamos el ID de referencia único
-        const idParaAcciones = m.id_referencia;
-
-        fila.innerHTML = `
-            <td style="text-align: left; padding: 10px 15px;">
-                <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
-                <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-                    ${m.categoria} | ${m.proveedorNombre || 'SIN PROVEEDOR'}
-                </div>
-            </td>
-            <td style="text-align: center; font-weight: 700; color: #1e293b;">
-                ${formateador.format(precioFinalVisual)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
-            </td>
-            <td style="text-align: center; padding: 8px;">
-                <div style="background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 170px; color: ${colorS};">
-                    ${textoStock}
-                </div>
-            </td>
-            <td style="text-align: center;">
-                <div style="display: flex; justify-content: center; gap: 8px;">
-                    <button onclick="window.abrirModalEditar('${idParaAcciones}')" style="background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
-                        <i class="fas fa-edit"></i> EDITAR
-                    </button>
-                    <button onclick="window.verHistorial('${idParaAcciones}', '${m.nombre}')" style="background: #7c3aed; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
-                        <i class="fas fa-history"></i> HISTORIAL
-                    </button>
-                    <button onclick="window.eliminarMaterial('${idParaAcciones}')" style="background: #dc2626; color: white; padding: 8px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; border: none; cursor: pointer;">
-                        <i class="fas fa-trash"></i> ELIMINAR
-                    </button>
-                </div>
-            </td>
-        `;
-        cuerpoTabla.appendChild(fila);
-    });
-}
-
-// --- FACTURACIÓN (PRESERVADO) ---
-
-async function facturarVenta() {
-    if (!datosCotizacionActual) {
-        const backup = localStorage.getItem('ultima_cotizacion');
-        if (backup) datosCotizacionActual = JSON.parse(backup);
-    }
-
-    if (!datosCotizacionActual) {
-        alert("⚠️ No hay datos de cotización activos.");
-        return;
-    }
-
-    const nombre = document.getElementById('nombreCliente')?.value.trim();
-    if (!nombre) { alert("⚠️ Nombre cliente requerido."); return; }
-
-    const btnVenta = document.getElementById('btnFinalizarVenta');
-    const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
-    
-    const facturaData = {
-        clienteNombre: nombre, 
-        clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
-        total: datosCotizacionActual.precioSugeridoCliente,
-        abono: abono,
-        items: datosCotizacionActual.detalles.materiales.map(m => ({
-            productoId: m.id, 
-            materialNombre: m.nombre,
-            ancho: datosCotizacionActual.anchoOriginal,
-            largo: datosCotizacionActual.largoOriginal,
-            area_m2: datosCotizacionActual.areaFinal,
-            costo_unitario: m.costoUnitario
-        })),
-        mano_obra_total: datosCotizacionActual.valor_mano_obra
-    };
-
-    try {
-        if(btnVenta) {
-            btnVenta.disabled = true;
-            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
-        }
-        const res = await window.API.saveInvoice(facturaData);
-        if (res.success) {
-            alert("✅ VENTA REGISTRADA: " + (res.ot || "Éxito"));
-            localStorage.removeItem('ultima_cotizacion');
-            window.location.href = "/history.html";
-        } else {
-            alert("🚨 Error: " + (res.message || res.error || "Falla en servidor"));
+            const res = await window.API.saveInvoice(facturaData);
+            if (res.success) {
+                alert("✅ VENTA REGISTRADA: " + (res.ot || "Éxito"));
+                localStorage.removeItem('ultima_cotizacion');
+                window.location.href = "/history.html";
+            } else {
+                alert("🚨 Error: " + (res.message || res.error || "Falla en servidor"));
+                if(btnVenta) {
+                    btnVenta.disabled = false;
+                    btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
+                }
+            }
+        } catch (e) {
+            console.error("Error Fetch:", e);
+            alert("Error de red o conexión al servidor.");
             if(btnVenta) {
                 btnVenta.disabled = false;
                 btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
             }
         }
-    } catch (e) {
-        console.error("Error Fetch:", e);
-        alert("Error de red o conexión al servidor.");
-        if(btnVenta) {
-            btnVenta.disabled = false;
-            btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
-        }
     }
-}
 
 // --- EVENTOS Y CONFIGURACIÓN ---
 
@@ -606,16 +612,30 @@ function configurarEventos() {
                     ? inputNuevo.value.trim() 
                     : selectMat.options[selectMat.selectedIndex].text.replace('+ AGREGAR NUEVO MATERIAL', '').trim();
                 
-                const esMoldura = nombreInput.toUpperCase().includes("MOLDURA") || nombreInput.toUpperCase().startsWith("K ");
+                const esMoldura = nombreInput.toUpperCase().includes("MOLDURAS") || nombreInput.toUpperCase().startsWith("K ");
                 let nombreReal = esMoldura ? nombreInput.toUpperCase() : nombreInput;
 
                 const cant = parseFloat(inputCant.value) || 0;
-                const costo = parseFloat(inputCosto.value) || 0;
+                const costoIngresado = parseFloat(inputCosto.value) || 0;
+                const largoCm = parseFloat(inputLargo?.value) || 0;
+                const anchoCm = parseFloat(inputAncho?.value) || 0;
                 
+                // --- 🛡️ MEJORA ESPECÍFICA PASSEPARTOUT ---
+                let costoFinalAtlas = costoIngresado;
+                if (!esMoldura && nombreReal.toUpperCase().includes("PASSEPARTOUT")) {
+                    const areaM2 = (largoCm * anchoCm) / 10000;
+                    if (areaM2 > 0) {
+                        // Convertimos el costo de la lámina a costo por M2 para que el cotizador sea exacto
+                        costoFinalAtlas = Math.round(costoIngresado / areaM2);
+                        console.log(`🎨 Ajuste Passepartout: ${costoIngresado} / ${areaM2.toFixed(4)}m2 = ${costoFinalAtlas} por m2`);
+                    }
+                }
+                // ------------------------------------------
+
                 // LA REGLA DE ORO: 2.90 ML para molduras
                 let stockASumar = esMoldura 
                     ? (cant * 2.90) 
-                    : (((parseFloat(inputLargo?.value) || 0) * (parseFloat(inputAncho?.value) || 0) / 10000) * cant);
+                    : ((largoCm * anchoCm / 10000) * cant);
 
                 if (!window.todosLosMateriales) window.todosLosMateriales = [];
                 let existente = window.todosLosMateriales.find(m => m.nombre.toLowerCase() === nombreReal.toLowerCase());
@@ -631,11 +651,11 @@ function configurarEventos() {
                     esNuevo: esNuevoMaterial,
                     categoria: esNuevoMaterial ? (esMoldura ? "MOLDURAS" : "GENERAL") : (existente?.categoria || "GENERAL"),
                     cantidad_laminas: cant,
-                    precio_total_lamina: costo,
-                    ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                    largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0),
+                    precio_total_lamina: costoFinalAtlas, // Enviamos el costo corregido
+                    ancho_lamina_cm: esMoldura ? 1 : anchoCm,
+                    largo_lamina_cm: esMoldura ? 290 : largoCm,
                     tipo_material: esMoldura ? 'ml' : 'm2',
-                    costo_total: costo * cant,
+                    costo_total: costoIngresado * cant, // El desembolso total sigue siendo el mismo
                     timestamp: new Date().toISOString(),
                     id: esNuevoMaterial ? `TEMP-${Date.now()}` : idMasterAtlas
                 };
@@ -657,6 +677,7 @@ function configurarEventos() {
 
                 if (existente) {
                     existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                    existente.precio_total_lamina = costoFinalAtlas; // Actualizamos precio en memoria
                     if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
                     objetoFinal = existente;
                 } else {
@@ -666,9 +687,9 @@ function configurarEventos() {
                         nombre: nombreReal,
                         categoria: esMoldura ? "MOLDURAS" : "GENERAL",
                         stock_actual: stockASumar,
-                        precio_total_lamina: costo,
-                        ancho_lamina_cm: esMoldura ? 1 : (parseFloat(inputAncho?.value) || 0),
-                        largo_lamina_cm: esMoldura ? 290 : (parseFloat(inputLargo?.value) || 0)
+                        precio_total_lamina: costoFinalAtlas,
+                        ancho_lamina_cm: esMoldura ? 1 : anchoCm,
+                        largo_lamina_cm: esMoldura ? 290 : largoCm
                     };
                     window.todosLosMateriales.unshift(nuevoMaterial);
                     objetoFinal = nuevoMaterial;
@@ -695,7 +716,7 @@ function configurarEventos() {
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
             }
-        }; 
+        };
     }
 }
 
