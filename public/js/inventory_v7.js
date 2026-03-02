@@ -800,7 +800,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const selRespaldo = document.getElementById('materialRespaldo'); 
 
     // 1. Cargar Proveedores (Sincronizados y Blindados)
-    if (window.todosLosProveedores.length > 0) {
+    if (window.todosLosProveedores && window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
         if (provSelect) provSelect.innerHTML = opcionesProv;
@@ -821,25 +821,26 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
             const nombreUP = String(m.nombre).toUpperCase();
             const optionHtml = `<option value="${idCorrecto}">${nombreUP}</option>`;
             
-            // --- REGLA DE CLASIFICACIÓN ---
-            // Si el nombre contiene TRIPLEX, MADERA o MDF, va a RESPALDO. 
-            // Lo demás (que no sea moldura) va a VIDRIOS.
+            // --- REGLA DE CLASIFICACIÓN MAESTRA ---
+            // Detectamos si es respaldo por nombre o por categoría guardada
             const esRespaldo = nombreUP.includes("TRIPLEX") || 
                                nombreUP.includes("MADERA") || 
                                nombreUP.includes("MDF") || 
-                               m.categoria === "RESPALDO";
+                               nombreUP.includes("RH") ||
+                               String(m.categoria).toUpperCase() === "RESPALDO";
             
             const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
 
-            // Llenamos las listas correspondientes
+            // --- DISTRIBUCIÓN CON EXCLUSIÓN CRÍTICA ---
             if (esRespaldo) {
+                // Si es respaldo, se va DIRECTO a su lista y se salta el resto de validaciones
                 opcionesRespaldo += optionHtml;
             } else if (!esMoldura) {
-                // Solo mandamos a la lista de vidrios si no es moldura y no es respaldo
+                // SOLO si NO es respaldo y NO es moldura, puede entrar a vidrios
                 opcionesVidrio += optionHtml;
             }
             
-            // La lista de compras siempre lleva TODO
+            // La lista de compras (el selector general) siempre lleva todo para poder re-abastecer
             opcionesCompra += optionHtml;
         });
 
@@ -848,7 +849,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
         if (selVidrio) selVidrio.innerHTML = opcionesVidrio;
         if (selRespaldo) selRespaldo.innerHTML = opcionesRespaldo;
 
-        console.log("✅ Listas del Cotizador y Compras sincronizadas con éxito.");
+        console.log("🎯 Sincronización Exitosa: El Triplex ha sido filtrado de Vidrios.");
     }
 };
 
