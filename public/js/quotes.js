@@ -115,20 +115,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 3. REPARTO QUIRÚRGICO (MANTENIDO Y REFORZADO)
-            llenar(selects.Vidrio, m => {
-                const n = (m.nombre || "").toUpperCase();
-                return n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM");
-            });
+            // 3. REPARTO QUIRÚRGICO (CORREGIDO PARA UNIFICAR TRIPLEX + CARTÓN)
+llenar(selects.Vidrio, m => {
+    const n = (m.nombre || "").toUpperCase();
+    // EXCLUSIÓN: Si es Triplex o Cartón, NO puede entrar en Vidrio aunque diga 3mm
+    const esRespaldo = n.includes("TRIPLEX") || n.includes("CARTON") || n.includes("CARTÓN") || n.includes("MDF");
+    return (n.includes("VIDRIO") || n.includes("ESPEJO") || n.includes("3MM") || n.includes("2MM")) && !esRespaldo;
+});
 
-            llenar(selects.Respaldo, m => {
-                const n = (m.nombre || "").toUpperCase();
-                return n.includes("RESPALDO") || n.includes("MDF") || n.includes("CARTON") || n.includes("CELTEX");
-            });
+llenar(selects.Respaldo, m => {
+    const n = (m.nombre || "").toUpperCase();
+    // UNIFICACIÓN: Aquí agrupamos Triplex, Cartón y MDF en el mismo selector
+    return n.includes("RESPALDO") || n.includes("MDF") || n.includes("CARTON") || n.includes("CARTÓN") || n.includes("TRIPLEX") || n.includes("CELTEX");
+});
 
-            llenar(selects.Paspartu, m => {
-                const n = (m.nombre || "").toUpperCase();
-                return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
-            });
+llenar(selects.Paspartu, m => {
+    const n = (m.nombre || "").toUpperCase();
+    return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
+});
             
             // MARCOS (Radar ML activo y K 2312 blindada)
             llenar(selects.Marco, m => {
