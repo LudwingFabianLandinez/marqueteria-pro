@@ -777,12 +777,16 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 // --- UTILIDADES DE UI (PRESERVADO) ---
 
 
-window.cargarListasModal = function() {
+    window.cargarListasModal = function() {
     const provSelect = document.getElementById('compraProveedor');
-    const matSelect = document.getElementById('compraMaterial');
+    const matSelect = document.getElementById('compraMaterial'); // Selector del modal de Compras
     const provRegisterSelect = document.getElementById('proveedorSelect');
     
-    // 1. Cargar Proveedores (Sincronizados)
+    // Selectores del Cotizador (Dashboard)
+    const selVidrio = document.getElementById('materialVidrio'); 
+    const selRespaldo = document.getElementById('materialRespaldo'); 
+
+    // 1. Cargar Proveedores (Sincronizados y Blindados)
     if (window.todosLosProveedores.length > 0) {
         const opcionesProv = '<option value="">-- Seleccionar Proveedor --</option>' + 
             window.todosLosProveedores.map(p => `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`).join('');
@@ -790,18 +794,48 @@ window.cargarListasModal = function() {
         if (provRegisterSelect) provRegisterSelect.innerHTML = opcionesProv;
     }
     
-    // 2. Cargar Materiales (BLINDADO: Usa el ID de Atlas prioritariamente)
-    if (matSelect) {
-        let opcionesMat = '<option value="">-- Seleccionar Material --</option>' + 
-                         '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
+    // 2. Cargar Materiales (BLINDADO + CLASIFICACIÓN PARA COTIZADOR)
+    if (window.todosLosMateriales && window.todosLosMateriales.length > 0) {
+        // Inicializamos las listas
+        let opcionesCompra = '<option value="">-- Seleccionar Material --</option>' + 
+                             '<option value="NUEVO" style="color: #2563eb; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
         
-        // Usamos el array ya consolidado para que el selector no muestre duplicados
-        opcionesMat += window.todosLosMateriales.map(m => {
-            const idCorrecto = m._id || m.id; // Prioridad al ID de MongoDB
-            return `<option value="${idCorrecto}">${m.nombre.toUpperCase()}</option>`;
-        }).join('');
-        
-        matSelect.innerHTML = opcionesMat;
+        let opcionesVidrio = '<option value="">-- Seleccionar Vidrio/Espejo --</option>';
+        let opcionesRespaldo = '<option value="">-- Seleccionar Respaldo --</option>';
+
+        window.todosLosMateriales.forEach(m => {
+            const idCorrecto = m._id || m.id; // Prioridad ID Atlas
+            const nombreUP = String(m.nombre).toUpperCase();
+            const optionHtml = `<option value="${idCorrecto}">${nombreUP}</option>`;
+            
+            // --- REGLA DE CLASIFICACIÓN ---
+            // Si el nombre contiene TRIPLEX, MADERA o MDF, va a RESPALDO. 
+            // Lo demás (que no sea moldura) va a VIDRIOS.
+            const esRespaldo = nombreUP.includes("TRIPLEX") || 
+                               nombreUP.includes("MADERA") || 
+                               nombreUP.includes("MDF") || 
+                               m.categoria === "RESPALDO";
+            
+            const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
+
+            // Llenamos las listas correspondientes
+            if (esRespaldo) {
+                opcionesRespaldo += optionHtml;
+            } else if (!esMoldura) {
+                // Solo mandamos a la lista de vidrios si no es moldura y no es respaldo
+                opcionesVidrio += optionHtml;
+            }
+            
+            // La lista de compras siempre lleva TODO
+            opcionesCompra += optionHtml;
+        });
+
+        // Inyectamos el HTML en los elementos existentes en el DOM
+        if (matSelect) matSelect.innerHTML = opcionesCompra;
+        if (selVidrio) selVidrio.innerHTML = opcionesVidrio;
+        if (selRespaldo) selRespaldo.innerHTML = opcionesRespaldo;
+
+        console.log("✅ Listas del Cotizador y Compras sincronizadas con éxito.");
     }
 };
 
