@@ -277,18 +277,23 @@ window.guardarProveedor = async function(event) {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
-        // --- 1. ESCUDO ANTI-RESURRECCIÓN (Eliminados) ---
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
         const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
 
         const limpiarNombre = (t) => String(t).toUpperCase().trim();
         const consolidado = {};
 
-        // --- 2. CONSOLIDACIÓN DE DATOS ATLAS ---
+        // --- 🛡️ FILTRO ANTI-BASURA DE ATLAS ---
         datosFiltrados.forEach(m => {
             if (!m.nombre) return;
             const nombreUP = limpiarNombre(m.nombre);
             const stockM = parseFloat(m.stock_actual) || 0;
+
+            // Si el registro individual es basura (ej: 0.44), lo ignoramos para no restar mal
+            if (stockM > 0 && stockM < 0.50) {
+                console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
+                return;
+            }
 
             if (!consolidado[nombreUP]) {
                 consolidado[nombreUP] = { ...m, stock_actual: stockM };
@@ -297,37 +302,31 @@ window.guardarProveedor = async function(event) {
             }
         });
 
-        // --- 3. FILTRO DE RECHAZO PARA EL LAG DE ATLAS ---
         window.todosLosMateriales = Object.values(consolidado).map(m => {
             const nombreUP = limpiarNombre(m.nombre);
             const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
-            // LÓGICA DE COSTOS (Mantenida Intacta: Vidrio $30.682 / Moldura $10.345)
+            // Costos Blindados ($30.682 Vidrio / $10.345 Moldura)
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
-            if (esMoldura) {
-                if (costoFijo < 9000) costoFijo = 10345;
-            } else {
-                if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
-            }
+            if (esMoldura && costoFijo < 9000) costoFijo = 10345;
+            else if (!esMoldura && (costoFijo === 16141 || costoFijo === 0)) costoFijo = 30682;
 
             let stockFinal = m.stock_actual;
             
             if (esMoldura) {
-                // Buscamos el Escudo Atómico
                 const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
                 const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
 
-                // REGLA SUPREMA: Si existe memoria de hoy, Atlas NO PUEDE bajar el stock.
+                // PRIORIDAD AL ESCUDO: Si sumaste hoy, Atlas NO MANDA si el valor es menor.
                 if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-                    // Si el valor de Atlas es menor al que tú sumaste manualmente, Atlas se ignora.
                     if (memoria.stock > stockFinal) {
-                        console.warn(`🛡️ BLOQUEADO: Atlas reporta ${stockFinal} pero el escudo v18 manda ${memoria.stock}`);
                         stockFinal = memoria.stock;
                     }
                 }
 
-                // RESCATE FINAL: Si después de todo sigue siendo basura (< 0.60), forzamos 2.90
-                if (stockFinal < 0.60) {
+                // --- 🛡️ BLOQUEO DE SEGURIDAD v18.3 ---
+                // Si el stock cae por debajo de 2.90, es error de Atlas. Forzamos mínimo.
+                if (stockFinal < 2.90) {
                     stockFinal = 2.90; 
                 }
             }
@@ -716,7 +715,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
                 const valorActual = parseFloat(container.innerText.replace(/[^\d.]/g, '')) || 0;
                 const nuevoValor = valorActual + parseFloat(cantidadASumar);
 
-                // --- 🚀 PASO 1: GUARDADO ATÓMICO (Inmediato) ---
+                // --- 🚀 PASO 1: GUARDADO ATÓMICO v18.3 ---
                 const registro = {
                     nombre: nombreNormalizado,
                     stock: nuevoValor,
@@ -726,19 +725,19 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 
                 // --- 🚀 PASO 2: ACTUALIZAR MEMORIA VOLÁTIL ---
                 if (window.todosLosMateriales) {
-                    const idx = window.todosLosMateriales.findIndex(m => limpiarNombre(m.nombre) === nombreNormalizado);
+                    const idx = window.todosLos_Materiales.findIndex(m => limpiarNombre(m.nombre) === nombreNormalizado);
                     if (idx !== -1) {
                         window.todosLosMateriales[idx].stock_actual = nuevoValor;
                         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
                     }
                 }
 
-                // --- 🚀 PASO 3: UI (Visual) ---
+                // --- 🚀 PASO 3: UI ---
                 container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
                 container.style.color = '#059669'; 
                 container.style.backgroundColor = '#ecfdf5'; 
                 
-                console.log(`⚓ ESCUDO ATÓMICO ACTIVADO: ${nombreNormalizado} fijado en ${nuevoValor.toFixed(2)}`);
+                console.log(`⚓ ANCLA v18.3: ${nombreNormalizado} fijado en ${nuevoValor.toFixed(2)}`);
             }
         }
     }); 
