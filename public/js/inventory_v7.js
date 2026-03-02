@@ -665,15 +665,23 @@ if (formCompra) {
 
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
-            // --- 🚀 CLASIFICACIÓN INTELIGENTE DE CATEGORÍA ---
-            let categoriaDeterminada;
-            if (esMoldura) {
-                categoriaDeterminada = "MOLDURAS";
-            } else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF") || nombreUP.includes("CARTON") || nombreUP.includes("CARTÓN")) {
-                categoriaDeterminada = "RESPALDO";
-            } else {
-                categoriaDeterminada = existente?.categoria || "GENERAL";
-            }
+            // --- 🚀 CLASIFICACIÓN INTELIGENTE DE CATEGORÍA (CORREGIDO v19.0) ---
+let categoriaDeterminada;
+const esVidrio = nombreUP.includes("VIDRIO") || nombreUP.includes("CRISTAL") || nombreUP.includes("ESPEJO");
+const esAcabado = nombreUP.includes("CHAPILLA") || nombreUP.includes("AFRICANA") || nombreUP.includes("PASSEPARTOUT");
+
+if (esMoldura) {
+    categoriaDeterminada = "MOLDURAS";
+} else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF") || nombreUP.includes("CARTON") || nombreUP.includes("CARTÓN")) {
+    categoriaDeterminada = "RESPALDO";
+} else if (esVidrio) {
+    categoriaDeterminada = "VIDRIO"; // Crucial para que el cotizador lo multiplique
+} else if (esAcabado) {
+    categoriaDeterminada = "ACABADO"; // Crucial para el margen de chapillas
+} else {
+    categoriaDeterminada = existente?.categoria || "GENERAL";
+}
+            
 
             const datosParaAtlas = {
                 materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
