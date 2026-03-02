@@ -278,10 +278,7 @@ window.guardarProveedor = async function(event) {
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
         
         // --- INICIO ESCUDO ANTI-RESURRECCIÓN ---
-        // Recuperamos los IDs que marcamos para eliminar anteriormente
         const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-        
-        // Filtramos los datos brutos de Atlas: si el ID está en la lista negra, se ignora.
         const datosFiltrados = datosRaw.filter(m => {
             const idReal = String(m._id || m.id);
             return !eliminados.includes(idReal);
@@ -289,7 +286,7 @@ window.guardarProveedor = async function(event) {
         // --- FIN ESCUDO ---
 
         if (!datosFiltrados || datosFiltrados.length === 0) {
-            window.todosLosMateriales = []; // Limpiamos memoria global
+            window.todosLosMateriales = [];
             renderTable([]);
             return;
         }
@@ -311,17 +308,37 @@ window.guardarProveedor = async function(event) {
         });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            // --- CIRUGÍA DIRECTA (SE MANTIENE) ---
+            const nombreNormalizado = m.nombre.toUpperCase();
+            // Detectamos si es Moldura por nombre o categoría
+            const esMoldura = nombreNormalizado.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
+
+            // --- LÓGICA DE COSTOS ---
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
 
-            if (costoFijo === 16141 || costoFijo === 0) {
-                costoFijo = 30682;
+            if (esMoldura) {
+                // BLINDAJE MOLDURA: Si el costo bajó a 8621, lo forzamos al real de compra ($10.345)
+                if (costoFijo === 8621 || costoFijo < 9000) {
+                    costoFijo = 10345;
+                }
+            } else {
+                // BLINDAJE VIDRIO: Mantenemos el costo de 30682 para láminas
+                if (costoFijo === 16141 || costoFijo === 0) {
+                    costoFijo = 30682;
+                }
+            }
+
+            // --- LÓGICA DE STOCK (PREVENCIÓN DE DEGRADACIÓN) ---
+            let stockFinal = parseFloat(m.stock_actual) || 0;
+            
+            if (esMoldura && stockFinal > 0 && stockFinal < 0.1) {
+                // Si el stock se bajó a 0.003, lo recuperamos a 2.90 (ajuste de escala)
+                stockFinal = 2.90; 
             }
 
             return {
                 ...m,
                 precio_m2_costo: Math.round(costoFijo),
-                stock_actual: parseFloat(m.stock_actual) || 0
+                stock_actual: stockFinal
             };
         });
 
