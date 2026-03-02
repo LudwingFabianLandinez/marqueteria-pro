@@ -620,17 +620,21 @@ function configurarEventos() {
                 const largoCm = parseFloat(inputLargo?.value) || 0;
                 const anchoCm = parseFloat(inputAncho?.value) || 0;
                 
-                // --- 🛡️ MEJORA ESPECÍFICA PASSEPARTOUT ---
-                let costoFinalAtlas = costoIngresado;
-                if (!esMoldura && nombreReal.toUpperCase().includes("PASSEPARTOUT")) {
-                    const areaM2 = (largoCm * anchoCm) / 10000;
-                    if (areaM2 > 0) {
-                        // Convertimos el costo de la lámina a costo por M2 para que el cotizador sea exacto
-                        costoFinalAtlas = Math.round(costoIngresado / areaM2);
-                        console.log(`🎨 Ajuste Passepartout: ${costoIngresado} / ${areaM2.toFixed(4)}m2 = ${costoFinalAtlas} por m2`);
-                    }
-                }
-                // ------------------------------------------
+                // --- 🛡️ MEJORA ESPECÍFICA MATERIALES POR M2 (v16.3) ---
+let costoFinalAtlas = costoIngresado;
+const esEspecialM2 = nombreReal.toUpperCase().includes("PASSEPARTOUT") || 
+                     nombreReal.toUpperCase().includes("CHAPILLA");
+
+if (!esMoldura && esEspecialM2) {
+    const areaM2 = (largoCm * anchoCm) / 10000;
+    if (areaM2 > 0) {
+        // Convertimos el costo de la lámina a costo por M2
+        // Ejemplo Chapilla: 88.000 / 1.4m2 = 62.857
+        costoFinalAtlas = Math.round(costoIngresado / areaM2);
+        console.log(`🌳 Ajuste Material Especial: ${nombreReal} -> ${costoFinalAtlas} por m2`);
+    }
+}
+             
 
                 // LA REGLA DE ORO: 2.90 ML para molduras
                 let stockASumar = esMoldura 
