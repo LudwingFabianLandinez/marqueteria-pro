@@ -297,18 +297,22 @@ window.guardarProveedor = async function(event) {
             const nombreUP = m.nombre.toUpperCase().trim();
             const fecha = new Date(m.createdAt || m.timestamp || 0).getTime();
             const stockActual = parseFloat(m.stock_actual) || 0;
-
-            // --- 2. FILTRO DE CALIDAD (MEJORADO) ---
             const esMoldura = nombreUP.includes('MOLDURA');
-            // Solo consideramos "basura" si es un valor residual extremo (como 0.003 o 0.17)
-            // Si el valor es >= 0.5, lo consideramos un dato válido de Atlas.
-            const esBasura = esMoldura && stockActual > 0 && stockActual < 0.5;
 
-            if (!consolidado[nombreUP] || (fecha > consolidado[nombreUP].fecha_ref && !esBasura)) {
-                consolidado[nombreUP] = {
-                    ...m,
-                    fecha_ref: fecha
-                };
+            // --- 2. CONSOLIDACIÓN POR PRIORIDAD DE VOLUMEN (CIRUGÍA) ---
+            // Elegimos el registro si: 
+            // a) Es el primero que encontramos.
+            // b) Es más nuevo por fecha.
+            // c) (Para molduras) Si tiene MÁS stock que el que ya guardamos (evita que el 0.17 gane).
+            if (!consolidado[nombreUP]) {
+                consolidado[nombreUP] = { ...m, fecha_ref: fecha };
+            } else {
+                const esMasNuevo = fecha > consolidado[nombreUP].fecha_ref;
+                const tieneMasStock = esMoldura && stockActual > (parseFloat(consolidado[nombreUP].stock_actual) || 0);
+
+                if (esMasNuevo || tieneMasStock) {
+                    consolidado[nombreUP] = { ...m, fecha_ref: fecha };
+                }
             }
         });
 
@@ -319,27 +323,19 @@ window.guardarProveedor = async function(event) {
             // --- 3. LÓGICA DE COSTOS (Mantenida Intacta) ---
             let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
             if (esMoldura) {
-                if (costoFijo === 8621 || costoFijo < 9000) {
-                    costoFijo = 10345;
-                }
+                if (costoFijo < 9000) costoFijo = 10345;
             } else {
-                if (costoFijo === 16141 || costoFijo === 0) {
-                    costoFijo = 30682;
-                }
+                if (costoFijo === 16141 || costoFijo === 0) costoFijo = 30682;
             }
 
-            // --- 4. LÓGICA DE STOCK DINÁMICA (EL CAMBIO CLAVE) ---
+            // --- 4. LÓGICA DE STOCK DINÁMICA REFORZADA ---
             let stockFinal = parseFloat(m.stock_actual) || 0;
             
             if (esMoldura) {
-                // RESCATE INTELIGENTE:
-                // Si el stock es basura (< 0.5), forzamos el mínimo de una tira (2.90).
-                // SI EL STOCK ES MAYOR (ej: 5.80 por nueva compra), SE RESPETA EL VALOR DE ATLAS.
+                // Si después de todo, el stock que "ganó" es menor a 0.5 (basura residual),
+                // forzamos el rescate a una tira mínima (2.90).
                 if (stockFinal < 0.5) {
-                    console.log(`📏 Rescatando stock residual de ${m.nombre}: ${stockFinal} -> 2.90`);
                     stockFinal = 2.90; 
-                } else {
-                    console.log(`✅ Manteniendo stock actualizado de ${m.nombre}: ${stockFinal}`);
                 }
             }
 
@@ -350,7 +346,6 @@ window.guardarProveedor = async function(event) {
             };
         });
 
-        // PERSISTENCIA Y RENDERIZADO
         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         renderTable(window.todosLosMateriales);
 
