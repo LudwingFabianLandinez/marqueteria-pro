@@ -26,7 +26,7 @@ const registerPurchase = async (req, res) => {
         
         let { materialId, nombre, cantidad_laminas, precio_total_lamina, proveedor } = req.body;
 
-        // 🛡️ LIMPIEZA RADICAL DE IDs (Evita el error 'Cast to ObjectId failed')
+        // 🛡️ LIMPIEZA RADICAL DE IDs (Tu lógica original intacta)
         const limpiarId = (id) => {
             if (!id || typeof id !== 'string' || id.startsWith('TEMP-') || id.startsWith('MAT-') || id.length !== 24) {
                 return null;
@@ -38,16 +38,30 @@ const registerPurchase = async (req, res) => {
         const pid = limpiarId(proveedor);
 
         let material = null;
-        if (mid) material = await Material.findById(mid);
+
+        // 🎯 LOGICA FOAM BOARD: Si hay ID, buscamos por ID. 
+        if (mid) {
+            material = await Material.findById(mid);
+        }
+
+        // 🎯 SI NO APARECE O EL ID ERA TEMPORAL, BUSCAMOS POR NOMBRE (Fuerza Bruta)
+        // Esto evita que si la Chapilla ya existe como "General", cree una nueva como "Acabado"
         if (!material && nombre) {
-            material = await Material.findOne({ nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } });
+            const nombreBusqueda = nombre.trim().toUpperCase();
+            material = await Material.findOne({ 
+                nombre: { $regex: new RegExp(`^${nombreBusqueda}$`, 'i') } 
+            });
         }
 
+        // ❌ SI NO EXISTE NI POR ID NI POR NOMBRE, DAMOS ERROR (Cerramos la 2da puerta)
         if (!material) {
-            return res.status(404).json({ success: false, message: "Material no existe en Atlas" });
+            return res.status(404).json({ 
+                success: false, 
+                message: `El material "${nombre}" no existe en el catálogo. Créelo primero en Material Maestro.` 
+            });
         }
 
-        // LÓGICA DE NEGOCIO
+        // --- LÓGICA DE NEGOCIO (INTACTA: NO DAÑA MOLDURAS NI M2) ---
         const n = material.nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         const cant = parseFloat(cantidad_laminas) || 0;
@@ -55,10 +69,11 @@ const registerPurchase = async (req, res) => {
         let incrementoStock = 0;
 
         if (esMoldura) {
-            incrementoStock = cant * 2.90;
+            incrementoStock = cant * 2.90; // Mantiene tu estándar
         } else {
             const ancho = material.ancho_lamina_cm || 0;
             const largo = material.largo_lamina_cm || 0;
+            // Cálculo estándar de lámina (Chapilla, Foam Board, etc.)
             incrementoStock = (ancho * largo / 10000) * cant;
         }
 
@@ -80,11 +95,11 @@ const registerPurchase = async (req, res) => {
             })
         ]);
 
-        console.log("✅ GUARDADO EN ATLAS - ID COMPRA:", tSaved._id);
+        console.log(`✅ COMPRA VINCULADA A: ${material.nombre} [ID: ${material._id}]`);
         res.status(200).json({ success: true, data: mSaved });
 
     } catch (error) {
-        console.error("🚨 ERROR CRÍTICO:", error.message);
+        console.error("🚨 ERROR CRÍTICO EN COMPRA:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
