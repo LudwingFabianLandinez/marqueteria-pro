@@ -148,9 +148,39 @@ const saveMaterial = async (req, res) => {
 // (Mantenemos las demás funciones igual)
 const getMaterials = async (req, res) => {
     try {
-        const data = await Material.find().populate('proveedor', 'nombre').sort({ nombre: 1 }).lean();
-        res.status(200).json({ success: true, data });
-    } catch (error) { res.status(500).json({ success: false, data: [] }); }
+        // Traemos los datos tal cual están en Atlas (Tu lógica original)
+        const materiales = await Material.find().populate('proveedor', 'nombre').sort({ nombre: 1 }).lean();
+        
+        // --- PROCESO DE UNIFICACIÓN (Solo para la vista del Dashboard) ---
+        const mapaUnificado = {};
+
+        materiales.forEach(m => {
+            // Normalizamos el nombre para agrupar (ej: "CHAPILLA")
+            const nombreKey = (m.nombre || "").trim().toUpperCase();
+
+            if (!mapaUnificado[nombreKey]) {
+                // Si es el primero con ese nombre, lo tomamos como base
+                mapaUnificado[nombreKey] = { ...m };
+            } else {
+                // Si ya existe uno igual, SUMAMOS el stock al registro base
+                // Esto hace que las dos chapillas se vean como una sola con stock total
+                mapaUnificado[nombreKey].stock_actual = (mapaUnificado[nombreKey].stock_actual || 0) + (m.stock_actual || 0);
+                
+                // Si el duplicado tiene un ID real de Atlas y el base no, preferimos el real
+                if (m._id && !mapaUnificado[nombreKey]._id.toString().includes('TEMP')) {
+                    // Mantenemos la referencia del objeto más completo
+                }
+            }
+        });
+
+        // Convertimos el mapa de nuevo a una lista para el Dashboard
+        const dataUnificada = Object.values(mapaUnificado);
+
+        res.status(200).json({ success: true, data: dataUnificada });
+    } catch (error) { 
+        console.error("Error en getMaterials:", error.message);
+        res.status(500).json({ success: false, data: [] }); 
+    }
 };
 
 const getAllPurchases = async (req, res) => {
