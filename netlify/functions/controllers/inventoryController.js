@@ -95,11 +95,28 @@ const saveMaterial = async (req, res) => {
     try {
         let { id, nombre, categoria, tipo, stock_actual, precio_total_lamina, proveedor, ancho_lamina_cm, largo_lamina_cm } = req.body;
         
-        // Limpiar ID de material para edición
+        // 1. Normalización para búsqueda exacta
+        const nombreNorm = (nombre || "").trim().toUpperCase();
+
+        // 🛡️ LIMPIEZA DE IDs (Tu lógica original intacta)
         if (id && (id.startsWith('TEMP-') || id.startsWith('MAT-'))) id = null;
 
+        // 🎯 BLINDAJE ANTI-DUPLICADOS: 
+        // Si es una creación (no hay ID válido), buscamos si el NOMBRE ya existe en Atlas
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            const materialPrevio = await Material.findOne({ 
+                nombre: { $regex: new RegExp(`^${nombreNorm}$`, 'i') } 
+            });
+            
+            if (materialPrevio) {
+                // Si existe, "secuestramos" su ID para actualizarlo en vez de crear uno nuevo
+                id = materialPrevio._id;
+                console.log(`♻️ Unificando: "${nombreNorm}" ya existe. Usando ID: ${id}`);
+            }
+        }
+
         const datos = {
-            nombre: (nombre || "").trim().toUpperCase(),
+            nombre: nombreNorm,
             categoria: categoria || "Otros",
             tipo: tipo || "m2",
             stock_actual: Number(stock_actual) || 0,
@@ -110,14 +127,18 @@ const saveMaterial = async (req, res) => {
         };
 
         let material;
+        // 2. Ejecución: Si tenemos ID (porque era edición o por el blindaje de arriba), actualizamos.
         if (id && mongoose.Types.ObjectId.isValid(id)) {
             material = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
         } else {
+            // 3. Solo si es REALMENTE nuevo (nombre no existe en DB), creamos.
             material = new Material(datos);
             await material.save();
         }
+
         res.status(200).json({ success: true, data: material });
     } catch (error) {
+        console.error("🚨 Error en saveMaterial:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
