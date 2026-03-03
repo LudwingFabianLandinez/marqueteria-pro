@@ -95,41 +95,31 @@ const saveMaterial = async (req, res) => {
     try {
         let { id, nombre, categoria, tipo, stock_actual, precio_total_lamina, proveedor, ancho_lamina_cm, largo_lamina_cm } = req.body;
         
-        // 1. Normalización estricta
+        // 1. Normalización: "Chapilla", "CHAPILLA", " chapilla" -> Todo será "CHAPILLA"
         const nombreNorm = (nombre || "").trim().toUpperCase();
 
-        // 🛡️ LIMPIEZA DE IDs (Lógica original intacta)
+        // 🛡️ LIMPIEZA DE IDs (Tu lógica original para no romper nada)
         if (id && (id.startsWith('TEMP-') || id.startsWith('MAT-'))) id = null;
 
-        // 🎯 BÚSQUEDA DE EXISTENCIA PARA EVITAR DUPLICIDAD
-        let materialExistente = null;
+        // 🎯 EL AJUSTE MAESTRO: 
+        // Si no hay ID de Atlas, buscamos por NOMBRE. 
+        // Si existe una "Chapilla" (ya sea General o Acabado), tomamos SU ID.
         if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-            materialExistente = await Material.findOne({ 
+            const materialExistente = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombreNorm}$`, 'i') } 
             });
             
             if (materialExistente) {
-                id = materialExistente._id;
-                console.log(`♻️ Fusión: "${nombreNorm}" ya existe con ID: ${id}.`);
+                id = materialExistente._id; // <--- AQUÍ AJUSTAMOS A UNA SOLA
+                console.log(`♻️ Unificando "${nombreNorm}" en el ID existente: ${id}`);
             }
-        } else {
-            materialExistente = await Material.findById(id);
-        }
-
-        // ⚠️ PROTECCIÓN DE STOCK: 
-        // Si el material ya existe y tiene stock (por compras), NO dejamos que el 
-        // valor "0" de la creación manual sobrescriba lo que ya hay.
-        let nuevoStock = Number(stock_actual) || 0;
-        if (materialExistente && nuevoStock === 0 && materialExistente.stock_actual > 0) {
-            nuevoStock = materialExistente.stock_actual;
-            console.log(`🛡️ Protegiendo stock: Se mantiene ${nuevoStock} m2 para "${nombreNorm}"`);
         }
 
         const datos = {
             nombre: nombreNorm,
-            categoria: categoria || (materialExistente ? materialExistente.categoria : "Otros"),
+            categoria: categoria || "GENERAL", // Estandarizamos
             tipo: tipo || "m2",
-            stock_actual: nuevoStock,
+            stock_actual: Number(stock_actual) || 0,
             precio_total_lamina: Number(precio_total_lamina) || 0,
             ancho_lamina_cm: Number(ancho_lamina_cm) || 0,
             largo_lamina_cm: Number(largo_lamina_cm) || 0,
@@ -137,11 +127,10 @@ const saveMaterial = async (req, res) => {
         };
 
         let material;
+        // 2. Si encontramos el ID arriba, se ACTUALIZA la existente. Si no, se CREA.
         if (id && mongoose.Types.ObjectId.isValid(id)) {
-            // Si ya existe (por ID o por Nombre), actualizamos sin duplicar
             material = await Material.findByIdAndUpdate(id, { $set: datos }, { new: true });
         } else {
-            // Solo si es 100% nuevo se crea el documento
             material = new Material(datos);
             await material.save();
         }
