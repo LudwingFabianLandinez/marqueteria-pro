@@ -283,38 +283,36 @@
         const limpiarNombre = (t) => String(t).toUpperCase().trim();
         const consolidado = {};
 
-        // --- 🛡️ FILTRO ANTI-BASURA Y PURGA DE FANTASMAS ---
-        // --- 🛡️ FILTRO ANTI-BASURA Y PURGA QUIRÚRGICA (v21.0) ---
-        datosFiltrados.forEach(m => {
-            if (!m.nombre) return;
-            const nombreUP = limpiarNombre(m.nombre);
-            const stockM = parseFloat(m.stock_actual) || 0;
-            const catM = String(m.categoria || '').toUpperCase();
+        // --- 🛡️ FILTRO ANTI-BASURA Y PURGA DE DUPLICADOS (v21.0) ---
+            datosFiltrados.forEach(m => {
+                if (!m.nombre) return;
+                const nombreUP = limpiarNombre(m.nombre);
+                const stockM = parseFloat(m.stock_actual) || 0;
+                const catM = String(m.categoria || '').toUpperCase();
 
-            // 1. ⚔️ BLOQUEO QUIRÚRGICO DE FANTASMAS (STOCK CERO)
-            // Si el stock es 0, lo ignoramos completamente. Esto borra la Chapilla duplicada.
-            if (stockM <= 0) {
-                console.log(`🚫 Bloqueando registro con Stock Cero: ${nombreUP}`);
-                return; // Se detiene aquí, el ítem no entra al sistema.
-            }
-
-            // 2. Ignorar residuos de Atlas (Punto 4 logrado anteriormente)
-            if (stockM > 0 && stockM < 0.50) {
-                console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
-                return;
-            }
-
-            // --- CONSOLIDACIÓN (Mantiene integridad de lo logrado) ---
-            if (!consolidado[nombreUP]) {
-                consolidado[nombreUP] = { ...m, stock_actual: stockM };
-            } else {
-                consolidado[nombreUP].stock_actual += stockM;
-                // Si el nuevo registro tiene categoría específica, la priorizamos sobre GENERAL
-                if (catM !== "GENERAL") {
-                    consolidado[nombreUP].categoria = m.categoria;
+                // 1. ⚔️ REGLA DE EXCLUSIÓN TOTAL: Si no hay stock, el ítem NO EXISTE.
+                // Esto elimina el ítem de 0.00 m2 (el fantasma) antes de que entre al sistema.
+                if (stockM <= 0) {
+                    return; 
                 }
-            }
-        });
+
+                // 2. Ignorar residuos de Atlas (Punto 4 logrado anteriormente)
+                if (stockM > 0 && stockM < 0.50) {
+                    console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
+                    return;
+                }
+
+                // --- CONSOLIDACIÓN PROTEGIDA ---
+                if (!consolidado[nombreUP]) {
+                    consolidado[nombreUP] = { ...m, stock_actual: stockM };
+                } else {
+                    consolidado[nombreUP].stock_actual += stockM;
+                    // Priorizamos categorías específicas (ACABADO, VIDRIO, etc.) sobre GENERAL
+                    if (catM !== "GENERAL") {
+                        consolidado[nombreUP].categoria = m.categoria;
+                    }
+                }
+            });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
             const nombreUP = limpiarNombre(m.nombre);
