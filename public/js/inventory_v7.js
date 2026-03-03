@@ -273,78 +273,84 @@
     // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
 
     async function fetchInventory() {
-        try {
-            const resultado = await window.API.getInventory();
-            const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+    try {
+        const resultado = await window.API.getInventory();
+        const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+        
+        const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+        const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
+
+        const limpiarNombre = (t) => String(t).toUpperCase().trim();
+        const consolidado = {};
+
+        // --- 🛡️ FILTRO ANTI-BASURA Y PURGA DE FANTASMAS ---
+        datosFiltrados.forEach(m => {
+            if (!m.nombre) return;
+            const nombreUP = limpiarNombre(m.nombre);
+            const stockM = parseFloat(m.stock_actual) || 0;
+            const catM = String(m.categoria || '').toUpperCase();
+
+            // 1. ELIMINAR FANTASMA ESPECÍFICO (Chapilla Africana con stock 0 o categoría GENERAL)
+            // Si el nombre coincide y el stock es 0, lo borramos de raíz para que no genere duplicado
+            if (nombreUP.includes("CHAPILLA AFRICANA") && (stockM <= 0 || catM === "GENERAL")) {
+                console.log(`🧹 Purgando fantasma de Chapilla: ${nombreUP} (${catM})`);
+                return; // Salta este registro y no lo mete al consolidado
+            }
+
+            // 2. Ignorar residuos de Atlas (Punto 4 logrado anteriormente)
+            if (stockM > 0 && stockM < 0.50) {
+                console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
+                return;
+            }
+
+            // --- CONSOLIDACIÓN (No altera el resto de materiales) ---
+            if (!consolidado[nombreUP]) {
+                consolidado[nombreUP] = { ...m, stock_actual: stockM };
+            } else {
+                consolidado[nombreUP].stock_actual += stockM;
+            }
+        });
+
+        window.todosLosMateriales = Object.values(consolidado).map(m => {
+            const nombreUP = limpiarNombre(m.nombre);
+            const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
+
+            // Costos Blindados ($30.682 Vidrio / $10.345 Moldura)
+            let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
+            if (esMoldura && costoFijo < 9000) costoFijo = 10345;
+            else if (!esMoldura && (costoFijo === 16141 || costoFijo === 0)) costoFijo = 30682;
+
+            let stockFinal = m.stock_actual;
             
-            const eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-            const datosFiltrados = datosRaw.filter(m => !eliminados.includes(String(m._id || m.id)));
+            if (esMoldura) {
+                const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
+                const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
 
-            const limpiarNombre = (t) => String(t).toUpperCase().trim();
-            const consolidado = {};
-
-            // --- 🛡️ FILTRO ANTI-BASURA DE ATLAS ---
-            datosFiltrados.forEach(m => {
-                if (!m.nombre) return;
-                const nombreUP = limpiarNombre(m.nombre);
-                const stockM = parseFloat(m.stock_actual) || 0;
-
-                // Si el registro individual es basura (ej: 0.44), lo ignoramos para no restar mal
-                if (stockM > 0 && stockM < 0.50) {
-                    console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
-                    return;
-                }
-
-                if (!consolidado[nombreUP]) {
-                    consolidado[nombreUP] = { ...m, stock_actual: stockM };
-                } else {
-                    consolidado[nombreUP].stock_actual += stockM;
-                }
-            });
-
-            window.todosLosMateriales = Object.values(consolidado).map(m => {
-                const nombreUP = limpiarNombre(m.nombre);
-                const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
-
-                // Costos Blindados ($30.682 Vidrio / $10.345 Moldura)
-                let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
-                if (esMoldura && costoFijo < 9000) costoFijo = 10345;
-                else if (!esMoldura && (costoFijo === 16141 || costoFijo === 0)) costoFijo = 30682;
-
-                let stockFinal = m.stock_actual;
-                
-                if (esMoldura) {
-                    const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
-                    const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
-
-                    // PRIORIDAD AL ESCUDO: Si sumaste hoy, Atlas NO MANDA si el valor es menor.
-                    if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-                        if (memoria.stock > stockFinal) {
-                            stockFinal = memoria.stock;
-                        }
-                    }
-
-                    // --- 🛡️ BLOQUEO DE SEGURIDAD v18.3 ---
-                    // Si el stock cae por debajo de 2.90, es error de Atlas. Forzamos mínimo.
-                    if (stockFinal < 2.90) {
-                        stockFinal = 2.90; 
+                if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
+                    if (memoria.stock > stockFinal) {
+                        stockFinal = memoria.stock;
                     }
                 }
 
-                return {
-                    ...m,
-                    precio_m2_costo: Math.round(costoFijo),
-                    stock_actual: Number(stockFinal.toFixed(2))
-                };
-            });
+                if (stockFinal < 2.90) {
+                    stockFinal = 2.90; 
+                }
+            }
 
-            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-            renderTable(window.todosLosMateriales);
+            return {
+                ...m,
+                precio_m2_costo: Math.round(costoFijo),
+                stock_actual: Number(stockFinal.toFixed(2))
+            };
+        });
 
-        } catch (error) {
-            console.error("❌ Error en inventario:", error);
-        }
+        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+        renderTable(window.todosLosMateriales);
+
+    } catch (error) {
+        console.error("❌ Error en inventario:", error);
     }
+}
 
     function renderTable(materiales) {
         const cuerpoTabla = document.getElementById('inventoryTable');
