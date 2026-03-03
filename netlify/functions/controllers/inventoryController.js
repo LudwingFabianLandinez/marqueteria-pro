@@ -148,35 +148,39 @@ const saveMaterial = async (req, res) => {
 // (Mantenemos las demás funciones igual)
 const getMaterials = async (req, res) => {
     try {
-        // Traemos los datos tal cual están en Atlas (Tu lógica original)
-        const materiales = await Material.find().populate('proveedor', 'nombre').sort({ nombre: 1 }).lean();
+        // 1. Obtenemos los datos de Atlas tal cual (Tu lógica original intacta)
+        const materiales = await Material.find()
+            .populate('proveedor', 'nombre')
+            .sort({ nombre: 1 })
+            .lean();
         
-        // --- PROCESO DE UNIFICACIÓN (Solo para la vista del Dashboard) ---
+        // 2. UNIFICACIÓN DE IDENTIDAD: Juntamos lo que se llame igual
         const mapaUnificado = {};
 
         materiales.forEach(m => {
-            // Normalizamos el nombre para agrupar (ej: "CHAPILLA")
-            const nombreKey = (m.nombre || "").trim().toUpperCase();
+            // Normalizamos para que "CHAPILLA" y "Chapilla" sean detectados como lo mismo
+            const nombreNorm = (m.nombre || "").trim().toUpperCase();
 
-            if (!mapaUnificado[nombreKey]) {
-                // Si es el primero con ese nombre, lo tomamos como base
-                mapaUnificado[nombreKey] = { ...m };
+            if (!mapaUnificado[nombreNorm]) {
+                // Si es el primero con este nombre, lo guardamos como base
+                mapaUnificado[nombreNorm] = { ...m };
             } else {
-                // Si ya existe uno igual, SUMAMOS el stock al registro base
-                // Esto hace que las dos chapillas se vean como una sola con stock total
-                mapaUnificado[nombreKey].stock_actual = (mapaUnificado[nombreKey].stock_actual || 0) + (m.stock_actual || 0);
+                // SI YA EXISTE (Duplicado): Sumamos el stock al registro base
+                // Así verás UNA SOLA FILA con la suma de los metros cuadrados
+                mapaUnificado[nombreNorm].stock_actual = (mapaUnificado[nombreNorm].stock_actual || 0) + (m.stock_actual || 0);
                 
-                // Si el duplicado tiene un ID real de Atlas y el base no, preferimos el real
-                if (m._id && !mapaUnificado[nombreKey]._id.toString().includes('TEMP')) {
-                    // Mantenemos la referencia del objeto más completo
+                // Si el duplicado tiene las medidas (ancho/largo) y el base no, las rescatamos
+                if (m.ancho_lamina_cm > 0 && !mapaUnificado[nombreNorm].ancho_lamina_cm) {
+                    mapaUnificado[nombreNorm].ancho_lamina_cm = m.ancho_lamina_cm;
+                    mapaUnificado[nombreNorm].largo_lamina_cm = m.largo_lamina_cm;
                 }
             }
         });
 
-        // Convertimos el mapa de nuevo a una lista para el Dashboard
-        const dataUnificada = Object.values(mapaUnificado);
+        // Convertimos el mapa de nuevo a la lista que espera tu Dashboard
+        const dataFinal = Object.values(mapaUnificado);
 
-        res.status(200).json({ success: true, data: dataUnificada });
+        res.status(200).json({ success: true, data: dataFinal });
     } catch (error) { 
         console.error("Error en getMaterials:", error.message);
         res.status(500).json({ success: false, data: [] }); 
