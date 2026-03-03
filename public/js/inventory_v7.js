@@ -283,34 +283,36 @@
         const limpiarNombre = (t) => String(t).toUpperCase().trim();
         const consolidado = {};
 
-        // --- 🛡️ FILTRO INTELIGENTE (v22.0) - PERMITE MAESTROS, BLOQUEA FANTASMAS ---
+        // --- 🛡️ FILTRO DE CONSOLIDACIÓN UNIFICADA (v23.0) ---
             datosFiltrados.forEach(m => {
                 if (!m.nombre) return;
                 const nombreUP = limpiarNombre(m.nombre);
                 const stockM = parseFloat(m.stock_actual) || 0;
                 const catM = String(m.categoria || '').toUpperCase();
 
-                // 1. ⚔️ REGLA BALANCEADA:
-                // Si el stock es 0 Y la categoría es GENERAL, es un fantasma (BLOQUEAR).
-                // Si el stock es 0 PERO tiene categoría (ACABADO, VIDRIO, etc), es un MAESTRO (PERMITIR).
-                if (stockM <= 0 && (catM === "GENERAL" || catM === "")) {
-                    return; 
-                }
-
-                // 2. Ignorar residuos de Atlas (Punto 4 logrado anteriormente)
+                // 1. ⚔️ REGLA DE RESIDUOS: Solo borramos si es un valor despreciable mayor a 0
                 if (stockM > 0 && stockM < 0.50) {
                     console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
                     return;
                 }
 
-                // --- CONSOLIDACIÓN PROTEGIDA (No altera vidrios ni molduras) ---
+                // 2. 🛡️ LÓGICA DE UNIFICACIÓN (Evita el doble ítem sin bloquear al Maestro)
                 if (!consolidado[nombreUP]) {
+                    // Si el nombre no existe, lo agregamos (Sea stock 0 o lo que sea)
+                    // Esto permite que el Maestro SIEMPRE sea visible.
                     consolidado[nombreUP] = { ...m, stock_actual: stockM };
                 } else {
+                    // SI YA EXISTE (Duplicado), fusionamos los datos en un solo registro:
+                    
+                    // A. Sumamos el stock (5.60 + 0 = 5.60)
                     consolidado[nombreUP].stock_actual += stockM;
-                    // Priorizamos categorías específicas sobre GENERAL para el multiplicador x3
+
+                    // B. PRIORIDAD DE CATEGORÍA: Si este duplicado tiene categoría real 
+                    // (ACABADO, VIDRIO, MOLDURA) y el anterior era GENERAL, lo corregimos.
                     if (catM !== "GENERAL" && catM !== "") {
                         consolidado[nombreUP].categoria = m.categoria;
+                        // Mantenemos el ID del registro que tiene la categoría correcta
+                        consolidado[nombreUP]._id = m._id || m.id;
                     }
                 }
             });
