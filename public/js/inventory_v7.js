@@ -284,17 +284,18 @@
         const consolidado = {};
 
         // --- 🛡️ FILTRO ANTI-BASURA Y PURGA DE FANTASMAS ---
+        // --- 🛡️ FILTRO ANTI-BASURA Y PURGA QUIRÚRGICA (v21.0) ---
         datosFiltrados.forEach(m => {
             if (!m.nombre) return;
             const nombreUP = limpiarNombre(m.nombre);
             const stockM = parseFloat(m.stock_actual) || 0;
             const catM = String(m.categoria || '').toUpperCase();
 
-            // 1. ELIMINAR FANTASMA ESPECÍFICO (Chapilla Africana con stock 0 o categoría GENERAL)
-            // Si el nombre coincide y el stock es 0, lo borramos de raíz para que no genere duplicado
-            if (nombreUP.includes("CHAPILLA AFRICANA") && (stockM <= 0 || catM === "GENERAL")) {
-                console.log(`🧹 Purgando fantasma de Chapilla: ${nombreUP} (${catM})`);
-                return; // Salta este registro y no lo mete al consolidado
+            // 1. ⚔️ BLOQUEO QUIRÚRGICO DE FANTASMAS (STOCK CERO)
+            // Si el stock es 0, lo ignoramos completamente. Esto borra la Chapilla duplicada.
+            if (stockM <= 0) {
+                console.log(`🚫 Bloqueando registro con Stock Cero: ${nombreUP}`);
+                return; // Se detiene aquí, el ítem no entra al sistema.
             }
 
             // 2. Ignorar residuos de Atlas (Punto 4 logrado anteriormente)
@@ -303,11 +304,15 @@
                 return;
             }
 
-            // --- CONSOLIDACIÓN (No altera el resto de materiales) ---
+            // --- CONSOLIDACIÓN (Mantiene integridad de lo logrado) ---
             if (!consolidado[nombreUP]) {
                 consolidado[nombreUP] = { ...m, stock_actual: stockM };
             } else {
                 consolidado[nombreUP].stock_actual += stockM;
+                // Si el nuevo registro tiene categoría específica, la priorizamos sobre GENERAL
+                if (catM !== "GENERAL") {
+                    consolidado[nombreUP].categoria = m.categoria;
+                }
             }
         });
 
