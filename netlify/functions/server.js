@@ -298,25 +298,41 @@ router.post('/inventory/purchase', async (req, res) => {
         const materialId = req.body.materialId || req.body.id;
 
         // --- INICIO LÓGICA DE CREACIÓN SI EL ID ES "NUEVO" ---
+        // --- INICIO LÓGICA DE CREACIÓN CON FILTRO ANTI-DUPLICADOS (v16.1.8) ---
         if (materialId === "NUEVO") {
-            console.log("🆕 Detectada solicitud de creación de material maestro...");
-            const nuevoMat = new Material({
-                nombre: req.body.nombre,
-                categoria: req.body.categoria,
-                costo_base: parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0),
-                precio_m2_costo: parseFloat(req.body.precio_m2_costo || req.body.costo_base || 0),
-                stock_actual: 0,
-                ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
-                largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
-                unidad: req.body.unidad || ((req.body.categoria === "MOLDURAS" || req.body.nombre?.includes("MOLDURA")) ? "ML" : "M2"),
-                estado: 'Activo'
+            const nombreNormalizado = req.body.nombre ? req.body.nombre.trim() : "";
+            console.log(`🔍 Verificando existencia de: "${nombreNormalizado}" para evitar duplicidad...`);
+
+            // 1. Buscamos si ya existe por nombre (Case-Insensitive)
+            const materialExistente = await Material.findOne({ 
+                nombre: { $regex: new RegExp(`^${nombreNormalizado}$`, 'i') } 
             });
-            const guardado = await nuevoMat.save();
-            return res.status(200).json({ 
-                success: true, 
-                message: "Material creado exitosamente en Atlas", 
-                data: guardado 
-            });
+
+            if (materialExistente) {
+                console.log(`♻️ Material detectado en Atlas. Redirigiendo a compra sobre ID: ${materialExistente._id}`);
+                // Si ya existe, NO creamos uno nuevo. Reasignamos el materialId para que el flujo de abajo haga la compra.
+                req.body.materialId = materialExistente._id.toString();
+            } else {
+                // 2. Si realmente no existe, procedemos con la creación original
+                console.log("🆕 No se encontró duplicado. Creando material maestro...");
+                const nuevoMat = new Material({
+                    nombre: nombreNormalizado,
+                    categoria: req.body.categoria,
+                    costo_base: parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0),
+                    precio_m2_costo: parseFloat(req.body.precio_m2_costo || req.body.costo_base || 0),
+                    stock_actual: 0,
+                    ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
+                    largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
+                    unidad: req.body.unidad || ((req.body.categoria === "MOLDURAS" || nombreNormalizado.toUpperCase().includes("MOLDURA")) ? "ML" : "M2"),
+                    estado: 'Activo'
+                });
+                const guardado = await nuevoMat.save();
+                return res.status(200).json({ 
+                    success: true, 
+                    message: "Material creado exitosamente en Atlas", 
+                    data: guardado 
+                });
+            }
         }
         // --- FIN LÓGICA DE CREACIÓN ---
 
