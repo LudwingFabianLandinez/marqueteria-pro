@@ -283,16 +283,17 @@
         const limpiarNombre = (t) => String(t).toUpperCase().trim();
         const consolidado = {};
 
-        // --- 🛡️ FILTRO ANTI-BASURA Y PURGA DE DUPLICADOS (v21.0) ---
+        // --- 🛡️ FILTRO INTELIGENTE (v22.0) - PERMITE MAESTROS, BLOQUEA FANTASMAS ---
             datosFiltrados.forEach(m => {
                 if (!m.nombre) return;
                 const nombreUP = limpiarNombre(m.nombre);
                 const stockM = parseFloat(m.stock_actual) || 0;
                 const catM = String(m.categoria || '').toUpperCase();
 
-                // 1. ⚔️ REGLA DE EXCLUSIÓN TOTAL: Si no hay stock, el ítem NO EXISTE.
-                // Esto elimina el ítem de 0.00 m2 (el fantasma) antes de que entre al sistema.
-                if (stockM <= 0) {
+                // 1. ⚔️ REGLA BALANCEADA:
+                // Si el stock es 0 Y la categoría es GENERAL, es un fantasma (BLOQUEAR).
+                // Si el stock es 0 PERO tiene categoría (ACABADO, VIDRIO, etc), es un MAESTRO (PERMITIR).
+                if (stockM <= 0 && (catM === "GENERAL" || catM === "")) {
                     return; 
                 }
 
@@ -302,13 +303,13 @@
                     return;
                 }
 
-                // --- CONSOLIDACIÓN PROTEGIDA ---
+                // --- CONSOLIDACIÓN PROTEGIDA (No altera vidrios ni molduras) ---
                 if (!consolidado[nombreUP]) {
                     consolidado[nombreUP] = { ...m, stock_actual: stockM };
                 } else {
                     consolidado[nombreUP].stock_actual += stockM;
-                    // Priorizamos categorías específicas (ACABADO, VIDRIO, etc.) sobre GENERAL
-                    if (catM !== "GENERAL") {
+                    // Priorizamos categorías específicas sobre GENERAL para el multiplicador x3
+                    if (catM !== "GENERAL" && catM !== "") {
                         consolidado[nombreUP].categoria = m.categoria;
                     }
                 }
