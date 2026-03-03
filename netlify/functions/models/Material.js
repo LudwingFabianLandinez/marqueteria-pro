@@ -14,14 +14,14 @@ const MaterialSchema = new mongoose.Schema({
         type: String, 
         required: true,
         trim: true,
-        // Enum blindado: Agregamos 'ACABADO' y sus variaciones para que Atlas no bloquee el guardado
+        // AMPLIAMOS la lista para que NUNCA rechace un material conocido o nuevo
         enum: [
             'Vidrio', 'Respaldo', 'Paspartu', 'Marco', 'Foam', 'Tela', 'Chapilla', 
-            'Moldura', 'General', 'Otros', 'Acabado',
-            'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA', 'ACABADO',
-            'moldura', 'general', 'vidrio', 'acabado'
+            'Moldura', 'General', 'Otros', 'Acabado', 'ACABADO',
+            'MOLDURAS', 'GENERAL', 'VIDRIO', 'MOLDURA', 'CHAPILLA',
+            'moldura', 'general', 'vidrio', 'acabado', 'chapilla'
         ],
-        default: 'Otros'
+        default: 'General'
     },
     tipo: { 
         type: String, 
