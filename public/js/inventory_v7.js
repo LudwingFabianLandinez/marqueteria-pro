@@ -639,84 +639,77 @@ if (formCompra) {
             const largoCm = parseFloat(inputLargo?.value) || 0;
             const anchoCm = parseFloat(inputAncho?.value) || 0;
             
-            // --- 🛡️ MEJORA DE COBERTURA TOTAL M2 (v18.9 - INCLUYE FOAM Y LONA) ---
-            let costoFinalAtlas = costoIngresado;
+            // --- 🚀 CLASIFICACIÓN INTELIGENTE DE CATEGORÍA (PREVIA A LA BÚSQUEDA) ---
+            let categoriaDeterminada;
+            const esVidrio = nombreUP.includes("VIDRIO") || nombreUP.includes("CRISTAL") || nombreUP.includes("ESPEJO");
+            const esAcabado = nombreUP.includes("CHAPILLA") || nombreUP.includes("AFRICANA") || nombreUP.includes("PASSEPARTOUT");
+
+            if (esMoldura) {
+                categoriaDeterminada = "MOLDURAS";
+            } else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF") || nombreUP.includes("CARTON") || nombreUP.includes("CARTÓN")) {
+                categoriaDeterminada = "RESPALDO";
+            } else if (esVidrio) {
+                categoriaDeterminada = "VIDRIO";
+            } else if (esAcabado) {
+                categoriaDeterminada = "ACABADO";
+            } else {
+                categoriaDeterminada = "GENERAL";
+            }
+
+            // --- 🛡️ BUSQUEDA DE EXISTENTE REFORZADA ---
+            if (!window.todosLosMateriales) window.todosLosMateriales = [];
             
-            // Ampliamos la detección para incluir Foam Board y Tela Lona
-            const esMaterialSuperficie = nombreUP.includes("PASSEPARTOUT") || 
-                                         nombreUP.includes("CHAPILLA") || 
-                                         nombreUP.includes("AFRICANA") ||
+            let existente = window.todosLosMateriales.find(m => 
+                m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
+            );
+
+            // Si existe en GENERAL o con categoría vacía, lo "forzamos" a la nueva categoría antes de enviar a Atlas
+            if (existente) {
+                console.log(`♻️ Sincronizando ID para evitar duplicado: ${existente.nombre}`);
+                existente.categoria = categoriaDeterminada; 
+            }
+
+            // --- 📏 CÁLCULOS DE COSTO Y STOCK (MANTENIENDO TU LÓGICA) ---
+            let costoFinalAtlas = costoIngresado;
+            const esMaterialSuperficie = esAcabado || 
                                          nombreUP.includes("TRIPLEX") || 
                                          nombreUP.includes("CARTON") || 
                                          nombreUP.includes("CARTÓN") || 
                                          nombreUP.includes("MDF") || 
                                          nombreUP.includes("MADERA") ||
-                                         nombreUP.includes("FOAM") ||  // Cubre Foam Board / Foam Bord
-                                         nombreUP.includes("LONA") ||  // Cubre Tela Lona
+                                         nombreUP.includes("FOAM") || 
+                                         nombreUP.includes("LONA") || 
                                          nombreUP.includes("TELA");
 
             if (!esMoldura && esMaterialSuperficie) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
-                    // CÁLCULO CRÍTICO: Convertimos el precio de la lámina a precio por M2
                     costoFinalAtlas = Math.round(costoIngresado / areaM2);
-                    console.log(`📏 Ajuste M2 (Superficie): ${nombreReal} -> $${costoFinalAtlas}/m2 (Área: ${areaM2.toFixed(2)}m2)`);
                 }
             }
 
-            // LA REGLA DE ORO: 2.90 ML para molduras, cálculo de área para el resto
             let stockASumar = esMoldura 
                 ? (cant * 2.90) 
                 : ((largoCm * anchoCm / 10000) * cant);
 
-            if (!window.todosLosMateriales) window.todosLosMateriales = [];
-            // --- 🛡️ MEJORA DE DETECCIÓN v19.2 (EVITA DUPLICADOS GENERAL/ACABADO) ---
-let existente = window.todosLosMateriales.find(m => 
-    m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
-);
-
-// Si existe pero tiene la categoría mal (ej. "GENERAL"), la corregimos de inmediato
-if (existente) {
-    console.log(`♻️ Corrigiendo categoría de ${existente.nombre}: ${existente.categoria} -> ${categoriaDeterminada}`);
-    existente.categoria = categoriaDeterminada; 
-}
-
-            const idMasterAtlas = (existente && existente._id) ? existente._id : 
-                                 (existente && existente.id && !String(existente.id).startsWith('TEMP-') ? existente.id : null);
-
+            const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
-            // --- 🚀 CLASIFICACIÓN INTELIGENTE DE CATEGORÍA (CORREGIDO v19.0) ---
-let categoriaDeterminada;
-const esVidrio = nombreUP.includes("VIDRIO") || nombreUP.includes("CRISTAL") || nombreUP.includes("ESPEJO");
-const esAcabado = nombreUP.includes("CHAPILLA") || nombreUP.includes("AFRICANA") || nombreUP.includes("PASSEPARTOUT");
-
-if (esMoldura) {
-    categoriaDeterminada = "MOLDURAS";
-} else if (nombreUP.includes("TRIPLEX") || nombreUP.includes("MADERA") || nombreUP.includes("MDF") || nombreUP.includes("CARTON") || nombreUP.includes("CARTÓN")) {
-    categoriaDeterminada = "RESPALDO";
-} else if (esVidrio) {
-    categoriaDeterminada = "VIDRIO"; // Crucial para que el cotizador lo multiplique
-} else if (esAcabado) {
-    categoriaDeterminada = "ACABADO"; // Crucial para el margen de chapillas
-} else {
-    categoriaDeterminada = existente?.categoria || "GENERAL";
-}
-            
-
+            // --- 📦 OBJETO PARA ATLAS (CON ID VINCULADO) ---
             const datosParaAtlas = {
                 materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
                 nombre: nombreReal,
                 esNuevo: esNuevoMaterial,
                 categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas, // Guardamos el costo UNITARIO por m2
+                precio_total_lamina: costoFinalAtlas,
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
                 largo_lamina_cm: esMoldura ? 290 : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costoIngresado * cant, // Inversión bruta de la compra
+                costo_total: costoIngresado * cant,
                 timestamp: new Date().toISOString(),
-                id: esNuevoMaterial ? `TEMP-${Date.now()}` : idMasterAtlas
+                // Importante: Si no es nuevo, enviamos el ID original para que Atlas haga un UPDATE y no un INSERT
+                _id: esNuevoMaterial ? undefined : idMasterAtlas 
             };
 
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
@@ -757,6 +750,7 @@ if (esMoldura) {
 
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
+            // Lógica de pendientes
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
@@ -764,7 +758,7 @@ if (esMoldura) {
 
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nCosto M2 guardado: $${costoFinalAtlas}`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nCategoría: ${categoriaDeterminada}`);
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
 
