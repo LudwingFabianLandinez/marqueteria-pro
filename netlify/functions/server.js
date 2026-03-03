@@ -25,11 +25,19 @@ console.log("📦 Modelos v14.0.0 vinculados y registrados exitosamente");
 const app = express();
 
 // 2. MIDDLEWARES INICIALES (FUERZA BRUTA CORS)
+// 2. MIDDLEWARES INICIALES (FUERZA BRUTA CORS + ANTI-CACHÉ FANTASMA)
 app.use((req, res, next) => {
+    // --- TUS CABECERAS CORS (INTACTAS) ---
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
     res.header('Allow', 'GET, POST, OPTIONS, PUT, DELETE');
+
+    // --- BLINDAJE ANTI-CACHÉ (PARA ELIMINAR EL DOBLE ITEM FANTASMA) ---
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+
     if (req.method === 'OPTIONS') return res.status(200).send();
     next();
 });
