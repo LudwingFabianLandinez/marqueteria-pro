@@ -23,45 +23,34 @@ const Transaction = mongoose.models.Transaction || mongoose.model('Transaction',
 const registerPurchase = async (req, res) => {
     try {
         console.log("🚀 INICIANDO REGISTRO DE COMPRA...");
-        
         let { materialId, nombre, cantidad_laminas, precio_total_lamina, proveedor } = req.body;
 
-        // 🛡️ LIMPIEZA RADICAL DE IDs (Tu lógica original intacta)
         const limpiarId = (id) => {
-            if (!id || typeof id !== 'string' || id.startsWith('TEMP-') || id.startsWith('MAT-') || id.length !== 24) {
-                return null;
-            }
+            if (!id || typeof id !== 'string' || id.startsWith('TEMP-') || id.startsWith('MAT-') || id.length !== 24) return null;
             return id;
         };
 
-        const mid = limpiarId(materialId);
-        const pid = limpiarId(proveedor);
-
+        let mid = limpiarId(materialId);
         let material = null;
 
-        // 🎯 LOGICA FOAM BOARD: Si hay ID, buscamos por ID. 
-        if (mid) {
-            material = await Material.findById(mid);
-        }
-
-        // 🎯 SI NO APARECE O EL ID ERA TEMPORAL, BUSCAMOS POR NOMBRE (Fuerza Bruta)
-        // Esto evita que si la Chapilla ya existe como "General", cree una nueva como "Acabado"
+        // --- LÓGICA IDENTIDAD ÚNICA (Igual al Foam Board) ---
+        // 1. Intentamos por ID
+        if (mid) material = await Material.findById(mid);
+        
+        // 2. Si no hay material, buscamos por NOMBRE (Obligatorio)
         if (!material && nombre) {
             const nombreBusqueda = nombre.trim().toUpperCase();
-            material = await Material.findOne({ 
-                nombre: { $regex: new RegExp(`^${nombreBusqueda}$`, 'i') } 
-            });
+            material = await Material.findOne({ nombre: nombreBusqueda });
+            if (material) {
+                console.log(`🎯 Vinculación Exitosa: Usando material existente [${material._id}]`);
+            }
         }
 
-        // ❌ SI NO EXISTE NI POR ID NI POR NOMBRE, DAMOS ERROR (Cerramos la 2da puerta)
         if (!material) {
-            return res.status(404).json({ 
-                success: false, 
-                message: `El material "${nombre}" no existe en el catálogo. Créelo primero en Material Maestro.` 
-            });
+            return res.status(404).json({ success: false, message: "El material no existe. Créelo en el Maestro primero." });
         }
 
-        // --- LÓGICA DE NEGOCIO (INTACTA: NO DAÑA MOLDURAS NI M2) ---
+        // --- CÁLCULOS (INTACTOS) ---
         const n = material.nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         const cant = parseFloat(cantidad_laminas) || 0;
@@ -69,37 +58,36 @@ const registerPurchase = async (req, res) => {
         let incrementoStock = 0;
 
         if (esMoldura) {
-            incrementoStock = cant * 2.90; // Mantiene tu estándar
+            incrementoStock = cant * 2.90;
         } else {
             const ancho = material.ancho_lamina_cm || 0;
             const largo = material.largo_lamina_cm || 0;
-            // Cálculo estándar de lámina (Chapilla, Foam Board, etc.)
             incrementoStock = (ancho * largo / 10000) * cant;
         }
 
-        // ACTUALIZACIÓN ATÓMICA
+        // --- PERSISTENCIA REAL EN ATLAS ---
         material.stock_actual = (material.stock_actual || 0) + incrementoStock;
         if (precio > 0) material.precio_total_lamina = precio;
 
-        const [mSaved, tSaved] = await Promise.all([
-            material.save(),
-            Transaction.create({
-                materialId: material._id,
-                tipo: 'COMPRA',
-                cantidad: cant,
-                cantidad_m2: incrementoStock,
-                costo_unitario: precio,
-                costo_total: precio * cant,
-                proveedor: pid || material.proveedor,
-                motivo: `Compra: ${material.nombre}`
-            })
-        ]);
+        // Guardamos y esperamos confirmación real de MongoDB
+        const mSaved = await material.save();
+        
+        await Transaction.create({
+            materialId: material._id,
+            tipo: 'COMPRA',
+            cantidad: cant,
+            cantidad_m2: incrementoStock,
+            costo_unitario: precio,
+            costo_total: precio * cant,
+            proveedor: limpiarId(proveedor) || material.proveedor,
+            motivo: `Compra: ${material.nombre}`
+        });
 
-        console.log(`✅ COMPRA VINCULADA A: ${material.nombre} [ID: ${material._id}]`);
+        console.log("✅ DATOS ANCLADOS EN ATLAS CORRECTAMENTE");
         res.status(200).json({ success: true, data: mSaved });
 
     } catch (error) {
-        console.error("🚨 ERROR CRÍTICO EN COMPRA:", error.message);
+        console.error("🚨 ERROR CRÍTICO:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 };
