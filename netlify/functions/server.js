@@ -305,24 +305,26 @@ router.post('/inventory/purchase', async (req, res) => {
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
         const materialId = req.body.materialId || req.body.id;
 
-        // --- INICIO LÓGICA DE CREACIÓN SI EL ID ES "NUEVO" ---
-        // --- INICIO LÓGICA DE CREACIÓN CON FILTRO ANTI-DUPLICADOS (v16.1.8) ---
+        // --- INICIO LÓGICA DE CREACIÓN CON FILTRO DE IDENTIDAD ÚNICA (v16.2.0) ---
         if (materialId === "NUEVO") {
             const nombreNormalizado = req.body.nombre ? req.body.nombre.trim() : "";
-            console.log(`🔍 Verificando existencia de: "${nombreNormalizado}" para evitar duplicidad...`);
+            console.log(`🔍 Buscando identidad única para: "${nombreNormalizado}"...`);
 
-            // 1. Buscamos si ya existe por nombre (Case-Insensitive)
+            // 1. Buscamos si ya existe por nombre (sin importar mayúsculas/minúsculas)
             const materialExistente = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombreNormalizado}$`, 'i') } 
             });
 
             if (materialExistente) {
-                console.log(`♻️ Material detectado en Atlas. Redirigiendo a compra sobre ID: ${materialExistente._id}`);
-                // Si ya existe, NO creamos uno nuevo. Reasignamos el materialId para que el flujo de abajo haga la compra.
-                req.body.materialId = materialExistente._id.toString();
+                console.log(`♻️ MATERIAL DETECTADO: Usando registro existente [${materialExistente.categoria}] para concentrar stock.`);
+                
+                // CRUCIAL: Reasignamos la variable materialId con el ID del que ya existe.
+                // NO hacemos 'return' para que el código de abajo ejecute la compra sobre este ID.
+                materialId = materialExistente._id.toString(); 
+                
             } else {
-                // 2. Si realmente no existe, procedemos con la creación original
-                console.log("🆕 No se encontró duplicado. Creando material maestro...");
+                // 2. Si realmente es nuevo, lo creamos y retornamos éxito
+                console.log("🆕 Material no encontrado. Creando nuevo maestro en Atlas...");
                 const nuevoMat = new Material({
                     nombre: nombreNormalizado,
                     categoria: req.body.categoria,
@@ -337,11 +339,11 @@ router.post('/inventory/purchase', async (req, res) => {
                 const guardado = await nuevoMat.save();
                 return res.status(200).json({ 
                     success: true, 
-                    message: "Material creado exitosamente en Atlas", 
+                    message: "Material maestro creado. Proceda a registrar compra.", 
                     data: guardado 
                 });
             }
-        }
+        }      
         // --- FIN LÓGICA DE CREACIÓN ---
 
         // Validaciones de seguridad para compras (se mantienen intactas)
