@@ -48,7 +48,7 @@ const registerPurchase = async (req, res) => {
             return res.status(404).json({ success: false, message: "El material no existe. Créelo en el Maestro primero." });
         }
 
-        // --- CÁLCULOS (INTACTOS + MEJORA DE COSTO) ---
+        // --- CÁLCULOS (INTEGRIDAD PRESERVADA) ---
         const n = material.nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         const cant = parseFloat(cantidad_laminas) || 0;
@@ -59,30 +59,30 @@ const registerPurchase = async (req, res) => {
 
         if (esMoldura) {
             incrementoStock = cant * 2.90;
-            // Si es moldura, calculamos el costo por ML (Precio de la tira / 2.90)
             costoCalculadoUnidad = precioPagado / 2.90;
         } else {
-            const ancho = material.ancho_lamina_cm || 0;
-            const largo = material.largo_lamina_cm || 0;
+            // REVISIÓN CRÍTICA: Aseguramos que tome las medidas del material de la base de datos
+            const ancho = parseFloat(material.ancho_lamina_cm) || 0;
+            const largo = parseFloat(material.largo_lamina_cm) || 0;
             const areaM2PorLamina = (ancho * largo) / 10000;
             
             incrementoStock = areaM2PorLamina * cant;
             
-            // 🔥 SOLUCIÓN: Calculamos el costo por M2 real
-            // Si la lámina vale 145.000 y mide 3.52m2, el costo_base será 41.193
+            // CORRECCIÓN: Si hay área, dividimos. Si no (ej. insumos por unidad), usamos el precio pagado.
             costoCalculadoUnidad = areaM2PorLamina > 0 ? (precioPagado / areaM2PorLamina) : precioPagado;
         }
 
         // --- PERSISTENCIA REAL EN ATLAS ---
         material.stock_actual = (material.stock_actual || 0) + incrementoStock;
         
-        // Guardamos el precio total de la lámina para el historial
+        // Mantenemos el historial de precio por lámina
         if (precioPagado > 0) material.precio_total_lamina = precioPagado;
 
-        // 🔥 ACTUALIZACIÓN CRÍTICA: Guardamos el costo por M2/ML para que el Cotizador lo use bien
+        // 🔥 SINCRONIZACIÓN TOTAL: Actualizamos AMBOS campos para evitar errores de lectura
+        // Esto garantiza que el cotizador vea el precio por M2 (41.193)
         material.costo_base = costoCalculadoUnidad;
+        material.costo_unitario = costoCalculadoUnidad; 
 
-        // Guardamos y esperamos confirmación real de MongoDB
         const mSaved = await material.save();
         
         await Transaction.create({
@@ -90,10 +90,10 @@ const registerPurchase = async (req, res) => {
             tipo: 'COMPRA',
             cantidad: cant,
             cantidad_m2: incrementoStock,
-            costo_unitario: precioPagado, // Precio pagado por lámina/tira
+            costo_unitario: precioPagado, 
             costo_total: precioPagado * cant,
             proveedor: limpiarId(proveedor) || material.proveedor,
-            motivo: `Compra: ${material.nombre} (Costo M2/ML: $${costoCalculadoUnidad.toFixed(2)})`
+            motivo: `Compra: ${material.nombre} (Costo M2/ML calculado: $${costoCalculadoUnidad.toFixed(2)})`
         });
 
         console.log(`✅ DATOS ANCLADOS: Costo unidad calculado en $${costoCalculadoUnidad.toFixed(2)}`);
