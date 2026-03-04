@@ -20,7 +20,7 @@ const Material = require('./models/Material');
 const Invoice = require('./models/Invoice'); 
 const Transaction = require('./models/Transaction');
 
-console.log("📦 Modelos v14.0.0 vinculados y registrados exitosamente");
+console.log("📦 Modelos v14.0.1 - TEST PAGO");
 
 const app = express();
 
