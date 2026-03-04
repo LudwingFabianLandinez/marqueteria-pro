@@ -241,7 +241,7 @@ function exportarAExcel() {
     } catch (error) { console.error("Error Excel:", error); }
 }
 
-// --- 5. RENDERIZADO DE LA TABLA (INTACTO) ---
+// --- 5. RENDERIZADO DE LA TABLA (UNIFICADO Y ACTUALIZADO) ---
 function renderTable(facturas) {
     const tableBody = document.getElementById('invoiceTableBody');
     if (!tableBody) return;
@@ -250,23 +250,48 @@ function renderTable(facturas) {
 
     facturas.forEach(f => {
         const tr = document.createElement('tr');
+        
+        // Blindaje de variables: intenta leer el formato nuevo, si no existe, usa el anterior
         const total = Number(f.totalFactura || f.total || 0);
         const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
+        
         const numeroOT = formatearNumeroOT(f);
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
+
+        // Lógica de estado para colores y textos
+        const estaPagada = saldo <= 0;
 
         tr.innerHTML = `
             <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
             <td style="font-weight: 700; color: #1e3a8a;">${numeroOT}</td>
             <td>${clienteVisual}</td>
             <td style="font-weight: 600;">${formatter.format(total)}</td>
-            <td style="color: #e11d48; font-weight: 600;">${formatter.format(saldo)}</td>
-            <td><span class="badge-status ${saldo <= 0 ? 'badge-pagado' : 'badge-abonado'}">${saldo <= 0 ? 'PAGADO' : 'ABONADO'}</span></td>
+            <td style="color: ${estaPagada ? '#059669' : '#e11d48'}; font-weight: 600;">${formatter.format(saldo)}</td>
             <td>
-                <div style="display: flex; gap: 8px;">
-                    <button onclick="abrirAnalisisCostos('${f._id}')" class="btn-action-blue"><i class="fas fa-eye"></i></button>
-                    <button onclick="eliminarFactura('${f._id}', '${numeroOT}')" class="btn-action-red"><i class="fas fa-trash"></i></button>
+                <span class="badge-status ${estaPagada ? 'badge-pagado' : 'badge-abonado'}">
+                    ${estaPagada ? 'PAGADA' : 'ABONADO'}
+                </span>
+            </td>
+            <td>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
+                            style="background: ${estaPagada ? '#f1f5f9' : '#e0f2fe'}; 
+                                   color: ${estaPagada ? '#94a3b8' : '#0369a1'}; 
+                                   border: 1px solid ${estaPagada ? '#e2e8f0' : '#bae6fd'};
+                                   padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-edit"></i> ${estaPagada ? 'VER PAGOS' : 'ABONAR / EDITAR'}
+                    </button>
+
+                    <button onclick="abrirAnalisisCostos('${f._id}')" 
+                            style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 8px; border-radius: 6px; cursor: pointer;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+
+                    <button onclick="eliminarFactura('${f._id}', '${numeroOT}')" 
+                            style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 8px; border-radius: 6px; cursor: pointer;">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </td>`;
         tableBody.appendChild(tr);
@@ -308,6 +333,95 @@ async function eliminarFactura(id, numero) {
             }
         } catch (error) { 
             console.error("Error al eliminar:", error); 
+        }
+    }
+}
+
+// --- GESTIÓN DE ABONOS (VINCULADO A TOTALFACTURA Y TOTALPAGADO) ---
+async function abrirModalAbono(id, valorTotal, abonoPrevio) {
+    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+    const saldoActual = valorTotal - abonoPrevio;
+
+    // Si el saldo es 0, mostramos un mensaje informativo en lugar de pedir dinero
+    if (saldoActual <= 0) {
+        return Swal.fire({
+            title: 'ORDEN PAGADA',
+            text: 'Esta orden ya no tiene saldo pendiente.',
+            icon: 'info',
+            confirmButtonColor: '#1e3a8a'
+        });
+    }
+
+    const { value: nuevoAbono } = await Swal.fire({
+        title: 'GESTIÓN DE PAGOS',
+        html: `
+            <div style="text-align: left; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-family: sans-serif;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: #64748b;">Valor Total de Obra:</span>
+                    <span style="font-weight: 700;">${formatter.format(valorTotal)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: #64748b;">Abono Anterior:</span>
+                    <span style="font-weight: 700; color: #059669;">${formatter.format(abonoPrevio)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 2px dashed #cbd5e1; margin-bottom: 15px;">
+                    <span style="font-weight: 800;">SALDO ACTUAL:</span>
+                    <span style="font-weight: 900; color: #dc2626; font-size: 1.2rem;">${formatter.format(saldoActual)}</span>
+                </div>
+                <label style="display: block; font-weight: 700; color: #1e3a8a; margin-bottom: 5px; text-align: center;">¿CUÁNTO ABONA HOY?</label>
+                <input id="swal-input-monto" class="swal2-input" type="number" placeholder="$ 0" 
+                       style="width: 100%; margin: 0; text-align: center; font-weight: 800; font-size: 1.5rem; border: 2px solid #3b82f6;">
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-save"></i> GUARDAR PAGO',
+        cancelButtonText: 'CANCELAR',
+        confirmButtonColor: '#059669',
+        preConfirm: () => {
+            const monto = document.getElementById('swal-input-monto').value;
+            if (!monto || parseFloat(monto) <= 0) {
+                Swal.showValidationMessage('Ingresa un monto válido');
+                return false;
+            }
+            if (parseFloat(monto) > saldoActual) {
+                Swal.showValidationMessage('El abono no puede superar el saldo pendiente');
+                return false;
+            }
+            return monto;
+        }
+    });
+
+    if (nuevoAbono) {
+        // Bloqueo visual de "Guardando..."
+        Swal.fire({
+            title: 'Procesando...',
+            text: 'Actualizando el saldo en la base de datos',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        const nuevoTotalPagado = abonoPrevio + parseFloat(nuevoAbono);
+        
+        try {
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ totalPagado: nuevoTotalPagado })
+            });
+
+            if (res.ok) {
+                await Swal.fire({
+                    title: '¡Éxito!',
+                    text: `Se registró el abono de ${formatter.format(nuevoAbono)}. El nuevo saldo es ${formatter.format(saldoActual - nuevoAbono)}`,
+                    icon: 'success',
+                    confirmButtonColor: '#059669'
+                });
+                if (typeof fetchInvoices === 'function') fetchInvoices(); 
+            } else {
+                throw new Error("Error en respuesta de red");
+            }
+        } catch (error) {
+            Swal.fire('Error', 'No se pudo guardar el pago. Verifica tu conexión.', 'error');
         }
     }
 }
