@@ -882,7 +882,8 @@ window.cargarListasModal = function() {
             const esAcabadoEspecial = nombreUP.includes("CHAPILLA") || 
                                       nombreUP.includes("AFRICANA") || 
                                       nombreUP.includes("PASSEPARTOUT");
-
+                                      nombreUP.includes("LONA") ||
+                                      nombreUP.includes("TELA");
             // ASIGNACIÓN POR CATEGORÍA
             if (esFondoRespaldo) {
                 htmlRespaldos += optionHtml;
