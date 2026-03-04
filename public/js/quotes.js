@@ -424,9 +424,10 @@ window.facturarVenta = async function() {
 
                 itemsProcesados.push({
     productoId: select.value,
-    descripcion: nombreReal, 
+    descripcion: nombreReal,
     nombre: nombreReal,      
     costoBase: costoReal,    
+
     costo_base_unitario: costoReal,
     cantidad: 1,
     // Redondeamos medidas y área a 2 decimales para evitar residuos en Atlas
