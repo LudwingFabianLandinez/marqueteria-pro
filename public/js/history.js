@@ -6,8 +6,10 @@
 let todasLasFacturas = [];
 
 // --- 0. VARIABLE GLOBAL (ESTO ARREGLA EL ERROR DE LA IMAGEN) ---
-const formatter = new Intl.NumberFormat('es-CO', { 
-    style: 'currency', currency: 'COP', maximumFractionDigits: 0 
+const formatter = new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0
 });
 
 // 1. ARRANCAR CARGA DE DATOS DE INMEDIATO
