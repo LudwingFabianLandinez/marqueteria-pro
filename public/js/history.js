@@ -239,8 +239,13 @@ function exportarAExcel() {
 
 // --- 7. RENDERIZADO DE LA TABLA CON ACORDEÓN ---
 function renderTable(facturas) {
-    const tableBody = document.getElementById('invoiceTableBody');
-    if (!tableBody) return;
+    // Sincronizado con el ID de tu tabla física en el HTML
+    const tableBody = document.getElementById('tablaFacturas');
+    if (!tableBody) {
+        console.error("❌ No se encontró el elemento 'tablaFacturas'");
+        return;
+    }
+    
     tableBody.innerHTML = '';
 
     const formatter = new Intl.NumberFormat('es-CO', { 
@@ -274,8 +279,8 @@ function renderTable(facturas) {
                     ${estaPagada ? 'PAGADA' : 'CON SALDO'}
                 </span>
             </td>
-            <td>
-                <div style="display: flex; gap: 8px; align-items: center; justify-content: center;">
+            <td style="text-align: right;">
+                <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end;">
                     <button onclick="event.stopPropagation(); toggleDetails('details-${f._id}')" 
                             title="Ver detalles de abonos"
                             style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
@@ -294,6 +299,7 @@ function renderTable(facturas) {
                 </div>
             </td>`;
 
+        // Al hacer clic en cualquier parte de la fila se abre el acordeón
         tr.onclick = () => toggleDetails(`details-${f._id}`);
 
         const trDetails = document.createElement('tr');
