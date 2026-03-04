@@ -354,22 +354,40 @@ function toggleDetails(id) {
 
 // --- 9. GESTIÓN DE ABONOS (BOTÓN AZUL) ---
 async function abrirModalAbono(id, valorTotal, abonoPrevio) {
+    // 1. Aseguramos el formato y valores numéricos limpios
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-    const saldoActual = valorTotal - abonoPrevio;
+    const totalNum = parseFloat(valorTotal);
+    const abonoPrevioNum = parseFloat(abonoPrevio);
+    const saldoActual = totalNum - abonoPrevioNum;
     
-    const { value: monto } = await Swal.fire({
+    // 2. Lanzamos el modal con validación de entrada inmediata
+    const { value: montoInput } = await Swal.fire({
         title: 'Registrar Nuevo Pago',
         html: `<p>Saldo pendiente: <b style="color:#e11d48">${formatter.format(saldoActual)}</b></p>`,
         input: 'number',
         inputPlaceholder: 'Ingrese el monto del abono',
         showCancelButton: true,
         confirmButtonColor: '#059669',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        // Esta validación evita que el proceso "se quede pensando" por datos basura
+        inputValidator: (value) => {
+            if (!value || value <= 0) return 'Por favor, ingrese un monto válido';
+            if (parseFloat(value) > saldoActual) return 'El abono no puede ser mayor al saldo';
+        }
     });
 
-    if (monto && monto > 0) {
-        Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        const nuevoTotalPagado = abonoPrevio + parseFloat(monto);
+    // 3. Si el usuario ingresó un monto, procesamos
+    if (montoInput) {
+        const monto = parseFloat(montoInput);
+        Swal.fire({ 
+            title: 'Procesando...', 
+            allowOutsideClick: false, 
+            didOpen: () => Swal.showLoading() 
+        });
+
+        // Calculamos el nuevo total para la base de datos
+        const nuevoTotalPagado = abonoPrevioNum + monto;
+
         try {
             const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
                 method: 'PATCH',
@@ -378,11 +396,25 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
             });
 
             if (res.ok) {
-                await Swal.fire('¡Éxito!', 'El pago ha sido registrado.', 'success');
-                fetchInvoices();
+                // Notificamos éxito y RECARGAMOS la tabla (fetchInvoices)
+                await Swal.fire({
+                    icon: 'success',
+                    title: '¡Éxito!',
+                    text: `Se registró el pago de ${formatter.format(monto)}`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
+                // Esta función debe existir en tu código para refrescar la vista
+                if (typeof fetchInvoices === 'function') {
+                    fetchInvoices();
+                }
+            } else {
+                throw new Error('Error en la respuesta del servidor');
             }
         } catch (error) {
-            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+            console.error("Error al registrar pago:", error);
+            Swal.fire('Error', 'No se pudo guardar el pago. Verifique su conexión.', 'error');
         }
     }
 }
