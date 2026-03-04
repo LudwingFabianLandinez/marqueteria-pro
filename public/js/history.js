@@ -298,10 +298,80 @@ function renderTable(facturas) {
     });
 }
 
-// --- 6. FUNCIÓN DE ANÁLISIS (INTACTO) ---
-window.abrirAnalisisCostos = function(id) {
-    if (id) window.location.href = `reportes.html?id=${id}`;
-};
+// --- 6. FUNCIÓN DE ANÁLISIS DE COSTOS (MODAL INTEGRADO SIN SALIR DE LA PÁGINA) ---
+async function abrirAnalisisCostos(id) {
+    if (!id) return;
+
+    try {
+        // Mostramos carga mientras obtenemos datos del servidor
+        Swal.fire({
+            title: 'Consultando Auditoría...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
+        if (!res.ok) throw new Error('No se encontró la orden en la base de datos');
+        
+        const f = await res.json();
+        const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+        // Variables de costos
+        const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
+        const totalFactura = Number(f.totalFactura || 0);
+        
+        // Generamos la lista de materiales dinámica
+        const materialesHTML = (f.items || []).map(item => `
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; font-size:0.85rem;">
+                <span style="color:#475569;">• ${(item.descripcion || item.nombre || 'Material').toUpperCase()}</span>
+                <span style="font-weight:700; color:#1e293b;">${formatter.format(item.costoBase || 0)}</span>
+            </div>
+        `).join('');
+
+        // Modal de Análisis Detallado
+        Swal.fire({
+            title: `<span style="color:#1e3a8a; font-weight:800;">AUDITORÍA OT: ${f.numeroFactura || 'S/N'}</span>`,
+            html: `
+                <div style="text-align: left; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                    <div style="background:#f8fafc; padding:12px; border-radius:10px; margin-bottom:15px; border:1px solid #e2e8f0;">
+                        <strong style="color:#64748b; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px;">Información del Cliente:</strong><br>
+                        <span style="font-weight:700; font-size:1.1rem; color:#1e3a8a;">${(f.cliente?.nombre || f.clienteNombre || 'CLIENTE GENERAL').toUpperCase()}</span>
+                    </div>
+                    
+                    <h4 style="font-size:0.9rem; color:#1e3a8a; border-bottom:2px solid #3b82f6; padding-bottom:5px; margin-bottom:10px; font-weight:800;">DESGLOSE DE COSTOS BASE</h4>
+                    
+                    <div style="max-height: 200px; overflow-y: auto; margin-bottom:10px;">
+                        ${materialesHTML || '<p style="color:#94a3b8; font-style:italic;">No hay materiales registrados</p>'}
+                    </div>
+                    
+                    <div style="display:flex; justify-content:space-between; margin-top:10px; padding:10px; font-weight:700; color:#1e3a8a; background:#eff6ff; border-radius:6px;">
+                        <span>MANO DE OBRA:</span>
+                        <span>${formatter.format(manoObra)}</span>
+                    </div>
+
+                    <div style="margin-top:20px; padding:15px; border-radius:10px; background:linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color:white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:0.8rem; opacity:0.9; font-weight:600;">PRECIO FINAL COBRADO:</span>
+                            <span style="font-size:1.4rem; font-weight:900;">${formatter.format(totalFactura)}</span>
+                        </div>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'CERRAR ANÁLISIS',
+            confirmButtonColor: '#1e3a8a',
+            showCloseButton: true
+        });
+
+    } catch (error) {
+        console.error("Error en análisis:", error);
+        Swal.fire({
+            title: 'Error de Conexión',
+            text: 'No pudimos obtener los costos. Verifica que la orden exista.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444'
+        });
+    }
+}
 
 // --- 7. BUSCADOR (INTACTO) ---
 function configurarBuscador() {
