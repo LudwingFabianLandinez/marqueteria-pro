@@ -281,12 +281,12 @@ function toggleDetails(id) {
 
 // 9. GESTIÓN DE ABONOS (CORREGIDA PARA TRABAJAR CON EL FORMATTER GLOBAL)
 async function abrirModalAbono(id, valorTotal, abonoPrevio) {
-    // Blindaje 1: Definimos el formateador aquí mismo para que NUNCA falle
+    // Blindaje 1: Mantener formateador local
     const formatter = new Intl.NumberFormat('es-CO', { 
         style: 'currency', currency: 'COP', maximumFractionDigits: 0 
     });
 
-    // Blindaje 2: Convertimos a número puro para evitar que se quede "procesando" por errores de cálculo
+    // Blindaje 2: Conversión estricta a números
     const totalNum = Number(valorTotal) || 0;
     const abonoPrevioNum = Number(abonoPrevio) || 0;
     const saldoActual = totalNum - abonoPrevioNum;
@@ -306,7 +306,6 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
     });
 
     if (montoInput) {
-        // Mostramos el mensaje de carga
         Swal.fire({ 
             title: 'Procesando...', 
             allowOutsideClick: false,
@@ -316,7 +315,8 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
         const nuevoTotalPagado = abonoPrevioNum + Number(montoInput);
 
         try {
-            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
+            // Se usa la ruta relativa porque el normalizador del server.js ya gestiona los prefijos
+            const res = await fetch(`invoices/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ totalPagado: nuevoTotalPagado })
@@ -331,16 +331,20 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
                     showConfirmButton: false
                 });
                 
-                // Refrescamos la tabla sin recargar la página completa
+                // Refrescar la tabla o recargar
                 if (typeof fetchInvoices === 'function') {
                     await fetchInvoices();
+                } else {
+                    location.reload();
                 }
             } else {
-                throw new Error('Error en la respuesta del servidor');
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || errorData.message || 'Error en la respuesta del servidor');
             }
         } catch (error) { 
             console.error("Error al pagar:", error);
-            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error'); 
+            // Cerramos el "Procesando" y mostramos el error real
+            Swal.fire('Error de Conexión', error.message || 'No se pudo conectar con el servidor.', 'error'); 
         }
     }
 }

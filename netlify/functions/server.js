@@ -165,6 +165,37 @@ router.get('/invoices', async (req, res) => {
     }
 });
 
+// --- NUEVA RUTA: ACTUALIZAR ABONO DE FACTURA (PATCH) ---
+router.patch('/invoices/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { totalPagado } = req.body;
+
+        // Buscamos la factura y actualizamos el campo totalPagado
+        const facturaActualizada = await Invoice.findByIdAndUpdate(
+            id,
+            { $set: { totalPagado: parseFloat(totalPagado) } },
+            { new: true }
+        );
+
+        if (!facturaActualizada) {
+            return res.status(404).json({ success: false, error: "Factura no encontrada" });
+        }
+
+        console.log(`✅ Pago actualizado en OT: ${facturaActualizada.numeroOrden}. Nuevo total pagado: ${totalPagado}`);
+        
+        res.json({ 
+            success: true, 
+            message: "Pago registrado con éxito", 
+            data: facturaActualizada 
+        });
+    } catch (error) {
+        console.error("🚨 Error al actualizar pago:", error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
 router.post('/invoices', async (req, res) => {
     try {
         const facturaData = req.body;
