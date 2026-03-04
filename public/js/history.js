@@ -1,6 +1,6 @@
 /**
  * Lógica del Historial de Órdenes de Trabajo - MARQUETERÍA LA CHICA MORALES
- * Versión: 17.0.0 - REPARACIÓN DE CARGA Y ACORDEÓN
+ * Versión: 17.0.0 - REPARACIÓN DE CARGA Y ACORDEÓN (CONSOLIDADO)
  */
 
 let todasLasFacturas = [];
@@ -40,13 +40,14 @@ function vincularBotones() {
     }
 }
 
-// 3. FETCH INVOICES (SIN CAMBIOS, ESTÁ PERFECTA)
+// 3. FETCH INVOICES (CONSOLIDADA Y ORDENADA)
 async function fetchInvoices() {
     try {
         const response = await fetch('/.netlify/functions/server/invoices');
         if (!response.ok) throw new Error(`Error: ${response.status}`);
         todasLasFacturas = await response.json();
         
+        // Ordenar: Más recientes arriba
         todasLasFacturas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
         
         console.log("📦 Datos recibidos:", todasLasFacturas.length);
@@ -56,7 +57,7 @@ async function fetchInvoices() {
     }
 }
 
-// --- 1. FORMATEO DE NÚMERO DE ORDEN (INTACTO) ---
+// --- 4. FORMATEO DE NÚMERO DE ORDEN ---
 function formatearNumeroOT(f) {
     const num = f.numeroFactura || f.ot || f.numeroOT || f.numeroOrden;
     if (num && num !== "undefined") {
@@ -66,32 +67,15 @@ function formatearNumeroOT(f) {
     return `OT-${idSufijo}`;
 }
 
-// --- CARGA DE DATOS ---
-    async function fetchInvoices() {
-        try {
-            const response = await fetch('/.netlify/functions/server/invoices');
-            if (!response.ok) throw new Error(`Error: ${response.status}`);
-            todasLasFacturas = await response.json();
-            
-            // Ordenar: Más recientes arriba
-            todasLasFacturas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-            renderTable(todasLasFacturas);
-        } catch (error) {
-            console.error("❌ Error de conexión:", error);
-        }
-    }
-
-// --- 3. REPORTE DE AUDITORÍA DETALLADO (PUNTOS 1 AL 5 CORREGIDO) ---
+// --- 5. REPORTE DE AUDITORÍA DIARIO (ESTRUCTURA QUIRÚRGICA) ---
 async function generarReporteDiario() {
     try {
-        // Mantenemos tu variable exacta
         const facturasAReportar = todasLasFacturas; 
         const inventarioLocal = JSON.parse(localStorage.getItem('inventory') || '[]');
         const formatter = new Intl.NumberFormat('es-CO', { 
             style: 'currency', currency: 'COP', maximumFractionDigits: 0 
         });
 
-        // ESTRUCTURA QUIRÚRGICA: NO SE TOCA EL WINDOW.OPEN
         const nuevaVentana = window.open('', '_blank');
         let htmlContenido = `<html><head><title>Auditoría Final - La Chica Morales</title>
             <style>
@@ -116,7 +100,6 @@ async function generarReporteDiario() {
                 <button class="btn" style="background: #1e3a8a;" onclick="window.print()">🖨️ IMPRIMIR</button>
                 <button class="btn" style="background: #16a34a;" onclick="exportarExcel()">📊 EXCEL</button>
             </div>
-
             <div style="text-align:center; margin-bottom:30px;">
                 <h1 style="color:#1e3a8a; margin:0;">MARQUETERIA LA CHICA MORALES</h1>
                 <h2 style="color:#64748b; margin:5px 0;">REPORTE DE VENTAS</h2>
@@ -130,7 +113,6 @@ async function generarReporteDiario() {
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
-            // BÚSQUEDA AGRESIVA DEL CLIENTE PARA EVITAR "CLIENTE GENERAL"
             let nombreCliente = "CLIENTE GENERAL";
             if (f.cliente && typeof f.cliente === 'object' && f.cliente.nombre) {
                 nombreCliente = f.cliente.nombre;
@@ -141,7 +123,6 @@ async function generarReporteDiario() {
             }
             nombreCliente = nombreCliente.toUpperCase();
 
-            // LIMPIEZA DE FECHA: Eliminamos el código T04:16...
             const fechaLimpia = f.fecha ? f.fecha.split('T')[0] : '---';
 
             htmlContenido += `<div class="ot-card">
@@ -229,7 +210,7 @@ async function generarReporteDiario() {
     } catch (e) { console.error(e); }
 }
 
-// --- 4. EXPORTAR A EXCEL (INTACTO) ---
+// --- 6. EXPORTAR A EXCEL (CSV) ---
 function exportarAExcel() {
     if (todasLasFacturas.length === 0) {
         alert("No hay datos para exportar");
@@ -256,42 +237,29 @@ function exportarAExcel() {
     } catch (error) { console.error("Error Excel:", error); }
 }
 
-// --- 1. RENDERIZADO DE LA TABLA CON ACORDEÓN (ESTILO INTELIGENTE) ---
+// --- 7. RENDERIZADO DE LA TABLA CON ACORDEÓN ---
 function renderTable(facturas) {
     const tableBody = document.getElementById('invoiceTableBody');
     if (!tableBody) return;
     tableBody.innerHTML = '';
 
-    // 1. Formateador de moneda (Vital)
     const formatter = new Intl.NumberFormat('es-CO', { 
-        style: 'currency', 
-        currency: 'COP', 
-        maximumFractionDigits: 0 
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0 
     });
 
-    // 2. Comprobación de datos: Si no hay nada, avisar al usuario
     if (!facturas || facturas.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No se encontraron órdenes de trabajo.</td></tr>`;
         return;
     }
 
-    // 3. Función auxiliar de OT (Por si no existe fuera)
-    const obtenerOT = (f) => {
-        if (typeof formatearNumeroOT === 'function') return formatearNumeroOT(f);
-        return f.numeroOT || f.ordenTrabajo || `OT-${String(f._id || '').slice(-5).toUpperCase()}`;
-    };
-
     facturas.forEach(f => {
-        // --- BLINDAJE DE VARIABLES ---
         const total = Number(f.totalFactura || f.total || 0);
         const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
-        
-        const numeroOT = obtenerOT(f);
+        const numeroOT = formatearNumeroOT(f);
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
         const estaPagada = saldo <= 0;
 
-        // --- FILA PRINCIPAL (TABLA VISIBLE) ---
         const tr = document.createElement('tr');
         tr.className = 'row-factura';
         tr.style.cursor = 'pointer'; 
@@ -328,7 +296,6 @@ function renderTable(facturas) {
 
         tr.onclick = () => toggleDetails(`details-${f._id}`);
 
-        // --- FILA DE DETALLES (EL ACORDEÓN) ---
         const trDetails = document.createElement('tr');
         trDetails.id = `details-${f._id}`;
         trDetails.className = 'detalle-acordeon';
@@ -362,35 +329,28 @@ function renderTable(facturas) {
     });
 }
 
-// --- 2. FUNCIÓN DE CONTROL DEL ACORDEÓN (ABRIR/CERRAR) ---
-// --- CONTROL DE ACORDEÓN ---
+// --- 8. CONTROL DE ACORDEÓN ---
 function toggleDetails(id) {
     const fila = document.getElementById(id);
-    if (!fila) {
-        console.warn(`⚠️ No se encontró el detalle con ID: ${id}`);
-        return;
-    }
+    if (!fila) return;
 
-    // 1. Verificar si ya está abierta antes de cerrar todas
     const estaAbierta = fila.style.display === 'table-row';
 
-    // 2. Cerrar todos los acordeones abiertos (Efecto acordeón limpio)
     document.querySelectorAll('.detalle-acordeon').forEach(el => {
         el.style.display = 'none';
     });
 
-    // 3. Si no estaba abierta, la abrimos ahora
     if (!estaAbierta) {
         fila.style.display = 'table-row';
-        
-        // 4. Scroll suave opcional para centrar la vista en el detalle
         fila.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 }
 
-// --- REGISTRO DE PAGOS (PATCH) ---
+// --- 9. GESTIÓN DE ABONOS (BOTÓN AZUL) ---
 async function abrirModalAbono(id, valorTotal, abonoPrevio) {
+    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     const saldoActual = valorTotal - abonoPrevio;
+    
     const { value: monto } = await Swal.fire({
         title: 'Registrar Nuevo Pago',
         html: `<p>Saldo pendiente: <b style="color:#e11d48">${formatter.format(saldoActual)}</b></p>`,
@@ -402,6 +362,7 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
     });
 
     if (monto && monto > 0) {
+        Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const nuevoTotalPagado = abonoPrevio + parseFloat(monto);
         try {
             const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
@@ -411,8 +372,8 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
             });
 
             if (res.ok) {
-                Swal.fire('¡Éxito!', 'El pago ha sido registrado.', 'success');
-                fetchInvoices(); // Recarga la tabla para ver el nuevo saldo
+                await Swal.fire('¡Éxito!', 'El pago ha sido registrado.', 'success');
+                fetchInvoices();
             }
         } catch (error) {
             Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
@@ -420,34 +381,21 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
     }
 }
 
-// --- 6. FUNCIÓN DE ANÁLISIS DE COSTOS (MODAL INTEGRADO SIN REDIRECCIÓN) ---
+// --- 10. ANÁLISIS DE COSTOS (BOTÓN ROSA - MODAL PRO) ---
 async function abrirAnalisisCostos(id) {
     if (!id) return;
-
     try {
-        // Mostramos carga mientras obtenemos datos del servidor
-        Swal.fire({
-            title: 'Consultando Auditoría...',
-            allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading(); }
-        });
+        Swal.fire({ title: 'Consultando Auditoría...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
-        // RUTA BLINDADA: Asegura la conexión con Netlify Functions
         const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
-        if (!res.ok) throw new Error('No se encontró la orden en la base de datos');
+        if (!res.ok) throw new Error('No se encontró la orden');
         
         const f = await res.json();
-        const formatter = new Intl.NumberFormat('es-CO', { 
-            style: 'currency', 
-            currency: 'COP', 
-            maximumFractionDigits: 0 
-        });
+        const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
-        // Sincronización de variables según el nuevo estándar
         const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
         const totalFactura = Number(f.totalFactura || f.total || 0);
         
-        // Generamos la lista de materiales dinámica
         const materialesHTML = (f.items || []).map(item => `
             <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; font-size:0.85rem;">
                 <span style="color:#475569;">• ${(item.descripcion || item.nombre || 'Material').toUpperCase()}</span>
@@ -455,7 +403,6 @@ async function abrirAnalisisCostos(id) {
             </div>
         `).join('');
 
-        // Modal de Análisis Detallado (Diseño Pro)
         Swal.fire({
             title: `<span style="color:#1e3a8a; font-weight:800;">AUDITORÍA OT: ${f.numeroFactura || f.ot || 'S/N'}</span>`,
             html: `
@@ -464,26 +411,21 @@ async function abrirAnalisisCostos(id) {
                         <strong style="color:#64748b; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px;">Información del Cliente:</strong><br>
                         <span style="font-weight:700; font-size:1.1rem; color:#1e3a8a;">${(f.cliente?.nombre || f.clienteNombre || 'CLIENTE GENERAL').toUpperCase()}</span>
                     </div>
-                    
                     <h4 style="font-size:0.9rem; color:#1e3a8a; border-bottom:2px solid #3b82f6; padding-bottom:5px; margin-bottom:10px; font-weight:800;">DESGLOSE DE COSTOS BASE</h4>
-                    
                     <div style="max-height: 200px; overflow-y: auto; margin-bottom:10px; padding-right:5px;">
                         ${materialesHTML || '<p style="color:#94a3b8; font-style:italic;">No hay materiales registrados</p>'}
                     </div>
-                    
                     <div style="display:flex; justify-content:space-between; margin-top:10px; padding:10px; font-weight:700; color:#1e3a8a; background:#eff6ff; border-radius:6px;">
                         <span>MANO DE OBRA:</span>
                         <span>${formatter.format(manoObra)}</span>
                     </div>
-
                     <div style="margin-top:20px; padding:15px; border-radius:10px; background:linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color:white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-size:0.8rem; opacity:0.9; font-weight:600;">PRECIO FINAL COBRADO:</span>
                             <span style="font-size:1.4rem; font-weight:900;">${formatter.format(totalFactura)}</span>
                         </div>
                     </div>
-                </div>
-            `,
+                </div>`,
             confirmButtonText: 'CERRAR ANÁLISIS',
             confirmButtonColor: '#1e3a8a',
             showCloseButton: true
@@ -491,17 +433,11 @@ async function abrirAnalisisCostos(id) {
 
     } catch (error) {
         console.error("Error en análisis:", error);
-        Swal.fire({
-            title: 'Error de Conexión',
-            text: 'No pudimos obtener los costos del servidor. Verifica tu conexión.',
-            icon: 'error',
-            confirmButtonColor: '#ef4444'
-        });
+        Swal.fire('Error', 'No pudimos cargar los costos.', 'error');
     }
 }
 
-
-// --- 7. BUSCADOR (INTACTO) ---
+// --- 11. BUSCADOR ---
 function configurarBuscador() {
     const searchInput = document.getElementById('searchInputFacturas');
     if (!searchInput) return;
@@ -516,95 +452,17 @@ function configurarBuscador() {
     });
 }
 
-// --- 8. ELIMINAR (INTACTO) ---
+// --- 12. ELIMINAR ---
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Estás seguro de eliminar la Orden ${numero}?`)) {
         try {
-            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, { 
-                method: 'DELETE' 
-            });
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 alert("✅ Orden eliminada exitosamente");
                 fetchInvoices();
             } else {
                 alert("❌ No se pudo eliminar la orden.");
             }
-        } catch (error) { 
-            console.error("Error al eliminar:", error); 
-        }
-    }
-}
-
-// --- CORRECCIÓN DE BOTÓN AZUL: GESTIÓN DE ABONOS ---
-async function abrirModalAbono(id, valorTotal, abonoPrevio) {
-    // ... (Mantén toda tu lógica de formatter y saldo igual que antes) ...
-
-    if (nuevoAbono) {
-        // ... (Bloqueo visual de "Procesando..." igual) ...
-
-        const nuevoTotalPagado = abonoPrevio + parseFloat(nuevoAbono);
-        
-        try {
-            // CORRECCIÓN VITAL: Eliminamos '/api' de la URL
-            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ totalPagado: nuevoTotalPagado })
-            });
-
-            if (res.ok) {
-                // ... (Mensaje de éxito y refresco de tabla igual) ...
-            } else {
-                throw new Error("Error en respuesta del servidor");
-            }
-        } catch (error) {
-            console.error("Error al guardar pago:", error);
-            Swal.fire('Error', 'No se pudo guardar el pago. Verifica tu conexión.', 'error');
-        }
-    }
-}
-
-// --- CORRECCIÓN DE BOTÓN ROSA: ANÁLISIS DE COSTOS ---
-async function abrirAnalisisCostos(id) {
-    if (!id) return;
-    try {
-        // ... (Carga de Swal igual) ...
-
-        // CORRECCIÓN VITAL: Eliminamos '/api' de la URL
-        const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
-        if (!res.ok) throw new Error('No se encontró la orden');
-        
-        const f = await res.json();
-        // ... (Mantén todo el resto del diseño del modal intacto) ...
-
-    } catch (error) {
-        console.error("Error en análisis:", error);
-        Swal.fire('Error', 'No pudimos cargar los costos.', 'error');
-    }
-}
-
-async function registrarAbono(id, total, pagadoAnterior) {
-    const { value: monto } = await Swal.fire({
-        title: 'Registrar Abono',
-        input: 'number',
-        inputLabel: 'Monto a abonar',
-        showCancelButton: true
-    });
-
-    if (monto && monto > 0) {
-        const nuevoTotal = pagadoAnterior + parseFloat(monto);
-        try {
-            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
-                method: 'PATCH',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ totalPagado: nuevoTotal })
-            });
-            if (res.ok) {
-                Swal.fire('Éxito', 'Abono guardado', 'success');
-                cargarHistorial(); // Llama a tu función original para refrescar los datos
-            }
-        } catch (e) {
-            Swal.fire('Error', 'No se pudo conectar', 'error');
-        }
+        } catch (error) { console.error("Error al eliminar:", error); }
     }
 }
