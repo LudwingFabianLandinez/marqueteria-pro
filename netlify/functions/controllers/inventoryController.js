@@ -92,6 +92,24 @@ const registerPurchase = async (req, res) => {
     }
 };
 
+// ⚠️ FUNCIÓN TEMPORAL DE LIMPIEZA - USAR UNA SOLA VEZ
+const clearDuplicateChapilla = async (req, res) => {
+    try {
+        const nombreABorrar = "CHAPILLA AFRICANA"; // O el nombre exacto que te aparece
+        const resultado = await Material.deleteMany({ 
+            nombre: { $regex: new RegExp(`^${nombreABorrar}$`, 'i') } 
+        });
+        
+        console.log(`🧹 Limpieza completada: ${resultado.deletedCount} registros borrados.`);
+        res.status(200).json({ 
+            success: true, 
+            message: `Se borraron ${resultado.deletedCount} registros de ${nombreABorrar}. Ya puedes crear uno nuevo.` 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
 // ... (El resto de funciones se mantienen igual, el cambio clave está arriba)
 
 const saveMaterial = async (req, res) => {
