@@ -22,7 +22,7 @@ const Transaction = mongoose.models.Transaction || mongoose.model('Transaction',
 
 const registerPurchase = async (req, res) => {
     try {
-        console.log("🚀 INICIANDO REGISTRO DE COMPRA...");
+        console.log("🚀 INICIANDO REGISTRO DE COMPRA CON CÁLCULO DE COSTO REAL...");
         let { materialId, nombre, cantidad_laminas, precio_total_lamina, proveedor } = req.body;
 
         const limpiarId = (id) => {
@@ -33,11 +33,9 @@ const registerPurchase = async (req, res) => {
         let mid = limpiarId(materialId);
         let material = null;
 
-        // --- LÓGICA IDENTIDAD ÚNICA (Igual al Foam Board) ---
-        // 1. Intentamos por ID
+        // --- LÓGICA IDENTIDAD ÚNICA (Mantenida) ---
         if (mid) material = await Material.findById(mid);
         
-        // 2. Si no hay material, buscamos por NOMBRE (Obligatorio)
         if (!material && nombre) {
             const nombreBusqueda = nombre.trim().toUpperCase();
             material = await Material.findOne({ nombre: nombreBusqueda });
@@ -50,24 +48,39 @@ const registerPurchase = async (req, res) => {
             return res.status(404).json({ success: false, message: "El material no existe. Créelo en el Maestro primero." });
         }
 
-        // --- CÁLCULOS (INTACTOS) ---
+        // --- CÁLCULOS (INTACTOS + MEJORA DE COSTO) ---
         const n = material.nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         const cant = parseFloat(cantidad_laminas) || 0;
-        const precio = parseFloat(precio_total_lamina) || 0;
+        const precioPagado = parseFloat(precio_total_lamina) || 0;
+        
         let incrementoStock = 0;
+        let costoCalculadoUnidad = 0;
 
         if (esMoldura) {
             incrementoStock = cant * 2.90;
+            // Si es moldura, calculamos el costo por ML (Precio de la tira / 2.90)
+            costoCalculadoUnidad = precioPagado / 2.90;
         } else {
             const ancho = material.ancho_lamina_cm || 0;
             const largo = material.largo_lamina_cm || 0;
-            incrementoStock = (ancho * largo / 10000) * cant;
+            const areaM2PorLamina = (ancho * largo) / 10000;
+            
+            incrementoStock = areaM2PorLamina * cant;
+            
+            // 🔥 SOLUCIÓN: Calculamos el costo por M2 real
+            // Si la lámina vale 145.000 y mide 3.52m2, el costo_base será 41.193
+            costoCalculadoUnidad = areaM2PorLamina > 0 ? (precioPagado / areaM2PorLamina) : precioPagado;
         }
 
         // --- PERSISTENCIA REAL EN ATLAS ---
         material.stock_actual = (material.stock_actual || 0) + incrementoStock;
-        if (precio > 0) material.precio_total_lamina = precio;
+        
+        // Guardamos el precio total de la lámina para el historial
+        if (precioPagado > 0) material.precio_total_lamina = precioPagado;
+
+        // 🔥 ACTUALIZACIÓN CRÍTICA: Guardamos el costo por M2/ML para que el Cotizador lo use bien
+        material.costo_base = costoCalculadoUnidad;
 
         // Guardamos y esperamos confirmación real de MongoDB
         const mSaved = await material.save();
@@ -77,13 +90,13 @@ const registerPurchase = async (req, res) => {
             tipo: 'COMPRA',
             cantidad: cant,
             cantidad_m2: incrementoStock,
-            costo_unitario: precio,
-            costo_total: precio * cant,
+            costo_unitario: precioPagado, // Precio pagado por lámina/tira
+            costo_total: precioPagado * cant,
             proveedor: limpiarId(proveedor) || material.proveedor,
-            motivo: `Compra: ${material.nombre}`
+            motivo: `Compra: ${material.nombre} (Costo M2/ML: $${costoCalculadoUnidad.toFixed(2)})`
         });
 
-        console.log("✅ DATOS ANCLADOS EN ATLAS CORRECTAMENTE");
+        console.log(`✅ DATOS ANCLADOS: Costo unidad calculado en $${costoCalculadoUnidad.toFixed(2)}`);
         res.status(200).json({ success: true, data: mSaved });
 
     } catch (error) {
