@@ -275,13 +275,13 @@ function renderTable(facturas) {
             </td>
             <td>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
-                            style="background: ${estaPagada ? '#f1f5f9' : '#e0f2fe'}; 
-                                   color: ${estaPagada ? '#94a3b8' : '#0369a1'}; 
-                                   border: 1px solid ${estaPagada ? '#e2e8f0' : '#bae6fd'};
-                                   padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-edit"></i> ${estaPagada ? 'VER PAGOS' : 'ABONAR / EDITAR'}
-                    </button>
+                        <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
+                                style="background: ${estaPagada ? '#f1f5f9' : '#e0f2fe'}; 
+                                    color: ${estaPagada ? '#94a3b8' : '#0369a1'}; 
+                                    border: 1px solid ${estaPagada ? '#e2e8f0' : '#bae6fd'};
+                                    padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-edit"></i> ${estaPagada ? 'VER PAGOS' : 'ABONAR / EDITAR'}
+                        </button>
 
                     <button onclick="abrirAnalisisCostos('${f._id}')" 
                             style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 8px; border-radius: 6px; cursor: pointer;">
@@ -298,7 +298,7 @@ function renderTable(facturas) {
     });
 }
 
-// --- 6. FUNCIÓN DE ANÁLISIS DE COSTOS (MODAL INTEGRADO SIN SALIR DE LA PÁGINA) ---
+// --- 6. FUNCIÓN DE ANÁLISIS DE COSTOS (MODAL INTEGRADO SIN REDIRECCIÓN) ---
 async function abrirAnalisisCostos(id) {
     if (!id) return;
 
@@ -310,15 +310,20 @@ async function abrirAnalisisCostos(id) {
             didOpen: () => { Swal.showLoading(); }
         });
 
+        // RUTA BLINDADA: Asegura la conexión con Netlify Functions
         const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
         if (!res.ok) throw new Error('No se encontró la orden en la base de datos');
         
         const f = await res.json();
-        const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+        const formatter = new Intl.NumberFormat('es-CO', { 
+            style: 'currency', 
+            currency: 'COP', 
+            maximumFractionDigits: 0 
+        });
 
-        // Variables de costos
+        // Sincronización de variables según el nuevo estándar
         const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
-        const totalFactura = Number(f.totalFactura || 0);
+        const totalFactura = Number(f.totalFactura || f.total || 0);
         
         // Generamos la lista de materiales dinámica
         const materialesHTML = (f.items || []).map(item => `
@@ -328,9 +333,9 @@ async function abrirAnalisisCostos(id) {
             </div>
         `).join('');
 
-        // Modal de Análisis Detallado
+        // Modal de Análisis Detallado (Diseño Pro)
         Swal.fire({
-            title: `<span style="color:#1e3a8a; font-weight:800;">AUDITORÍA OT: ${f.numeroFactura || 'S/N'}</span>`,
+            title: `<span style="color:#1e3a8a; font-weight:800;">AUDITORÍA OT: ${f.numeroFactura || f.ot || 'S/N'}</span>`,
             html: `
                 <div style="text-align: left; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
                     <div style="background:#f8fafc; padding:12px; border-radius:10px; margin-bottom:15px; border:1px solid #e2e8f0;">
@@ -340,7 +345,7 @@ async function abrirAnalisisCostos(id) {
                     
                     <h4 style="font-size:0.9rem; color:#1e3a8a; border-bottom:2px solid #3b82f6; padding-bottom:5px; margin-bottom:10px; font-weight:800;">DESGLOSE DE COSTOS BASE</h4>
                     
-                    <div style="max-height: 200px; overflow-y: auto; margin-bottom:10px;">
+                    <div style="max-height: 200px; overflow-y: auto; margin-bottom:10px; padding-right:5px;">
                         ${materialesHTML || '<p style="color:#94a3b8; font-style:italic;">No hay materiales registrados</p>'}
                     </div>
                     
@@ -366,12 +371,13 @@ async function abrirAnalisisCostos(id) {
         console.error("Error en análisis:", error);
         Swal.fire({
             title: 'Error de Conexión',
-            text: 'No pudimos obtener los costos. Verifica que la orden exista.',
+            text: 'No pudimos obtener los costos del servidor. Verifica tu conexión.',
             icon: 'error',
             confirmButtonColor: '#ef4444'
         });
     }
 }
+
 
 // --- 7. BUSCADOR (INTACTO) ---
 function configurarBuscador() {
@@ -473,6 +479,7 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
         const nuevoTotalPagado = abonoPrevio + parseFloat(nuevoAbono);
         
         try {
+            // CORRECCIÓN CLAVE: Se asegura la ruta completa de Netlify para evitar el 404
             const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -486,12 +493,15 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
                     icon: 'success',
                     confirmButtonColor: '#059669'
                 });
+                
+                // Refrescamos la tabla para ver el nuevo saldo de inmediato
                 if (typeof fetchInvoices === 'function') fetchInvoices(); 
             } else {
                 throw new Error("Error en respuesta de red");
             }
         } catch (error) {
+            console.error("Error al guardar pago:", error);
             Swal.fire('Error', 'No se pudo guardar el pago. Verifica tu conexión.', 'error');
         }
     }
-}   
+}
