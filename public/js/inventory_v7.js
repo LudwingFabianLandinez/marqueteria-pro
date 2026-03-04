@@ -684,7 +684,7 @@ if (formCompra) {
             if (!esMoldura && esMaterialSuperficie) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
-                    costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(4));
+                    costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
                 }
             }
 
@@ -808,7 +808,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
                 }
 
                 // --- 🚀 PASO 3: UI ---
-                container.innerHTML = `<strong>${nuevoValor.toFixed(4)}</strong> ${tipo}`;
+                container.innerHTML = `<strong>${nuevoValor.toFixed(2)}</strong> ${tipo}`;
                 container.style.color = '#059669'; 
                 container.style.backgroundColor = '#ecfdf5'; 
                 
@@ -863,7 +863,7 @@ window.cargarListasModal = function() {
             nombresVistos.add(nombreUP);
             
             // --- 📏 LÓGICA DE COSTO VISUAL ---
-            const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : ` (${stockActual.toFixed(4)} M2)`;
+            const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : ` (${stockActual.toFixed(2)} M2)`;
             const styleColor = (stockActual <= 0) ? 'style="color: #dc2626;"' : ''; 
             
             const optionHtml = `<option value="${id}" ${styleColor}>${nombreUP}${stockTxt}</option>`;
@@ -950,7 +950,7 @@ window.verHistorial = async function(idRecibido, nombre) {
                 </div>
                 <div style="text-align:right;">
                     <div style="font-size:16px; font-weight:900; color:${esEntrada ? '#059669' : '#dc2626'};">
-    ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(4)} <span style="font-size:10px;">u/m²</span>
+    ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)} <span style="font-size:10px;">u/m²</span>
 </div>
                 </div>
             </div>
@@ -1183,8 +1183,8 @@ window.verHistorial = async function(idRecibido, nombre) {
                     </div>
                     <div style="text-align:right;">
     <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
-        /* CAMBIO AQUÍ: Agregamos parseFloat y toFixed(4) */
-        ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(4)}
+        /* CAMBIO AQUÍ: Agregamos parseFloat y toFixed(2) */
+        ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)}
     </div>
     <div style="font-size:0.6rem; color:#64748b; font-weight: bold;">UNID / M2</div>
 </div>
