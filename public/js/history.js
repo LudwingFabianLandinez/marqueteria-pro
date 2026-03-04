@@ -267,7 +267,7 @@ function exportarAExcel() {
     } catch (error) { console.error("Error Excel:", error); }
 }
 
-// --- 5. RENDERIZADO DE LA TABLA (UNIFICADO Y ACTUALIZADO) ---
+// --- 1. RENDERIZADO DE LA TABLA CON ACORDEÓN (ESTILO INTELIGENTE) ---
 function renderTable(facturas) {
     const tableBody = document.getElementById('invoiceTableBody');
     if (!tableBody) return;
@@ -275,19 +275,18 @@ function renderTable(facturas) {
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
     facturas.forEach(f => {
-        const tr = document.createElement('tr');
-        
-        // Blindaje de variables intacto
+        // Blindaje de variables intacto (mantenemos tu lógica de compatibilidad)
         const total = Number(f.totalFactura || f.total || 0);
         const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
         
         const numeroOT = formatearNumeroOT(f);
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
-
-        // Lógica de estado intacta
         const estaPagada = saldo <= 0;
 
+        // FILA PRINCIPAL
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer'; // Para indicar que es interactiva
         tr.innerHTML = `
             <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
             <td style="font-weight: 700; color: #1e3a8a;">${numeroOT}</td>
@@ -301,30 +300,81 @@ function renderTable(facturas) {
             </td>
             <td>
                 <div style="display: flex; gap: 8px; align-items: center; justify-content: center;">
-                    <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
-                            title="${estaPagada ? 'Ver historial' : 'Abonar'}"
-                            style="background: ${estaPagada ? '#f1f5f9' : '#e0f2fe'}; 
-                                   color: ${estaPagada ? '#94a3b8' : '#0369a1'}; 
-                                   border: 1px solid ${estaPagada ? '#e2e8f0' : '#bae6fd'};
-                                   padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-edit"></i> ${estaPagada ? 'PAGOS' : 'ABONAR'}
+                    <button onclick="event.stopPropagation(); toggleDetails('details-${f._id}')" 
+                            title="Ver detalles de abonos"
+                            style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-chevron-down"></i> INFO
                     </button>
 
-                    <button onclick="abrirAnalisisCostos('${f._id}')" 
+                    <button onclick="event.stopPropagation(); abrirAnalisisCostos('${f._id}')" 
                             title="Ver Auditoría"
                             style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;">
                         <i class="fas fa-eye"></i>
                     </button>
 
-                    <button onclick="eliminarFactura('${f._id}', '${numeroOT}')" 
+                    <button onclick="event.stopPropagation(); eliminarFactura('${f._id}', '${numeroOT}')" 
                             title="Eliminar Orden"
                             style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </td>`;
+
+        // Al hacer clic en cualquier parte de la fila (excepto botones), abre el detalle
+        tr.onclick = () => toggleDetails(`details-${f._id}`);
+
+        // FILA DE DETALLES (EL ACORDEÓN OCULTO)
+        const trDetails = document.createElement('tr');
+        trDetails.id = `details-${f._id}`;
+        trDetails.className = 'detalle-acordeon';
+        trDetails.style.display = 'none'; // Escondido por defecto
+        trDetails.style.backgroundColor = '#f8fafc';
+        
+        trDetails.innerHTML = `
+            <td colspan="7" style="padding: 15px; border-left: 5px solid #3b82f6;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                    <div style="text-align: left;">
+                        <h4 style="margin: 0 0 10px 0; color: #1e3a8a; font-size: 0.9rem;">ESTADO FINANCIERO DE LA ORDEN</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
+                            <span><b>Total Facturado:</b> ${formatter.format(total)}</span>
+                            <span style="color: #059669;"><b>Total Pagado:</b> ${formatter.format(pagado)}</span>
+                            <span style="grid-column: span 2; font-size: 1rem; padding-top: 5px; border-top: 1px solid #eee;">
+                                <b style="color: #dc2626;">SALDO PENDIENTE: ${formatter.format(saldo)}</b>
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
+                                style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2);">
+                            <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
+                        </button>
+                    </div>
+                </div>
+            </td>
+        `;
+
         tableBody.appendChild(tr);
+        tableBody.appendChild(trDetails);
     });
+}
+
+// --- 2. FUNCIÓN DE CONTROL DEL ACORDEÓN (ABRIR/CERRAR) ---
+function toggleDetails(id) {
+    const filaDestino = document.getElementById(id);
+    if (!filaDestino) return;
+
+    // Detectamos si ya está abierta
+    const estaAbierta = filaDestino.style.display !== 'none';
+
+    // (Opcional) Cerramos todas las demás filas para que solo haya una abierta a la vez
+    document.querySelectorAll('.detalle-acordeon').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    // Si estaba cerrada, la abrimos. Si estaba abierta, al cerrar todo arriba ya quedó cerrada.
+    if (!estaAbierta) {
+        filaDestino.style.display = 'table-row';
+    }
 }
 
 // --- 6. FUNCIÓN DE ANÁLISIS DE COSTOS (MODAL INTEGRADO SIN REDIRECCIÓN) ---

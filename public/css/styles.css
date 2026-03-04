@@ -288,3 +288,30 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--secondary); }
+
+.btn-detalle-azul {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 800;
+    transition: 0.3s;
+}
+
+.btn-detalle-azul:hover {
+    background: #0369a1;
+    color: white;
+}
+
+.btn-accion-pago {
+    background: #059669;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+}
