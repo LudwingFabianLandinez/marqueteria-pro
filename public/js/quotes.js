@@ -217,8 +217,8 @@ async function procesarCotizacion() {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
         // Cálculo de medidas base
-        const areaCalculada = (ancho * largo) / 10000; // m²
-        const perimetroCalculado = ((ancho + largo) * 2) / 100; // ML (Metros Lineales)
+        const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
+        const perimetroCalculado = Number((((ancho + largo) * 2) / 100).toFixed(2));
 
         let costoBaseLocal = 0;
 
@@ -423,16 +423,17 @@ window.facturarVenta = async function() {
                 const costoReal = parseFloat(opcion.dataset.costo) || 0;
 
                 itemsProcesados.push({
-                    productoId: select.value,
-                    descripcion: nombreReal, // <--- Etiqueta clave para el reporte
-                    nombre: nombreReal,      // <--- Respaldo
-                    costoBase: costoReal,    // <--- El reporte multiplica esto x3
-                    costo_base_unitario: costoReal,
-                    cantidad: 1,
-                    ancho: datosCotizacionActual.anchoOriginal || 0,
-                    largo: datosCotizacionActual.largoOriginal || 0,
-                    area_m2: datosCotizacionActual.areaFinal || 0
-                });
+    productoId: select.value,
+    descripcion: nombreReal, 
+    nombre: nombreReal,      
+    costoBase: costoReal,    
+    costo_base_unitario: costoReal,
+    cantidad: 1,
+    // Redondeamos medidas y área a 2 decimales para evitar residuos en Atlas
+    ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
+    largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
+    area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
+});
             }
         }
     });
