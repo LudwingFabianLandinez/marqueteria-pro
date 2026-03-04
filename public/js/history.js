@@ -186,35 +186,37 @@ async function generarReporteDiario() {
 function exportarAExcel() {
     if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
     try {
-        // 1. Agregamos la cabecera de "Materiales"
+        // 1. Agregamos "Materiales" a la cabecera
         let csvContent = "\uFEFFFecha,OT,Cliente,Materiales,Total Venta,Saldo,Estado\n";
         
         todasLasFacturas.forEach(f => {
-            const total = Number(f.totalFactura || f.total) || 0;
+            const total = Number(f.totalFactura || f.total || f.totalOrden) || 0;
             const abono = Number(f.totalPagado || f.abono) || 0;
-            
-            // 2. Extraer materiales: buscamos en 'materiales' o 'items'
-            // Creamos una lista separada por guiones para que quepa en una sola celda
-            const listaMateriales = (f.materiales || f.items || [])
-                .map(m => `${m.descripcion || 'Material'} (${m.medida || ''})`)
-                .join(' - ')
-                .replace(/,/g, ''); // Limpiamos comas para no romper el CSV
+            const saldo = total - abono;
+
+            // 2. LÓGICA DE MATERIALES: Extraemos las descripciones del arreglo 'items' o 'materiales'
+            // Usamos .replace(/,/g, '') para que las comas del nombre del material no dañen el Excel
+            const materialesArr = f.materiales || f.items || [];
+            const materialesStr = materialesArr.length > 0 
+                ? materialesArr.map(m => (m.descripcion || 'Material')).join(' / ').replace(/,/g, '')
+                : "Sin materiales";
 
             const fechaStr = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
             const clienteStr = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '');
-            const estadoStr = (total - abono) <= 0 ? "PAGADO" : "ABONADO";
+            const estadoStr = saldo <= 0 ? "PAGADO" : "ABONADO";
 
-            // 3. Agregamos la columna de materiales entre Cliente y Total
-            csvContent += `${fechaStr},${formatearNumeroOT(f)},${clienteStr},${listaMateriales},${total},${total - abono},${estadoStr}\n`;
+            // 3. Construimos la fila incluyendo la nueva columna de materiales
+            csvContent += `${fechaStr},${formatearNumeroOT(f)},${clienteStr},${materialesStr},${total},${saldo},${estadoStr}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `Reporte_Ventas_Materiales.csv`;
+        link.download = `Reporte_Ventas_con_Materiales.csv`;
         link.click();
     } catch (error) { 
         console.error("Error Excel:", error); 
+        alert("Hubo un error al generar el reporte");
     }
 }
 
