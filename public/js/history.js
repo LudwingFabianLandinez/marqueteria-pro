@@ -458,6 +458,105 @@ function configurarBuscador() {
     });
 }
 
+// --- 10. LÓGICA DE ABONOS (ACTIVA EL BOTÓN REGISTRAR PAGO) ---
+async function abrirModalAbono(id, valorTotal, abonoPrevio) {
+    const saldoActual = valorTotal - abonoPrevio;
+    
+    const { value: monto } = await Swal.fire({
+        title: 'Registrar Nuevo Pago',
+        html: `
+            <div style="text-align: left; font-family: sans-serif;">
+                <p>Monto pendiente: <b style="color:#e11d48">${formatter.format(saldoActual)}</b></p>
+                <label style="display:block; margin-bottom:5px; font-size:0.8rem; color:#64748b;">VALOR A ABONAR:</label>
+            </div>`,
+        input: 'number',
+        inputAttributes: { min: 1, step: 1 },
+        inputPlaceholder: 'Ej: 50000',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar Pago',
+        confirmButtonColor: '#059669',
+        cancelButtonText: 'Cancelar',
+        preConfirm: (value) => {
+            if (!value || value <= 0) {
+                Swal.showValidationMessage('Por favor ingresa un monto válido');
+            }
+            if (value > saldoActual) {
+                Swal.showValidationMessage('El abono no puede exceder el saldo pendiente');
+            }
+            return value;
+        }
+    });
+
+    if (monto) {
+        realizarPago(id, abonoPrevio, monto);
+    }
+}
+
+async function realizarPago(id, abonoPrevio, monto) {
+    Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const nuevoTotalPagado = parseFloat(abonoPrevio) + parseFloat(monto);
+
+    try {
+        const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ totalPagado: nuevoTotalPagado })
+        });
+
+        if (res.ok) {
+            await Swal.fire('¡Éxito!', 'Pago registrado correctamente.', 'success');
+            fetchInvoices(); // Refresca la tabla automáticamente para ver el nuevo saldo
+        } else {
+            throw new Error();
+        }
+    } catch (e) {
+        Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+    }
+}
+
+// --- 11. LÓGICA DE AUDITORÍA (BOTÓN OJO 👁️ - DISEÑO PRO) ---
+async function abrirAnalisisCostos(id) {
+    const f = todasLasFacturas.find(fact => fact._id === id);
+    if (!f) return;
+
+    const manoObra = Number(f.manoObra || 0);
+    const totalFactura = Number(f.totalFactura || f.total || 0);
+    
+    const materialesHTML = (f.items || []).map(item => `
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; font-size:0.85rem;">
+            <span style="color:#475569;">• ${(item.descripcion || item.nombre || 'Material').toUpperCase()}</span>
+            <span style="font-weight:700; color:#1e293b;">${formatter.format(item.costoBase || 0)}</span>
+        </div>
+    `).join('');
+
+    Swal.fire({
+        title: `<span style="color:#1e3a8a; font-weight:800;">AUDITORÍA OT: ${formatearNumeroOT(f)}</span>`,
+        html: `
+            <div style="text-align: left; font-family: 'Segoe UI', sans-serif;">
+                <div style="background:#f8fafc; padding:12px; border-radius:10px; margin-bottom:15px; border:1px solid #e2e8f0;">
+                    <strong style="color:#64748b; font-size:0.7rem; text-transform:uppercase;">Cliente:</strong><br>
+                    <span style="font-weight:700; color:#1e3a8a;">${(f.cliente?.nombre || f.clienteNombre || 'CLIENTE').toUpperCase()}</span>
+                </div>
+                <h4 style="font-size:0.9rem; color:#1e3a8a; border-bottom:2px solid #3b82f6; padding-bottom:5px; margin-bottom:10px;">COSTOS DE PRODUCCIÓN</h4>
+                <div style="max-height: 150px; overflow-y: auto;">
+                    ${materialesHTML || '<p>No hay materiales registrados</p>'}
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:10px; padding:10px; font-weight:700; background:#eff6ff; border-radius:6px;">
+                    <span>MANO DE OBRA:</span>
+                    <span>${formatter.format(manoObra)}</span>
+                </div>
+                <div style="margin-top:20px; padding:15px; border-radius:10px; background:#1e3a8a; color:white;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:0.8rem;">TOTAL COBRADO:</span>
+                        <span style="font-size:1.2rem; font-weight:900;">${formatter.format(totalFactura)}</span>
+                    </div>
+                </div>
+            </div>`,
+        confirmButtonText: 'CERRAR',
+        confirmButtonColor: '#1e3a8a'
+    });
+}
+
 // --- 12. ELIMINAR ---
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Estás seguro de eliminar la Orden ${numero}?`)) {
