@@ -682,11 +682,12 @@ if (formCompra) {
                                          nombreUP.includes("TELA");
 
             if (!esMoldura && esMaterialSuperficie) {
-                const areaM2 = (largoCm * anchoCm) / 10000;
-                if (areaM2 > 0) {
-                    costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
-                }
-            }
+    const areaM2 = (largoCm * anchoCm) / 10000;
+    if (areaM2 > 0) {
+        // CORRECCIÓN: Forzamos 2 decimales para que las unidades sean consistentes
+        costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
+    }
+}
 
             let stockASumar = esMoldura 
                 ? (cant * 2.90) 
@@ -949,8 +950,10 @@ window.verHistorial = async function(idRecibido, nombre) {
                     <div style="font-size:11px; color:#64748b;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
                 </div>
                 <div style="text-align:right;">
-                    <div style="font-size:16px; font-weight:900; color:${esEntrada ? '#059669' : '#dc2626'};">
-    ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)} <span style="font-size:10px;">u/m²</span>
+    <div style="font-size:16px; font-weight:900; color:${esEntrada ? '#059669' : '#dc2626'};">
+        /* CAMBIADO DE 4 A 2 */
+        ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)} <span style="font-size:10px;">u/m²</span>
+    </div>
 </div>
                 </div>
             </div>
@@ -1182,10 +1185,9 @@ window.verHistorial = async function(idRecibido, nombre) {
                         <div style="font-size:0.7rem; color:#94a3b8;">${fecha}</div>
                     </div>
                     <div style="text-align:right;">
-    <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
-        /* CAMBIO AQUÍ: Agregamos parseFloat y toFixed(2) */
-        ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)}
-    </div>
+   <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
+    ${esEntrada ? '+' : ''}${parseFloat(mov.cantidad).toFixed(2)}
+</div>
     <div style="font-size:0.6rem; color:#64748b; font-weight: bold;">UNID / M2</div>
 </div>
                 </div>
