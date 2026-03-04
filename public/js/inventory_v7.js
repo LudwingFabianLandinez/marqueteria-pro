@@ -684,7 +684,8 @@ if (formCompra) {
             if (!esMoldura && esMaterialSuperficie) {
     const areaM2 = (largoCm * anchoCm) / 10000;
     if (areaM2 > 0) {
-        // CORRECCIÓN: Forzamos 2 decimales para que las unidades sean consistentes
+        // CORRECCIÓN: Usamos Number().toFixed(2) para asegurar que Atlas 
+        // reciba solo 2 decimales y siga siendo un valor numérico.
         costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
     }
 }
