@@ -251,7 +251,7 @@ function renderTable(facturas) {
     facturas.forEach(f => {
         const tr = document.createElement('tr');
         
-        // Blindaje de variables: intenta leer el formato nuevo, si no existe, usa el anterior
+        // Blindaje de variables intacto
         const total = Number(f.totalFactura || f.total || 0);
         const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
@@ -259,7 +259,7 @@ function renderTable(facturas) {
         const numeroOT = formatearNumeroOT(f);
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
 
-        // Lógica de estado para colores y textos
+        // Lógica de estado intacta
         const estaPagada = saldo <= 0;
 
         tr.innerHTML = `
@@ -274,22 +274,25 @@ function renderTable(facturas) {
                 </span>
             </td>
             <td>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                        <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
-                                style="background: ${estaPagada ? '#f1f5f9' : '#e0f2fe'}; 
-                                    color: ${estaPagada ? '#94a3b8' : '#0369a1'}; 
-                                    border: 1px solid ${estaPagada ? '#e2e8f0' : '#bae6fd'};
-                                    padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-edit"></i> ${estaPagada ? 'VER PAGOS' : 'ABONAR / EDITAR'}
-                        </button>
+                <div style="display: flex; gap: 8px; align-items: center; justify-content: center;">
+                    <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
+                            title="${estaPagada ? 'Ver historial' : 'Abonar'}"
+                            style="background: ${estaPagada ? '#f1f5f9' : '#e0f2fe'}; 
+                                   color: ${estaPagada ? '#94a3b8' : '#0369a1'}; 
+                                   border: 1px solid ${estaPagada ? '#e2e8f0' : '#bae6fd'};
+                                   padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-edit"></i> ${estaPagada ? 'PAGOS' : 'ABONAR'}
+                    </button>
 
                     <button onclick="abrirAnalisisCostos('${f._id}')" 
-                            style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 8px; border-radius: 6px; cursor: pointer;">
+                            title="Ver Auditoría"
+                            style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;">
                         <i class="fas fa-eye"></i>
                     </button>
 
                     <button onclick="eliminarFactura('${f._id}', '${numeroOT}')" 
-                            style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 8px; border-radius: 6px; cursor: pointer;">
+                            title="Eliminar Orden"
+                            style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
