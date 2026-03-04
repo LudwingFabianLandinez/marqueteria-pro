@@ -48,7 +48,7 @@ const registerPurchase = async (req, res) => {
             return res.status(404).json({ success: false, message: "El material no existe. Créelo en el Maestro primero." });
         }
 
-        // --- CÁLCULOS (INTEGRIDAD PRESERVADA) ---
+        // --- CÁLCULOS (INTEGRIDAD PRESERVADA + FIX PASSEPARTOUT) ---
         const n = material.nombre.toUpperCase();
         const esMoldura = n.includes('K ') || n.includes('MP') || n.includes('MOLDURA');
         const cant = parseFloat(cantidad_laminas) || 0;
@@ -61,25 +61,39 @@ const registerPurchase = async (req, res) => {
             incrementoStock = cant * 2.90;
             costoCalculadoUnidad = precioPagado / 2.90;
         } else {
-            // REVISIÓN CRÍTICA: Aseguramos que tome las medidas del material de la base de datos
-            const ancho = parseFloat(material.ancho_lamina_cm) || 0;
-            const largo = parseFloat(material.largo_lamina_cm) || 0;
+            // 1. Intentamos obtener medidas desde los campos numéricos
+            let ancho = parseFloat(material.ancho_lamina_cm) || 0;
+            let largo = parseFloat(material.largo_lamina_cm) || 0;
+
+            // 2. Si están en 0 (caso Passepartout sin ficha técnica), buscamos en el nombre (ej: "PASSEPARTOUT 81X101")
+            if (ancho === 0 || largo === 0) {
+                const dimensiones = n.match(/(\d+)\s*[X*]\s*(\d+)/);
+                if (dimensiones) {
+                    ancho = parseFloat(dimensiones[1]);
+                    largo = parseFloat(dimensiones[2]);
+                }
+            }
+
+            // 3. Si sigue en 0 y es PASSEPARTOUT, usamos medida estándar de lámina (81x101) para no dañar el costo
+            if ((ancho === 0 || largo === 0) && n.includes('PASSEPARTOUT')) {
+                ancho = 81;
+                largo = 101;
+                console.log("⚠️ Medida no encontrada: Aplicando estándar 81x101 para Passepartout.");
+            }
+
             const areaM2PorLamina = (ancho * largo) / 10000;
-            
             incrementoStock = areaM2PorLamina * cant;
             
-            // CORRECCIÓN: Si hay área, dividimos. Si no (ej. insumos por unidad), usamos el precio pagado.
+            // CORRECCIÓN: Si logramos obtener área, dividimos. Si no, queda el precio pagado.
             costoCalculadoUnidad = areaM2PorLamina > 0 ? (precioPagado / areaM2PorLamina) : precioPagado;
         }
 
         // --- PERSISTENCIA REAL EN ATLAS ---
         material.stock_actual = (material.stock_actual || 0) + incrementoStock;
         
-        // Mantenemos el historial de precio por lámina
         if (precioPagado > 0) material.precio_total_lamina = precioPagado;
 
-        // 🔥 SINCRONIZACIÓN TOTAL: Actualizamos AMBOS campos para evitar errores de lectura
-        // Esto garantiza que el cotizador vea el precio por M2 (41.193)
+        // 🔥 SINCRONIZACIÓN TOTAL: Forzamos que ambos campos guarden el costo por M2/ML
         material.costo_base = costoCalculadoUnidad;
         material.costo_unitario = costoCalculadoUnidad; 
 
@@ -93,7 +107,7 @@ const registerPurchase = async (req, res) => {
             costo_unitario: precioPagado, 
             costo_total: precioPagado * cant,
             proveedor: limpiarId(proveedor) || material.proveedor,
-            motivo: `Compra: ${material.nombre} (Costo M2/ML calculado: $${costoCalculadoUnidad.toFixed(2)})`
+            motivo: `Compra: ${material.nombre} (Costo M2/ML: $${costoCalculadoUnidad.toFixed(2)})`
         });
 
         console.log(`✅ DATOS ANCLADOS: Costo unidad calculado en $${costoCalculadoUnidad.toFixed(2)}`);
