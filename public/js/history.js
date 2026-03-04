@@ -45,19 +45,19 @@ function formatearNumeroOT(f) {
 // --- 2. CARGA DE DATOS (Sincronizado) ---
 // --- 1. CARGA DE ÓRDENES DESDE EL SERVIDOR (SIN PREFIJO /API) ---
 // --- CARGA DE DATOS ---
-async function fetchInvoices() {
-    try {
-        const response = await fetch('/.netlify/functions/server/invoices');
-        if (!response.ok) throw new Error(`Error: ${response.status}`);
-        todasLasFacturas = await response.json();
-        
-        // Ordenar: Más recientes arriba
-        todasLasFacturas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        renderTable(todasLasFacturas);
-    } catch (error) {
-        console.error("❌ Error de conexión:", error);
+    async function fetchInvoices() {
+        try {
+            const response = await fetch('/.netlify/functions/server/invoices');
+            if (!response.ok) throw new Error(`Error: ${response.status}`);
+            todasLasFacturas = await response.json();
+            
+            // Ordenar: Más recientes arriba
+            todasLasFacturas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            renderTable(todasLasFacturas);
+        } catch (error) {
+            console.error("❌ Error de conexión:", error);
+        }
     }
-}
 
 // --- 3. REPORTE DE AUDITORÍA DETALLADO (PUNTOS 1 AL 5 CORREGIDO) ---
 async function generarReporteDiario() {
@@ -239,15 +239,33 @@ function renderTable(facturas) {
     const tableBody = document.getElementById('invoiceTableBody');
     if (!tableBody) return;
     tableBody.innerHTML = '';
-    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+    // 1. Formateador de moneda (Vital)
+    const formatter = new Intl.NumberFormat('es-CO', { 
+        style: 'currency', 
+        currency: 'COP', 
+        maximumFractionDigits: 0 
+    });
+
+    // 2. Comprobación de datos: Si no hay nada, avisar al usuario
+    if (!facturas || facturas.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">No se encontraron órdenes de trabajo.</td></tr>`;
+        return;
+    }
+
+    // 3. Función auxiliar de OT (Por si no existe fuera)
+    const obtenerOT = (f) => {
+        if (typeof formatearNumeroOT === 'function') return formatearNumeroOT(f);
+        return f.numeroOT || f.ordenTrabajo || `OT-${String(f._id || '').slice(-5).toUpperCase()}`;
+    };
 
     facturas.forEach(f => {
-        // --- BLINDAJE DE VARIABLES (Mantenemos tu lógica intacta) ---
+        // --- BLINDAJE DE VARIABLES ---
         const total = Number(f.totalFactura || f.total || 0);
         const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
         
-        const numeroOT = formatearNumeroOT(f);
+        const numeroOT = obtenerOT(f);
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
         const estaPagada = saldo <= 0;
 
@@ -273,13 +291,11 @@ function renderTable(facturas) {
                             style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
                         <i class="fas fa-chevron-down"></i> INFO
                     </button>
-
                     <button onclick="event.stopPropagation(); abrirAnalisisCostos('${f._id}')" 
                             title="Ver Auditoría"
                             style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;">
                         <i class="fas fa-eye"></i>
                     </button>
-
                     <button onclick="event.stopPropagation(); eliminarFactura('${f._id}', '${numeroOT}')" 
                             title="Eliminar Orden"
                             style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;">
@@ -288,10 +304,9 @@ function renderTable(facturas) {
                 </div>
             </td>`;
 
-        // Al hacer clic en la fila se abre el acordeón
         tr.onclick = () => toggleDetails(`details-${f._id}`);
 
-        // --- FILA DE DETALLES (EL ACORDEÓN OCULTO) ---
+        // --- FILA DE DETALLES (EL ACORDEÓN) ---
         const trDetails = document.createElement('tr');
         trDetails.id = `details-${f._id}`;
         trDetails.className = 'detalle-acordeon';
@@ -318,8 +333,7 @@ function renderTable(facturas) {
                             : '<b style="color: #059669; font-size: 0.9rem;"><i class="fas fa-check-circle"></i> ESTA ORDEN ESTÁ TOTALMENTE PAGA</b>'}
                     </div>
                 </div>
-            </td>
-        `;
+            </td>`;
 
         tableBody.appendChild(tr);
         tableBody.appendChild(trDetails);
