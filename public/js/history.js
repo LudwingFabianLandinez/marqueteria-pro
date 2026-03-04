@@ -309,26 +309,26 @@ function renderTable(facturas) {
         trDetails.style.backgroundColor = '#f8fafc';
         
         trDetails.innerHTML = `
-            <td colspan="7" style="padding: 15px; border-left: 5px solid #3b82f6;">
-                <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
-                    <div style="text-align: left;">
-                        <h4 style="margin: 0 0 10px 0; color: #1e3a8a; font-size: 0.9rem; text-transform: uppercase;">Resumen Financiero</h4>
-                        <div style="display: grid; grid-template-columns: auto auto auto; gap: 20px; font-size: 0.85rem;">
-                            <span>Total Factura: <b>${formatter.format(total)}</b></span>
-                            <span style="color: #059669;">Total Pagado: <b>${formatter.format(pagado)}</b></span>
-                            <span style="color: #dc2626;">Saldo Pendiente: <b>${formatter.format(saldo)}</b></span>
-                        </div>
-                    </div>
-                    <div>
-                        ${!estaPagada ? 
-                            `<button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
-                                     style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2); display: flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
-                             </button>` 
-                            : '<b style="color: #059669; font-size: 0.9rem;"><i class="fas fa-check-circle"></i> ESTA ORDEN ESTÁ TOTALMENTE PAGA</b>'}
-                    </div>
+    <td colspan="7" style="padding: 15px; border-left: 5px solid #3b82f6;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="text-align: left;">
+                <h4 style="margin: 0 0 10px 0; color: #1e3a8a; font-size: 0.9rem; text-transform: uppercase;">Resumen Financiero</h4>
+                <div style="display: grid; grid-template-columns: auto auto auto; gap: 20px; font-size: 0.85rem;">
+                    <span>Total: <b>${formatter.format(total)}</b></span>
+                    <span style="color: #059669;">Pagado: <b>${formatter.format(pagado)}</b></span>
+                    <span style="color: #dc2626;">Saldo: <b>${formatter.format(saldo)}</b></span>
                 </div>
-            </td>`;
+            </div>
+            <div>
+                ${!estaPagada ? 
+                    `<button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
+                             style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
+                     </button>` 
+                    : '<b style="color: #059669; font-size: 0.9rem;"><i class="fas fa-check-circle"></i> TOTALMENTE PAGA</b>'}
+            </div>
+        </div>
+    </td>`;
 
         tableBody.appendChild(tr);
         tableBody.appendChild(trDetails);
