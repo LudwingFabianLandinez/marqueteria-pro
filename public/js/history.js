@@ -1,36 +1,60 @@
 /**
  * Lógica del Historial de Órdenes de Trabajo - MARQUETERÍA LA CHICA MORALES
- * Versión: 16.0.0 - REPORTE MAESTRO DE AUDITORÍA DETALLADO (VINCULADO A INVENTARIO)
- * Blindaje: Análisis local para evitar 404 y reporte profesional con desglose de costos x3.
+ * Versión: 17.0.0 - REPARACIÓN DE CARGA Y ACORDEÓN
  */
 
 let todasLasFacturas = [];
 
-document.addEventListener('DOMContentLoaded', () => {
-    fetchInvoices();
-    configurarBuscador();
+// 1. ARRANCAR CARGA DE DATOS DE INMEDIATO
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("🚀 Iniciando carga de historial...");
     
-    // Vinculación LIMPIA del botón de reporte diario
+    // Ejecutamos la carga de datos primero que todo
+    await fetchInvoices(); 
+
+    // Luego intentamos configurar lo demás, pero con protección
+    try {
+        configurarBuscador();
+    } catch (e) { console.warn("Aviso: El buscador no se pudo configurar", e); }
+
+    try {
+        vincularBotones();
+    } catch (e) { console.warn("Aviso: Error vinculando botones", e); }
+});
+
+// 2. FUNCIÓN DE VINCULACIÓN PROTEGIDA
+function vincularBotones() {
     const btnReporte = document.querySelector('.btn-primary') || 
-                    document.querySelector('button[onclick*="generarReporte"]') ||
-                    Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('REPORTE HOY'));
-    
+                       Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('REPORTE HOY'));
     if (btnReporte) {
         btnReporte.onclick = (e) => {
             e.preventDefault(); 
-            e.stopPropagation(); 
             generarReporteDiario();
         };
     }
 
     const btnExcel = document.querySelector('.btn-success') || 
-                    document.querySelector('button[onclick*="exportarExcel"]') ||
-                    Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('EXCEL'));
-    
+                     Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('EXCEL'));
     if (btnExcel) {
         btnExcel.onclick = exportarAExcel;
     }
-});
+}
+
+// 3. FETCH INVOICES (SIN CAMBIOS, ESTÁ PERFECTA)
+async function fetchInvoices() {
+    try {
+        const response = await fetch('/.netlify/functions/server/invoices');
+        if (!response.ok) throw new Error(`Error: ${response.status}`);
+        todasLasFacturas = await response.json();
+        
+        todasLasFacturas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        
+        console.log("📦 Datos recibidos:", todasLasFacturas.length);
+        renderTable(todasLasFacturas);
+    } catch (error) {
+        console.error("❌ Error de conexión:", error);
+    }
+}
 
 // --- 1. FORMATEO DE NÚMERO DE ORDEN (INTACTO) ---
 function formatearNumeroOT(f) {
@@ -42,8 +66,6 @@ function formatearNumeroOT(f) {
     return `OT-${idSufijo}`;
 }
 
-// --- 2. CARGA DE DATOS (Sincronizado) ---
-// --- 1. CARGA DE ÓRDENES DESDE EL SERVIDOR (SIN PREFIJO /API) ---
 // --- CARGA DE DATOS ---
     async function fetchInvoices() {
         try {
@@ -344,9 +366,26 @@ function renderTable(facturas) {
 // --- CONTROL DE ACORDEÓN ---
 function toggleDetails(id) {
     const fila = document.getElementById(id);
+    if (!fila) {
+        console.warn(`⚠️ No se encontró el detalle con ID: ${id}`);
+        return;
+    }
+
+    // 1. Verificar si ya está abierta antes de cerrar todas
     const estaAbierta = fila.style.display === 'table-row';
-    document.querySelectorAll('.detalle-acordeon').forEach(el => el.style.display = 'none');
-    if (!estaAbierta) fila.style.display = 'table-row';
+
+    // 2. Cerrar todos los acordeones abiertos (Efecto acordeón limpio)
+    document.querySelectorAll('.detalle-acordeon').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    // 3. Si no estaba abierta, la abrimos ahora
+    if (!estaAbierta) {
+        fila.style.display = 'table-row';
+        
+        // 4. Scroll suave opcional para centrar la vista en el detalle
+        fila.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
 
 // --- REGISTRO DE PAGOS (PATCH) ---
