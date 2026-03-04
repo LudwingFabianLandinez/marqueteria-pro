@@ -281,8 +281,14 @@ function toggleDetails(id) {
 
 // 9. GESTIÓN DE ABONOS (CORREGIDA PARA TRABAJAR CON EL FORMATTER GLOBAL)
 async function abrirModalAbono(id, valorTotal, abonoPrevio) {
-    const totalNum = parseFloat(valorTotal);
-    const abonoPrevioNum = parseFloat(abonoPrevio);
+    // Blindaje 1: Definimos el formateador aquí mismo para que NUNCA falle
+    const formatter = new Intl.NumberFormat('es-CO', { 
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0 
+    });
+
+    // Blindaje 2: Convertimos a número puro para evitar que se quede "procesando" por errores de cálculo
+    const totalNum = Number(valorTotal) || 0;
+    const abonoPrevioNum = Number(abonoPrevio) || 0;
     const saldoActual = totalNum - abonoPrevioNum;
     
     const { value: montoInput } = await Swal.fire({
@@ -292,15 +298,22 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
         inputPlaceholder: 'Ingrese monto',
         showCancelButton: true,
         confirmButtonColor: '#059669',
+        cancelButtonText: 'Cancelar',
         inputValidator: (value) => {
             if (!value || value <= 0) return 'Ingrese un monto válido';
-            if (parseFloat(value) > saldoActual) return 'El abono excede el saldo';
+            if (Number(value) > saldoActual) return 'El abono excede el saldo';
         }
     });
 
     if (montoInput) {
-        Swal.fire({ title: 'Procesando...', didOpen: () => Swal.showLoading() });
-        const nuevoTotalPagado = abonoPrevioNum + parseFloat(montoInput);
+        // Mostramos el mensaje de carga
+        Swal.fire({ 
+            title: 'Procesando...', 
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading() 
+        });
+
+        const nuevoTotalPagado = abonoPrevioNum + Number(montoInput);
 
         try {
             const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
@@ -310,10 +323,25 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
             });
 
             if (res.ok) {
-                await Swal.fire('¡Éxito!', 'Pago registrado', 'success');
-                fetchInvoices();
+                await Swal.fire({
+                    icon: 'success',
+                    title: '¡Éxito!',
+                    text: 'Pago registrado correctamente',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                
+                // Refrescamos la tabla sin recargar la página completa
+                if (typeof fetchInvoices === 'function') {
+                    await fetchInvoices();
+                }
+            } else {
+                throw new Error('Error en la respuesta del servidor');
             }
-        } catch (error) { Swal.fire('Error', 'No se pudo conectar.', 'error'); }
+        } catch (error) { 
+            console.error("Error al pagar:", error);
+            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error'); 
+        }
     }
 }
 
