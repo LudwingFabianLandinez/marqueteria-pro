@@ -186,18 +186,36 @@ async function generarReporteDiario() {
 function exportarAExcel() {
     if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
     try {
-        let csvContent = "\uFEFFFecha,OT,Cliente,Total Venta,Saldo,Estado\n";
+        // 1. Agregamos la cabecera de "Materiales"
+        let csvContent = "\uFEFFFecha,OT,Cliente,Materiales,Total Venta,Saldo,Estado\n";
+        
         todasLasFacturas.forEach(f => {
             const total = Number(f.totalFactura || f.total) || 0;
-            const abono = Number(f.totalPagado || f.abono || 0);
-            csvContent += `${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'},${formatearNumeroOT(f)},${(f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '')},${total},${total - abono},${(total - abono) <= 0 ? "PAGADO" : "ABONADO"}\n`;
+            const abono = Number(f.totalPagado || f.abono) || 0;
+            
+            // 2. Extraer materiales: buscamos en 'materiales' o 'items'
+            // Creamos una lista separada por guiones para que quepa en una sola celda
+            const listaMateriales = (f.materiales || f.items || [])
+                .map(m => `${m.descripcion || 'Material'} (${m.medida || ''})`)
+                .join(' - ')
+                .replace(/,/g, ''); // Limpiamos comas para no romper el CSV
+
+            const fechaStr = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
+            const clienteStr = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '');
+            const estadoStr = (total - abono) <= 0 ? "PAGADO" : "ABONADO";
+
+            // 3. Agregamos la columna de materiales entre Cliente y Total
+            csvContent += `${fechaStr},${formatearNumeroOT(f)},${clienteStr},${listaMateriales},${total},${total - abono},${estadoStr}\n`;
         });
+
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `Reporte_Ventas.csv`;
+        link.download = `Reporte_Ventas_Materiales.csv`;
         link.click();
-    } catch (error) { console.error("Error Excel:", error); }
+    } catch (error) { 
+        console.error("Error Excel:", error); 
+    }
 }
 
 // 7. RENDERIZADO DE TABLA (CORRECCIÓN DE BOTÓN VERDE)
