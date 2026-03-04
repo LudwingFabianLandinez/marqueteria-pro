@@ -281,12 +281,12 @@ function toggleDetails(id) {
 
 // 9. GESTIÓN DE ABONOS (CORREGIDA PARA TRABAJAR CON EL FORMATTER GLOBAL)
 async function abrirModalAbono(id, valorTotal, abonoPrevio) {
-    // Blindaje 1: Mantener formateador local
+    // Blindaje 1: Mantener formateador local (SIN CAMBIOS)
     const formatter = new Intl.NumberFormat('es-CO', { 
         style: 'currency', currency: 'COP', maximumFractionDigits: 0 
     });
 
-    // Blindaje 2: Conversión estricta a números
+    // Blindaje 2: Conversión estricta a números (SIN CAMBIOS)
     const totalNum = Number(valorTotal) || 0;
     const abonoPrevioNum = Number(abonoPrevio) || 0;
     const saldoActual = totalNum - abonoPrevioNum;
@@ -315,8 +315,9 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
         const nuevoTotalPagado = abonoPrevioNum + Number(montoInput);
 
         try {
-            // Se usa la ruta relativa porque el normalizador del server.js ya gestiona los prefijos
-            const res = await fetch(`invoices/${id}`, {
+            // ÚNICA CORRECCIÓN: Se usa la ruta absoluta para evitar el error 405 en Netlify
+            // Esta ruta coincide con la estructura de la función eliminar que ya te funciona.
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ totalPagado: nuevoTotalPagado })
@@ -331,7 +332,7 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
                     showConfirmButton: false
                 });
                 
-                // Refrescar la tabla o recargar
+                // Refrescar la tabla o recargar (SIN CAMBIOS)
                 if (typeof fetchInvoices === 'function') {
                     await fetchInvoices();
                 } else {
@@ -343,7 +344,7 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
             }
         } catch (error) { 
             console.error("Error al pagar:", error);
-            // Cerramos el "Procesando" y mostramos el error real
+            // Mostramos el error real (SIN CAMBIOS)
             Swal.fire('Error de Conexión', error.message || 'No se pudo conectar con el servidor.', 'error'); 
         }
     }
