@@ -424,4 +424,4 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
             Swal.fire('Error', 'No se pudo guardar el pago. Verifica tu conexión.', 'error');
         }
     }
-}
+}   
