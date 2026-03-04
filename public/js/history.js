@@ -184,39 +184,47 @@ async function generarReporteDiario() {
 
 // 6. EXPORTAR EXCEL (SE MANTIENE IGUAL)
 function exportarAExcel() {
-    if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
+    if (todasLasFacturas.length === 0) {
+        alert("No hay datos para exportar");
+        return;
+    }
     try {
-        // 1. Agregamos "Materiales" a la cabecera
-        let csvContent = "\uFEFFFecha,OT,Cliente,Materiales,Total Venta,Saldo,Estado\n";
+        let csvContent = "\uFEFF"; 
+        // 1. Definimos la cabecera con la columna "PRODUCTOS / MATERIALES"
+        csvContent += "Fecha,OT,Cliente,PRODUCTOS / MATERIALES,Total Venta,Saldo,Estado\n";
         
         todasLasFacturas.forEach(f => {
+            const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
+            const ot = formatearNumeroOT(f);
+            const cliente = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, ''); 
+            
+            // 2. EXTRACCIÓN REAL DE MATERIALES:
+            // Buscamos en 'materiales' o 'items'. Recorremos cada uno para sacar su descripción o nombre.
+            const listaMateriales = (f.materiales || f.items || [])
+                .map(m => {
+                    // Priorizamos el nombre o descripción que NO sea la palabra genérica "MATERIAL"
+                    const nombreReal = m.nombre || m.descripcion || m.producto || "---";
+                    return `${nombreReal} (${m.medida || ''})`;
+                })
+                .join(' + ') // Los unimos con un signo + para que se vean claros en la celda
+                .replace(/,/g, ''); // Limpieza de comas para no romper las columnas del CSV
+
             const total = Number(f.totalFactura || f.total || f.totalOrden) || 0;
-            const abono = Number(f.totalPagado || f.abono) || 0;
+            const abono = Number(f.totalPagado || f.abono || 0);
             const saldo = total - abono;
-
-            // 2. LÓGICA DE MATERIALES: Extraemos las descripciones del arreglo 'items' o 'materiales'
-            // Usamos .replace(/,/g, '') para que las comas del nombre del material no dañen el Excel
-            const materialesArr = f.materiales || f.items || [];
-            const materialesStr = materialesArr.length > 0 
-                ? materialesArr.map(m => (m.descripcion || 'Material')).join(' / ').replace(/,/g, '')
-                : "Sin materiales";
-
-            const fechaStr = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
-            const clienteStr = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '');
-            const estadoStr = saldo <= 0 ? "PAGADO" : "ABONADO";
-
-            // 3. Construimos la fila incluyendo la nueva columna de materiales
-            csvContent += `${fechaStr},${formatearNumeroOT(f)},${clienteStr},${materialesStr},${total},${saldo},${estadoStr}\n`;
+            
+            // 3. Construimos la línea asegurándonos de que listaMateriales esté en su lugar
+            csvContent += `${fecha},${ot},${cliente},${listaMateriales},${total},${saldo},${saldo <= 0 ? "PAGADO" : "ABONADO"}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `Reporte_Ventas_con_Materiales.csv`;
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Reporte_Detallado_Marqueteria.csv`);
         link.click();
     } catch (error) { 
-        console.error("Error Excel:", error); 
-        alert("Hubo un error al generar el reporte");
+        console.error("Error al exportar materiales:", error); 
     }
 }
 
