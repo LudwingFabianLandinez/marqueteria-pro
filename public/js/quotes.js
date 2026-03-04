@@ -301,8 +301,15 @@ function actualizarSaldoEnRecibo() {
 
 function mostrarResultado(data) {
     const divRes = document.getElementById('resultado');
-    divRes.innerHTML = '<div id="detalleObra"></div><div id="containerAcciones"></div>';
+    
+    // --- BLOQUE DE ANCHO TOTAL (Blindaje de Diseño) ---
     divRes.style.display = 'block';
+    divRes.style.width = '100%';
+    divRes.style.maxWidth = 'none'; // Elimina cualquier restricción previa
+    divRes.style.boxSizing = 'border-box';
+    // --------------------------------------------------
+
+    divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
     const itemsHTML = (data.detalles?.materiales || []).map(m => {
@@ -344,31 +351,31 @@ function mostrarResultado(data) {
                 </div>
             </div>
         </div>
-        <div class="no-print" style="margin-top: 20px;">
+        <div class="no-print" style="margin-top: 20px; width: 100%;">
             <button onclick="imprimirResumen()" style="background: #334155; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">
                 <i class="fas fa-print"></i> IMPRIMIR PARA CLIENTE
             </button>
         </div>`;
 
     document.getElementById('containerAcciones').innerHTML = `
-        <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px;">
+        <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
             <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
                 <i class="fas fa-cash-register"></i> REGISTRAR VENTA FINAL
             </h4>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div class="input-group">
                     <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">NOMBRE DEL CLIENTE</label>
-                    <input type="text" id="nombreCliente" placeholder="Ej: Juan Pérez" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
+                    <input type="text" id="nombreCliente" placeholder="Ej: Juan Pérez" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
                 </div>
                 <div class="input-group">
                     <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">WHATSAPP / TEL</label>
-                    <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
+                    <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
                 </div>
             </div>
             <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
                 <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
                 <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
-                    style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center;">
+                    style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
             </div>
             <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
                 <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
