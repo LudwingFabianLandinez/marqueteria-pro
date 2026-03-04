@@ -33,7 +33,6 @@ const registerPurchase = async (req, res) => {
         let mid = limpiarId(materialId);
         let material = null;
 
-        // --- LÓGICA IDENTIDAD ÚNICA (Mantenida) ---
         if (mid) material = await Material.findById(mid);
         
         if (!material && nombre) {
@@ -65,7 +64,7 @@ const registerPurchase = async (req, res) => {
             let ancho = parseFloat(material.ancho_lamina_cm) || 0;
             let largo = parseFloat(material.largo_lamina_cm) || 0;
 
-            // 2. Si están en 0 (caso Passepartout sin ficha técnica), buscamos en el nombre (ej: "PASSEPARTOUT 81X101")
+            // 2. Si están en 0, buscamos dimensiones en el nombre (ej: "200 X 100")
             if (ancho === 0 || largo === 0) {
                 const dimensiones = n.match(/(\d+)\s*[X*]\s*(\d+)/);
                 if (dimensiones) {
@@ -74,26 +73,25 @@ const registerPurchase = async (req, res) => {
                 }
             }
 
-            // 3. Si sigue en 0 y es PASSEPARTOUT, usamos medida estándar de lámina (81x101) para no dañar el costo
+            // 3. 🔥 CASO ESPECIAL PASSEPARTOUT: Si sigue en 0, aplicamos la medida estándar de fábrica (81x101)
             if ((ancho === 0 || largo === 0) && n.includes('PASSEPARTOUT')) {
                 ancho = 81;
                 largo = 101;
-                console.log("⚠️ Medida no encontrada: Aplicando estándar 81x101 para Passepartout.");
+                console.log("⚠️ Medida rescatada: Aplicando estándar 81x101 para Passepartout.");
             }
 
             const areaM2PorLamina = (ancho * largo) / 10000;
             incrementoStock = areaM2PorLamina * cant;
             
-            // CORRECCIÓN: Si logramos obtener área, dividimos. Si no, queda el precio pagado.
+            // Si hay área calculamos el costo por m2, si no, dejamos el precio pagado (para insumos pequeños)
             costoCalculadoUnidad = areaM2PorLamina > 0 ? (precioPagado / areaM2PorLamina) : precioPagado;
         }
 
         // --- PERSISTENCIA REAL EN ATLAS ---
         material.stock_actual = (material.stock_actual || 0) + incrementoStock;
-        
         if (precioPagado > 0) material.precio_total_lamina = precioPagado;
 
-        // 🔥 SINCRONIZACIÓN TOTAL: Forzamos que ambos campos guarden el costo por M2/ML
+        // 🔥 SINCRONIZACIÓN: Actualizamos ambos campos para que el Cotizador lea el valor de m2 (ej: $14.990)
         material.costo_base = costoCalculadoUnidad;
         material.costo_unitario = costoCalculadoUnidad; 
 
