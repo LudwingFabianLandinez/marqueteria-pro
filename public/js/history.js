@@ -44,51 +44,18 @@ function formatearNumeroOT(f) {
 
 // --- 2. CARGA DE DATOS (Sincronizado) ---
 // --- 1. CARGA DE ÓRDENES DESDE EL SERVIDOR (SIN PREFIJO /API) ---
+// --- CARGA DE DATOS ---
 async function fetchInvoices() {
     try {
-        console.log("📡 Conectando con el servidor de órdenes...");
-        
-        // Mantener la ruta unificada de Netlify Functions
         const response = await fetch('/.netlify/functions/server/invoices');
+        if (!response.ok) throw new Error(`Error: ${response.status}`);
+        todasLasFacturas = await response.json();
         
-        if (!response.ok) {
-            throw new Error(`Servidor respondió con estado ${response.status}`);
-        }
-
-        const result = await response.json();
-        
-        // Blindaje de datos: Algunas APIs envuelven los datos en .data, otras envían el array directo
-        // Mantengo tu lógica de asignación para no romper compatibilidad
-        todasLasFacturas = result.data || result || [];
-        
-        if (!Array.isArray(todasLasFacturas)) {
-            console.warn("⚠️ Los datos recibidos no son un array, ajustando...");
-            todasLasFacturas = [];
-        }
-
-        console.log(`✅ Se cargaron ${todasLasFacturas.length} órdenes con éxito.`);
-
-        // Renderizado de la tabla con los datos normalizados
+        // Ordenar: Más recientes arriba
+        todasLasFacturas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
         renderTable(todasLasFacturas);
-        
-        // Actualización del contador visual de órdenes
-        const contador = document.querySelector('.badge-soft-blue');
-        if (contador) {
-            contador.textContent = `${todasLasFacturas.length} órdenes`;
-        }
-        
     } catch (error) {
-        console.error("❌ Error crítico cargando órdenes:", error);
-        
-        // Alerta visual discreta para el usuario
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'Error de Sincronización',
-                text: 'No pudimos conectar con la base de datos de órdenes.',
-                icon: 'warning',
-                confirmButtonColor: '#1e3a8a'
-            });
-        }
+        console.error("❌ Error de conexión:", error);
     }
 }
 
@@ -275,7 +242,7 @@ function renderTable(facturas) {
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
     facturas.forEach(f => {
-        // Blindaje de variables intacto (mantenemos tu lógica de compatibilidad)
+        // --- BLINDAJE DE VARIABLES (Mantenemos tu lógica intacta) ---
         const total = Number(f.totalFactura || f.total || 0);
         const pagado = Number(f.totalPagado || f.abono || 0);
         const saldo = total - pagado;
@@ -284,18 +251,19 @@ function renderTable(facturas) {
         const clienteVisual = (f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase();
         const estaPagada = saldo <= 0;
 
-        // FILA PRINCIPAL
+        // --- FILA PRINCIPAL (TABLA VISIBLE) ---
         const tr = document.createElement('tr');
-        tr.style.cursor = 'pointer'; // Para indicar que es interactiva
+        tr.className = 'row-factura';
+        tr.style.cursor = 'pointer'; 
         tr.innerHTML = `
             <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
             <td style="font-weight: 700; color: #1e3a8a;">${numeroOT}</td>
             <td>${clienteVisual}</td>
             <td style="font-weight: 600;">${formatter.format(total)}</td>
-            <td style="color: ${estaPagada ? '#059669' : '#e11d48'}; font-weight: 600;">${formatter.format(saldo)}</td>
+            <td style="color: ${estaPagada ? '#059669' : '#e11d48'}; font-weight: 700;">${formatter.format(saldo)}</td>
             <td>
                 <span class="badge-status ${estaPagada ? 'badge-pagado' : 'badge-abonado'}">
-                    ${estaPagada ? 'PAGADA' : 'ABONADO'}
+                    ${estaPagada ? 'PAGADA' : 'CON SALDO'}
                 </span>
             </td>
             <td>
@@ -320,34 +288,34 @@ function renderTable(facturas) {
                 </div>
             </td>`;
 
-        // Al hacer clic en cualquier parte de la fila (excepto botones), abre el detalle
+        // Al hacer clic en la fila se abre el acordeón
         tr.onclick = () => toggleDetails(`details-${f._id}`);
 
-        // FILA DE DETALLES (EL ACORDEÓN OCULTO)
+        // --- FILA DE DETALLES (EL ACORDEÓN OCULTO) ---
         const trDetails = document.createElement('tr');
         trDetails.id = `details-${f._id}`;
         trDetails.className = 'detalle-acordeon';
-        trDetails.style.display = 'none'; // Escondido por defecto
+        trDetails.style.display = 'none'; 
         trDetails.style.backgroundColor = '#f8fafc';
         
         trDetails.innerHTML = `
             <td colspan="7" style="padding: 15px; border-left: 5px solid #3b82f6;">
-                <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
                     <div style="text-align: left;">
-                        <h4 style="margin: 0 0 10px 0; color: #1e3a8a; font-size: 0.9rem;">ESTADO FINANCIERO DE LA ORDEN</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
-                            <span><b>Total Facturado:</b> ${formatter.format(total)}</span>
-                            <span style="color: #059669;"><b>Total Pagado:</b> ${formatter.format(pagado)}</span>
-                            <span style="grid-column: span 2; font-size: 1rem; padding-top: 5px; border-top: 1px solid #eee;">
-                                <b style="color: #dc2626;">SALDO PENDIENTE: ${formatter.format(saldo)}</b>
-                            </span>
+                        <h4 style="margin: 0 0 10px 0; color: #1e3a8a; font-size: 0.9rem; text-transform: uppercase;">Resumen Financiero</h4>
+                        <div style="display: grid; grid-template-columns: auto auto auto; gap: 20px; font-size: 0.85rem;">
+                            <span>Total Factura: <b>${formatter.format(total)}</b></span>
+                            <span style="color: #059669;">Total Pagado: <b>${formatter.format(pagado)}</b></span>
+                            <span style="color: #dc2626;">Saldo Pendiente: <b>${formatter.format(saldo)}</b></span>
                         </div>
                     </div>
                     <div>
-                        <button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
-                                style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2);">
-                            <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
-                        </button>
+                        ${!estaPagada ? 
+                            `<button onclick="abrirModalAbono('${f._id}', ${total}, ${pagado})" 
+                                     style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2); display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
+                             </button>` 
+                            : '<b style="color: #059669; font-size: 0.9rem;"><i class="fas fa-check-circle"></i> ESTA ORDEN ESTÁ TOTALMENTE PAGA</b>'}
                     </div>
                 </div>
             </td>
@@ -359,21 +327,43 @@ function renderTable(facturas) {
 }
 
 // --- 2. FUNCIÓN DE CONTROL DEL ACORDEÓN (ABRIR/CERRAR) ---
+// --- CONTROL DE ACORDEÓN ---
 function toggleDetails(id) {
-    const filaDestino = document.getElementById(id);
-    if (!filaDestino) return;
+    const fila = document.getElementById(id);
+    const estaAbierta = fila.style.display === 'table-row';
+    document.querySelectorAll('.detalle-acordeon').forEach(el => el.style.display = 'none');
+    if (!estaAbierta) fila.style.display = 'table-row';
+}
 
-    // Detectamos si ya está abierta
-    const estaAbierta = filaDestino.style.display !== 'none';
-
-    // (Opcional) Cerramos todas las demás filas para que solo haya una abierta a la vez
-    document.querySelectorAll('.detalle-acordeon').forEach(el => {
-        el.style.display = 'none';
+// --- REGISTRO DE PAGOS (PATCH) ---
+async function abrirModalAbono(id, valorTotal, abonoPrevio) {
+    const saldoActual = valorTotal - abonoPrevio;
+    const { value: monto } = await Swal.fire({
+        title: 'Registrar Nuevo Pago',
+        html: `<p>Saldo pendiente: <b style="color:#e11d48">${formatter.format(saldoActual)}</b></p>`,
+        input: 'number',
+        inputPlaceholder: 'Ingrese el monto del abono',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonText: 'Cancelar'
     });
 
-    // Si estaba cerrada, la abrimos. Si estaba abierta, al cerrar todo arriba ya quedó cerrada.
-    if (!estaAbierta) {
-        filaDestino.style.display = 'table-row';
+    if (monto && monto > 0) {
+        const nuevoTotalPagado = abonoPrevio + parseFloat(monto);
+        try {
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ totalPagado: nuevoTotalPagado })
+            });
+
+            if (res.ok) {
+                Swal.fire('¡Éxito!', 'El pago ha sido registrado.', 'success');
+                fetchInvoices(); // Recarga la tabla para ver el nuevo saldo
+            }
+        } catch (error) {
+            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+        }
     }
 }
 
@@ -537,5 +527,31 @@ async function abrirAnalisisCostos(id) {
     } catch (error) {
         console.error("Error en análisis:", error);
         Swal.fire('Error', 'No pudimos cargar los costos.', 'error');
+    }
+}
+
+async function registrarAbono(id, total, pagadoAnterior) {
+    const { value: monto } = await Swal.fire({
+        title: 'Registrar Abono',
+        input: 'number',
+        inputLabel: 'Monto a abonar',
+        showCancelButton: true
+    });
+
+    if (monto && monto > 0) {
+        const nuevoTotal = pagadoAnterior + parseFloat(monto);
+        try {
+            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ totalPagado: nuevoTotal })
+            });
+            if (res.ok) {
+                Swal.fire('Éxito', 'Abono guardado', 'success');
+                cargarHistorial(); // Llama a tu función original para refrescar los datos
+            }
+        } catch (e) {
+            Swal.fire('Error', 'No se pudo conectar', 'error');
+        }
     }
 }

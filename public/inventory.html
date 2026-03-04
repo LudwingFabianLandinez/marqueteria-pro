@@ -78,6 +78,51 @@
         .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; background: #e8f5e9; color: #2e7d32; font-weight: 600; }
 
         @media print { .sidebar { display: none; } .main-content { margin: 0; padding: 20px; } }
+
+        /* --- ESTILOS DE ACORDEÓN Y ESTADOS (AÑADIR AQUÍ) --- */
+        .detalle-acordeon {
+            transition: all 0.3s ease;
+            background-color: #f8fafc;
+        }
+
+        .row-factura:hover {
+            background-color: #f1f5f9 !important;
+        }
+
+        .badge-status {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        /* Color para Pagado */
+        .badge-pagado { 
+            background: #d1fae5; 
+            color: #065f46; 
+        }
+
+        /* Color para Pendiente/Abonado */
+        .badge-abonado { 
+            background: #fee2e2; 
+            color: #991b1b; 
+        }
+
+        .btn-action {
+            border: none;
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #475569;
+        }
+
+        .btn-action:hover { 
+            background: #e2e8f0; 
+            color: #1e293b;
+        }
     </style>
 </head>
 <body>
@@ -158,108 +203,7 @@
         </div>
     </main>
 
-    <script>
-        // --- FUNCIÓN AGREGADA PARA EL CATÁLOGO SIN AFECTAR LO DEMÁS ---
-        async function registrarEnCatalogo() {
-            const nombre = document.getElementById('cat-nombre').value.trim().toUpperCase();
-            const categoria = document.getElementById('cat-categoria').value;
-            const precio = parseFloat(document.getElementById('cat-precio').value) || 0;
-
-            if (!nombre || precio <= 0) {
-                alert("⚠️ Completa nombre y precio.");
-                return;
-            }
-
-            const idLimpio = `ID-${nombre.replace(/\s+/g, '_')}`;
-            const nuevoMaterial = {
-                _id: idLimpio, id: idLimpio, nombre: nombre,
-                categoria: categoria, costo_base: precio,
-                precio_m2_costo: precio, stock_actual: 0,
-                unidad: (categoria === "MOLDURAS") ? "ML" : "M2"
-            };
-
-            try {
-                let localInv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                localInv.push(nuevoMaterial);
-                localStorage.setItem('inventory', JSON.stringify(localInv));
-
-                await fetch('/api/inventory/catalog', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(nuevoMaterial)
-                });
-
-                alert("✅ Registrado en Catálogo Maestro.");
-                location.reload();
-            } catch (e) { console.error(e); alert("Guardado localmente."); }
-        }
-        // --- FIN FUNCIÓN AGREGADA ---
-
-        async function cargarHistorial() {
-            const tableBody = document.getElementById('historyBody');
-            const noData = document.getElementById('noData');
-            const errorMsg = document.getElementById('errorMessage');
-            const ventasTable = document.getElementById('ventasTable');
-            
-            try {
-                const response = await fetch('/api/invoices?v=' + Date.now());
-                
-                if (!response.ok) {
-                    throw new Error(`Servidor respondió con status: ${response.status}`);
-                }
-
-                const jsonResponse = await response.json();
-                const ventas = Array.isArray(jsonResponse) ? jsonResponse : (jsonResponse.data || []);
-                
-                if (ventas.length === 0) {
-                    noData.style.display = 'block';
-                    ventasTable.style.display = 'none';
-                    errorMsg.innerText = "No hay órdenes registradas aún.";
-                    errorMsg.style.color = "#95a5a6";
-                    return;
-                }
-
-                noData.style.display = 'none';
-                ventasTable.style.display = 'table';
-                tableBody.innerHTML = '';
-
-                ventas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-                ventas.forEach(venta => {
-                    const row = document.createElement('tr');
-                    const fechaFmt = venta.fecha ? new Date(venta.fecha).toLocaleDateString() : '---';
-                    const clienteRaw = venta.clienteNombre || (typeof venta.cliente === 'string' ? venta.cliente : venta.cliente?.nombre);
-                    const cliente = (clienteRaw || 'Consumidor Final').toUpperCase();
-                    const total = Number(venta.totalFactura || venta.total || 0);
-                    const saldo = Number(venta.saldoPendiente || venta.saldo || 0);
-                    const ot = venta.numeroFactura || venta.ot || 'S/N';
-
-                    row.innerHTML = `
-                        <td class="date-tag">${fechaFmt}</td>
-                        <td style="font-weight: bold;">${ot}</td>
-                        <td>${cliente}</td>
-                        <td class="price-tag">$ ${total.toLocaleString('es-CO')}</td>
-                        <td style="color: ${saldo > 0 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">$ ${saldo.toLocaleString('es-CO')}</td>
-                        <td><span class="status-badge">${venta.estado || 'Completado'}</span></td>
-                        <td>
-                            <button style="border:none; background:none; color:#3b82f6; cursor:pointer;" title="Ver Detalle">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-
-            } catch (error) {
-                console.error("❌ Error en fetch:", error);
-                noData.style.display = 'block';
-                ventasTable.style.display = 'none';
-                errorMsg.innerText = "Error al conectar con el servidor. Revisa tu conexión.";
-                errorMsg.style.color = "#ef4444";
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', cargarHistorial);
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="js/history.js"></script>
 </body>
 </html>
