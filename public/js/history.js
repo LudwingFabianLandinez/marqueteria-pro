@@ -43,9 +43,12 @@ function formatearNumeroOT(f) {
 }
 
 // --- 2. CARGA DE DATOS (Sincronizado) ---
+// --- 1. CARGA DE ÓRDENES DESDE EL SERVIDOR (SIN PREFIJO /API) ---
 async function fetchInvoices() {
     try {
         console.log("📡 Conectando con el servidor de órdenes...");
+        
+        // Mantener la ruta unificada de Netlify Functions
         const response = await fetch('/.netlify/functions/server/invoices');
         
         if (!response.ok) {
@@ -53,16 +56,39 @@ async function fetchInvoices() {
         }
 
         const result = await response.json();
+        
+        // Blindaje de datos: Algunas APIs envuelven los datos en .data, otras envían el array directo
+        // Mantengo tu lógica de asignación para no romper compatibilidad
         todasLasFacturas = result.data || result || [];
-        if (!Array.isArray(todasLasFacturas)) todasLasFacturas = [];
+        
+        if (!Array.isArray(todasLasFacturas)) {
+            console.warn("⚠️ Los datos recibidos no son un array, ajustando...");
+            todasLasFacturas = [];
+        }
 
+        console.log(`✅ Se cargaron ${todasLasFacturas.length} órdenes con éxito.`);
+
+        // Renderizado de la tabla con los datos normalizados
         renderTable(todasLasFacturas);
         
+        // Actualización del contador visual de órdenes
         const contador = document.querySelector('.badge-soft-blue');
-        if (contador) contador.textContent = `${todasLasFacturas.length} órdenes`;
+        if (contador) {
+            contador.textContent = `${todasLasFacturas.length} órdenes`;
+        }
         
     } catch (error) {
-        console.error("❌ Error cargando órdenes:", error);
+        console.error("❌ Error crítico cargando órdenes:", error);
+        
+        // Alerta visual discreta para el usuario
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Error de Sincronización',
+                text: 'No pudimos conectar con la base de datos de órdenes.',
+                icon: 'warning',
+                confirmButtonColor: '#1e3a8a'
+            });
+        }
     }
 }
 
