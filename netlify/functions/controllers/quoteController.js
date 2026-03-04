@@ -91,7 +91,7 @@ const generateQuote = async (req, res) => {
                 id: mat._id,
                 nombre: mat.nombre, 
                 costo_m2_base: precioCostoM2,
-                area_m2: area_m2.toFixed(4),
+                area_m2: area_m2.toFixed(2),
                 precio_proporcional: Math.round(costoItem)
             });
         });
@@ -111,7 +111,7 @@ const generateQuote = async (req, res) => {
             data: {
                 detalles: {
                     medidas: `${ancho} x ${largo} cm`,
-                    area_m2: area_m2.toFixed(4),
+                    area_m2: area_m2.toFixe(2),
                     materiales: listaDetallada
                 },
                 costos: {
