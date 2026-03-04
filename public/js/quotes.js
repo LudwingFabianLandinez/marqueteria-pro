@@ -350,6 +350,15 @@ function mostrarResultado(data) {
                     <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(data.precioSugeridoCliente)}</span>
                 </div>
             </div>
+
+            <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #475569; font-weight: bold;">OBSERVACIONES:</h4>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+            </div>
         </div>
         <div class="no-print" style="margin-top: 20px; width: 100%;">
             <button onclick="imprimirResumen()" style="background: #334155; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">
