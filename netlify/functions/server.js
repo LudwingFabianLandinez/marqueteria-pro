@@ -197,18 +197,22 @@ router.patch('/invoices/:id', async (req, res) => {
 
 router.post('/invoices', async (req, res) => {
     try {
-        const facturaData = req.body;
+        let facturaData = req.body;
 
-        // 🔥 BLOQUE DE RESCATE DE NOMBRES (Blindaje Anti-Excel "MATERIAL")
-        // Aseguramos que el nombre real del producto se guarde en 'descripcion'
-        // antes de que Mongoose procese el objeto.
+        // 🔥 BLOQUE DE RESCATE DE NOMBRES (TRIPLE SINCRONIZACIÓN)
+        // Aseguramos que el nombre real se guarde en 'materialNombre' (que está en tu Schema)
+        // y en 'descripcion'/'nombre' para compatibilidad con el Excel.
         if (facturaData.items && Array.isArray(facturaData.items)) {
             facturaData.items = facturaData.items.map(item => {
-                const nombreReal = item.nombre || item.descripcion || "MATERIAL";
+                // Buscamos el nombre en cualquier rincón del objeto que venga del Front
+                const nombreDetectado = item.nombre || item.descripcion || item.materialNombre || "MATERIAL";
+                const nombreFinal = String(nombreDetectado).toUpperCase();
+
                 return {
                     ...item,
-                    descripcion: nombreReal.toUpperCase(),
-                    nombre: nombreReal.toUpperCase()
+                    materialNombre: nombreFinal, // Este coincide con tu Invoice.js
+                    nombre: nombreFinal,         // Para reportes generales
+                    descripcion: nombreFinal     // Para el Excel
                 };
             });
         }
@@ -230,8 +234,12 @@ router.post('/invoices', async (req, res) => {
         facturaData.numeroFactura = otConsecutivo;
         facturaData.numeroOrden = otConsecutivo; 
 
-        // --- GUARDADO EN ATLAS ---
+        // --- GUARDADO EN ATLAS CON FORZADO ---
         const nuevaFactura = new Invoice(facturaData);
+        
+        // Esto obliga a Mongoose a guardar el array de items aunque sea complejo
+        nuevaFactura.markModified('items'); 
+        
         await nuevaFactura.save();
 
         // --- DESCUENTO DE STOCK (MANTENIDO INTACTO) ---
