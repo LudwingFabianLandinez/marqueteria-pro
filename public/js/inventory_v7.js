@@ -318,45 +318,57 @@
             });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-            const nombreUP = limpiarNombre(m.nombre);
-            const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
+    const nombreUP = limpiarNombre(m.nombre);
+    const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
-            // Costos Blindados ($30.682 Vidrio / $10.345 Moldura)
-            let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
-            if (esMoldura && costoFijo < 9000) costoFijo = 10345;
-            else if (!esMoldura && (costoFijo === 16141 || costoFijo === 0)) costoFijo = 30682;
+    // --- INTEGRIDAD DE COSTOS BLINDADOS ---
+    let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
 
-            let stockFinal = m.stock_actual;
-            
-            if (esMoldura) {
-                const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
-                const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
-
-                if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-                    if (memoria.stock > stockFinal) {
-                        stockFinal = memoria.stock;
-                    }
-                }
-
-                if (stockFinal < 2.90) {
-                    stockFinal = 2.90; 
-                }
-            }
-
-            return {
-                ...m,
-                precio_m2_costo: Math.round(costoFijo),
-                stock_actual: Number(stockFinal.toFixed(2))
-            };
-        });
-
-        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-        renderTable(window.todosLosMateriales);
-
-    } catch (error) {
-        console.error("❌ Error en inventario:", error);
+    if (esMoldura) {
+        // AJUSTE QUIRÚRGICO: Solo eliminamos el forzado a 10345.
+        // Ahora respetará el costo que traiga de Atlas (ej. $8.618).
+        costoFijo = costoFijo; 
+    } else {
+        // BLINDAJE VIDRIO (Inalterado): Mantenemos la sintonía con el avance de $30.682.
+        if (costoFijo === 16141 || costoFijo === 0) {
+            costoFijo = 30682;
+        }
     }
+
+    // --- INTEGRIDAD DE STOCK Y ESCUDO ---
+    let stockFinal = m.stock_actual;
+    
+    if (esMoldura) {
+        const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
+        const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
+
+        // Sintonía con el sistema de memoria logrado en avances previos:
+        if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
+            if (memoria.stock > stockFinal) {
+                stockFinal = memoria.stock;
+            }
+        }
+
+        // AJUSTE QUIRÚRGICO: Eliminamos el "if (stockFinal < 2.90)".
+        // Esto permite que el material nuevo nazca en 0 y solo suba cuando registres la compra.
+    }
+
+    return {
+        ...m,
+        precio_m2_costo: Math.round(costoFijo),
+        stock_actual: Number(Number(stockFinal).toFixed(2))
+    };
+});
+
+// SINCRO FINAL: Limpiamos caché para aplicar los nuevos valores netos inmediatamente
+localStorage.removeItem('inventory');
+localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+renderTable(window.todosLosMateriales);
+
+} catch (error) {
+    console.error("❌ Error en inventario:", error);
 }
+    }
 
     function renderTable(materiales) {
         const cuerpoTabla = document.getElementById('inventoryTable');
