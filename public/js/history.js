@@ -184,54 +184,47 @@ async function generarReporteDiario() {
 
 // 6. EXPORTAR EXCEL (SE MANTIENE IGUAL)
 function exportarAExcel() {
-    if (todasLasFacturas.length === 0) {
-        alert("No hay datos para exportar");
-        return;
-    }
+    if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
     try {
-        let csvContent = "\uFEFF"; 
-        // Cabecera profesional
-        csvContent += "Fecha,OT,Cliente,PRODUCTOS DETALLADOS,Total Venta,Saldo,Estado\n";
+        // Añadimos BOM para que Excel reconozca tildes y eñes
+        let csvContent = "\uFEFFFecha,OT,Cliente,PRODUCTOS DETALLADOS,Total Venta,Saldo,Estado\n";
         
         todasLasFacturas.forEach(f => {
-            const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
-            const ot = typeof formatearNumeroOT === 'function' ? formatearNumeroOT(f) : (f.numeroOrden || '---');
-            const cliente = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, ''); 
-            
-            // --- EXTRACCIÓN CONTUNDENTE ---
-            // Leemos el arreglo 'items' que es como lo guarda tu función facturarVenta
+            // Buscamos en 'items' o 'materiales'
             const materialesArr = f.items || f.materiales || [];
             
             const detalleProductos = materialesArr.map(m => {
-                // Tu código de cotización guarda el nombre real en m.nombre
-                // Si m.nombre no existe por alguna razón, usamos m.descripcion
-                let nombreProducto = m.nombre || m.descripcion || "Material";
+                // --- ESCÁNER DE EMERGENCIA ---
+                // Si la descripción es la palabra genérica, buscamos en otras propiedades
+                let nombreReal = m.nombre || m.descripcion || m.producto || "Material";
                 
-                // Limpieza final: si el nombre es "MATERIAL" (genérico), intentamos buscar otra pista
-                if (nombreProducto === "MATERIAL" && m.productoId) nombreProducto = "Ver ID: " + m.productoId;
+                if (nombreReal.toUpperCase() === "MATERIAL") {
+                    // Si sigue siendo "MATERIAL", intentamos rescatar algo del ID o categoría
+                    nombreReal = m.nombreProducto || m.tipo || (m.productoId ? `Ref: ${m.productoId}` : "Material");
+                }
 
                 const medidas = (m.ancho && m.largo) ? `${m.ancho}x${m.largo}` : "";
-                return `${nombreProducto} ${medidas ? '[' + medidas + ']' : ''}`;
+                return `${nombreReal.toUpperCase()} ${medidas ? '['+medidas+' cm]' : ''}`;
             }).join(' / ').replace(/,/g, ''); 
-            // ------------------------------
 
             const total = Number(f.totalFactura || f.total) || 0;
             const abono = Number(f.totalPagado || f.abono || 0);
             const saldo = total - abono;
-            const estado = saldo <= 0 ? "PAGADO" : "ABONADO";
-            
-            csvContent += `${fecha},${ot},${cliente},${detalleProductos},${total},${saldo},${estado}\n`;
+            const fechaStr = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
+            const clienteStr = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '');
+            const otStr = typeof formatearNumeroOT === 'function' ? formatearNumeroOT(f) : (f.numeroOrden || '---');
+
+            csvContent += `${fechaStr},${otStr},${clienteStr},${detalleProductos},${total},${saldo},${saldo <= 0 ? "PAGADO" : "ABONADO"}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Reporte_Marqueteria_Completo.csv`);
+        link.href = URL.createObjectURL(blob);
+        link.download = `Reporte_Produccion_${new Date().getTime()}.csv`;
         link.click();
     } catch (error) { 
-        console.error("Error en reporte:", error); 
-        alert("Error al generar el Excel");
+        console.error("Error crítico en Excel:", error); 
+        alert("Hubo un error al generar el archivo");
     }
 }
 
