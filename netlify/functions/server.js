@@ -399,7 +399,6 @@ router.get('/inventory/all-purchases', async (req, res) => {
 });
 
 // --- REGISTRO DE COMPRA (CORREGIDO PARA ATLAS) ---
-// --- REGISTRO DE COMPRA (BLINDAJE TOTAL + CREACIÓN DE MATERIALES EN ATLAS v16.1.7) ---
 router.post('/inventory/purchase', async (req, res) => {
     try {
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
@@ -419,16 +418,21 @@ router.post('/inventory/purchase', async (req, res) => {
                 materialId = materialExistente._id.toString(); 
             } else {
                 console.log("🆕 Material no encontrado. Creando nuevo maestro en Atlas...");
+                
+                // --- AJUSTE ESPECÍFICO PARA PRECIO INICIAL DE MOLDURA ---
+                const esMoldura = (req.body.categoria === "MOLDURAS" || nombreNormalizado.toUpperCase().includes("MOLDURA"));
+                const costoBaseInicial = parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0);
+                
                 const nuevoMat = new Material({
                     nombre: nombreNormalizado,
                     categoria: req.body.categoria,
-                    costo_base: parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0),
-                    precio_m2_costo: parseFloat(req.body.precio_m2_costo || req.body.costo_base || 0),
+                    costo_base: costoBaseInicial,
+                    // Si es moldura, el precio de inventario es el costo / 2.9, si no, se queda igual (M2 ya funciona bien)
+                    precio_m2_costo: esMoldura ? (costoBaseInicial / 2.9) : parseFloat(req.body.precio_m2_costo || costoBaseInicial || 0),
                     stock_actual: 0,
                     ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
                     largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
-                    // Si es moldura, asignamos ML de entrada
-                    unidad: req.body.unidad || ((req.body.categoria === "MOLDURAS" || nombreNormalizado.toUpperCase().includes("MOLDURA")) ? "ML" : "M2"),
+                    unidad: req.body.unidad || (esMoldura ? "ML" : "M2"),
                     estado: 'Activo'
                 });
                 const guardado = await nuevoMat.save();
@@ -458,39 +462,40 @@ router.post('/inventory/purchase', async (req, res) => {
         const proveedorId = req.body.proveedorId;
         const proveedorNombre = req.body.proveedorNombre;
 
-        // --- 3. CÁLCULOS DIFERENCIADOS (ML vs M2) - SIN AFECTAR OTROS AVANCES ---
+        // --- 3. CÁLCULOS DIFERENCIADOS (ML vs M2) ---
         const categoriaMat = (req.body.categoria || "").toUpperCase();
         const nombreMat = (req.body.nombre || "").toUpperCase();
         
         let areaTotalIngreso;
+        let precioInventarioActualizado = valorUnitario; // Por defecto para M2 que ya está bien
         
-        // Verificamos si es moldura por categoría o nombre
+        // Verificamos si es moldura
         if (categoriaMat.includes("MOLDURA") || categoriaMat.includes("ML") || nombreMat.includes("MOLDURA")) {
-            // Para molduras: Cantidad de tiras * 2.9 metros lineales
             areaTotalIngreso = cantidad * 2.9;
+            // CORRECCIÓN: Para que el inventario no suba a 10mil, guardamos el precio por metro (8618 / 2.9)
+            precioInventarioActualizado = valorUnitario / 2.9;
             console.log(`📏 LÓGICA ML APLICADA: ${cantidad} tiras * 2.9 = ${areaTotalIngreso} ML`);
         } else {
-            // Para el resto: Tu fórmula original de M2 intacta
             areaTotalIngreso = (largo * ancho / 10000) * cantidad;
             console.log(`🔳 LÓGICA M2 APLICADA: Area calculada = ${areaTotalIngreso} M2`);
         }
 
         const valorTotalCalculado = valorUnitario * cantidad;
 
-        // 4. Actualización del Material (Crucial: sin esto no aparece en colección materiales)
+        // 4. Actualización del Material
         const matAct = await Material.findByIdAndUpdate(materialId, { 
             $inc: { stock_actual: areaTotalIngreso },
             $set: { 
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: valorUnitario,
+                precio_m2_costo: precioInventarioActualizado, // Se actualiza solo si es ML, M2 sigue su curso
                 ultimo_costo: valorUnitario,
                 fecha_ultima_compra: new Date(), 
                 proveedor_principal: proveedorId 
             }
         }, { new: true });
 
-        // Si el material no existe en Atlas, detenemos el proceso
         if (!matAct) {
             return res.status(404).json({ 
                 success: false, 
@@ -500,7 +505,7 @@ router.post('/inventory/purchase', async (req, res) => {
 
         const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
-        // 5. Registro de Transacción (Sincronizado con el éxito del paso anterior)
+        // 5. Registro de Transacción
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
@@ -509,7 +514,7 @@ router.post('/inventory/purchase', async (req, res) => {
             proveedorNombre: proveedorNombre || (provAct ? provAct.nombre : "Proveedor General"), 
             cantidad: areaTotalIngreso,     
             cantidad_m2: areaTotalIngreso,  
-            costo_unitario: valorUnitario,
+            costo_unitario: precioInventarioActualizado,
             total: valorTotalCalculado,           
             costo_total: valorTotalCalculado, 
             fecha: new Date()
