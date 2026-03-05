@@ -217,23 +217,25 @@ router.post('/invoices', async (req, res) => {
             });
         }
 
-        // --- LÓGICA DE CONSECUTIVO OT (MANTENIDA INTACTA) ---
-        const facturasParaConteo = await Invoice.find({}, 'numeroFactura numeroOrden').lean();
-        let maxNumero = 0;
-        facturasParaConteo.forEach(doc => {
-            const idTexto = doc.numeroFactura || doc.numeroOrden || "";
+        // --- LÓGICA DE CONSECUTIVO OT (REINICIO INTELIGENTE v17.4.0) ---
+        const ultimaFactura = await Invoice.findOne().sort({ createdAt: -1 }).lean();
+        let siguienteNumero = 1;
+
+        if (ultimaFactura) {
+            const idTexto = ultimaFactura.numeroOrden || ultimaFactura.numeroFactura || "";
             if (idTexto.startsWith('OT-')) {
                 const partes = idTexto.split('-');
-                const num = parseInt(partes[partes.length - 1]);
-                if (!isNaN(num) && num < 100000 && num > maxNumero) { maxNumero = num; }
+                const ultimoNum = parseInt(partes[partes.length - 1]);
+                if (!isNaN(ultimoNum)) {
+                    siguienteNumero = ultimoNum + 1;
+                }
             }
-        });
+        }
 
-        if (maxNumero === 0) maxNumero = 17; 
-        const otConsecutivo = `OT-${String(maxNumero + 1).padStart(5, '0')}`;
+        const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
         facturaData.numeroFactura = otConsecutivo;
         facturaData.numeroOrden = otConsecutivo; 
-
+        
         // --- GUARDADO EN ATLAS CON FORZADO ---
         const nuevaFactura = new Invoice(facturaData);
         
