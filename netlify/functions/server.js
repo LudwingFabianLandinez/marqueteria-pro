@@ -403,27 +403,21 @@ router.get('/inventory/all-purchases', async (req, res) => {
 router.post('/inventory/purchase', async (req, res) => {
     try {
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
-        const materialId = req.body.materialId || req.body.id;
+        let materialId = req.body.materialId || req.body.id;
 
         // --- INICIO LÓGICA DE CREACIÓN CON FILTRO DE IDENTIDAD ÚNICA (v16.2.0) ---
         if (materialId === "NUEVO") {
             const nombreNormalizado = req.body.nombre ? req.body.nombre.trim() : "";
             console.log(`🔍 Buscando identidad única para: "${nombreNormalizado}"...`);
 
-            // 1. Buscamos si ya existe por nombre (sin importar mayúsculas/minúsculas)
             const materialExistente = await Material.findOne({ 
                 nombre: { $regex: new RegExp(`^${nombreNormalizado}$`, 'i') } 
             });
 
             if (materialExistente) {
                 console.log(`♻️ MATERIAL DETECTADO: Usando registro existente [${materialExistente.categoria}] para concentrar stock.`);
-                
-                // CRUCIAL: Reasignamos la variable materialId con el ID del que ya existe.
-                // NO hacemos 'return' para que el código de abajo ejecute la compra sobre este ID.
                 materialId = materialExistente._id.toString(); 
-                
             } else {
-                // 2. Si realmente es nuevo, lo creamos y retornamos éxito
                 console.log("🆕 Material no encontrado. Creando nuevo maestro en Atlas...");
                 const nuevoMat = new Material({
                     nombre: nombreNormalizado,
@@ -433,6 +427,7 @@ router.post('/inventory/purchase', async (req, res) => {
                     stock_actual: 0,
                     ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
                     largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
+                    // Si es moldura, asignamos ML de entrada
                     unidad: req.body.unidad || ((req.body.categoria === "MOLDURAS" || nombreNormalizado.toUpperCase().includes("MOLDURA")) ? "ML" : "M2"),
                     estado: 'Activo'
                 });
@@ -463,8 +458,23 @@ router.post('/inventory/purchase', async (req, res) => {
         const proveedorId = req.body.proveedorId;
         const proveedorNombre = req.body.proveedorNombre;
 
-        // 3. Cálculos m2 intactos
-        const areaTotalIngreso = (largo * ancho / 10000) * cantidad;
+        // --- 3. CÁLCULOS DIFERENCIADOS (ML vs M2) - SIN AFECTAR OTROS AVANCES ---
+        const categoriaMat = (req.body.categoria || "").toUpperCase();
+        const nombreMat = (req.body.nombre || "").toUpperCase();
+        
+        let areaTotalIngreso;
+        
+        // Verificamos si es moldura por categoría o nombre
+        if (categoriaMat.includes("MOLDURA") || categoriaMat.includes("ML") || nombreMat.includes("MOLDURA")) {
+            // Para molduras: Cantidad de tiras * 2.9 metros lineales
+            areaTotalIngreso = cantidad * 2.9;
+            console.log(`📏 LÓGICA ML APLICADA: ${cantidad} tiras * 2.9 = ${areaTotalIngreso} ML`);
+        } else {
+            // Para el resto: Tu fórmula original de M2 intacta
+            areaTotalIngreso = (largo * ancho / 10000) * cantidad;
+            console.log(`🔳 LÓGICA M2 APLICADA: Area calculada = ${areaTotalIngreso} M2`);
+        }
+
         const valorTotalCalculado = valorUnitario * cantidad;
 
         // 4. Actualización del Material (Crucial: sin esto no aparece en colección materiales)
