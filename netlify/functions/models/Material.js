@@ -96,8 +96,22 @@ const MaterialSchema = new mongoose.Schema({
 function calcularValoresTecnicos(doc) {
     if (!doc) return;
 
-    // 1. Cálculo de área y precio m2
-    if (doc.tipo === 'm2') {
+    // --- IDENTIFICACIÓN QUIRÚRGICA DE MOLDURA ---
+    const nombreMat = (doc.nombre || "").toUpperCase();
+    const categoriaMat = (doc.categoria || "").toUpperCase();
+    const esMoldura = categoriaMat.includes("MOLDURA") || nombreMat.includes("MOLDURA");
+
+    if (esMoldura) {
+        // 1. BLINDAJE PARA MOLDURAS: El precio de inventario es el mismo de la tira
+        doc.tipo = 'ml';
+        if (doc.precio_total_lamina) {
+            doc.precio_m2_costo = doc.precio_total_lamina; // Aquí forzamos los $8618 exactos
+        }
+        // Mantenemos la referencia de que una tira equivale a 2.9 ML para el stock
+        doc.area_por_lamina_m2 = 2.9; 
+    } 
+    else if (doc.tipo === 'm2') {
+        // 2. LÓGICA M2 (INTACTA): Vidrios, MDF, Espejos siguen igual
         const ancho = doc.ancho_lamina_cm || 0;
         const largo = doc.largo_lamina_cm || 0;
         const areaCalculada = (ancho * largo) / 10000;
@@ -109,12 +123,13 @@ function calcularValoresTecnicos(doc) {
         }
     } 
     else if (doc.tipo === 'ml') {
+        // 3. LÓGICA ML GENERAL (Mantenida por compatibilidad)
         if (doc.largo_lamina_cm > 0 && doc.precio_total_lamina) {
             doc.precio_m2_costo = Math.round(doc.precio_total_lamina / (doc.largo_lamina_cm / 100));
         }
     }
 
-    // 2. 🔥 SINCRONIZACIÓN CRÍTICA PARA ATLAS
+    // 2. 🔥 SINCRONIZACIÓN CRÍTICA PARA ATLAS (Mantenida intacta)
     doc.costo_m2 = doc.precio_m2_costo || 0;
     
     if (doc.stock_actual < 0) doc.stock_actual = 0;
