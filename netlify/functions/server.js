@@ -198,6 +198,22 @@ router.patch('/invoices/:id', async (req, res) => {
 router.post('/invoices', async (req, res) => {
     try {
         const facturaData = req.body;
+
+        // 🔥 BLOQUE DE RESCATE DE NOMBRES (Blindaje Anti-Excel "MATERIAL")
+        // Aseguramos que el nombre real del producto se guarde en 'descripcion'
+        // antes de que Mongoose procese el objeto.
+        if (facturaData.items && Array.isArray(facturaData.items)) {
+            facturaData.items = facturaData.items.map(item => {
+                const nombreReal = item.nombre || item.descripcion || "MATERIAL";
+                return {
+                    ...item,
+                    descripcion: nombreReal.toUpperCase(),
+                    nombre: nombreReal.toUpperCase()
+                };
+            });
+        }
+
+        // --- LÓGICA DE CONSECUTIVO OT (MANTENIDA INTACTA) ---
         const facturasParaConteo = await Invoice.find({}, 'numeroFactura numeroOrden').lean();
         let maxNumero = 0;
         facturasParaConteo.forEach(doc => {
@@ -208,12 +224,17 @@ router.post('/invoices', async (req, res) => {
                 if (!isNaN(num) && num < 100000 && num > maxNumero) { maxNumero = num; }
             }
         });
+
         if (maxNumero === 0) maxNumero = 17; 
         const otConsecutivo = `OT-${String(maxNumero + 1).padStart(5, '0')}`;
         facturaData.numeroFactura = otConsecutivo;
         facturaData.numeroOrden = otConsecutivo; 
+
+        // --- GUARDADO EN ATLAS ---
         const nuevaFactura = new Invoice(facturaData);
         await nuevaFactura.save();
+
+        // --- DESCUENTO DE STOCK (MANTENIDO INTACTO) ---
         if (facturaData.items) {
             for (const item of facturaData.items) {
                 if (item.productoId) {
@@ -222,8 +243,16 @@ router.post('/invoices', async (req, res) => {
                 }
             }
         }
-        res.json({ success: true, message: "OT generada con éxito", ot: otConsecutivo, data: nuevaFactura });
+
+        res.json({ 
+            success: true, 
+            message: "OT generada con éxito", 
+            ot: otConsecutivo, 
+            data: nuevaFactura 
+        });
+
     } catch (error) {
+        console.error("🚨 Error en /invoices:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
