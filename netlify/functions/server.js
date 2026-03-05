@@ -404,7 +404,7 @@ router.post('/inventory/purchase', async (req, res) => {
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
         let materialId = req.body.materialId || req.body.id;
 
-        // --- INICIO LÓGICA DE CREACIÓN CON FILTRO DE IDENTIDAD ÚNICA (v16.2.0) ---
+        // --- INICIO LÓGICA DE CREACIÓN CON FILTRO DE IDENTIDAD ÚNICA (v17.6.8) ---
         if (materialId === "NUEVO") {
             const nombreNormalizado = req.body.nombre ? req.body.nombre.trim() : "";
             console.log(`🔍 Buscando identidad única para: "${nombreNormalizado}"...`);
@@ -419,7 +419,6 @@ router.post('/inventory/purchase', async (req, res) => {
             } else {
                 console.log("🆕 Material no encontrado. Creando nuevo maestro en Atlas...");
                 
-                // --- AJUSTE ESPECÍFICO PARA PRECIO INICIAL DE MOLDURA ---
                 const esMoldura = (req.body.categoria === "MOLDURAS" || nombreNormalizado.toUpperCase().includes("MOLDURA"));
                 const costoBaseInicial = parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0);
                 
@@ -427,22 +426,32 @@ router.post('/inventory/purchase', async (req, res) => {
                     nombre: nombreNormalizado,
                     categoria: req.body.categoria,
                     costo_base: costoBaseInicial,
-                    // Si es moldura, el precio de inventario es el costo / 2.9, si no, se queda igual (M2 ya funciona bien)
-                    precio_m2_costo: esMoldura ? (costoBaseInicial / 2.9) : parseFloat(req.body.precio_m2_costo || costoBaseInicial || 0),
+                    
+                    // CORRECCIÓN PRECIO: Si es moldura, forzamos el valor exacto ($8618) al campo que lee el inventario
+                    // para evitar que otros archivos le apliquen el multiplicador del 20% o divisiones por 2.9 antes de tiempo.
+                    precio_m2_costo: esMoldura ? costoBaseInicial : parseFloat(req.body.precio_m2_costo || costoBaseInicial || 0),
+                    
+                    // CORRECCIÓN STOCK: Aseguramos 0 absoluto. El stock solo debe subir en la sección de COMPRA de abajo.
                     stock_actual: 0,
+                    
                     ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
                     largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
                     unidad: req.body.unidad || (esMoldura ? "ML" : "M2"),
                     estado: 'Activo'
                 });
+
                 const guardado = await nuevoMat.save();
+                
+                console.log(`✅ MATERIAL CREADO: ${nombreNormalizado} con Stock 0 y Precio $${costoBaseInicial}`);
+
                 return res.status(200).json({ 
                     success: true, 
-                    message: "Material maestro creado. Proceda a registrar compra.", 
+                    message: "Material maestro creado en cero. Proceda a registrar compra para subir stock.", 
                     data: guardado 
                 });
             }
         }      
+
         // --- FIN LÓGICA DE CREACIÓN ---
 
         // Validaciones de seguridad para compras (se mantienen intactas)
