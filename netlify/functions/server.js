@@ -217,25 +217,33 @@ router.patch('/invoices/:id', async (req, res) => {
     }
 });
 
-
 router.post('/invoices', async (req, res) => {
     try {
         let facturaData = req.body;
 
-        // 🔥 BLOQUE DE RESCATE DE NOMBRES (TRIPLE SINCRONIZACIÓN)
-        // Aseguramos que el nombre real se guarde en 'materialNombre' (que está en tu Schema)
-        // y en 'descripcion'/'nombre' para compatibilidad con el Excel.
+        // 👤 1. RESCATE DEL NOMBRE DEL CLIENTE (NUEVO: PARA HISTORIAL)
+        // Como quotes.js envía { cliente: { nombre: "..." } }, lo extraemos aquí:
+        let nombreParaTabla = "CLIENTE GENÉRICO";
+        if (facturaData.cliente && typeof facturaData.cliente === 'object') {
+            nombreParaTabla = facturaData.cliente.nombre || "CLIENTE GENÉRICO";
+        } else if (typeof facturaData.cliente === 'string') {
+            nombreParaTabla = facturaData.cliente;
+        }
+        
+        // Guardamos el nombre plano para que la tabla lo encuentre fácil
+        facturaData.clienteNombre = String(nombreParaTabla).toUpperCase();
+
+        // 🔥 2. BLOQUE DE RESCATE DE MATERIALES (MANTENIDO E INTACTO)
         if (facturaData.items && Array.isArray(facturaData.items)) {
             facturaData.items = facturaData.items.map(item => {
-                // Buscamos el nombre en cualquier rincón del objeto que venga del Front
                 const nombreDetectado = item.nombre || item.descripcion || item.materialNombre || "MATERIAL";
                 const nombreFinal = String(nombreDetectado).toUpperCase();
 
                 return {
                     ...item,
-                    materialNombre: nombreFinal, // Este coincide con tu Invoice.js
-                    nombre: nombreFinal,         // Para reportes generales
-                    descripcion: nombreFinal     // Para el Excel
+                    materialNombre: nombreFinal, 
+                    nombre: nombreFinal,        
+                    descripcion: nombreFinal    
                 };
             });
         }
