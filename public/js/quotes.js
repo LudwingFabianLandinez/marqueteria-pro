@@ -439,18 +439,22 @@ window.facturarVenta = async function() {
                 const costoReal = parseFloat(opcion.dataset.costo) || 0;
 
                 itemsProcesados.push({
-    productoId: select.value,
-    descripcion: nombreReal,
-    nombre: nombreReal,      
-    costoBase: costoReal,    
+                    productoId: select.value,
+                    // 🚀 RESCATE DE NOMBRE (Asegura que el reporte lo vea)
+                    materialNombre: nombreReal, 
+                    descripcion: nombreReal,
+                    nombre: nombreReal,      
 
-    costo_base_unitario: costoReal,
-    cantidad: 1,
-    // Redondeamos medidas y área a 2 decimales para evitar residuos en Atlas
-    ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
-    largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
-    area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
-});
+                    // 💰 RESCATE DE COSTOS (Asegura rentabilidad en reporte)
+                    costo_base_unitario: costoReal,
+                    costoBase: costoReal,    
+
+                    cantidad: 1,
+                    // Conservamos tu lógica de redondeo para evitar residuos en Atlas
+                    ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
+                    largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
+                    area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
+                });
             }
         }
     });
