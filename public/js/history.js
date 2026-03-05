@@ -186,18 +186,22 @@ async function generarReporteDiario() {
 function exportarAExcel() {
     if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
     try {
-        let csvContent = "\uFEFFFecha,OT,Cliente,Detalle de Productos,Total Venta,Saldo,Estado\n";
+        let csvContent = "\uFEFFFecha,OT,Cliente,PRODUCTOS DETALLADOS,Total Venta,Saldo,Estado\n";
         
         todasLasFacturas.forEach(f => {
             const materialesArr = f.materiales || f.items || f.detalles || [];
             
-            // BUSCO EL NOMBRE REAL: Si 'descripcion' dice "MATERIAL", busco en otras propiedades
+            // --- LÓGICA CONTUNDENTE PARA EXTRAER EL NOMBRE REAL ---
             const detalleProductos = materialesArr.map(m => {
-                const nombreLimpio = (m.nombreProducto || m.nombre || m.producto || m.tipo || "Material");
-                // Si la descripcion tiene algo util que no sea solo "MATERIAL", lo usamos, si no, usamos el nombreLimpio
-                const finalDesc = (m.descripcion && m.descripcion !== "MATERIAL") ? m.descripcion : nombreLimpio;
-                return `${finalDesc} (${m.medida || ''})`;
-            }).join(' / ').replace(/,/g, '');
+                // Buscamos el nombre en todas las propiedades posibles del objeto
+                // Si 'm.descripcion' es solo "MATERIAL", buscamos en m.nombre, m.tipo, m.producto, etc.
+                const nombreEncontrado = [m.nombre, m.producto, m.tipo, m.nombreProducto, m.material]
+                    .find(prop => prop && prop !== "MATERIAL") || "Material Genérico";
+
+                const medida = m.medida || m.dimensiones || "";
+                return `${nombreEncontrado} ${medida ? '(' + medida + ')' : ''}`;
+            }).join(' / ').replace(/,/g, ''); // Unimos con / y limpiamos comas
+            // -------------------------------------------------------
 
             const total = Number(f.totalFactura || f.total || f.totalOrden) || 0;
             const abono = Number(f.totalPagado || f.abono || 0);
@@ -211,9 +215,11 @@ function exportarAExcel() {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `Reporte_Ventas_Detallado.csv`;
+        link.download = `Reporte_Produccion_Detallado.csv`;
         link.click();
-    } catch (error) { console.error("Error Quirúrgico Excel:", error); }
+    } catch (error) { 
+        console.error("Error contundente en Excel:", error); 
+    }
 }
 
 // 7. RENDERIZADO DE TABLA (CORRECCIÓN DE BOTÓN VERDE)
