@@ -135,23 +135,24 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-    // 1. Cálculo de área (Mantenido)
+    // 1. Cálculo de área (Mantenido con decimales para precisión de medida)
     const area = Number(item.area_m2 || item.area || 1);
     
     // 2. Prioridad de Costo (Ajustado a costo_base_unitario de tu servidor)
     const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || item.precioUnitario || item.costo || 0);
     
-    // 3. 🔥 RESCATE DE NOMBRE (Prioridad absoluta a materialNombre)
-    // Buscamos primero 'materialNombre' que es como lo guarda tu Invoice.js
+    // 3. 🔥 RESCATE DE NOMBRE (Mantenido)
     let nombreReal = (item.materialNombre || item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
 
-    // 4. Lógica de Costos (Mantenida intacta)
-    const costoFila = costoBaseUnitario * area;
-    const sugeridoFila = costoFila * 3;
+    // 4. Lógica de Costos (REDONDEADO A ENTEROS 🚀)
+    // Usamos Math.round para eliminar decimales en el dinero
+    const costoFila = Math.round(costoBaseUnitario * area);
+    const sugeridoFila = Math.round(costoFila * 3);
+    
     sumaCostoMateriales += costoFila;
     sumaMaterialesX3 += sugeridoFila;
 
-    // 5. Renderizado de Fila (Mantenido con el nombre rescatado)
+    // 5. Renderizado de Fila
     htmlContenido += `<tr>
         <td style="text-align:left; font-weight:600;">${nombreReal}</td>
         <td>${area.toFixed(3)} ${medidaTexto}</td>
@@ -318,11 +319,15 @@ function toggleDetails(id) {
 // 9. GESTIÓN DE ABONOS (CORREGIDA PARA TRABAJAR CON EL FORMATTER GLOBAL)
 async function abrirModalAbono(id, valorTotal, abonoPrevio) {
     // Blindaje 1: Mantener formateador local (SIN CAMBIOS)
+    // 1. Formateador de Moneda (Ajustado a Enteros Estrictos 🚀)
     const formatter = new Intl.NumberFormat('es-CO', { 
-        style: 'currency', currency: 'COP', maximumFractionDigits: 0 
+        style: 'currency', 
+        currency: 'COP', 
+        minimumFractionDigits: 0, // Asegura que no haya .00
+        maximumFractionDigits: 0  // Asegura que no haya decimales
     });
 
-    // Blindaje 2: Conversión estricta a números (SIN CAMBIOS)
+    // Blindaje 2: Conversión estricta a números (SIN CAMBIOS - Mantenido)
     const totalNum = Number(valorTotal) || 0;
     const abonoPrevioNum = Number(abonoPrevio) || 0;
     const saldoActual = totalNum - abonoPrevioNum;
@@ -337,6 +342,7 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
         cancelButtonText: 'Cancelar',
         inputValidator: (value) => {
             if (!value || value <= 0) return 'Ingrese un monto válido';
+            // La validación sigue comparando números puros para mayor precisión
             if (Number(value) > saldoActual) return 'El abono excede el saldo';
         }
     });
