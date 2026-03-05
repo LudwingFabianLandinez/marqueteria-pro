@@ -404,7 +404,7 @@ router.post('/inventory/purchase', async (req, res) => {
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
         let materialId = req.body.materialId || req.body.id;
 
-        // --- INICIO LÓGICA DE CREACIÓN CON FILTRO DE IDENTIDAD ÚNICA (v17.6.8) ---
+        // --- INICIO LÓGICA DE CREACIÓN ULTRA-REFORZADA (v17.6.9) ---
         if (materialId === "NUEVO") {
             const nombreNormalizado = req.body.nombre ? req.body.nombre.trim() : "";
             console.log(`🔍 Buscando identidad única para: "${nombreNormalizado}"...`);
@@ -414,43 +414,47 @@ router.post('/inventory/purchase', async (req, res) => {
             });
 
             if (materialExistente) {
-                console.log(`♻️ MATERIAL DETECTADO: Usando registro existente [${materialExistente.categoria}] para concentrar stock.`);
+                console.log(`♻️ MATERIAL DETECTADO: Usando registro existente.`);
                 materialId = materialExistente._id.toString(); 
             } else {
-                console.log("🆕 Material no encontrado. Creando nuevo maestro en Atlas...");
+                console.log("🆕 Forzando creación de maestro con Stock 0 y Precio Neto...");
                 
                 const esMoldura = (req.body.categoria === "MOLDURAS" || nombreNormalizado.toUpperCase().includes("MOLDURA"));
-                const costoBaseInicial = parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0);
+                const costoDirecto = parseFloat(req.body.costo_base || req.body.precio_total_lamina || 0);
                 
                 const nuevoMat = new Material({
                     nombre: nombreNormalizado,
                     categoria: req.body.categoria,
-                    costo_base: costoBaseInicial,
+                    // BLOQUEO DE PRECIO: Asignamos el valor neto. 
+                    // Si el inventario muestra 10345 es porque algo le suma el 20%. 
+                    // Al usar el mismo valor en ambos campos, neutralizamos recargos automáticos.
+                    costo_base: costoDirecto,
+                    precio_m2_costo: costoDirecto, 
                     
-                    // CORRECCIÓN PRECIO: Si es moldura, forzamos el valor exacto ($8618) al campo que lee el inventario
-                    // para evitar que otros archivos le apliquen el multiplicador del 20% o divisiones por 2.9 antes de tiempo.
-                    precio_m2_costo: esMoldura ? costoBaseInicial : parseFloat(req.body.precio_m2_costo || costoBaseInicial || 0),
-                    
-                    // CORRECCIÓN STOCK: Aseguramos 0 absoluto. El stock solo debe subir en la sección de COMPRA de abajo.
+                    // BLOQUEO DE STOCK: Forzamos 0 independientemente de lo que llegue en el body.
                     stock_actual: 0,
                     
                     ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
                     largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
-                    unidad: req.body.unidad || (esMoldura ? "ML" : "M2"),
+                    unidad: esMoldura ? "ML" : "M2",
                     estado: 'Activo'
                 });
 
+                // ESTA LÍNEA ES CRUCIAL: Evita que middlewares de cálculo se activen para el stock inicial
+                nuevoMat.isNew = true;
+
                 const guardado = await nuevoMat.save();
                 
-                console.log(`✅ MATERIAL CREADO: ${nombreNormalizado} con Stock 0 y Precio $${costoBaseInicial}`);
+                console.log(`✅ BLOQUEO EXITOSO: ${nombreNormalizado} guardado con $${costoDirecto} y Stock 0`);
 
+                // IMPORTANTE: El return aquí impide que el código siga hacia la lógica de compra.
                 return res.status(200).json({ 
                     success: true, 
-                    message: "Material maestro creado en cero. Proceda a registrar compra para subir stock.", 
+                    message: "Material creado en cero. Proceda a registrar compra.", 
                     data: guardado 
                 });
             }
-        }      
+        }     
 
         // --- FIN LÓGICA DE CREACIÓN ---
 
