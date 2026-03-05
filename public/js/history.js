@@ -135,22 +135,30 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                const area = Number(item.area_m2 || item.area || 1);
-                const costoBaseUnitario = Number(item.costoBase || item.precioUnitario || item.costo_base_unitario || item.costo || 0);
-                let nombreReal = (item.nombre || item.material || item.descripcion || "MATERIAL").toUpperCase();
+    // 1. Cálculo de área (Mantenido)
+    const area = Number(item.area_m2 || item.area || 1);
+    
+    // 2. Prioridad de Costo (Ajustado a costo_base_unitario de tu servidor)
+    const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || item.precioUnitario || item.costo || 0);
+    
+    // 3. 🔥 RESCATE DE NOMBRE (Prioridad absoluta a materialNombre)
+    // Buscamos primero 'materialNombre' que es como lo guarda tu Invoice.js
+    let nombreReal = (item.materialNombre || item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
 
-                const costoFila = costoBaseUnitario * area;
-                const sugeridoFila = costoFila * 3;
-                sumaCostoMateriales += costoFila;
-                sumaMaterialesX3 += sugeridoFila;
+    // 4. Lógica de Costos (Mantenida intacta)
+    const costoFila = costoBaseUnitario * area;
+    const sugeridoFila = costoFila * 3;
+    sumaCostoMateriales += costoFila;
+    sumaMaterialesX3 += sugeridoFila;
 
-                htmlContenido += `<tr>
-                    <td style="text-align:left; font-weight:600;">${nombreReal}</td>
-                    <td>${area.toFixed(3)} ${medidaTexto}</td>
-                    <td>${formatter.format(costoFila)}</td>
-                    <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
-                </tr>`;
-            });
+    // 5. Renderizado de Fila (Mantenido con el nombre rescatado)
+    htmlContenido += `<tr>
+        <td style="text-align:left; font-weight:600;">${nombreReal}</td>
+        <td>${area.toFixed(3)} ${medidaTexto}</td>
+        <td>${formatter.format(costoFila)}</td>
+        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
+    </tr>`;
+});
 
             const totalOrden = sumaMaterialesX3 + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales;
