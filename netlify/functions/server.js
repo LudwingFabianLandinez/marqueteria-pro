@@ -149,16 +149,25 @@ router.post('/quotes', async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE FACTURAS (CONSECUTIVO BLINDADO INTACTO) ---
+// --- GESTIÓN DE FACTURAS (MAPEO DE CLIENTE CORREGIDO) ---
 router.get('/invoices', async (req, res) => {
     try {
         const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
-        res.json(facturas.map(f => ({
-            ...f, 
-            cliente: f.clienteNombre || (f.cliente && f.cliente.nombre) || "Cliente General",
-            total: f.total || f.totalVenta || 0,
-            numeroOrden: f.numeroOrden || f.numeroFactura || "S/N"
-        }))); 
+        res.json(facturas.map(f => {
+            // Buscamos el nombre en todas las posibles variables que vienen del cotizador
+            const nombreReal = f.clienteNombre || 
+                               f.nombreCliente || 
+                               (f.cliente && typeof f.cliente === 'string' ? f.cliente : null) ||
+                               (f.cliente && f.cliente.nombre ? f.cliente.nombre : null) || 
+                               "CLIENTE SIN NOMBRE";
+
+            return {
+                ...f, 
+                cliente: nombreReal.toUpperCase(), // Lo forzamos a mayúsculas para que se vea bien
+                total: f.total || f.totalVenta || 0,
+                numeroOrden: f.numeroOrden || f.numeroFactura || "S/N"
+            };
+        })); 
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
