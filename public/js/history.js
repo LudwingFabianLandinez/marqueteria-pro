@@ -184,41 +184,54 @@ async function generarReporteDiario() {
 
 // 6. EXPORTAR EXCEL (SE MANTIENE IGUAL)
 function exportarAExcel() {
-    if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
+    if (todasLasFacturas.length === 0) {
+        alert("No hay datos para exportar");
+        return;
+    }
     try {
-        let csvContent = "\uFEFFFecha,OT,Cliente,PRODUCTOS DETALLADOS,Total Venta,Saldo,Estado\n";
+        let csvContent = "\uFEFF"; 
+        // Cabecera profesional
+        csvContent += "Fecha,OT,Cliente,PRODUCTOS DETALLADOS,Total Venta,Saldo,Estado\n";
         
         todasLasFacturas.forEach(f => {
-            const materialesArr = f.materiales || f.items || f.detalles || [];
+            const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
+            const ot = typeof formatearNumeroOT === 'function' ? formatearNumeroOT(f) : (f.numeroOrden || '---');
+            const cliente = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, ''); 
             
-            // --- LÓGICA CONTUNDENTE PARA EXTRAER EL NOMBRE REAL ---
+            // --- EXTRACCIÓN CONTUNDENTE ---
+            // Leemos el arreglo 'items' que es como lo guarda tu función facturarVenta
+            const materialesArr = f.items || f.materiales || [];
+            
             const detalleProductos = materialesArr.map(m => {
-                // Buscamos el nombre en todas las propiedades posibles del objeto
-                // Si 'm.descripcion' es solo "MATERIAL", buscamos en m.nombre, m.tipo, m.producto, etc.
-                const nombreEncontrado = [m.nombre, m.producto, m.tipo, m.nombreProducto, m.material]
-                    .find(prop => prop && prop !== "MATERIAL") || "Material Genérico";
+                // Tu código de cotización guarda el nombre real en m.nombre
+                // Si m.nombre no existe por alguna razón, usamos m.descripcion
+                let nombreProducto = m.nombre || m.descripcion || "Material";
+                
+                // Limpieza final: si el nombre es "MATERIAL" (genérico), intentamos buscar otra pista
+                if (nombreProducto === "MATERIAL" && m.productoId) nombreProducto = "Ver ID: " + m.productoId;
 
-                const medida = m.medida || m.dimensiones || "";
-                return `${nombreEncontrado} ${medida ? '(' + medida + ')' : ''}`;
-            }).join(' / ').replace(/,/g, ''); // Unimos con / y limpiamos comas
-            // -------------------------------------------------------
+                const medidas = (m.ancho && m.largo) ? `${m.ancho}x${m.largo}` : "";
+                return `${nombreProducto} ${medidas ? '[' + medidas + ']' : ''}`;
+            }).join(' / ').replace(/,/g, ''); 
+            // ------------------------------
 
-            const total = Number(f.totalFactura || f.total || f.totalOrden) || 0;
+            const total = Number(f.totalFactura || f.total) || 0;
             const abono = Number(f.totalPagado || f.abono || 0);
             const saldo = total - abono;
-            const fechaStr = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
-            const clienteStr = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '');
-
-            csvContent += `${fechaStr},${formatearNumeroOT(f)},${clienteStr},${detalleProductos},${total},${saldo},${saldo <= 0 ? "PAGADO" : "ABONADO"}\n`;
+            const estado = saldo <= 0 ? "PAGADO" : "ABONADO";
+            
+            csvContent += `${fecha},${ot},${cliente},${detalleProductos},${total},${saldo},${estado}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `Reporte_Produccion_Detallado.csv`;
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Reporte_Marqueteria_Completo.csv`);
         link.click();
     } catch (error) { 
-        console.error("Error contundente en Excel:", error); 
+        console.error("Error en reporte:", error); 
+        alert("Error al generar el Excel");
     }
 }
 
