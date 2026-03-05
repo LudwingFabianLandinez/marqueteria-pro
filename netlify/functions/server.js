@@ -150,25 +150,39 @@ router.post('/quotes', async (req, res) => {
 });
 
 // --- GESTIÓN DE FACTURAS (MAPEO DE CLIENTE CORREGIDO) ---
+// --- GESTIÓN DE FACTURAS (MAPEO DE CLIENTE AGRESIVO v17.5.2) ---
 router.get('/invoices', async (req, res) => {
     try {
         const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
+        
         res.json(facturas.map(f => {
-            // Buscamos el nombre en todas las posibles variables que vienen del cotizador
-            const nombreReal = f.clienteNombre || 
-                               f.nombreCliente || 
-                               (f.cliente && typeof f.cliente === 'string' ? f.cliente : null) ||
-                               (f.cliente && f.cliente.nombre ? f.cliente.nombre : null) || 
-                               "CLIENTE SIN NOMBRE";
+            // Buscamos el nombre en todas las estructuras posibles (Front y DB)
+            let nombreReal = "CLIENTE SIN NOMBRE";
+
+            if (f.clienteNombre) {
+                nombreReal = f.clienteNombre;
+            } else if (f.nombreCliente) {
+                nombreReal = f.nombreCliente;
+            } else if (f.cliente) {
+                // Si 'f.cliente' es un objeto {nombre: '...'} sacamos el nombre
+                // Si es un string directo, lo usamos
+                nombreReal = (typeof f.cliente === 'object') ? (f.cliente.nombre || f.cliente.clienteNombre || "CLIENTE GENÉRICO") : f.cliente;
+            }
+
+            // Limpieza final: si el resultado es nulo o texto "null", volvemos al genérico
+            const nombreLimpio = (nombreReal && nombreReal !== "null" && nombreReal !== "undefined") 
+                ? String(nombreReal).toUpperCase() 
+                : "CLIENTE GENÉRICO";
 
             return {
                 ...f, 
-                cliente: nombreReal.toUpperCase(), // Lo forzamos a mayúsculas para que se vea bien
+                cliente: nombreLimpio, 
                 total: f.total || f.totalVenta || 0,
                 numeroOrden: f.numeroOrden || f.numeroFactura || "S/N"
             };
         })); 
     } catch (error) {
+        console.error("🚨 Error al mapear clientes en Historial:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
