@@ -24,30 +24,33 @@ const InvoiceSchema = new mongoose.Schema({
         default: "N/A"
     },
     items: [{
-        productoId: { 
-            type: mongoose.Schema.Types.ObjectId, 
-            ref: 'Material' 
-        },
-        materialNombre: { type: String, default: "Material no especificado" },
-        ancho: { type: Number, default: 0 },
-        largo: { type: Number, default: 0 },
-        area_m2: { type: Number, default: 0 }, 
+        productoId: { 
+            type: mongoose.Schema.Types.ObjectId, 
+            ref: 'Material' 
+        },
+        // 🔥 AGREGAMOS ESTOS DOS PARA COMPATIBILIDAD TOTAL:
+        nombre: { type: String, default: "MATERIAL" }, 
+        descripcion: { type: String, default: "MATERIAL" }, 
         
-        // --- SECCIÓN DE COSTOS POR ITEM ---
-        costo_base_unitario: { 
-            type: Number, 
-            default: 0 
-        }, // Precio de compra m2 (Costo real)
-        valor_material: { 
-            type: Number, 
-            default: 0 
-        }, // (costo_base_unitario * area_m2)
-        
-        total_item: { 
-            type: Number,
-            default: 0 
-        } // Precio de venta final del item (Sugerido al cliente)
-    }],
+        materialNombre: { type: String, default: "Material no especificado" },
+        ancho: { type: Number, default: 0 },
+        largo: { type: Number, default: 0 },
+        area_m2: { type: Number, default: 0 }, 
+        
+        // --- SECCIÓN DE COSTOS POR ITEM ---
+        costo_base_unitario: { 
+            type: Number, 
+            default: 0 
+        }, 
+        valor_material: { 
+            type: Number, 
+            default: 0 
+        }, 
+        total_item: { 
+            type: Number,
+            default: 0 
+        } 
+    }],
     
     // --- CAMPOS GLOBALES DE COSTO (Blindaje para Reportes) ---
     mano_obra_total: {
