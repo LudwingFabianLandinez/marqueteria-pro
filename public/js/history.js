@@ -184,48 +184,36 @@ async function generarReporteDiario() {
 
 // 6. EXPORTAR EXCEL (SE MANTIENE IGUAL)
 function exportarAExcel() {
-    if (todasLasFacturas.length === 0) {
-        alert("No hay datos para exportar");
-        return;
-    }
+    if (todasLasFacturas.length === 0) return alert("No hay datos para exportar");
     try {
-        let csvContent = "\uFEFF"; 
-        // 1. Definimos la cabecera con la columna "PRODUCTOS / MATERIALES"
-        csvContent += "Fecha,OT,Cliente,PRODUCTOS / MATERIALES,Total Venta,Saldo,Estado\n";
+        let csvContent = "\uFEFFFecha,OT,Cliente,Detalle de Productos,Total Venta,Saldo,Estado\n";
         
         todasLasFacturas.forEach(f => {
-            const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
-            const ot = formatearNumeroOT(f);
-            const cliente = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, ''); 
+            const materialesArr = f.materiales || f.items || f.detalles || [];
             
-            // 2. EXTRACCIÓN REAL DE MATERIALES:
-            // Buscamos en 'materiales' o 'items'. Recorremos cada uno para sacar su descripción o nombre.
-            const listaMateriales = (f.materiales || f.items || [])
-                .map(m => {
-                    // Priorizamos el nombre o descripción que NO sea la palabra genérica "MATERIAL"
-                    const nombreReal = m.nombre || m.descripcion || m.producto || "---";
-                    return `${nombreReal} (${m.medida || ''})`;
-                })
-                .join(' + ') // Los unimos con un signo + para que se vean claros en la celda
-                .replace(/,/g, ''); // Limpieza de comas para no romper las columnas del CSV
+            // BUSCO EL NOMBRE REAL: Si 'descripcion' dice "MATERIAL", busco en otras propiedades
+            const detalleProductos = materialesArr.map(m => {
+                const nombreLimpio = (m.nombreProducto || m.nombre || m.producto || m.tipo || "Material");
+                // Si la descripcion tiene algo util que no sea solo "MATERIAL", lo usamos, si no, usamos el nombreLimpio
+                const finalDesc = (m.descripcion && m.descripcion !== "MATERIAL") ? m.descripcion : nombreLimpio;
+                return `${finalDesc} (${m.medida || ''})`;
+            }).join(' / ').replace(/,/g, '');
 
             const total = Number(f.totalFactura || f.total || f.totalOrden) || 0;
             const abono = Number(f.totalPagado || f.abono || 0);
             const saldo = total - abono;
-            
-            // 3. Construimos la línea asegurándonos de que listaMateriales esté en su lugar
-            csvContent += `${fecha},${ot},${cliente},${listaMateriales},${total},${saldo},${saldo <= 0 ? "PAGADO" : "ABONADO"}\n`;
+            const fechaStr = f.fecha ? new Date(f.fecha).toLocaleDateString() : '---';
+            const clienteStr = (f.cliente?.nombre || f.clienteNombre || "Cliente").replace(/,/g, '');
+
+            csvContent += `${fechaStr},${formatearNumeroOT(f)},${clienteStr},${detalleProductos},${total},${saldo},${saldo <= 0 ? "PAGADO" : "ABONADO"}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Reporte_Detallado_Marqueteria.csv`);
+        link.href = URL.createObjectURL(blob);
+        link.download = `Reporte_Ventas_Detallado.csv`;
         link.click();
-    } catch (error) { 
-        console.error("Error al exportar materiales:", error); 
-    }
+    } catch (error) { console.error("Error Quirúrgico Excel:", error); }
 }
 
 // 7. RENDERIZADO DE TABLA (CORRECCIÓN DE BOTÓN VERDE)
