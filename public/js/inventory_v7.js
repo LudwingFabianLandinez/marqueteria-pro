@@ -677,20 +677,39 @@ if (formCompra) {
                 existente.categoria = categoriaDeterminada; 
             }
 
-            // --- 📏 LÓGICA DE COSTO (PRESERVADA) ---
+            // --- 📏 LÓGICA DE COSTO (PRESERVADA Y BLINDADA PARA VIDRIO) ---
             let costoFinalAtlas = costoIngresado;
-            const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || 
-    nombreUP.includes("TRIPLEX") || 
-    nombreUP.includes("CARTON") || 
-    nombreUP.includes("CARTÓN") || 
-    nombreUP.includes("MDF") || 
-    nombreUP.includes("MADERA") ||
-    nombreUP.includes("FOAM"));
+            
+            // 1. Identificación ultra-precisa de materiales de superficie
+            const esMaterialSuperficie = !esMoldura && (
+                esVidrio || 
+                esAcabado || 
+                categoriaDeterminada === "RESPALDO" ||
+                nombreUP.includes("TRIPLEX") || 
+                nombreUP.includes("CARTON") || 
+                nombreUP.includes("CARTÓN") || 
+                nombreUP.includes("MDF") || 
+                nombreUP.includes("MADERA") ||
+                nombreUP.includes("FOAM")
+            );
 
             if (esMaterialSuperficie) {
-                const areaM2 = (largoCm * anchoCm) / 10000;
+                // ASEGURAMOS CAPTURA: Si por algún motivo las variables vienen vacías, 
+                // las re-capturamos directamente del DOM para el cálculo matemático.
+                const largoCalculo = largoCm || parseFloat(document.getElementById('compraLargo')?.value) || 0;
+                const anchoCalculo = anchoCm || parseFloat(document.getElementById('compraAncho')?.value) || 0;
+                
+                const areaM2 = (largoCalculo * anchoCalculo) / 10000;
+
                 if (areaM2 > 0) {
+                    // DIVISIÓN MAESTRA: Costo total de la hoja / área total de la hoja = Costo por 1 m2
                     costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
+                    
+                    // AUDITORÍA EN CONSOLA (Para tu control)
+                    console.log(`🛡️ ATLAS-LOG [${nombreReal}]: Hoja de ${areaM2.toFixed(2)}m2 | Costo m2: ${costoFinalAtlas}`);
+                } else {
+                    // Si no hay medidas, mantenemos el costo ingresado pero avisamos
+                    console.warn(`⚠️ ATENCIÓN: ${nombreReal} no tiene medidas. Se guardará costo total.`);
                 }
             }
 
