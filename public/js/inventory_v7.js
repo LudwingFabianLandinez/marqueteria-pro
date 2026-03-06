@@ -440,20 +440,30 @@ renderTable(window.todosLosMateriales);
         let textoStock = "";
         
         if (esMoldura) {
-            // Cálculo físico para Molduras
-            const tiras = Math.floor(stockTotalM2 / 2.9);
-            const remML = (stockTotalM2 % 2.9).toFixed(2);
+            // Cálculo físico para Molduras con corrector de tiras completas
+            let tiras = Math.floor(stockTotalM2 / 2.9);
+            let remML = stockTotalM2 % 2.9;
+
+            // AJUSTE CRÍTICO: Si el remanente es igual o casi igual a 2.90, lo convertimos en tira
+            if (remML >= 2.89) { 
+                tiras += 1;
+                remML = 0;
+            }
+
             textoStock = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} ML</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${tiras} tiras + ${remML} rem
+                    ${tiras} tiras + ${remML.toFixed(2)} rem
                 </div>
             `;
         } else {
-            // Cálculo físico para Láminas/M2
+            // Cálculo físico para Láminas/M2 (Lógica preservada intacta)
             const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
             let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
+            
+            // Ajuste de precisión para M2
             if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+            
             textoStock = `
                 <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} M²</div>
                 <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
@@ -461,7 +471,7 @@ renderTable(window.todosLosMateriales);
                 </div>
             `;
         }
-
+        
         const sMin = parseFloat(m.stock_minimo) || 2;
         let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
         const idParaAcciones = m.id_referencia;
