@@ -805,7 +805,8 @@ if (formCompra) {
 function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
     const limpiarNombre = (t) => String(t).toUpperCase().trim();
     const nombreNormalizado = limpiarNombre(nombre);
-    const claveEscudo = `escudo_v18_${nombreNormalizado.replace(/\s+/g, '_')}`;
+    const claveEscudo = `es
+    cudo_v18_${nombreNormalizado.replace(/\s+/g, '_')}`;
 
     const filas = document.querySelectorAll('#inventoryTable tr');
     
