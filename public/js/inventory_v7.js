@@ -702,98 +702,106 @@ if (formCompra) {
     }
 }
 
-// --- CORRECCIÓN DINÁMICA ---
-            // Validamos el largo: si no hay, usamos 2.90m. 
-            // Si el valor es > 10, asumimos CM y dividimos por 100. Si es < 10, ya son metros.
-            const largoReferencia = (largoCm > 0) ? largoCm : 290;
-            const largoRealMetros = (esMoldura && largoReferencia > 10) ? (largoReferencia / 100) : largoReferencia;
+// --- CORRECCIÓN DINÁMICA DE PRECISIÓN ---
+// Validamos el largo: si no hay, usamos 2.90m. 
+// Si el valor es > 10, asumimos CM y dividimos por 100. Si es < 10, ya son metros.
+const largoReferencia = (largoCm > 0) ? largoCm : 290;
+const largoRealMetros = (esMoldura && largoReferencia > 10) ? (largoReferencia / 100) : largoReferencia;
 
-            // CALCULAMOS EL INCREMENTO BLINDADO (Asegura el 2.90 exacto)
-            const VALOR_REAL_INCREMENTO = esMoldura 
-                ? Number((cant * largoRealMetros).toFixed(4)) 
-                : Number(((largoCm * anchoCm / 10000) * cant).toFixed(4));
+// CALCULAMOS EL INCREMENTO BLINDADO (Asegura el 2.90 exacto)
+const VALOR_REAL_INCREMENTO = esMoldura 
+    ? Number((cant * largoRealMetros).toFixed(4)) 
+    : Number(((largoCm * anchoCm / 10000) * cant).toFixed(4));
 
-            const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
-            const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
+const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
+const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
-            // --- 📦 OBJETO PARA ATLAS (CON ID VINCULADO) ---
-            const datosParaAtlas = {
-                materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
-                nombre: nombreReal,
-                esNuevo: esNuevoMaterial,
-                categoria: categoriaDeterminada,
-                cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas,
-                ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                // Guardamos siempre el valor en escala CM para la base de datos
-                largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm,
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costoIngresado * cant,
-                timestamp: new Date().toISOString(),
-                _id: esNuevoMaterial ? undefined : idMasterAtlas 
-            };
+// --- 📦 OBJETO PARA ATLAS (CON ID VINCULADO) ---
+const datosParaAtlas = {
+    materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
+    nombre: nombreReal,
+    esNuevo: esNuevoMaterial,
+    categoria: categoriaDeterminada,
+    cantidad_laminas: cant,
+    precio_total_lamina: costoFinalAtlas,
+    // Forzamos ancho 100 para molduras en el objeto de Atlas para que cualquier 
+    // cálculo automático (ancho*largo/100) resulte en el valor real de ML.
+    ancho_lamina_cm: esMoldura ? 100 : anchoCm,
+    largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm,
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costoIngresado * cant,
+    timestamp: new Date().toISOString(),
+    _id: esNuevoMaterial ? undefined : idMasterAtlas 
+};
 
-            const response = await fetch(`${window.API_URL}/inventory/purchase`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(datosParaAtlas)
-            });
+const response = await fetch(`${window.API_URL}/inventory/purchase`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(datosParaAtlas)
+});
 
-            const textoRespuesta = await response.text();
-            let resultadoAtlas;
-            try { resultadoAtlas = JSON.parse(textoRespuesta); } catch (err) { throw new Error("Atlas no respondió JSON válido."); }
+const textoRespuesta = await response.text();
+let resultadoAtlas;
+try { resultadoAtlas = JSON.parse(textoRespuesta); } catch (err) { throw new Error("Atlas no respondió JSON válido."); }
 
-            if (!response.ok) throw new Error(resultadoAtlas.error || "Atlas rechazó la conexión.");
+if (!response.ok) throw new Error(resultadoAtlas.error || "Atlas rechazó la conexión.");
 
-            const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
-            let objetoFinal; 
+const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
+let objetoFinal; 
 
-            if (existente) {
-                // --- 🛡️ SUMA MATEMÁTICA PURA (Elimina el efecto 0.03) ---
-                const stockAnterior = Number(existente.stock_actual) || 0;
-                
-                // Sumamos el incremento blindado (2.90) al stock anterior (20.30)
-                const nuevoStockSuma = stockAnterior + VALOR_REAL_INCREMENTO;
-                existente.stock_actual = Number(nuevoStockSuma.toFixed(2));
-                
-                existente.precio_total_lamina = costoFinalAtlas;
-                existente.categoria = categoriaDeterminada;
-                if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
-                objetoFinal = existente;
-            } else {
-                const nuevoMaterial = {
-                    _id: idDeAtlas,
-                    id: idDeAtlas || `TEMP-${Date.now()}`,
-                    nombre: nombreReal,
-                    categoria: categoriaDeterminada,
-                    stock_actual: Number(VALOR_REAL_INCREMENTO.toFixed(2)),
-                    precio_total_lamina: costoFinalAtlas,
-                    ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                    largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm
-                };
-                window.todosLosMateriales.unshift(nuevoMaterial);
-                objetoFinal = nuevoMaterial;
-            }
+if (existente) {
+    // --- 🛡️ SUMA MATEMÁTICA PURA (Elimina el efecto 0.03) ---
+    const stockAnterior = Number(existente.stock_actual) || 0;
+    
+    // Sumamos el incremento blindado (2.90) al stock anterior (20.30)
+    const nuevoStockSuma = stockAnterior + VALOR_REAL_INCREMENTO;
+    existente.stock_actual = Number(nuevoStockSuma.toFixed(2));
+    
+    // Sincronizamos dimensiones para que renderTable no recalcule erróneamente
+    existente.ancho_lamina_cm = esMoldura ? 100 : anchoCm;
+    existente.largo_lamina_cm = esMoldura ? (largoRealMetros * 100) : largoCm;
 
-            // --- ⚓ ACTUALIZACIÓN INMEDIATA DE MEMORIA Y STORAGE ---
-            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-            
-            // Lógica de pendientes (Preservada íntegramente)
-            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-            pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
-            pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
-            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+    existente.precio_total_lamina = costoFinalAtlas;
+    existente.categoria = categoriaDeterminada;
+    if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
+    objetoFinal = existente;
+} else {
+    const nuevoMaterial = {
+        _id: idDeAtlas,
+        id: idDeAtlas || `TEMP-${Date.now()}`,
+        nombre: nombreReal,
+        categoria: categoriaDeterminada,
+        stock_actual: Number(VALOR_REAL_INCREMENTO.toFixed(2)),
+        precio_total_lamina: costoFinalAtlas,
+        ancho_lamina_cm: esMoldura ? 100 : anchoCm,
+        largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm
+    };
+    window.todosLosMateriales.unshift(nuevoMaterial);
+    objetoFinal = nuevoMaterial;
+}
 
-            // --- 🚀 RENDERIZADO INSTANTÁNEO ---
-            // Sincronizamos la UI antes del alert para ver el 23.20 de fondo
-            if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
-            
-            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ML\nStock Actual: ${objetoFinal.stock_actual.toFixed(2)} ML`);
-            
-            if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
-            formulario.reset();
+// --- ⚓ ACTUALIZACIÓN INMEDIATA DE MEMORIA Y STORAGE ---
+localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            if (typeof cargarListasModal === 'function') cargarListasModal();
+// Aplicamos el Ancla visual v18.3 inmediatamente para blindar la tabla
+if (typeof actualizarStockEnTablaVisual === 'function') {
+    actualizarStockEnTablaVisual(nombreReal, VALOR_REAL_INCREMENTO, esMoldura ? 'ML' : 'M2');
+}
+
+// Lógica de pendientes (Preservada íntegramente)
+let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
+pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
+localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+
+// --- 🚀 RENDERIZADO INSTANTÁNEO ---   
+if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
+
+alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nStock Actual: ${objetoFinal.stock_actual.toFixed(2)}`);
+
+if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
+formulario.reset();
+if (typeof cargarListasModal === 'function') cargarListasModal();
 
         } catch (error) {
             console.error("❌ Error en Proceso de Compra:", error);
