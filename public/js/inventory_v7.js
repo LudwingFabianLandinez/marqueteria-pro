@@ -702,9 +702,13 @@ if (formCompra) {
     }
 }
 
-            let stockASumar = esMoldura 
-                ? (cant * 2.90) 
-                : ((largoCm * anchoCm / 10000) * cant);
+            // --- CORRECCIÓN DINÁMICA ---
+// Si es moldura, validamos si se ingresó un largo; si no, usamos 2.90m por defecto.
+const largoRealMoldura = (esMoldura && largoCm > 0) ? (largoCm / 100) : 2.90; 
+
+let stockASumar = esMoldura 
+    ? (cant * largoRealMoldura) // Ahora multiplica Cantidad x Largo Real (en metros)
+    : ((largoCm * anchoCm / 10000) * cant); // M2 para Vidrios/Respaldos
 
             const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
@@ -718,11 +722,11 @@ if (formCompra) {
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas,
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                largo_lamina_cm: esMoldura ? 290 : largoCm,
+                // Dentro de datosParaAtlas:
+                largo_lamina_cm: esMoldura ? (largoCm || 290) : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
                 costo_total: costoIngresado * cant,
                 timestamp: new Date().toISOString(),
-                // Importante: Si no es nuevo, enviamos el ID original para que Atlas haga un UPDATE y no un INSERT
                 _id: esNuevoMaterial ? undefined : idMasterAtlas 
             };
 
