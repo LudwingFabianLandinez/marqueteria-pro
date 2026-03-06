@@ -883,36 +883,59 @@ window.cargarListasModal = function() {
             const nombreUP = String(m.nombre).toUpperCase().trim();
             const stockActual = Number(m.stock_actual) || 0;
 
-            // 1. SI YA VIMOS EL NOMBRE, SALTAMOS (Evita que el de stock 0 entre si ya está el de stock real)
+            // 1. SI YA VIMOS EL NOMBRE, SALTAMOS (Evita duplicados)
             if (nombresVistos.has(nombreUP)) return;
 
-            // 2. FILTRO FANTASMA: Si no tiene stock y es categoría GENERAL, lo ignoramos de las listas
-            // Esto evita que "CHAPILLA AFRICANA (GENERAL)" aparezca si existe la de categoría ACABADO
+            // 2. FILTRO FANTASMA: (Preservado íntegramente)
             if (stockActual <= 0 && (m.categoria === "GENERAL" || !m.categoria)) return;
 
             nombresVistos.add(nombreUP);
             
-            // --- 📏 LÓGICA DE COSTO VISUAL ---
-            const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : ` (${stockActual.toFixed(2)} M2)`;
+            // --- 📏 LÓGICA DE DESGLOSE INTELIGENTE PARA EL SELECT ---
+            const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA") || m.categoria === "MOLDURAS";
+            let desgloseTexto = "";
+
+            if (stockActual > 0) {
+                if (esMoldura) {
+                    // Desglose para Molduras (Tiras de 2.90m)
+                    const tiras = Math.floor(stockActual / 2.9);
+                    const remML = (stockActual % 2.9).toFixed(2);
+                    desgloseTexto = ` (${stockActual.toFixed(2)} ML | ${tiras} und + ${remML} rem)`;
+                } else {
+                    // Desglose para M2 (Usando dimensiones del material si existen)
+                    const largoM = (Number(m.largo_lamina_cm || m.largo) || 0) / 100;
+                    const anchoM = (Number(m.ancho_lamina_cm || m.ancho) || 0) / 100;
+                    const areaM2 = largoM * anchoM;
+
+                    if (areaM2 > 0) {
+                        const unds = Math.floor(stockActual / areaM2);
+                        const remM2 = (stockActual % areaM2).toFixed(2);
+                        desgloseTexto = ` (${stockActual.toFixed(2)} M2 | ${unds} und + ${remM2} rem)`;
+                    } else {
+                        desgloseTexto = ` (${stockActual.toFixed(2)} M2)`;
+                    }
+                }
+            }
+
+            const stockTxt = (stockActual <= 0) ? " (SIN STOCK)" : desgloseTexto;
             const styleColor = (stockActual <= 0) ? 'style="color: #dc2626;"' : ''; 
             
             const optionHtml = `<option value="${id}" ${styleColor}>${nombreUP}${stockTxt}</option>`;
 
-            // --- LA REGLA UNIFICADA INTEGRADA (No tocar lo anterior) ---
+            // --- LA REGLA UNIFICADA INTEGRADA (Sin omitir nada) ---
             const esFondoRespaldo = nombreUP.includes("TRIPLEX") || 
                                     nombreUP.includes("CARTON") || 
                                     nombreUP.includes("CARTÓN") || 
                                     nombreUP.includes("MDF") ||
                                     nombreUP.includes("MADERA");
             
-            const esMoldura = nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
-            
             const esAcabadoEspecial = nombreUP.includes("CHAPILLA") || 
                                       nombreUP.includes("AFRICANA") || 
-                                      nombreUP.includes("PASSEPARTOUT");
+                                      nombreUP.includes("PASSEPARTOUT") ||
                                       nombreUP.includes("LONA") ||
                                       nombreUP.includes("TELA");
-            // ASIGNACIÓN POR CATEGORÍA
+
+            // ASIGNACIÓN POR CATEGORÍA (Mantenida exactamente igual)
             if (esFondoRespaldo) {
                 htmlRespaldos += optionHtml;
             } 
@@ -925,7 +948,7 @@ window.cargarListasModal = function() {
 
             htmlCompras += optionHtml;
         });
-
+        
         // Inyectamos respetando la integridad del DOM
         if (selVidrio) selVidrio.innerHTML = htmlVidrios;
         if (selRespaldo) selRespaldo.innerHTML = htmlRespaldos;
