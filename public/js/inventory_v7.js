@@ -678,16 +678,19 @@ if (formCompra) {
             }
 
             // --- 📏 LÓGICA DE COSTO (PRESERVADA Y UNIFICADA) ---
+            // --- 📏 LÓGICA DE COSTO (PRESERVADA Y UNIFICADA) ---
             let costoFinalAtlas = costoIngresado;
             
             // 1. Identificación ultra-precisa de materiales de superficie
-            // Se añade detección de "ESPEJO" y se mantiene "esVidrio" para unificar la sección
+            // Reforzamos la detección de Espejo y Vidrio para que actúen como el Antirreflectivo
             const esMaterialSuperficie = !esMoldura && (
                 esVidrio || 
-                nombreUP.includes("ESPEJO") || // <--- Asegura la Lámina de Espejo 3mm
+                nombreUP.includes("ESPEJO") || 
+                nombreUP.includes("ANTIRREFLECTIVO") ||
+                nombreUP.includes("CRISTAL") ||
                 esAcabado || 
                 categoriaDeterminada === "RESPALDO" ||
-                categoriaDeterminada === "VIDRIO" ||   // <--- Refuerzo por categoría
+                categoriaDeterminada === "VIDRIO" ||
                 nombreUP.includes("TRIPLEX") || 
                 nombreUP.includes("CARTON") || 
                 nombreUP.includes("CARTÓN") || 
@@ -705,15 +708,15 @@ if (formCompra) {
                 const areaM2 = (largoCalculo * anchoCalculo) / 10000;
 
                 if (areaM2 > 0) {
-                    // DIVISIÓN MAESTRA: Costo total de la hoja / área total de la hoja = Costo por 1 m2
-                    // Esto garantiza que el Vidrio 2mm y Espejo 3mm den el costo base correcto
+                    // DIVISIÓN MAESTRA: Si el Antirreflectivo funciona, esta misma fórmula
+                    // ahora corregirá al Vidrio 2mm y Espejo 3mm.
                     costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
                     
                     // AUDITORÍA EN CONSOLA (Para tu control de integridad)
                     console.log(`🛡️ ATLAS-LOG [${nombreReal}]: Hoja de ${areaM2.toFixed(2)}m2 | Costo m2: ${costoFinalAtlas}`);
                 } else {
                     // Si no hay medidas, mantenemos el costo ingresado pero avisamos
-                    console.warn(`⚠️ ATENCIÓN: ${nombreReal} es superficie pero no tiene medidas. Se guardará costo total.`);
+                    console.warn(`⚠️ ATENCIÓN: ${nombreReal} es superficie pero no tiene medidas detectadas. Se guardará costo total.`);
                 }
             }
 
