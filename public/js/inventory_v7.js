@@ -702,15 +702,18 @@ if (formCompra) {
     }
 }
 
-// --- CORRECCIÓN DINÁMICA DE PRECISIÓN ---
+// --- CORRECCIÓN DINÁMICA DE PRECISIÓN BLINDADA ---
 // Validamos el largo: si no hay, usamos 2.90m. 
-// Si el valor es > 10, asumimos CM y dividimos por 100. Si es < 10, ya son metros.
 const largoReferencia = (largoCm > 0) ? largoCm : 290;
-const largoRealMetros = (esMoldura && largoReferencia > 10) ? (largoReferencia / 100) : largoReferencia;
 
-// CALCULAMOS EL INCREMENTO BLINDADO (Asegura el 2.90 exacto)
+// Determinamos el factor de escala: si es moldura, forzamos escala 100 para evitar el error 0.03
+const factorAnchoEscala = esMoldura ? 100 : anchoCm;
+
+// CALCULAMOS EL INCREMENTO REAL (ML para molduras, M2 para el resto)
+// Si es moldura: (cant * 290) / 100 = 2.90 ML
+// Si es material: (largo * ancho / 10000) * cant = X M2
 const VALOR_REAL_INCREMENTO = esMoldura 
-    ? Number((cant * largoRealMetros).toFixed(4)) 
+    ? Number((cant * (largoReferencia / 100)).toFixed(4)) 
     : Number(((largoCm * anchoCm / 10000) * cant).toFixed(4));
 
 const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
@@ -724,10 +727,9 @@ const datosParaAtlas = {
     categoria: categoriaDeterminada,
     cantidad_laminas: cant,
     precio_total_lamina: costoFinalAtlas,
-    // Forzamos ancho 100 para molduras en el objeto de Atlas para que cualquier 
-    // cálculo automático (ancho*largo/100) resulte en el valor real de ML.
-    ancho_lamina_cm: esMoldura ? 100 : anchoCm,
-    largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm,
+    // ESCUDO DE CÁLCULO: Forzamos 100 para que (100 * 290 / 10000) sea 2.90 ML
+    ancho_lamina_cm: factorAnchoEscala,
+    largo_lamina_cm: largoReferencia,
     tipo_material: esMoldura ? 'ml' : 'm2',
     costo_total: costoIngresado * cant,
     timestamp: new Date().toISOString(),
@@ -753,13 +755,13 @@ if (existente) {
     // --- 🛡️ SUMA MATEMÁTICA PURA (Elimina el efecto 0.03) ---
     const stockAnterior = Number(existente.stock_actual) || 0;
     
-    // Sumamos el incremento blindado (2.90) al stock anterior (20.30)
+    // Sumamos el incremento directo (ej. 2.90)
     const nuevoStockSuma = stockAnterior + VALOR_REAL_INCREMENTO;
     existente.stock_actual = Number(nuevoStockSuma.toFixed(2));
     
-    // Sincronizamos dimensiones para que renderTable no recalcule erróneamente
-    existente.ancho_lamina_cm = esMoldura ? 100 : anchoCm;
-    existente.largo_lamina_cm = esMoldura ? (largoRealMetros * 100) : largoCm;
+    // Sincronizamos dimensiones en memoria local para que renderTable use el factor 100
+    existente.ancho_lamina_cm = factorAnchoEscala;
+    existente.largo_lamina_cm = largoReferencia;
 
     existente.precio_total_lamina = costoFinalAtlas;
     existente.categoria = categoriaDeterminada;
@@ -773,8 +775,8 @@ if (existente) {
         categoria: categoriaDeterminada,
         stock_actual: Number(VALOR_REAL_INCREMENTO.toFixed(2)),
         precio_total_lamina: costoFinalAtlas,
-        ancho_lamina_cm: esMoldura ? 100 : anchoCm,
-        largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm
+        ancho_lamina_cm: factorAnchoEscala,
+        largo_lamina_cm: largoReferencia
     };
     window.todosLosMateriales.unshift(nuevoMaterial);
     objetoFinal = nuevoMaterial;
@@ -783,7 +785,8 @@ if (existente) {
 // --- ⚓ ACTUALIZACIÓN INMEDIATA DE MEMORIA Y STORAGE ---
 localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-// Aplicamos el Ancla visual v18.3 inmediatamente para blindar la tabla
+// --- 🚀 ESCUDO VISUAL v18.3 ---
+// Forzamos la actualización de la celda específica antes de redibujar todo
 if (typeof actualizarStockEnTablaVisual === 'function') {
     actualizarStockEnTablaVisual(nombreReal, VALOR_REAL_INCREMENTO, esMoldura ? 'ML' : 'M2');
 }
@@ -794,10 +797,10 @@ pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowe
 pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
 localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-// --- 🚀 RENDERIZADO INSTANTÁNEO ---   
+// --- 🚀 RENDERIZADO FINAL ---   
 if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
 
-alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nStock Actual: ${objetoFinal.stock_actual.toFixed(2)}`);
+alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nStock Total: ${objetoFinal.stock_actual.toFixed(2)}`);
 
 if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
 formulario.reset();
