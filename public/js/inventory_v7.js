@@ -702,13 +702,14 @@ if (formCompra) {
     }
 }
 
-            // --- CORRECCIÓN DINÁMICA ---
-// Si es moldura, validamos si se ingresó un largo; si no, usamos 2.90m por defecto.
-const largoRealMoldura = (esMoldura && largoCm > 0) ? (largoCm / 100) : 2.90; 
+// --- CORRECCIÓN DINÁMICA ---
+            // Si es moldura, validamos si se ingresó un largo; si no, usamos 2.90m por defecto.
+            const largoRealMoldura = (esMoldura && largoCm > 0) ? (largoCm / 100) : 2.90; 
 
-let stockASumar = esMoldura 
-    ? (cant * largoRealMoldura) // Ahora multiplica Cantidad x Largo Real (en metros)
-    : ((largoCm * anchoCm / 10000) * cant); // M2 para Vidrios/Respaldos
+            // Calculamos el incremento exacto
+            let stockASumar = esMoldura 
+                ? (cant * largoRealMoldura) // Ahora multiplica Cantidad x Largo Real (en metros)
+                : ((largoCm * anchoCm / 10000) * cant); // M2 para Vidrios/Respaldos
 
             const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
@@ -722,7 +723,6 @@ let stockASumar = esMoldura
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas,
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                // Dentro de datosParaAtlas:
                 largo_lamina_cm: esMoldura ? (largoCm || 290) : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
                 costo_total: costoIngresado * cant,
@@ -746,9 +746,10 @@ let stockASumar = esMoldura
             let objetoFinal; 
 
             if (existente) {
-                // Forzamos Number para asegurar que 14.50 + 2.90 sea 17.40 y no 14.502.90
+                // --- 🛡️ SUMA QUIRÚRGICA (Arregla el error de los 0.03) ---
                 const stockAnterior = Number(existente.stock_actual) || 0;
-                existente.stock_actual = stockAnterior + stockASumar;
+                // Forzamos la suma matemática y redondeamos a 2 decimales inmediatamente
+                existente.stock_actual = Number((stockAnterior + stockASumar).toFixed(2));
                 
                 existente.precio_total_lamina = costoFinalAtlas;
                 existente.categoria = categoriaDeterminada;
@@ -760,7 +761,7 @@ let stockASumar = esMoldura
                     id: idDeAtlas || `TEMP-${Date.now()}`,
                     nombre: nombreReal,
                     categoria: categoriaDeterminada,
-                    stock_actual: stockASumar,
+                    stock_actual: Number(stockASumar.toFixed(2)),
                     precio_total_lamina: costoFinalAtlas,
                     ancho_lamina_cm: esMoldura ? 1 : anchoCm,
                     largo_lamina_cm: esMoldura ? (largoCm || 290) : largoCm
@@ -772,16 +773,16 @@ let stockASumar = esMoldura
             // --- ⚓ ACTUALIZACIÓN INMEDIATA DE MEMORIA Y STORAGE ---
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // Lógica de pendientes (Preservada)
+            // Lógica de pendientes (Preservada íntegramente)
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
             // --- 🚀 RENDERIZADO INSTANTÁNEO ---
-            // Renderizamos la tabla antes del alert para que el usuario vea el cambio al fondo de inmediato
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
+            // Confirmación visual con el valor real del objetoFinal
             alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nNuevo Stock: ${objetoFinal.stock_actual.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
             
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
