@@ -685,17 +685,14 @@ if (formCompra) {
             // Reforzamos la detección de Espejo y Vidrio para que actúen como el Antirreflectivo
             const esMaterialSuperficie = !esMoldura && (
                 esVidrio || 
-                nombreUP.includes("ESPEJO") || 
-                nombreUP.includes("ANTIRREFLECTIVO") ||
-                nombreUP.includes("CRISTAL") ||
+                nombreUP.includes("VIDRIO") ||        // <--- Asegura Vidrio 2mm
+                nombreUP.includes("ESPEJO") ||        // <--- Asegura Espejo 3mm
+                nombreUP.includes("ANTIRREFLECTIVO") || // El que ya funciona
                 esAcabado || 
                 categoriaDeterminada === "RESPALDO" ||
                 categoriaDeterminada === "VIDRIO" ||
                 nombreUP.includes("TRIPLEX") || 
-                nombreUP.includes("CARTON") || 
-                nombreUP.includes("CARTÓN") || 
                 nombreUP.includes("MDF") || 
-                nombreUP.includes("MADERA") ||
                 nombreUP.includes("FOAM")
             );
 
