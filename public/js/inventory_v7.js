@@ -843,7 +843,7 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
 
                 // --- 🚀 PASO 2: ACTUALIZAR MEMORIA VOLÁTIL ---
                 if (window.todosLosMateriales) {
-                    const idx = window.todosLos_Materiales.findIndex(m => limpiarNombre(m.nombre) === nombreNormalizado);
+                    const idx = window.todosLosMateriales.findIndex(m => limpiarNombre(m.nombre) === nombreNormalizado);
                     if (idx !== -1) {
                         window.todosLosMateriales[idx].stock_actual = nuevoValor;
                         localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
