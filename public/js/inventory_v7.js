@@ -703,12 +703,14 @@ if (formCompra) {
 }
 
 // --- CORRECCIÓN DINÁMICA ---
-            // Si es moldura, validamos si se ingresó un largo; si no, usamos 2.90m por defecto.
-            const largoRealMoldura = (esMoldura && largoCm > 0) ? (largoCm / 100) : 2.90; 
+            // Validamos el largo: si no hay, usamos 2.90m. 
+            // Si el valor es > 10, asumimos CM y dividimos por 100. Si es < 10, ya son metros.
+            const largoReferencia = (largoCm > 0) ? largoCm : 290;
+            const largoRealMetros = (esMoldura && largoReferencia > 10) ? (largoReferencia / 100) : largoReferencia;
 
-            // CALCULAMOS EL INCREMENTO BLINDADO (Evita el error del 0.03)
+            // CALCULAMOS EL INCREMENTO BLINDADO (Asegura el 2.90 exacto)
             const VALOR_REAL_INCREMENTO = esMoldura 
-                ? Number((cant * largoRealMoldura).toFixed(4)) 
+                ? Number((cant * largoRealMetros).toFixed(4)) 
                 : Number(((largoCm * anchoCm / 10000) * cant).toFixed(4));
 
             const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
@@ -723,7 +725,8 @@ if (formCompra) {
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas,
                 ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                largo_lamina_cm: esMoldura ? (largoCm || 290) : largoCm,
+                // Guardamos siempre el valor en escala CM para la base de datos
+                largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm,
                 tipo_material: esMoldura ? 'ml' : 'm2',
                 costo_total: costoIngresado * cant,
                 timestamp: new Date().toISOString(),
@@ -749,7 +752,7 @@ if (formCompra) {
                 // --- 🛡️ SUMA MATEMÁTICA PURA (Elimina el efecto 0.03) ---
                 const stockAnterior = Number(existente.stock_actual) || 0;
                 
-                // Sumamos el incremento blindado y redondeamos a 2 decimales para la visual
+                // Sumamos el incremento blindado (2.90) al stock anterior (20.30)
                 const nuevoStockSuma = stockAnterior + VALOR_REAL_INCREMENTO;
                 existente.stock_actual = Number(nuevoStockSuma.toFixed(2));
                 
@@ -766,7 +769,7 @@ if (formCompra) {
                     stock_actual: Number(VALOR_REAL_INCREMENTO.toFixed(2)),
                     precio_total_lamina: costoFinalAtlas,
                     ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                    largo_lamina_cm: esMoldura ? (largoCm || 290) : largoCm
+                    largo_lamina_cm: esMoldura ? (largoRealMetros * 100) : largoCm
                 };
                 window.todosLosMateriales.unshift(nuevoMaterial);
                 objetoFinal = nuevoMaterial;
@@ -782,10 +785,10 @@ if (formCompra) {
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
             // --- 🚀 RENDERIZADO INSTANTÁNEO ---
-            // Sincronizamos la UI antes del alert
+            // Sincronizamos la UI antes del alert para ver el 23.20 de fondo
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nNuevo Stock: ${objetoFinal.stock_actual.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
+            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ML\nStock Actual: ${objetoFinal.stock_actual.toFixed(2)} ML`);
             
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
