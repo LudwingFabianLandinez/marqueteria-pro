@@ -746,7 +746,10 @@ let stockASumar = esMoldura
             let objetoFinal; 
 
             if (existente) {
-                existente.stock_actual = (Number(existente.stock_actual) || 0) + stockASumar;
+                // Forzamos Number para asegurar que 14.50 + 2.90 sea 17.40 y no 14.502.90
+                const stockAnterior = Number(existente.stock_actual) || 0;
+                existente.stock_actual = stockAnterior + stockASumar;
+                
                 existente.precio_total_lamina = costoFinalAtlas;
                 existente.categoria = categoriaDeterminada;
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
@@ -760,23 +763,27 @@ let stockASumar = esMoldura
                     stock_actual: stockASumar,
                     precio_total_lamina: costoFinalAtlas,
                     ancho_lamina_cm: esMoldura ? 1 : anchoCm,
-                    largo_lamina_cm: esMoldura ? 290 : largoCm
+                    largo_lamina_cm: esMoldura ? (largoCm || 290) : largoCm
                 };
                 window.todosLosMateriales.unshift(nuevoMaterial);
                 objetoFinal = nuevoMaterial;
             }
 
+            // --- ⚓ ACTUALIZACIÓN INMEDIATA DE MEMORIA Y STORAGE ---
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             
-            // Lógica de pendientes
+            // Lógica de pendientes (Preservada)
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
+            // --- 🚀 RENDERIZADO INSTANTÁNEO ---
+            // Renderizamos la tabla antes del alert para que el usuario vea el cambio al fondo de inmediato
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
             
-            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nCategoría: ${categoriaDeterminada}`);
+            alert(`✅ ¡LOGRADO!\n${nombreReal} sincronizado.\nNuevo Stock: ${objetoFinal.stock_actual.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
+            
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
 
