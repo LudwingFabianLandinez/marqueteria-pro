@@ -49,11 +49,6 @@
 
     // --- SECCIÓN UTILIDADES DE RECONCILIACIÓN (NUEVO GANCHO) ---
 
-    /**
-     * Calcula el stock sumando lo que dice el servidor + compras locales no sincronizadas
-     * Blindaje: No altera el objeto original del servidor, solo el valor visual.
-     */
-    // PEGA ESTO EN SU LUGAR (Versión v13.4.49) [cite: 784, 792]
     function calcularStockReal(material) {
         let stockServidor = parseFloat(material.stock_actual) || 0;
         const comprasLocales = JSON.parse(localStorage.getItem('bitacora_compras') || '[]');
@@ -684,13 +679,13 @@ if (formCompra) {
 
             // --- 📏 LÓGICA DE COSTO (PRESERVADA) ---
             let costoFinalAtlas = costoIngresado;
-            const esMaterialSuperficie = !esMoldura && (esAcabado || 
-                                         nombreUP.includes("TRIPLEX") || 
-                                         nombreUP.includes("CARTON") || 
-                                         nombreUP.includes("CARTÓN") || 
-                                         nombreUP.includes("MDF") || 
-                                         nombreUP.includes("MADERA") ||
-                                         nombreUP.includes("FOAM"));
+            const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || 
+    nombreUP.includes("TRIPLEX") || 
+    nombreUP.includes("CARTON") || 
+    nombreUP.includes("CARTÓN") || 
+    nombreUP.includes("MDF") || 
+    nombreUP.includes("MADERA") ||
+    nombreUP.includes("FOAM"));
 
             if (esMaterialSuperficie) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
