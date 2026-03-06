@@ -714,7 +714,7 @@ const factorAnchoEscala = esMoldura ? 100 : anchoCm;
 // Si es material: (largo * ancho / 10000) * cant = X M2
 const VALOR_REAL_INCREMENTO = esMoldura 
     ? Number((cant * (largoReferencia / 100)).toFixed(4)) 
-    : Number(((largoCm * anchoCm / 10000) * cant).toFixed(4));
+    : Number(((largoCm * anchoCm / 10000) * cant).toFixed(2));
 
 const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
 const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
@@ -728,7 +728,7 @@ const datosParaAtlas = {
     cantidad_laminas: cant,
     precio_total_lamina: costoFinalAtlas,
     // ESCUDO DE CÁLCULO: Forzamos 100 para que (100 * 290 / 10000) sea 2.90 ML
-    ancho_lamina_cm: factorAnchoEscala,
+    ancho_lamina_cm: esMoldura ? 100 : factorAnchoEscala,
     largo_lamina_cm: largoReferencia,
     tipo_material: esMoldura ? 'ml' : 'm2',
     costo_total: costoIngresado * cant,
