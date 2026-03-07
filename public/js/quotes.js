@@ -194,20 +194,40 @@ async function procesarCotizacion() {
             'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
         ];
 
+        // 1. Mapeo inteligente con Blindaje Multi-Campo (Sincronizado con Material.js)
         let materialesSeleccionados = selectsIds
             .map(id => {
                 const el = document.getElementById(id);
-                if (!el || !el.value) return null;
+                if (!el || !el.value || el.value === "") return null;
+                
                 const opcion = el.options[el.selectedIndex];
+                if (!opcion) return null;
+
+                // --- 🛡️ EXTRACCIÓN DE COSTO MULTI-ORIGEN ---
+                // Buscamos en 'costo', 'costom2' y 'precio' por si el backend cambió el nombre
+                const costoExtraido = parseFloat(opcion.dataset.costo) || 
+                                     parseFloat(opcion.dataset.costom2) || 
+                                     parseFloat(opcion.dataset.precio) || 0;
+
+                const nombreMat = (opcion.text || "").toUpperCase();
+                const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
+                
+                // --- 📏 DETECCIÓN DE UNIDAD (Lógica Material.js) ---
+                // Si la categoría o el nombre dicen MOLDURA/MARCO, es ML obligatoriamente
+                const esML = categoriaMat.includes("MOLDURA") || 
+                             nombreMat.includes("MOLDURA") || 
+                             nombreMat.includes("MARCO") || 
+                             opcion.dataset.unidad === 'ml';
+
                 return {
                     id: el.value,
                     nombre: opcion.text.split('(')[0].trim(),
-                    costoUnitario: parseFloat(opcion.dataset.costo) || 0,
-                    unidad: opcion.dataset.unidad || 'M2' 
+                    costoUnitario: costoExtraido,
+                    unidad: esML ? 'ML' : 'M2'
                 };
             })
-            .filter(m => m !== null);
-
+            .filter(m => m !== null && m.costoUnitario > 0); // Solo materiales con precio real
+            
         // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS ---
         // Buscamos el elemento de la moldura por ID o por clase de buscador
         const elMoldura = document.getElementById('materialMolduraId') || document.querySelector('.select2-hidden-accessible');
