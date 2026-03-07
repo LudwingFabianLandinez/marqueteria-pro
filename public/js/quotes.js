@@ -222,18 +222,24 @@ async function procesarCotizacion() {
 
         let costoBaseLocal = 0;
 
-        // Lógica Híbrida: ML para Molduras, M2 para el resto
+        // --- BLOQUE QUIRÚRGICO: Lógica Híbrida Consolidada ---
         materialesSeleccionados.forEach(m => {
-            if (m.unidad === 'ML') {
+            const nombreM = (m.nombre || "").toUpperCase();
+            // Verificamos si es ML por unidad o por palabras clave (Moldura/Marco/Códigos)
+            const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.includes("2312") || nombreM.includes("2311");
+
+            if (esML) {
+                // Se suma al costo base usando Perímetro
                 costoBaseLocal += (m.costoUnitario * perimetroCalculado);
                 console.log(`📏 Calculando ML para ${m.nombre}: ${perimetroCalculado}m`);
             } else {
+                // Se suma al costo base usando Área
                 costoBaseLocal += (m.costoUnitario * areaCalculada);
                 console.log(`🔳 Calculando M2 para ${m.nombre}: ${areaCalculada}m²`);
             }
         });
 
-        // Simulamos respuesta de dataFinal para mantener compatibilidad con tu diseño
+        // dataFinal mantiene la compatibilidad absoluta con tu diseño actual
         let dataFinal = {
             valor_materiales: costoBaseLocal,
             area: areaCalculada,
@@ -244,7 +250,10 @@ async function procesarCotizacion() {
         };
 
         dataFinal.detalles.materiales = materialesSeleccionados;
+        
+        // Aquí se cumple tu regla: La suma de materiales (incluida la moldura) se multiplica por 3
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
+        
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
