@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const unidad = (m.unidad || m.tipo || "m2").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
                     
-                    const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
+                    const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.startsWith("K ");
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${unidad})`;
                     
@@ -142,14 +142,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return n.includes("PASPARTU") || n.includes("PASSEPARTOUT") || n.includes("CARTULINA");
             });
             
+            // --- 🛡️ REPARTO DE MOLDURAS (FILTRO REFORZADO PARA "K ") ---
             llenar(selects.Marco, m => {
                 const n = (m.nombre || "").toUpperCase();
                 const u = (m.unidad || m.tipo || "").toUpperCase();
                 const c = (m.categoria || "").toUpperCase();
+                
+                // Si el nombre empieza con K, ES MOLDURA sí o sí
+                const esK = n.startsWith("K ");
                 const esMolduraPorNombre = n.includes("MOLDURA") || n.includes("MARCO") || n.includes("MADERA") || n.includes("2312");
                 const esMolduraPorUnidad = u === "ML";
                 const esMolduraPorCategoria = c.includes("MOLDURA") || c.includes("MARCO");
-                return esMolduraPorNombre || esMolduraPorUnidad || esMolduraPorCategoria;
+                
+                return esK || esMolduraPorNombre || esMolduraPorUnidad || esMolduraPorCategoria;
             }, true);
             
             llenar(selects.Foam, m => (m.nombre || "").toUpperCase().includes("FOAM"));
