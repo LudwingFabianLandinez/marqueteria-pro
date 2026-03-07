@@ -518,29 +518,32 @@
     }
 
     // 4. OBJETO PARA ATLAS (Sincronizado para BLOQUEAR la doble división)
-    const nuevoMaterial = {
-        materialId: "NUEVO", 
-        id: "NUEVO", 
-        nombre: nombre, // El nombre mantiene el "160 X 220" visible
-        categoria: categoria,
-        
-        // --- 🛡️ BLINDAJE ANTI-8716 ---
-        // Enviamos el costo unitario ya calculado como base.
-        costo_base: costoUnitarioFinal, 
-        precio_m2_costo: costoUnitarioFinal, 
-        precio_total_lamina: precioCompra,
+    // --- 🛡️ MEJORA: VISIBILIDAD EN COTIZADOR SIN DAÑAR BLINDAJE ---
+    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
+    const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
-        // Forzamos 100x100 para que el área en la base de datos sea 1.0.
-        // Esto evita que el Dashboard vuelva a dividir por 3.52.
-        // Resultado: 30.682 / 1.0 = 30.682 (Valor correcto del Excel).
-        ancho_lamina_cm: 100, 
-        largo_lamina_cm: 100, 
-        
-        stock_actual: 0,
-        unidad: esMoldura ? "ML" : "M2",
-        tipo_material: esMoldura ? 'ml' : 'm2',
-        estado: 'Activo'
-    };
+    const nuevoMaterial = {
+        materialId: "NUEVO", 
+        id: "NUEVO", 
+        nombre: nombre, // El nombre mantiene el "160 X 220" visible
+        categoria: categoriaParaCotizador, // <--- Esto hace que aparezca en el Cotizador
+        
+        // --- 🛡️ BLINDAJE ANTI-8716 (CONSERVADO) ---
+        // Enviamos el costo unitario ya calculado como base.
+        costo_base: costoUnitarioFinal, 
+        precio_m2_costo: costoUnitarioFinal, 
+        precio_total_lamina: precioCompra,
+
+        // Forzamos 100x100 para que el área en la base de datos sea 1.0. (CONSERVADO)
+        // Esto evita que el Dashboard vuelva a dividir por 3.52.
+        ancho_lamina_cm: 100, 
+        largo_lamina_cm: 100, 
+        
+        stock_actual: 0,
+        unidad: esMolduraReal ? "ML" : "M2",
+        tipo_material: esMolduraReal ? 'ml' : 'm2',
+        estado: 'Activo'
+    };
     
     try {
         console.log("📡 Enviando con Escudo de Área Unitaria:", nuevoMaterial);
