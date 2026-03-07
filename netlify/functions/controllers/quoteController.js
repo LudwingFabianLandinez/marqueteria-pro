@@ -85,47 +85,46 @@ const generateQuote = async (req, res) => {
         const area_m2 = (Math.max(0, Number(ancho)) * Math.max(0, Number(largo)) / 10000);
         const gastoML = obtenerMLConDesperdicio(ancho, largo);
 
-        // 4. Bucle de Materiales con Detección Mejorada
+        // 4. Bucle de Materiales con Detección Ultra-Mejorada
         materialesDB.forEach(mat => {
             const nombreUP = (mat.nombre || "").toUpperCase();
 
-            /**
-             * MEJORA DE DETECCIÓN:
-             * Ahora busca "MOLDURA" en cualquier parte del texto para evitar que falle
-             * si el nombre empieza por MP o espacios.
-             */
+            // DETECCIÓN ROBUSTA: Si tiene la palabra MOLDURA, MARCO o el código K en cualquier parte
             const esMoldura = nombreUP.includes("MOLDURA") || 
                               nombreUP.includes("MARCO") || 
                               nombreUP.includes("K "); 
 
-            // Prioridad de campos de precio (Sincronizado con Inventario)
-            const precioCostoBase = mat.precio_total_lamina || mat.precio_m2_costo || 0;
+            /**
+             * IMPORTANTE: Sincronización de Precios
+             * Buscamos en el orden exacto en que tu Inventario v18.3 guarda los datos.
+             */
+            const precioCostoBase = mat.precio_total_lamina || mat.precio_m2_costo || mat.precio || 0;
             
             let costoItem = 0;
 
             if (esMoldura) {
-                // --- LÓGICA DE MOLDURA (ML x Costo Proporcional) ---
-                // Dividimos el costo de la tira de 2.90m para sacar el metro lineal
+                // --- LÓGICA DE MOLDURA ---
+                // Si el precio es de la tira (2.90m), sacamos el metro lineal. 
+                // Si no hay precio, el costo será 0 (aquí podría estar el error si el campo está vacío en Atlas)
                 const precioMetroLineal = precioCostoBase / 2.90;
                 costoItem = precioMetroLineal * gastoML;
             } else {
-                // --- LÓGICA DE SUPERFICIE (M2 x Costo Base) ---
+                // --- LÓGICA DE SUPERFICIE (VIDRIOS) ---
                 costoItem = area_m2 * precioCostoBase;
             }
             
             costoMaterialesTotal += costoItem;
             
-            // Estructura de listaDetallada (Mantenida según tus requerimientos)
             listaDetallada.push({ 
                 id: mat._id,
                 nombre: mat.nombre, 
-                costo_base: precioCostoBase,
+                costo_base_db: precioCostoBase, // Para debug: ver qué precio está jalando de la DB
                 area_o_ml: esMoldura ? `${gastoML} ML` : `${area_m2.toFixed(2)} m2`,
                 precio_proporcional: Math.round(costoItem)
             });
         });
 
-        // 5. Cálculos Finales y REGLA DE ORO (Mantenida x3)
+        // 5. Cálculos Finales y REGLA DE ORO (Multiplicador x3 sobre materiales)
         const mo = parseFloat(manoObra) || 0;
         const totalBaseCosto = Math.round(costoMaterialesTotal + mo);
         const precioSugerido = Math.round((costoMaterialesTotal * 3) + mo);
