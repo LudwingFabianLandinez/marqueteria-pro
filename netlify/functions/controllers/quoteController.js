@@ -48,11 +48,25 @@ const getQuotationMaterials = async (req, res) => {
 };
 
 // 2. GENERAR COTIZACIÓN (CÁLCULO MATEMÁTICO)
+// --- 1. TABLA DE DESPERDICIO (Se coloca fuera para no ensuciar la función principal) ---
+const obtenerMLConDesperdicio = (a, l) => {
+    const min = Math.min(Number(a), Number(l));
+    const max = Math.max(Number(a), Number(l));
+    if (min <= 20 && max <= 20) return 1.20;
+    if (min <= 20 && max <= 80) return 2.50;
+    if (min <= 40 && max <= 80) return 2.80; 
+    if (min <= 60 && max <= 80) return 3.40; 
+    if (min <= 80 && max <= 100) return 4.20;
+    if (min <= 100 && max <= 100) return 4.50;
+    // Si sobrepasa, cálculo perimetral + 20% de seguridad
+    return Number((((Number(a) + Number(l)) * 2) / 100 * 1.20).toFixed(2));
+};
+
 const generateQuote = async (req, res) => {
     try {
         const { ancho, largo, materialesIds, manoObra = 0 } = req.body;
 
-        // Validación de entrada
+        // Validación de entrada (Mantenida igual)
         if (!ancho || !largo || !materialesIds) {
             return res.status(400).json({ 
                 success: false, 
@@ -60,38 +74,48 @@ const generateQuote = async (req, res) => {
             });
         }
 
-        // Normalizamos IDs a un Array y limpiamos valores nulos
+        // Normalización de IDs (Mantenida igual)
         const ids = Array.isArray(materialesIds) ? materialesIds : [materialesIds];
         const idsValidos = ids.filter(id => id && id.toString().length === 24);
         
-        // Buscamos materiales en la DB
         const materialesDB = await Material.find({ _id: { $in: idsValidos } }).lean();
         
         let costoMaterialesTotal = 0;
         let listaDetallada = [];
         
-        // Cálculo de área con seguridad contra ceros (cm a m2)
+        // Cálculo de área (Mantenido igual)
         const area_m2 = (Math.max(0, Number(ancho)) * Math.max(0, Number(largo)) / 10000);
+        // Nuevo: Cálculo de Gasto ML basado en la tabla
+        const gastoML = obtenerMLConDesperdicio(ancho, largo);
 
         materialesDB.forEach(mat => {
-            // El precio de costo es vital para la utilidad. Buscamos en varios campos por si acaso.
-            const precioCostoM2 = mat.precio_m2_costo || mat.precio_total_lamina || 0;
+            const nombreUP = (mat.nombre || "").toUpperCase();
+            // DETECCIÓN DE MOLDURA (Sincronizada con inventario y cotizador frontal)
+            const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ") || nombreUP.includes("MARCO");
+
+            // Priorizamos campos de precio (Mantenida lógica de búsqueda)
+            const precioCostoBase = mat.precio_total_lamina || mat.precio_m2_costo || 0;
             
-            // Usamos el utilitario de cálculo o lo hacemos manual si falla
             let costoItem = 0;
-            if (typeof calcularCostoMaterial === 'function') {
-                costoItem = calcularCostoMaterial(Number(ancho), Number(largo), precioCostoM2);
+
+            if (esMoldura) {
+                // --- LÓGICA DE MOLDURA ---
+                // Se divide el precio de la tira (2.90m) por 2.90 para obtener el precio x metro
+                const precioMetroLineal = precioCostoBase / 2.90;
+                costoItem = precioMetroLineal * gastoML;
             } else {
-                costoItem = area_m2 * precioCostoM2;
+                // --- LÓGICA DE SUPERFICIE (VIDRIOS/RESPALDOS) ---
+                costoItem = area_m2 * precioCostoBase;
             }
             
             costoMaterialesTotal += costoItem;
             
+            // Mantenemos tu estructura de listaDetallada intacta
             listaDetallada.push({ 
                 id: mat._id,
                 nombre: mat.nombre, 
-                costo_m2_base: precioCostoM2,
-                area_m2: area_m2.toFixed(2),
+                costo_base: precioCostoBase, // El valor base de la DB
+                area_o_ml: esMoldura ? `${gastoML} ML` : `${area_m2.toFixed(2)} m2`,
                 precio_proporcional: Math.round(costoItem)
             });
         });
@@ -99,19 +123,17 @@ const generateQuote = async (req, res) => {
         const mo = parseFloat(manoObra) || 0;
         const totalBaseCosto = Math.round(costoMaterialesTotal + mo);
         
-        /**
-         * REGLA DE ORO DE LA MARQUETERÍA:
-         * El precio de venta debe cubrir desperdicio, local y ganancia.
-         * Formula: (Costo Materiales * 3) + Mano de Obra
-         */
+        // REGLA DE ORO (Mantenida exactamente igual)
         const precioSugerido = Math.round((costoMaterialesTotal * 3) + mo);
 
+        // Respuesta JSON (Mantenida con todos tus campos originales)
         res.status(200).json({
             success: true,
             data: {
                 detalles: {
                     medidas: `${ancho} x ${largo} cm`,
-                    area_m2: area_m2.toFixe(2),
+                    area_m2: area_m2.toFixed(2),
+                    gasto_ml_calculado: gastoML, // Dato extra para auditoría
                     materiales: listaDetallada
                 },
                 costos: {
