@@ -208,7 +208,6 @@ async function procesarCotizacion() {
             const opcion = el.options[el.selectedIndex];
             if (!opcion) return null;
 
-            // --- 🛡️ EXTRACCIÓN DE COSTO MULTI-ORIGEN ---
             const costoExtraido = parseFloat(opcion.dataset.costo) || 
                                  parseFloat(opcion.dataset.costom2) || 
                                  parseFloat(opcion.dataset.precio) || 0;
@@ -231,15 +230,12 @@ async function procesarCotizacion() {
         })
         .filter(m => m !== null && m.costoUnitario > 0);
 
-    // --- 🕵️‍♂️ RASTREO CORREGIDO DEL BUSCADOR DE MOLDURAS (Sincronizado con input-moldura) ---
+    // --- 🕵️‍♂️ RASTREO CORREGIDO DEL BUSCADOR DE MOLDURAS ---
     const inputTextoMoldura = document.getElementById('input-moldura');
     const selectMolduraOculto = document.getElementById('materialOtroId');
 
-    // Si hay texto en el buscador, nos aseguramos de que el material esté en la lista
     if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
         const optM = selectMolduraOculto.options[selectMolduraOculto.selectedIndex];
-        
-        // Verificamos si ya se incluyó por el mapeo de selectsIds para no duplicar
         const yaIncluido = materialesSeleccionados.find(m => m.id === selectMolduraOculto.value);
 
         if (optM && optM.value !== "" && !yaIncluido) {
@@ -253,7 +249,6 @@ async function procesarCotizacion() {
                 costoUnitario: costoM,
                 unidad: 'ML'
             });
-            console.log("✅ Moldura capturada desde buscador de texto:", inputTextoMoldura.value, "Costo:", costoM);
         }
     }
 
@@ -262,20 +257,38 @@ async function procesarCotizacion() {
         return;
     }
 
+    // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (TU TABLA DE TALLER) ---
+    const obtenerMLConDesperdicio = (a, l) => {
+        const min = Math.min(a, l);
+        const max = Math.max(a, l);
+
+        // Aplicación estricta de tu tabla de gastos
+        if (min <= 20 && max <= 20) return 1.20;
+        if (min <= 20 && max <= 80) return 2.50;
+        if (min <= 40 && max <= 80) return 2.80; // Caso 40x80 = 2.8 ML
+        if (min <= 60 && max <= 80) return 3.40; // Caso 60x80 = 3.4 ML
+        if (min <= 80 && max <= 100) return 4.20;
+        if (min <= 100 && max <= 100) return 4.50;
+
+        // Si la medida es mayor a la tabla, calculamos Perímetro + 20% de desperdicio técnico
+        return Number((((a + l) * 2) / 100 * 1.20).toFixed(2));
+    };
+
     try {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
         const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
-        const perimetroCalculado = Number((((ancho + largo) * 2) / 100).toFixed(2));
+        const gastoMLReal = obtenerMLConDesperdicio(ancho, largo);
         let costoBaseLocal = 0;
 
-        // --- Lógica Híbrida: ML para Molduras, M2 para el resto ---
+        // --- Lógica Híbrida: ML con Tabla Profesional vs M2 ---
         materialesSeleccionados.forEach(m => {
             const nombreM = (m.nombre || "").toUpperCase();
             const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.startsWith("K ");
 
             if (esML) {
-                costoBaseLocal += (m.costoUnitario * perimetroCalculado);
+                // Multiplicamos por el gasto real de tu tabla
+                costoBaseLocal += (m.costoUnitario * gastoMLReal);
             } else {
                 costoBaseLocal += (m.costoUnitario * areaCalculada);
             }
@@ -285,13 +298,15 @@ async function procesarCotizacion() {
             valor_materiales: costoBaseLocal,
             area: areaCalculada,
             detalles: { 
-                medidas: `${ancho} x ${largo} cm`, 
+                medidas: `${ancho} x ${largo} cm (Gasto Moldura: ${gastoMLReal} ML)`, 
                 materiales: materialesSeleccionados 
             }
         };
 
+        // --- 💰 UTILIDAD X3 (Sincronizado con tu requerimiento) ---
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
+        
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
         dataFinal.areaFinal = areaCalculada;
