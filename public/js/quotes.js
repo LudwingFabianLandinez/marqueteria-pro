@@ -194,7 +194,7 @@ async function procesarCotizacion() {
             'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
         ];
 
-        // 1. Mapeo inteligente con Blindaje Multi-Campo (Sincronizado con Material.js)
+        // Mapeo inteligente con Blindaje Multi-Campo (Sincronizado con Material.js)
         let materialesSeleccionados = selectsIds
             .map(id => {
                 const el = document.getElementById(id);
@@ -204,7 +204,6 @@ async function procesarCotizacion() {
                 if (!opcion) return null;
 
                 // --- 🛡️ EXTRACCIÓN DE COSTO MULTI-ORIGEN ---
-                // Buscamos en 'costo', 'costom2' y 'precio' por si el backend cambió el nombre
                 const costoExtraido = parseFloat(opcion.dataset.costo) || 
                                      parseFloat(opcion.dataset.costom2) || 
                                      parseFloat(opcion.dataset.precio) || 0;
@@ -212,8 +211,6 @@ async function procesarCotizacion() {
                 const nombreMat = (opcion.text || "").toUpperCase();
                 const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
                 
-                // --- 📏 DETECCIÓN DE UNIDAD (Lógica Material.js) ---
-                // Si la categoría o el nombre dicen MOLDURA/MARCO, es ML obligatoriamente
                 const esML = categoriaMat.includes("MOLDURA") || 
                              nombreMat.includes("MOLDURA") || 
                              nombreMat.includes("MARCO") || 
@@ -226,21 +223,27 @@ async function procesarCotizacion() {
                     unidad: esML ? 'ML' : 'M2'
                 };
             })
-            .filter(m => m !== null && m.costoUnitario > 0); // Solo materiales con precio real
-            
-        // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS ---
-        // Buscamos el elemento de la moldura por ID o por clase de buscador
+            .filter(m => m !== null && m.costoUnitario > 0);
+
+        // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS (Select2 Blindado) ---
         const elMoldura = document.getElementById('materialMolduraId') || document.querySelector('.select2-hidden-accessible');
         
         if (elMoldura && elMoldura.value) {
             const optM = elMoldura.options[elMoldura.selectedIndex];
             if (optM && !materialesSeleccionados.find(m => m.id === elMoldura.value)) {
+                
+                // Extraemos costo también del buscador usando la lógica multi-campo
+                const costoM = parseFloat(optM.dataset.costo) || 
+                               parseFloat(optM.dataset.costom2) || 
+                               parseFloat(optM.dataset.precio) || 0;
+
                 materialesSeleccionados.push({
                     id: elMoldura.value,
                     nombre: optM.text.split('(')[0].trim(),
-                    costoUnitario: parseFloat(optM.dataset.costo) || 0,
-                    unidad: 'ML' // Forzamos ML para molduras
+                    costoUnitario: costoM,
+                    unidad: 'ML'
                 });
+                console.log("✅ Moldura capturada desde buscador:", optM.text, "Costo:", costoM);
             }
         }
 
@@ -259,7 +262,6 @@ async function procesarCotizacion() {
             // --- Lógica Híbrida: ML para Molduras, M2 para el resto ---
             materialesSeleccionados.forEach(m => {
                 const nombreM = (m.nombre || "").toUpperCase();
-                // Verificamos si es moldura por unidad o nombre
                 const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
 
                 if (esML) {
@@ -290,7 +292,7 @@ async function procesarCotizacion() {
             document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
 
         } catch (error) {
-            console.error("Error:", error);
+            console.error("Error en cálculo:", error);
         } finally {
             if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
         }
