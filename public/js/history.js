@@ -162,7 +162,7 @@ async function generarReporteDiario() {
 });
 
             const totalOrden = sumaMaterialesX3 + manoObra;
-            const rentabilidadReal = totalCobrado - sumaCostoMateriales;
+            const rentabilidadReal = totalCobrado - sumaCostoMateriales - manoObra;
 
             htmlContenido += `</tbody>
                     <tfoot class="tfoot-sumas">
