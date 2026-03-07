@@ -188,22 +188,26 @@ async function procesarCotizacion() {
     const largo = parseFloat(document.getElementById('largo').value);
     const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
+    // 1. Lista ampliada de IDs para incluir el buscador de molduras
     const selectsIds = [
         'materialId', 'materialRespaldoId', 'materialExtraId', 
-        'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
+        'materialOtroId', 'materialFoamId', 'materialTelaId', 
+        'materialChapillaId', 'materialMolduraId' // <--- ID Crítico añadido
     ];
 
     // Mapeo inteligente que rescata el costo y la UNIDAD (ML o M2)
     const materialesSeleccionados = selectsIds
         .map(id => {
             const el = document.getElementById(id);
-            if (!el || el.value === "") return null;
+            if (!el || el.value === "" || el.value === null) return null;
             const opcion = el.options[el.selectedIndex];
+            if (!opcion) return null;
+
             return {
                 id: el.value,
                 nombre: opcion.text.split('(')[0].trim(),
                 costoUnitario: parseFloat(opcion.dataset.costo) || 0,
-                unidad: opcion.dataset.unidad || 'M2' // Rescatamos la unidad del dataset
+                unidad: opcion.dataset.unidad || 'M2' 
             };
         })
         .filter(m => m !== null);
@@ -225,17 +229,19 @@ async function procesarCotizacion() {
         // --- BLOQUE QUIRÚRGICO: Lógica Híbrida Consolidada ---
         materialesSeleccionados.forEach(m => {
             const nombreM = (m.nombre || "").toUpperCase();
-            // Verificamos si es ML por unidad o por palabras clave (Moldura/Marco/Códigos)
+            // Verificamos si es ML por unidad o por palabras clave
             const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.includes("2312") || nombreM.includes("2311");
 
             if (esML) {
-                // Se suma al costo base usando Perímetro
-                costoBaseLocal += (m.costoUnitario * perimetroCalculado);
-                console.log(`📏 Calculando ML para ${m.nombre}: ${perimetroCalculado}m`);
+                // Se suma al costo base usando Perímetro (ML)
+                const costoItemML = (m.costoUnitario * perimetroCalculado);
+                costoBaseLocal += costoItemML;
+                console.log(`📏 Calculando ML para ${m.nombre}: ${perimetroCalculado}m - Subtotal: ${costoItemML}`);
             } else {
-                // Se suma al costo base usando Área
-                costoBaseLocal += (m.costoUnitario * areaCalculada);
-                console.log(`🔳 Calculando M2 para ${m.nombre}: ${areaCalculada}m²`);
+                // Se suma al costo base usando Área (M2)
+                const costoItemM2 = (m.costoUnitario * areaCalculada);
+                costoBaseLocal += costoItemM2;
+                console.log(`🔳 Calculando M2 para ${m.nombre}: ${areaCalculada}m² - Subtotal: ${costoItemM2}`);
             }
         });
 
@@ -249,15 +255,13 @@ async function procesarCotizacion() {
             }
         };
 
-        dataFinal.detalles.materiales = materialesSeleccionados;
-        
-        // Aquí se cumple tu regla: La suma de materiales (incluida la moldura) se multiplica por 3
+        // Regla de Oro: Suma de materiales x 3
         const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
         
         dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
         dataFinal.anchoOriginal = ancho;
         dataFinal.largoOriginal = largo;
-        dataFinal.areaFinal = dataFinal.area || areaCalculada;
+        dataFinal.areaFinal = areaCalculada;
         dataFinal.valor_mano_obra = manoObraInput;
         
         datosCotizacionActual = dataFinal;
@@ -314,23 +318,28 @@ function mostrarResultado(data) {
     // --- BLOQUE DE ANCHO TOTAL (Blindaje de Diseño) ---
     divRes.style.display = 'block';
     divRes.style.width = '100%';
-    divRes.style.maxWidth = 'none'; // Elimina cualquier restricción previa
+    divRes.style.maxWidth = 'none'; 
     divRes.style.boxSizing = 'border-box';
     // --------------------------------------------------
 
     divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-    const itemsHTML = (data.detalles?.materiales || []).map(m => {
-        const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
-        return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
-            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual}</span>
-        </li>`;
-    }).join('');
+
+    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO Y SIN FILTROS) ---
+    // Esta parte ahora toma directamente lo que procesamos en el Paso 1
+    const materialesValidos = data.detalles?.materiales || [];
+    const itemsHTML = materialesValidos.length > 0 
+        ? materialesValidos.map(m => {
+            const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
+            return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <span><i class="fas fa-check-circle" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual}</span>
+            </li>`;
+        }).join('')
+        : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
 
     document.getElementById('detalleObra').innerHTML = `
-        <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; borde
-        r: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
+        <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
                 <div>
                     <h2 style="margin:0; color: #1e3a8a; font-size: 1.5rem;">ORDEN DE TRABAJO</h2>
