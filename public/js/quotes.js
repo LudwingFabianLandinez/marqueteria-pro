@@ -322,9 +322,9 @@ function mostrarResultado(data) {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
     const itemsHTML = (data.detalles?.materiales || []).map(m => {
-        const nombreVisual = m.nombre || "MATERIAL";
+        const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
         return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between;">
-            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual.toUpperCase()}</span>
+            <span><i class="fas fa-check" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual}</span>
         </li>`;
     }).join('');
 
