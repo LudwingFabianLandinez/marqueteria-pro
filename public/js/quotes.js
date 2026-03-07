@@ -183,98 +183,98 @@ function limpiarTextosNoDeseados() {
 }
 
 async function procesarCotizacion() {
-    const btnCalc = document.querySelector('.btn-calc');
-    const ancho = parseFloat(document.getElementById('ancho').value);
-    const largo = parseFloat(document.getElementById('largo').value);
-    const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
+        const btnCalc = document.querySelector('.btn-calc');
+        const ancho = parseFloat(document.getElementById('ancho').value);
+        const largo = parseFloat(document.getElementById('largo').value);
+        const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
-    // 1. Lista ampliada de IDs para incluir el buscador de molduras
-    const selectsIds = [
-        'materialId', 'materialRespaldoId', 'materialExtraId', 
-        'materialOtroId', 'materialFoamId', 'materialTelaId', 
-        'materialChapillaId', 'materialMolduraId' // <--- ID Crítico añadido
-    ];
+        // 1. Recolección de materiales estándar
+        const selectsIds = [
+            'materialId', 'materialRespaldoId', 'materialExtraId', 
+            'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
+        ];
 
-    // Mapeo inteligente que rescata el costo y la UNIDAD (ML o M2)
-    const materialesSeleccionados = selectsIds
-        .map(id => {
-            const el = document.getElementById(id);
-            if (!el || el.value === "" || el.value === null) return null;
-            const opcion = el.options[el.selectedIndex];
-            if (!opcion) return null;
+        let materialesSeleccionados = selectsIds
+            .map(id => {
+                const el = document.getElementById(id);
+                if (!el || !el.value) return null;
+                const opcion = el.options[el.selectedIndex];
+                return {
+                    id: el.value,
+                    nombre: opcion.text.split('(')[0].trim(),
+                    costoUnitario: parseFloat(opcion.dataset.costo) || 0,
+                    unidad: opcion.dataset.unidad || 'M2' 
+                };
+            })
+            .filter(m => m !== null);
 
-            return {
-                id: el.value,
-                nombre: opcion.text.split('(')[0].trim(),
-                costoUnitario: parseFloat(opcion.dataset.costo) || 0,
-                unidad: opcion.dataset.unidad || 'M2' 
+        // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS ---
+        // Buscamos el elemento de la moldura por ID o por clase de buscador
+        const elMoldura = document.getElementById('materialMolduraId') || document.querySelector('.select2-hidden-accessible');
+        
+        if (elMoldura && elMoldura.value) {
+            const optM = elMoldura.options[elMoldura.selectedIndex];
+            if (optM && !materialesSeleccionados.find(m => m.id === elMoldura.value)) {
+                materialesSeleccionados.push({
+                    id: elMoldura.value,
+                    nombre: optM.text.split('(')[0].trim(),
+                    costoUnitario: parseFloat(optM.dataset.costo) || 0,
+                    unidad: 'ML' // Forzamos ML para molduras
+                });
+            }
+        }
+
+        if (!ancho || !largo || materialesSeleccionados.length === 0) {
+            alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
+            return;
+        }
+
+        try {
+            if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
+            
+            const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
+            const perimetroCalculado = Number((((ancho + largo) * 2) / 100).toFixed(2));
+            let costoBaseLocal = 0;
+
+            // --- Lógica Híbrida: ML para Molduras, M2 para el resto ---
+            materialesSeleccionados.forEach(m => {
+                const nombreM = (m.nombre || "").toUpperCase();
+                // Verificamos si es moldura por unidad o nombre
+                const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO");
+
+                if (esML) {
+                    costoBaseLocal += (m.costoUnitario * perimetroCalculado);
+                } else {
+                    costoBaseLocal += (m.costoUnitario * areaCalculada);
+                }
+            });
+
+            let dataFinal = {
+                valor_materiales: costoBaseLocal,
+                area: areaCalculada,
+                detalles: { 
+                    medidas: `${ancho} x ${largo} cm`, 
+                    materiales: materialesSeleccionados 
+                }
             };
-        })
-        .filter(m => m !== null);
 
-    if (!ancho || !largo || materialesSeleccionados.length === 0) {
-        alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
-        return;
+            const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
+            dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
+            dataFinal.anchoOriginal = ancho;
+            dataFinal.largoOriginal = largo;
+            dataFinal.areaFinal = areaCalculada;
+            dataFinal.valor_mano_obra = manoObraInput;
+            
+            datosCotizacionActual = dataFinal;
+            mostrarResultado(dataFinal);
+            document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
+
+        } catch (error) {
+            console.error("Error:", error);
+        } finally {
+            if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
+        }
     }
-
-    try {
-        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
-        
-        // Cálculo de medidas base
-        const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
-        const perimetroCalculado = Number((((ancho + largo) * 2) / 100).toFixed(2));
-
-        let costoBaseLocal = 0;
-
-        // --- BLOQUE QUIRÚRGICO: Lógica Híbrida Consolidada ---
-        materialesSeleccionados.forEach(m => {
-            const nombreM = (m.nombre || "").toUpperCase();
-            // Verificamos si es ML por unidad o por palabras clave
-            const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.includes("2312") || nombreM.includes("2311");
-
-            if (esML) {
-                // Se suma al costo base usando Perímetro (ML)
-                const costoItemML = (m.costoUnitario * perimetroCalculado);
-                costoBaseLocal += costoItemML;
-                console.log(`📏 Calculando ML para ${m.nombre}: ${perimetroCalculado}m - Subtotal: ${costoItemML}`);
-            } else {
-                // Se suma al costo base usando Área (M2)
-                const costoItemM2 = (m.costoUnitario * areaCalculada);
-                costoBaseLocal += costoItemM2;
-                console.log(`🔳 Calculando M2 para ${m.nombre}: ${areaCalculada}m² - Subtotal: ${costoItemM2}`);
-            }
-        });
-
-        // dataFinal mantiene la compatibilidad absoluta con tu diseño actual
-        let dataFinal = {
-            valor_materiales: costoBaseLocal,
-            area: areaCalculada,
-            detalles: { 
-                medidas: `${ancho} x ${largo} cm`, 
-                materiales: materialesSeleccionados 
-            }
-        };
-
-        // Regla de Oro: Suma de materiales x 3
-        const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
-        
-        dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
-        dataFinal.anchoOriginal = ancho;
-        dataFinal.largoOriginal = largo;
-        dataFinal.areaFinal = areaCalculada;
-        dataFinal.valor_mano_obra = manoObraInput;
-        
-        datosCotizacionActual = dataFinal;
-        mostrarResultado(dataFinal);
-        document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
-
-    } catch (error) {
-        console.error("Error crítico:", error);
-        alert("Error al procesar la cotización.");
-    } finally {
-        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
-    }
-}
 
 // FUNCIÓN PARA EL BUSCADOR INTELIGENTE (Punto 2b)
 function sincronizarBuscadorMoldura(valor) {
