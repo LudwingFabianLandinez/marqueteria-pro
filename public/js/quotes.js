@@ -309,33 +309,42 @@ try {
     let resumenGastoML = ""; // Para el reporte visual
 
     // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
-    materialesSeleccionados.forEach(m => {
-        if (m.unidad === 'ML') {
-            // APLICAMOS LA NUEVA FÓRMULA DE TALLER
-            const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
-            const costoItem = Math.round(m.costoUnitario * gastoMLReal);
-            
-            // REGLA DE ORO: Molduras se multiplican por 2.5
-            const ventaItem = Math.round(costoItem * 2.5);
-            
+        materialesSeleccionados.forEach(m => {
+            let costoItem = 0;
+            let ventaItem = 0;
+
+            if (m.unidad === 'ML') {
+                // 1. LÓGICA DE MOLDURA: Perímetro + Desperdicio
+                const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
+                costoItem = Math.round(m.costoUnitario * gastoMLReal);
+                
+                // REGLA DE ORO: Molduras se multiplican por 2.5
+                ventaItem = Math.round(costoItem * 2.5);
+                
+                // Guardamos info específica para el reporte
+                m.cantidadUsada = gastoMLReal; 
+                m.subtotalVenta = ventaItem; 
+                resumenGastoML = `${gastoMLReal} ML`;
+
+                console.log(`📏 MOLDURA: ${m.nombre} | ML: ${gastoMLReal} | Costo: ${costoItem} | Venta(x2.5): ${ventaItem}`);
+            } else {
+                // 2. LÓGICA DE OTROS: Área M2
+                costoItem = Math.round(m.costoUnitario * areaCalculada);
+                
+                // REGLA: Otros materiales (Vidrio/Fondo) se multiplican por 3
+                ventaItem = Math.round(costoItem * 3);
+                
+                // Guardamos info para consistencia entre archivos
+                m.cantidadUsada = areaCalculada;
+                m.subtotalVenta = ventaItem;
+
+                console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada} | Costo: ${costoItem} | Venta(x3): ${ventaItem}`);
+            }
+
+            // Acumuladores globales para el total de la cotización
             costoBaseAcumulado += costoItem;
             totalVentaAcumulado += ventaItem;
-            resumenGastoML = `${gastoMLReal} ML`; // Guardamos para el detalle
-
-            console.log(`📏 MOLDURA: ${m.nombre} | ML: ${gastoMLReal} | Costo: ${costoItem} | Venta(x2.5): ${ventaItem}`);
-        } else {
-            // OTROS MATERIALES (VIDRIO, RESPALDO, ETC)
-            const costoItem = Math.round(m.costoUnitario * areaCalculada);
-            
-            // REGLA: Otros materiales mantienen su multiplicador (x3 para cubrir gastos)
-            const ventaItem = Math.round(costoItem * 3);
-            
-            costoBaseAcumulado += costoItem;
-            totalVentaAcumulado += ventaItem;
-
-            console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada} | Costo: ${costoItem} | Venta(x3): ${ventaItem}`);
-        }
-    });
+        });
 
     // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
     const totalFinal = totalVentaAcumulado + manoObraInput;
