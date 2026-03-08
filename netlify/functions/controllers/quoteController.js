@@ -85,26 +85,32 @@ const generateQuote = async (req, res) => {
         const area_m2 = (Math.max(0, Number(ancho)) * Math.max(0, Number(largo)) / 10000);
         const gastoML = obtenerMLConDesperdicio(ancho, largo);
 
-        // 4. Bucle de Materiales con Detección por Atlas + Nombre
+        // 4. Bucle de Materiales con Detección Blindada
         materialesDB.forEach(mat => {
             const nombreUP = (mat.nombre || "").toUpperCase();
 
-            // DETECCIÓN DOBLE: Por el campo 'tipo' de Atlas O por nombre
-            const esMoldura = (mat.tipo && mat.tipo.toLowerCase() === "ml") || 
+            /**
+             * DETECCIÓN REDUNDANTE (La clave del éxito):
+             * Prioridad 1: Campo 'tipo' de Atlas sea 'ml'.
+             * Prioridad 2: Si tiene un 'largo_lamina_cm' definido (como tus 290).
+             * Prioridad 3: Palabras clave en el nombre.
+             */
+            const esMoldura = (mat.tipo && mat.tipo.toLowerCase().includes("ml")) || 
+                              (mat.largo_lamina_cm && Number(mat.largo_lamina_cm) > 0) ||
                               nombreUP.includes("MOLDURA") || 
                               nombreUP.includes("MARCO") || 
                               nombreUP.includes("K "); 
 
-            // Sincronización de Precios (Buscamos el costo de la tira/lámina)
+            // Sincronización de Precios
             const precioCostoBase = mat.precio_total_lamina || mat.precio_m2_costo || mat.precio || 0;
             
             let costoItem = 0;
 
             if (esMoldura) {
                 // --- LÓGICA DE MOLDURA ---
-                // Usamos el largo de la tira de tu Atlas (290cm -> 2.9m)
-                const largoTira = (mat.largo_lamina_cm) ? (Number(mat.largo_lamina_cm) / 100) : 2.90;
-                const precioMetroLineal = precioCostoBase / largoTira;
+                // Si Atlas dice que mide 290cm, usamos 2.9m. Si no, por defecto 2.90m.
+                const largoTiraMetros = mat.largo_lamina_cm ? (Number(mat.largo_lamina_cm) / 100) : 2.90;
+                const precioMetroLineal = precioCostoBase / largoTiraMetros;
                 costoItem = precioMetroLineal * gastoML;
             } else {
                 // --- LÓGICA DE SUPERFICIE (VIDRIOS) ---
@@ -116,9 +122,10 @@ const generateQuote = async (req, res) => {
             listaDetallada.push({ 
                 id: mat._id,
                 nombre: mat.nombre, 
-                tipo_detectado: esMoldura ? "MOLDURA (ML)" : "SUPERFICIE (M2)",
+                identificado_como: esMoldura ? "MOLDURA" : "LÁMINA/VIDRIO",
                 costo_base_db: precioCostoBase,
-                area_o_ml: esMoldura ? `${gastoML} ML` : `${area_m2.toFixed(2)} m2`,
+                unidad_calculo: esMoldura ? "ML" : "m2",
+                cantidad_aplicada: esMoldura ? gastoML : area_m2.toFixed(4),
                 precio_proporcional: Math.round(costoItem)
             });
         });
@@ -128,7 +135,7 @@ const generateQuote = async (req, res) => {
         const totalBaseCosto = Math.round(costoMaterialesTotal + mo);
         const precioSugerido = Math.round((costoMaterialesTotal * 3) + mo);
 
-        // 6. Respuesta JSON (Estructura Original Preservada)
+        // 6. Respuesta JSON (Estructura Original con detalles extra para auditoría)
         res.status(200).json({
             success: true,
             data: {
@@ -149,13 +156,11 @@ const generateQuote = async (req, res) => {
 
     } catch (error) {
         console.error("🚨 Error en generateQuote:", error);
-        res.status(500).json({ success: false, error: "Error interno en el cálculo de la cotización." });
+        res.status(500).json({ success: false, error: "Error interno en el cálculo." });
     }
 };
 
 module.exports = {
-    getQuotationMaterials: async (req, res) => { /* tu lógica existente si la hay */ },
-    getMaterials: async (req, res) => { /* tu lógica existente */ },
     generateQuote,
     calculate: generateQuote
 };
