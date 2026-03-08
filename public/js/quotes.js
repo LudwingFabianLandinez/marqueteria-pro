@@ -283,24 +283,29 @@ async function procesarCotizacion() {
         return;
     }
     
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (BASADA EN DESPERDICIO DEL MAESTRO) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SÍ O SÍ SUMA EL DESPERDICIO) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
     
-    // 1. Suma de lados x 2 (Perímetro base en CM)
-    // Ejemplo 60x80: (60 + 80) * 2 = 280 cm
+    // 1. Perímetro base (60 + 80) * 2 = 280 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. RECUPERACIÓN DEL DESPERDICIO INGRESADO EN EL MAESTRO
-    // Buscamos el valor 'desperdicio' que tú ingresaste (ej: 24). 
-    // Si el material no tiene nada ingresado, ponemos 0 para no alterar tu cálculo.
-    const desperdicioIngresado = parseFloat(materialEspecífico?.desperdicio) || 0;
+    // 2. RASTREADOR DEL DESPERDICIO (Busca el 24 en todas las formas posibles)
+    // Buscamos en: .desperdicio, .desperdicio_ml, .merma o .extra
+    const desperdicioExtra = parseFloat(
+        materialEspecífico?.desperdicio || 
+        materialEspecífico?.desperdicio_ml || 
+        materialEspecífico?.merma || 
+        0
+    );
     
-    // 3. Cálculo final: (280 + 24) / 100 = 3.04 ML
-    const totalML = (perimetroCM + desperdicioIngresado) / 100;
+    // 3. CÁLCULO FINAL MATEMÁTICO (3.04 ML)
+    // Sumamos los centímetros y dividimos por 100 para pasar a Metros Lineales
+    const totalML = (perimetroCM + desperdicioExtra) / 100;
     
-    console.log(`📏 CÁLCULO MOLDURA: Perímetro ${perimetroCM}cm + Desperdicio Maestro ${desperdicioIngresado}cm = ${totalML} ML`);
+    // LOG para auditoría en consola (F12 para ver si detecta el 24)
+    console.log(`✅ TALLER: Perímetro ${perimetroCM} + Desperdicio ${desperdicioExtra} = ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
