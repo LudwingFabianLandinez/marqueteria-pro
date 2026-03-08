@@ -107,8 +107,8 @@ const generateQuote = async (req, res) => {
 
             if (esMoldura) {
                 // --- LÓGICA DE MOLDURA (ML) ---
-                // Si Atlas dice 290cm, usamos 2.9m. Si no, forzamos 2.90m para evitar divisiones por cero.
-                const divisorLargo = (Number(mat.largo_lamina_cm) > 0) ? (Number(mat.largo_lamina_cm) / 100) : 2.90;
+                // Si Atlas dice 290cm, usamos 2.8m. Si no, forzamos 2.80m para evitar divisiones por cero.
+                const divisorLargo = (Number(mat.largo_lamina_cm) > 0) ? (Number(mat.largo_lamina_cm) / 100) : 2.80;
                 
                 // Calculamos el precio por cada metro lineal
                 const precioMetroLineal = precioCostoBase / divisorLargo;

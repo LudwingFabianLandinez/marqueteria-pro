@@ -72,7 +72,7 @@ function renderPurchasesTable(compras) {
             : 'Proveedor General';
 
         // --- GANCHO DE UNIDADES Y COSTO (M2 vs ML) ---
-        // Buscamos el valor en cantidad_m2 o totalM2 (para el 2.9)
+        // Buscamos el valor en cantidad_m2 o totalM2 (para el 2.8)
         const cantidadValor = parseFloat(c.cantidad_m2 || c.totalM2 || 0);
         const unidadTexto = c.unidad || (c.tipo === 'ml' ? 'ml' : 'm²');
         

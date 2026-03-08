@@ -3,7 +3,7 @@
      * Versión: 13.4.48 - STOCK REAL CON RECONCILIACIÓN LOCAL
      * * CAMBIOS v13.4.48:
      * 1. GANCHO 'calcularStockReal': Suma compras locales al stock del servidor antes de renderizar.
-     * 2. PERSISTENCIA DE MOLDURAS: Solución definitiva para que los 2.9 ML aparezcan en pantalla.
+     * 2. PERSISTENCIA DE MOLDURAS: Solución definitiva para que los 2.8 ML aparezcan en pantalla.
      * 3. MANTENIMIENTO: Se preserva al 100% la estructura visual y lógica de m2/ml.
      * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
      */
@@ -63,7 +63,7 @@
                 : String(compra.materialId);
 
             if (idEnCompra === idMaterialTabla) {
-                // Sumamos los 2.9 ml (totalM2 o cantidad_m2)
+                // Sumamos los 2.8 ml (totalM2 o cantidad_m2)
                 const valorASumar = parseFloat(compra.totalM2 || compra.cantidad_m2 || 0);
                 return acc + valorASumar;
             }
@@ -344,7 +344,7 @@
             }
         }
 
-        // AJUSTE QUIRÚRGICO: Eliminamos el "if (stockFinal < 2.90)".
+        // AJUSTE QUIRÚRGICO: Eliminamos el "if (stockFinal < 2.80)".
         // Esto permite que el material nuevo nazca en 0 y solo suba cuando registres la compra.
     }
 
@@ -423,7 +423,7 @@ renderTable(window.todosLosMateriales);
     const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
     
     if (esMoldura) {
-        const largoML = (largoRef > 0) ? (largoRef / 100) : 2.9;
+        const largoML = (largoRef > 0) ? (largoRef / 100) : 2.8;
         precioFinalVisual = precioBase / largoML;
     } else {
         // UNIFICACIÓN: Si es PASSEPARTOUT, CHAPILLA o AFRICANA, NO dividimos.

@@ -509,7 +509,7 @@
     const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
 
     if (esMoldura) {
-        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.9;
+        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
         costoUnitarioFinal = Math.round(precioCompra / metros);
     } else {
         const areaM2 = (anchoLocal * largoLocal) / 10000;

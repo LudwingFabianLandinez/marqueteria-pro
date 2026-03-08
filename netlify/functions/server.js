@@ -484,10 +484,10 @@ router.post('/inventory/purchase', async (req, res) => {
         
         // Verificamos si es moldura
         if (categoriaMat.includes("MOLDURA") || categoriaMat.includes("ML") || nombreMat.includes("MOLDURA")) {
-            areaTotalIngreso = cantidad * 2.9;
-            // CORRECCIÓN: Para que el inventario no suba a 10mil, guardamos el precio por metro (8618 / 2.9)
-            precioInventarioActualizado = valorUnitario / 2.9;
-            console.log(`📏 LÓGICA ML APLICADA: ${cantidad} tiras * 2.9 = ${areaTotalIngreso} ML`);
+            areaTotalIngreso = cantidad * 2.8;
+            // CORRECCIÓN: Para que el inventario no suba a 10mil, guardamos el precio por metro (8618 / 2.8)
+            precioInventarioActualizado = valorUnitario / 2.8;
+            console.log(`📏 LÓGICA ML APLICADA: ${cantidad} tiras * 2.8 = ${areaTotalIngreso} ML`);
         } else {
             areaTotalIngreso = (largo * ancho / 10000) * cantidad;
             console.log(`🔳 LÓGICA M2 APLICADA: Area calculada = ${areaTotalIngreso} M2`);

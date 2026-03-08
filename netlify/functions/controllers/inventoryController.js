@@ -57,8 +57,8 @@ const registerPurchase = async (req, res) => {
         let costoCalculadoUnidad = 0;
 
         if (esMoldura) {
-            incrementoStock = cant * 2.90;
-            costoCalculadoUnidad = precioPagado / 2.90;
+            incrementoStock = cant * 2.80;
+            costoCalculadoUnidad = precioPagado / 2.80;
         } else {
             // 1. Intentamos obtener medidas desde los campos numéricos
             let ancho = parseFloat(material.ancho_lamina_cm) || 0;
