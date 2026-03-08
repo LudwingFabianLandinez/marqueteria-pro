@@ -109,10 +109,10 @@ function calcularValoresTecnicos(doc) {
         // 1. BLINDAJE PARA MOLDURAS: Convertimos tira a precio por Metro Lineal
         doc.tipo = 'ml';
         
-        // Calculamos el largo en metros (usamos 2.90 como estándar de taller si no existe)
+        // Calculamos el largo en metros (usamos 2.80 como estándar de taller si no existe)
         const largoMetros = (doc.largo_lamina_cm && doc.largo_lamina_cm > 0) 
                             ? (doc.largo_lamina_cm / 100) 
-                            : 2.90;
+                            : 2.80;
 
         if (doc.precio_total_lamina) {
             // CAMBIO CRÍTICO: El costo operativo es el precio de UN metro (Precio Tira / Largo)
@@ -137,7 +137,7 @@ function calcularValoresTecnicos(doc) {
     } 
     else if (doc.tipo === 'ml') {
         // 3. LÓGICA ML GENERAL (Mantenida por compatibilidad)
-        const largoM = (doc.largo_lamina_cm > 0) ? (doc.largo_lamina_cm / 100) : 2.90;
+        const largoM = (doc.largo_lamina_cm > 0) ? (doc.largo_lamina_cm / 100) : 2.80;
         if (doc.precio_total_lamina) {
             doc.precio_m2_costo = Math.round(doc.precio_total_lamina / largoM);
         }
