@@ -134,54 +134,52 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             // --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
-(f.items || []).forEach(item => {
-    const nombreMayus = (item.materialNombre || item.nombre || "").toUpperCase();
-    const esMoldura = item.unidad === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
-    
-    // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Buscando el consumo real con desperdicio) ---
-    // Prioridad 1: 'cantidadUsada' (La maleta blindada del cotizador)
-    // Prioridad 2: 'cantidad' (Lo que Atlas restó del stock)
-    // Prioridad 3: Intentar extraer del texto "USO: X.XX" si es una orden antigua
-    let cantidadFinal = 0;
-    const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
-    const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
+// --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
+            (f.items || []).forEach(item => {
+                const nombreMayus = (item.materialNombre || item.nombre || "").toUpperCase();
+                const esMoldura = item.unidad === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
+                
+                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Buscando el consumo real con desperdicio) ---
+                let cantidadFinal = 0;
+                const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
+                const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
 
-    if (item.cantidadUsada) {
-        cantidadFinal = Number(item.cantidadUsada);
-    } else if (item.cantidad) {
-        cantidadFinal = Number(item.cantidad);
-    } else if (matchTexto) {
-        cantidadFinal = Number(matchTexto[1]);
-    } else {
-        // Solo si todo lo anterior falla, usamos el área (para vidrios/fondos)
-        cantidadFinal = Number(item.area_m2 || item.area || 0);
-    }
+                if (item.cantidadUsada) {
+                    cantidadFinal = Number(item.cantidadUsada);
+                } else if (item.cantidad) {
+                    cantidadFinal = Number(item.cantidad);
+                } else if (matchTexto) {
+                    cantidadFinal = Number(matchTexto[1]);
+                } else {
+                    cantidadFinal = Number(item.area_m2 || item.area || 0);
+                }
 
-    // --- 💰 CAPA DE COSTO BASE (Sincronizado con Atlas) ---
-    // Usamos el costo unitario guardado en el ítem; si no existe, 0 para no inflar la auditoría erróneamente
-    const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
-    
-    // Cálculo: Cantidad con desperdicio * Precio de compra en Atlas
-    const costoFila = Math.round(costoUnitario * cantidadFinal);
-    
-    // Venta Real: El subtotal que el cliente efectivamente pagó (ya incluye el x2.5 o x3)
-    const ventaFila = Math.round(Number(item.precio_venta_item || 0));
-    
-    // Acumuladores para el resumen de la OT
-    sumaCostoMateriales += costoFila;
-    sumaVentaMateriales += ventaFila;
+                // --- 💰 CAPA DE COSTO BASE (Sincronizado con Atlas + Alias de Seguridad) ---
+                // Buscamos bajo cualquier nombre posible para no perder el rastro del costo
+                const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costo_unitario || 0);
+                
+                // Cálculo: Cantidad con desperdicio * Precio de compra en Atlas
+                const costoFila = Math.round(costoUnitario * cantidadFinal);
+                
+                // --- 🚨 REPARACIÓN DE COLUMNA SUBTOTAL VENTA (El Scanner de Alias) ---
+                // Venta Real: Buscamos en todos los nombres posibles que hayamos usado antes o ahora
+                const ventaFila = Math.round(Number(item.subtotalVenta || item.precio_venta_item || item.valor_venta || item.subtotal || 0));
+                
+                // Acumuladores para el resumen de la OT
+                sumaCostoMateriales += costoFila;
+                sumaVentaMateriales += ventaFila;
 
-    // --- 🖼️ RENDERIZADO DE FILA EN TABLA ---
-    const unidadMedida = esMoldura ? "ML" : "m²";
-    const medidaTextoFila = `${cantidadFinal.toFixed(2)} ${unidadMedida}`;
+                // --- 🖼️ RENDERIZADO DE FILA EN TABLA ---
+                const unidadMedida = esMoldura ? "ML" : "m²";
+                const medidaTextoFila = `${cantidadFinal.toFixed(2)} ${unidadMedida}`;
 
-    htmlContenido += `<tr>
-        <td style="text-align:left; font-weight:600;">${nombreMayus}</td>
-        <td>${medidaTextoFila}</td>
-        <td>${formatter.format(costoFila)}</td>
-        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
-    </tr>`;
-});
+                htmlContenido += `<tr>
+                    <td style="text-align:left; font-weight:600;">${nombreMayus}</td>
+                    <td>${medidaTextoFila}</td>
+                    <td>${formatter.format(costoFila)}</td>
+                    <td style="background:#f0fdf4; font-weight:bold; color:#16a34a;">${formatter.format(ventaFila)}</td>
+                </tr>`;
+            });
             
             // 📊 Totales finales sincronizados
             const totalOrdenCalculado = sumaVentaMateriales + manoObra;
