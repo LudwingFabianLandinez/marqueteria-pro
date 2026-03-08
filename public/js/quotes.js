@@ -357,50 +357,49 @@ try {
     let costoBaseAcumulado = 0;
     let resumenGastoML = ""; // Para el reporte visual
 
-   // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
-        materialesSeleccionados.forEach(m => {
-            let costoItem = 0;
-            let ventaItem = 0;
+     // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (CORREGIDO: 100% DINÁMICO) ---
+materialesSeleccionados.forEach(m => {
+    let costoItem = 0;
+    let ventaItem = 0;
 
-            if (m.unidad === 'ML') {
-                // 1. LÓGICA DE MOLDURA: Perímetro Real + 15cm Desperdicio
-                const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
-                costoItem = Math.round(m.costoUnitario * gastoMLReal);
-                
-                // REGLA DE ORO: Molduras se multiplican por 2.5
-                ventaItem = Math.round(costoItem * 2.5);
-                
-                // Sincronización para el reporte y otros archivos
-                m.cantidadUsada = gastoMLReal; 
-                m.subtotalVenta = ventaItem; 
-                m.tipoMedida = "ML"; // Identificador para el reporte
-                resumenGastoML = `${gastoMLReal} ML`;
-
-                console.log(`📏 MOLDURA: ${m.nombre} | ML: ${gastoMLReal} | Costo: ${costoItem} | Venta(x2.5): ${ventaItem}`);
-            } else {
-                // 2. LÓGICA DE OTROS: Área M2
-                costoItem = Math.round(m.costoUnitario * areaCalculada);
-                
-                // REGLA: Otros materiales (Vidrio/Fondo) se multiplican por 3
-                ventaItem = Math.round(costoItem * 3);
-                
-                // Sincronización para el reporte y otros archivos
-                m.cantidadUsada = areaCalculada;
-                m.subtotalVenta = ventaItem;
-                m.tipoMedida = "M2"; // Identificador para el reporte
-
-                console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada} | Costo: ${costoItem} | Venta(x3): ${ventaItem}`);
-            }
-
-            // Mantener integridad de acumuladores existentes
-            costoBaseAcumulado += costoItem;
-            totalVentaAcumulado += ventaItem;
-        });
+    if (m.unidad === 'ML') {
+        // 1. LÓGICA DE MOLDURA: Llama a la fórmula que extrae el desperdicio real de Atlas (o el dataset)
+        // Si Atlas dice 15, usará 15. Si dice 24, usará 24.
+        const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
         
+        // El costo se basa en los ML reales calculados con el desperdicio específico de este material
+        costoItem = Math.round(m.costoUnitario * gastoMLReal);
+        
+        // REGLA DE ORO: Molduras se multiplican por 2.5
+        ventaItem = Math.round(costoItem * 2.5);
+        
+        // Sincronización para el reporte y otros archivos (Persistimos el gasto exacto)
+        m.cantidadUsada = gastoMLReal; 
+        m.subtotalVenta = ventaItem; 
+        m.tipoMedida = "ML"; 
+        resumenGastoML = `${gastoMLReal} ML`;
+
+        console.log(`📏 MOLDURA: ${m.nombre} | Gasto Real: ${gastoMLReal}ML | Costo Base: ${costoItem} | Venta(x2.5): ${ventaItem}`);
+    } else {
+        // 2. LÓGICA DE OTROS: Área M2 (Vidrios, Respaldos, etc.)
+        costoItem = Math.round(m.costoUnitario * areaCalculada);
+        
+        // REGLA: Otros materiales (Vidrio/Fondo) se multiplican por 3
+        ventaItem = Math.round(costoItem * 3);
+        
+        m.cantidadUsada = areaCalculada;
+        m.subtotalVenta = ventaItem;
+        m.tipoMedida = "M2";
+
+        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | Costo Base: ${costoItem} | Venta(x3): ${ventaItem}`);
+    }
+
+    // Mantener integridad de acumuladores existentes para el total de la orden
+    costoBaseAcumulado += costoItem;
+    totalVentaAcumulado += ventaItem;
+});      
 
     // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
-    // --- 📈 PUNTO 2: CONSOLIDACIÓN DE TOTALES Y RENTABILIDAD REAL ---
-    // totalVentaAcumulado ya trae la suma de (Molduras x2.5 + Otros x3)
     const totalFinalCalculado = Math.round(totalVentaAcumulado + manoObraInput);
     
     // REGLA DE ORO SOLICITADA: Total Orden - Suma de Costos Base - Mano de Obra
@@ -634,13 +633,12 @@ window.facturarVenta = async function() {
         return;
     }
 
+    // --- 🛡️ PUNTO 2: BLINDAJE DE CONSUMO E INVENTARIO (facturarVenta) ---
     const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
-        // 🚀 LÓGICA DE CONSUMO REAL:
-        // Si el material es 'ML' (Molduras), usamos el perímetro calculado (m.cantidadUsada).
-        // Si es 'M2' (Vidrios/Fondos), usamos el área final del cuadro.
-        const cantidadRealConsumo = (m.unidad === 'ML') 
-            ? m.cantidadUsada 
-            : (datosCotizacionActual.areaFinal || 0);
+        // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO:
+        // Priorizamos 'm.cantidadUsada' porque ya contiene el (Perímetro + Desperdicio Atlas) 
+        // calculado en el paso anterior. Si no existe, recurrimos al área.
+        const cantidadRealConsumo = m.cantidadUsada || (datosCotizacionActual.areaFinal || 0);
 
         return {
             productoId: m.id,
@@ -648,24 +646,23 @@ window.facturarVenta = async function() {
             descripcion: m.nombre.toUpperCase(),
             nombre: m.nombre.toUpperCase(),      
 
-            // 💰 COSTOS Y VENTAS REALES (Blindaje de rentabilidad para el reporte de auditoría)
-            // Estos campos alimentan directamente las sumas en history.js
+            // 💰 COSTOS Y VENTAS REALES (Blindaje de rentabilidad para history.js)
             costo_base_unitario: m.costoUnitario,
             costoBase: m.costoUnitario,
             precio_venta_item: m.subtotalVenta, 
 
-            // 📐 MOTOR DE INVENTARIO Y MEDIDAS
-            // 'cantidad' es lo que el servidor RESTARÁ del stock
-            cantidad: Number(cantidadRealConsumo.toFixed(3)), 
-            unidad: m.unidad, // Sincronizado: 'ML' o 'M2'
+            // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas)
+            // 'cantidad' es el valor exacto que se restará del stock (ej: 2.95)
+            cantidad: Number(Number(cantidadRealConsumo).toFixed(3)), 
+            unidad: (m.unidad || "").toUpperCase(), 
             
             ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
             largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
             area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
             
-            // 📝 RESPALDO DE CÁLCULO
-            // Enviamos 'cantidadUsada' explícitamente para evitar pérdida de datos en el historial
-            cantidadUsada: Number(m.cantidadUsada.toFixed(3))
+            // 📝 RESPALDO DE AUDITORÍA
+            // Aseguramos que el historial guarde el consumo con desperdicio incluido
+            cantidadUsada: Number(Number(cantidadRealConsumo).toFixed(3))
         };
     });
 

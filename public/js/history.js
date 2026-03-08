@@ -133,45 +133,45 @@ async function generarReporteDiario() {
                     </thead>
                     <tbody>`;
 
-            (f.items || []).forEach(item => {
+            // --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
+(f.items || []).forEach(item => {
     const nombreMayus = (item.materialNombre || item.nombre || "").toUpperCase();
     const esMoldura = item.unidad === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
     
-    // --- CAPA DE RESCATE DE MEDIDA (Buscando el 2.95) ---
+    // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Buscando el consumo real con desperdicio) ---
+    // Prioridad 1: 'cantidadUsada' (La maleta blindada del cotizador)
+    // Prioridad 2: 'cantidad' (Lo que Atlas restó del stock)
+    // Prioridad 3: Intentar extraer del texto "USO: X.XX" si es una orden antigua
     let cantidadFinal = 0;
+    const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
+    const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
 
-    if (esMoldura) {
-        // 1. Intentar extraer del texto (Ej: "Uso: 2.95 ML") que se ve en tu imagen
-        const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
-        const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
-        
-        // 2. Intentar de variables numéricas
-        const variableNum = Number(item.cantidad || item.cantidad_ml || item.uso_ml || 0);
-
-        // 3. Cálculo de emergencia si todo falla (Perímetro: (60+80)*2 + desperdicio)
-        // Sacamos los números 60 y 80 del texto "(60 x 80 cm)"
-        let calculoEmergencia = 0;
-        const dimensiones = textoCompleto.match(/(\d+)\s*[xX]\s*(\d+)/);
-        if (dimensiones) {
-            const ancho = parseInt(dimensiones[1]) / 100;
-            const alto = parseInt(dimensiones[2]) / 100;
-            calculoEmergencia = ((ancho + alto) * 2) * 1.05; // +5% desperdicio
-        }
-
-        cantidadFinal = matchTexto ? Number(matchTexto[1]) : (variableNum > 0 ? variableNum : calculoEmergencia);
+    if (item.cantidadUsada) {
+        cantidadFinal = Number(item.cantidadUsada);
+    } else if (item.cantidad) {
+        cantidadFinal = Number(item.cantidad);
+    } else if (matchTexto) {
+        cantidadFinal = Number(matchTexto[1]);
     } else {
+        // Solo si todo lo anterior falla, usamos el área (para vidrios/fondos)
         cantidadFinal = Number(item.area_m2 || item.area || 0);
     }
 
-    // --- CAPA DE COSTO BASE (Atacando los $54.327) ---
-    const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 18416); // 18416 es el promedio según tus fotos
-    const costoFila = Math.round(costoUnitario * cantidadFinal);
-    const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3)));
+    // --- 💰 CAPA DE COSTO BASE (Sincronizado con Atlas) ---
+    // Usamos el costo unitario guardado en el ítem; si no existe, 0 para no inflar la auditoría erróneamente
+    const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
     
+    // Cálculo: Cantidad con desperdicio * Precio de compra en Atlas
+    const costoFila = Math.round(costoUnitario * cantidadFinal);
+    
+    // Venta Real: El subtotal que el cliente efectivamente pagó (ya incluye el x2.5 o x3)
+    const ventaFila = Math.round(Number(item.precio_venta_item || 0));
+    
+    // Acumuladores para el resumen de la OT
     sumaCostoMateriales += costoFila;
     sumaVentaMateriales += ventaFila;
 
-    // --- RENDERIZADO ---
+    // --- 🖼️ RENDERIZADO DE FILA EN TABLA ---
     const unidadMedida = esMoldura ? "ML" : "m²";
     const medidaTextoFila = `${cantidadFinal.toFixed(2)} ${unidadMedida}`;
 
