@@ -123,27 +123,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // --- 🔑 INYECCIÓN DE DATOS CRÍTICOS (CON RESCATE DE 24CM PARA MOLDURAS) ---
+                    // --- 📥 CARGA DINÁMICA DE DATOS (RESPETA CUALQUIER VALOR DE ATLAS) ---
 const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
 option.dataset.costo = precio;
 
-// 1. Buscamos el desperdicio en todos los campos posibles de Atlas (Imagen 6 confirma 0)
-let valorDesperdicio = parseFloat(m.desperdicio_total_cm || m.desperdicio || m.merma || m.desperdicio_ml || 0);
+// 1. RECONOCIMIENTO TOTAL: Buscamos el desperdicio en cualquier campo que uses en Atlas.
+// Ya no forzamos el 24. El código ahora leerá EXACTAMENTE lo que tú escribas en el Maestro.
+let valorDesperdicio = parseFloat(
+    m.desperdicio_total_cm || 
+    m.desperdicio || 
+    m.merma || 
+    m.desperdicio_ml || 
+    0
+);
 
-// 2. 🛡️ REGLA DE ORO: Si es Moldura (esML) y el dato es 0 o no existe, FORZAMOS el 24
-// Esto corrige el error de Atlas donde el campo llega en 0.
-if (esML && (isNaN(valorDesperdicio) || valorDesperdicio === 0)) {
-    valorDesperdicio = 24;
-    console.log(`💡 Aplicando rescate de 24cm a: ${nombreM}`);
-}
+// 2. 🛡️ ASIGNACIÓN DINÁMICA: 
+// Se guarda el valor real (10, 24, 35, etc.). 
+// Solo será 0 si en Atlas realmente está vacío o en 0.
 option.dataset.desperdicio = valorDesperdicio;
 
-// Blindaje: Guardamos el objeto completo en el HTML para que la fórmula siempre tenga de donde sacar datos
+// Blindaje: Guardamos el objeto completo para que el Bloque 2 pueda leerlo.
 option.dataset.full = JSON.stringify(m);
 
-option.dataset.unidad = unidad; // Queda como ML o M2
+option.dataset.unidad = unidad; // ML o M2
 option.dataset.categoria = categoriaM;
 option.textContent = `${nombreM} ${avisoStock}`;
+
+// Auditoría técnica en consola para que veas qué número se está cargando por cada moldura
+if (esML) {
+    console.log(`✅ Moldura: ${nombreM} | Desperdicio cargado: ${valorDesperdicio}cm`);
+}
 
 select.appendChild(option);
 
