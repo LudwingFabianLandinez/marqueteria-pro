@@ -326,15 +326,18 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
         0
     );
 
-    // 🛡️ ÚLTIMA LÍNEA DE DEFENSA: Si después de buscar todo sigue en 0, forzamos 24 (Rescate de Emergencia)
-    if (desperdicioFinal === 0) {
+    // 🛡️ ÚLTIMA LÍNEA DE DEFENSA: 
+    // Si detectamos que es moldura por nombre o unidad, y el desperdicio sigue siendo 0 (error de Atlas), forzamos 24.
+    const nombreMat = (opcionSeleccionada?.text || materialRescate?.nombre || "").toUpperCase();
+    if (desperdicioFinal === 0 && (nombreMat.includes("MOLDURA") || materialRescate?.unidad === "ML")) {
         desperdicioFinal = 24;
+        console.warn("⚠️ Atlas reportó 0cm, pero el sistema detectó una MOLDURA. Aplicando rescate de 24cm.");
     }
     
     // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    // Log de Auditoría en Consola (F12)
+    // Log de Auditoría en Consola (F12) para confirmar el éxito
     console.log(`📏 VERIFICACIÓN TALLER:`);
     console.log(`- Perímetro Base: ${perimetroCM}cm`);
     console.log(`- Desperdicio Aplicado: ${desperdicioFinal}cm`);
