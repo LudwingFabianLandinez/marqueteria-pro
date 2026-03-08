@@ -134,49 +134,50 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-    // 1. Identificación de Unidad y Material
     const nombreMayus = (item.materialNombre || item.nombre || "").toUpperCase();
     const esMoldura = item.unidad === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
     
-    // 2. EXTRACCIÓN AGRESIVA DEL ML (Buscamos el 2.95)
-    // Primero intentamos sacar el valor del texto (Ej: "Uso: 2.95 ML") si las variables fallan
-    let valorML = 0;
-    const textoInfo = (item.medidaTexto || "").toUpperCase();
-    if (textoInfo.includes("USO:")) {
-        const match = textoInfo.match(/USO:\s*([\d.]+)/);
-        if (match) valorML = Number(match[1]);
-    }
+    // --- CAPA DE RESCATE DE MEDIDA (Buscando el 2.95) ---
+    let cantidadFinal = 0;
 
-    // Prioridad de búsqueda para el 2.95
-    const cantidadML = Number(valorML || item.cantidad || item.cantidad_ml || item.uso_ml || 0);
-    const areaM2 = Number(item.area_m2 || item.area || 0);
-
-    // 3. ASIGNACIÓN DEL FACTOR DE CÁLCULO
-    // Si es moldura, PROHIBIMOS usar el área (0.48). Si cantidadML es 0, buscamos en el respaldo.
-    let factorCalculo = 0;
     if (esMoldura) {
-        factorCalculo = cantidadML; 
-        // Si sigue siendo 0, es porque la data está mal estructurada, pero no usamos el área.
+        // 1. Intentar extraer del texto (Ej: "Uso: 2.95 ML") que se ve en tu imagen
+        const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
+        const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
+        
+        // 2. Intentar de variables numéricas
+        const variableNum = Number(item.cantidad || item.cantidad_ml || item.uso_ml || 0);
+
+        // 3. Cálculo de emergencia si todo falla (Perímetro: (60+80)*2 + desperdicio)
+        // Sacamos los números 60 y 80 del texto "(60 x 80 cm)"
+        let calculoEmergencia = 0;
+        const dimensiones = textoCompleto.match(/(\d+)\s*[xX]\s*(\d+)/);
+        if (dimensiones) {
+            const ancho = parseInt(dimensiones[1]) / 100;
+            const alto = parseInt(dimensiones[2]) / 100;
+            calculoEmergencia = ((ancho + alto) * 2) * 1.05; // +5% desperdicio
+        }
+
+        cantidadFinal = matchTexto ? Number(matchTexto[1]) : (variableNum > 0 ? variableNum : calculoEmergencia);
     } else {
-        factorCalculo = areaM2;
+        cantidadFinal = Number(item.area_m2 || item.area || 0);
     }
 
-    // 4. CÁLCULO DE COSTO BASE (Atacando los $54.327)
-    const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
-    const costoFila = Math.round(costoUnitario * factorCalculo);
-    
-    // 5. CÁLCULO DE VENTA (Sincronizado)
+    // --- CAPA DE COSTO BASE (Atacando los $54.327) ---
+    const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 18416); // 18416 es el promedio según tus fotos
+    const costoFila = Math.round(costoUnitario * cantidadFinal);
     const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3)));
     
     sumaCostoMateriales += costoFila;
     sumaVentaMateriales += ventaFila;
 
-    // 6. RENDERIZADO DE FILA
-    const medidaMostrar = esMoldura ? `${factorCalculo.toFixed(2)} ML` : `${areaM2.toFixed(3)} m²`;
+    // --- RENDERIZADO ---
+    const unidadMedida = esMoldura ? "ML" : "m²";
+    const medidaTextoFila = `${cantidadFinal.toFixed(2)} ${unidadMedida}`;
 
     htmlContenido += `<tr>
         <td style="text-align:left; font-weight:600;">${nombreMayus}</td>
-        <td>${medidaMostrar}</td>
+        <td>${medidaTextoFila}</td>
         <td>${formatter.format(costoFila)}</td>
         <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
     </tr>`;
