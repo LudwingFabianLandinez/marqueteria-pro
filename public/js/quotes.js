@@ -308,22 +308,23 @@ try {
     let costoBaseAcumulado = 0;
     let resumenGastoML = ""; // Para el reporte visual
 
-    // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
+   // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
         materialesSeleccionados.forEach(m => {
             let costoItem = 0;
             let ventaItem = 0;
 
             if (m.unidad === 'ML') {
-                // 1. LÓGICA DE MOLDURA: Perímetro + Desperdicio
+                // 1. LÓGICA DE MOLDURA: Perímetro Real + 15cm Desperdicio
                 const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
                 costoItem = Math.round(m.costoUnitario * gastoMLReal);
                 
                 // REGLA DE ORO: Molduras se multiplican por 2.5
                 ventaItem = Math.round(costoItem * 2.5);
                 
-                // Guardamos info específica para el reporte
+                // Sincronización para el reporte y otros archivos
                 m.cantidadUsada = gastoMLReal; 
                 m.subtotalVenta = ventaItem; 
+                m.tipoMedida = "ML"; // Identificador para el reporte
                 resumenGastoML = `${gastoMLReal} ML`;
 
                 console.log(`📏 MOLDURA: ${m.nombre} | ML: ${gastoMLReal} | Costo: ${costoItem} | Venta(x2.5): ${ventaItem}`);
@@ -334,41 +335,60 @@ try {
                 // REGLA: Otros materiales (Vidrio/Fondo) se multiplican por 3
                 ventaItem = Math.round(costoItem * 3);
                 
-                // Guardamos info para consistencia entre archivos
+                // Sincronización para el reporte y otros archivos
                 m.cantidadUsada = areaCalculada;
                 m.subtotalVenta = ventaItem;
+                m.tipoMedida = "M2"; // Identificador para el reporte
 
                 console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada} | Costo: ${costoItem} | Venta(x3): ${ventaItem}`);
             }
 
-            // Acumuladores globales para el total de la cotización
+            // Mantener integridad de acumuladores existentes
             costoBaseAcumulado += costoItem;
             totalVentaAcumulado += ventaItem;
         });
+        
 
     // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
-    const totalFinal = totalVentaAcumulado + manoObraInput;
+    // --- 📈 PUNTO 2: CONSOLIDACIÓN DE TOTALES Y RENTABILIDAD REAL ---
+    // totalVentaAcumulado ya trae la suma de (Molduras x2.5 + Otros x3)
+    const totalFinalCalculado = Math.round(totalVentaAcumulado + manoObraInput);
+    
+    // REGLA DE ORO SOLICITADA: Total Orden - Suma de Costos Base - Mano de Obra
+    const rentabilidadFinal = Math.round(totalFinalCalculado - costoBaseAcumulado - manoObraInput);
 
     let dataFinal = {
-        valor_materiales: costoBaseAcumulado,
-        precioSugeridoCliente: totalFinal,
+        valor_materiales: costoBaseAcumulado,    // Suma de costos base (lo que te cuesta a ti)
+        suma_costos: costoBaseAcumulado,         // Alias para compatibilidad con otros archivos
+        precioSugeridoCliente: totalFinalCalculado, // El valor que paga el cliente
         area: areaCalculada,
         anchoOriginal: ancho,
         largoOriginal: largo,
         areaFinal: areaCalculada,
         valor_mano_obra: manoObraInput,
+        rentabilidad: rentabilidadFinal,         // Utilidad neta real del taller
         detalles: { 
             medidas: `${ancho} x ${largo} cm ${resumenGastoML ? '(Uso: ' + resumenGastoML + ')' : ''}`, 
             materiales: materialesSeleccionados 
         }
     };
     
+    // Sincronización con la persistencia global
     datosCotizacionActual = dataFinal;
-    mostrarResultado(dataFinal);
-    document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
+    
+    // Enviamos los datos listos al reporte visual
+    if (typeof mostrarResultado === 'function') {
+        mostrarResultado(dataFinal);
+    }
+    
+    // Navegación automática para ver el resultado
+    const resDiv = document.getElementById('resultado');
+    if (resDiv) {
+        resDiv.scrollIntoView({ behavior: 'smooth' });
+    }
 
 } catch (error) {
-    console.error("Error en cálculo:", error);
+    console.error("🚨 Error crítico en el cálculo:", error);
 } finally {
     if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
 }
