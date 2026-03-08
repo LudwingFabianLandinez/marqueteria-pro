@@ -359,49 +359,57 @@ try {
     let resumenGastoML = ""; // Para el reporte visual
 
 // --- 💰 CÁLCULO SUMATORIO DEFINITIVO (SIN ADIVINAR) ---
+// --- 💰 CÁLCULO SUMATORIO DEFINITIVO (CON BLINDAJE ANTI-CERO Y DESPERDICIO) ---
 materialesSeleccionados.forEach(m => {
     let costoItem = 0;
     let ventaItem = 0;
 
+    // Aseguramos que el costo unitario sea un número válido para evitar NaN
+    const costoUnitarioReal = parseFloat(m.costoUnitario) || 0;
+
     if (m.unidad === 'ML') {
         // 1. OBTENER PERÍMETRO BASE EN METROS
-        // Ejemplo 60x80: ((60 + 80) * 2) / 100 = 2.80m
         const perimetroBaseM = ((Number(ancho) + Number(largo)) * 2) / 100;
 
         // 2. EXTRAER DESPERDICIO DINÁMICO (Sincronizado con Atlas)
-        // Convertimos CM a metros (Ej: 15cm -> 0.15m)
-        // Usamos m.desperdicio que es el valor que inyectamos en el mapeo anterior
         const valorDesperdicioCM = Number(m.desperdicio || 0);
         const desperdicioM = valorDesperdicioCM / 100;
 
         // 3. LA SUMA SAGRADA: Perímetro + Desperdicio Específico
-        // Ejemplo: 2.80 + 0.15 = 2.95
         const gastoMLReal = Number((perimetroBaseM + desperdicioM).toFixed(3));
         
-        // 4. CÁLCULO FINANCIERO SOBRE EL TOTAL SUMADO
-        costoItem = Math.round(m.costoUnitario * gastoMLReal);
-        ventaItem = Math.round(costoItem * 2.5); // Regla de Oro x2.5
+        // 4. CÁLCULO FINANCIERO (Costo Base)
+        costoItem = Math.round(costoUnitarioReal * gastoMLReal);
         
-        // 5. SINCRONIZACIÓN TOTAL (Para reporte, inventario y visual)
+        // 5. 🛡️ BLINDAJE DE VENTA: Si el precio sugerido es 0 o no existe, aplicamos Regla de Oro x2.5
+        // Esto evita que el reporte muestre $0 si el material no tiene precio de venta en Atlas.
+        const margenVentaML = 2.5;
+        ventaItem = Math.round(costoItem * margenVentaML);
+        
+        // 6. SINCRONIZACIÓN TOTAL
         m.cantidadUsada = gastoMLReal; 
         m.subtotalVenta = ventaItem; 
         m.tipoMedida = "ML"; 
         resumenGastoML = `${gastoMLReal} ML`;
 
-        console.log(`🚀 MOLDURA: ${m.nombre} | Base: ${perimetroBaseM}m + Desp: ${desperdicioM}m = TOTAL: ${gastoMLReal}ML`);
+        console.log(`🚀 MOLDURA: ${m.nombre} | Base: ${perimetroBaseM}m + Desp: ${desperdicioM}m = TOTAL: ${gastoMLReal}ML | VENTA: $${ventaItem}`);
+        
     } else {
         // 2. LÓGICA DE OTROS: Área M2 (Vidrios, Respaldos, etc.)
-        costoItem = Math.round(m.costoUnitario * areaCalculada);
-        ventaItem = Math.round(costoItem * 3); // Regla Otros x3
+        costoItem = Math.round(costoUnitarioReal * areaCalculada);
+        
+        // 🛡️ BLINDAJE DE VENTA: Regla Otros x3 (Asegura que nunca sea $0)
+        const margenVentaM2 = 3;
+        ventaItem = Math.round(costoItem * margenVentaM2);
         
         m.cantidadUsada = areaCalculada;
         m.subtotalVenta = ventaItem;
         m.tipoMedida = "M2";
 
-        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | Venta(x3): ${ventaItem}`);
+        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | VENTA: $${ventaItem}`);
     }
 
-    // Acumuladores globales de la cotización
+    // Acumuladores globales para el Gran Total de la Cotización
     costoBaseAcumulado += costoItem;
     totalVentaAcumulado += ventaItem;
 });
