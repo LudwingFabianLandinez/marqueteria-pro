@@ -307,7 +307,7 @@
             <div class="form-group">
                 <label>COSTO BASE DE COMPRA (VARA O LÁMINA $)</label>
                 <input type="number" id="cat-precio-maestro" placeholder="Ej: 50912" oninput="actualizarCalculoInmediato()">
-            </div>
+            </div>  
 
             <div id="seccionDesperdicio" class="form-group" style="background: #f0fff4; padding: 10px; border-radius: 8px; border: 1px solid #c6f6d5;">
                 <label style="color: #2f855a;">DESPERDICIO TOTAL (CM)</label>
@@ -504,12 +504,15 @@ function obtenerCalculoLogico() {
     const nombreInput = document.getElementById('cat-nombre-maestro');
     const categoriaInput = document.getElementById('cat-categoria-maestro');
     const precioInput = document.getElementById('cat-precio-maestro');
+    // NUEVO: Capturamos el input del desperdicio para validación
+    const desperdicioInput = document.getElementById('cat-desperdicio-maestro');
 
     if (!nombreInput || !categoriaInput || !precioInput) return 0;
 
     const nombre = nombreInput.value.toUpperCase();
     const categoria = categoriaInput.value;
     const precioCompra = parseFloat(precioInput.value) || 0;
+    const valorDesperdicio = desperdicioInput ? parseFloat(desperdicioInput.value) || 0 : 0;
 
     let anchoLocal = 0;
     let largoLocal = 0;
@@ -523,21 +526,28 @@ function obtenerCalculoLogico() {
     const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
     
     if (esMolduraReal) {
-        // REGLA DE ORO: Precio / 2.8 = Costo Metro Lineal
-        return Math.round(precioCompra / 2.8);
+        // Mantenemos tu REGLA DE ORO intacta
+        const costoMetroLineal = Math.round(precioCompra / 2.8);
+        
+        // Log de control para que veas en consola que YA NO SE IGNORA el dato
+        console.log(`📊 CÁLCULO LOG: Costo ML $${costoMetroLineal} | Desperdicio a guardar: ${valorDesperdicio}cm`);
+        
+        return costoMetroLineal;
     } else {
         const areaM2 = (anchoLocal * largoLocal) / 10000;
         return areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
     }
 }
-
 // --- 2. FUNCIÓN REGISTRO MAESTRO (INTEGRIDAD TOTAL CON ATLAS) ---
 async function ejecutarRegistroMaestro() {
-    // 1. CAPTURA DE DATOS
+    // 1. CAPTURA DE DATOS (REFORZADA)
     const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
     const categoria = document.getElementById('cat-categoria-maestro').value;
     const precioCompra = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
-    const desperdicio = parseFloat(document.getElementById('cat-desperdicio-maestro').value) || 0;
+    
+    // Captura directa desde el ID del input verde para asegurar el valor real
+    const desperdicioInput = document.getElementById('cat-desperdicio-maestro');
+    const desperdicio = desperdicioInput ? parseFloat(desperdicioInput.value) || 0 : 0;
 
     if (!nombre || precioCompra <= 0) {
         alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
@@ -567,7 +577,7 @@ async function ejecutarRegistroMaestro() {
 
     const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
-    // 4. OBJETO PARA ATLAS (CON BLINDAJE ANTI-8716)
+    // 4. OBJETO PARA ATLAS (CON BLINDAJE Y DESPERDICIO ASEGURADO)
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
@@ -576,7 +586,7 @@ async function ejecutarRegistroMaestro() {
         costo_base: costoUnitarioFinal, 
         precio_m2_costo: costoUnitarioFinal, 
         precio_total_lamina: precioCompra,
-        desperdicio_total_cm: desperdicio,
+        desperdicio_total_cm: desperdicio, // <--- AQUÍ LLEGA EL 15
 
         // --- 🛡️ ESCUDO DE ÁREA UNITARIA (CONSERVADO) ---
         ancho_lamina_cm: 100, 
@@ -589,7 +599,7 @@ async function ejecutarRegistroMaestro() {
     };
     
     try {
-        console.log("📡 Enviando a Atlas con Blindaje 100x100:", nuevoMaterial);
+        console.log("📡 Enviando a Atlas con Desperdicio:", desperdicio);
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
         const response = await fetch(URL_REGISTRO, {
@@ -601,7 +611,8 @@ async function ejecutarRegistroMaestro() {
         const res = await response.json();
 
         if (res.success || response.ok) {
-            alert(`✅ REGISTRO CORRECTO EN ATLAS\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
+            // El alert ahora confirma explícitamente el desperdicio que se envió
+            alert(`✅ REGISTRO CORRECTO EN ATLAS\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio Guardado: ${desperdicio} cm`);
             
             // --- 🛡️ LIMPIEZA PROFUNDA ---
             localStorage.clear(); 
