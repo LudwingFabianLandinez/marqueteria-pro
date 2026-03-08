@@ -496,38 +496,49 @@
     async function ejecutarRegistroMaestro() {
    
 // --- 1. FUNCIÓN DE APOYO: CÁLCULO VISUAL EN TIEMPO REAL ---
-function actualizarCalculoInmediato() {
+// --- 1. FUNCIÓN DE APOYO: CÁLCULO VISUAL (CON ACTIVACIÓN AUTOMÁTICA) ---
+function activarCalculoEnTiempoReal() {
     const nombreInput = document.getElementById('cat-nombre-maestro');
     const categoriaInput = document.getElementById('cat-categoria-maestro');
     const precioInput = document.getElementById('cat-precio-maestro');
     const display = document.getElementById('cat-display-unitario');
 
-    // Validación de existencia de elementos
+    // Verificación de integridad de elementos en el DOM
     if (!nombreInput || !categoriaInput || !precioInput || !display) return;
 
-    const nombre = nombreInput.value.toUpperCase();
-    const categoria = categoriaInput.value;
-    const precioCompra = parseFloat(precioInput.value) || 0;
+    // Lógica interna de cálculo (Mantiene 2.8 para molduras y Área para láminas)
+    const ejecutarCalculo = () => {
+        const nombre = nombreInput.value.toUpperCase();
+        const categoria = categoriaInput.value;
+        const precioCompra = parseFloat(precioInput.value) || 0;
 
-    let anchoLocal = 0;
-    let largoLocal = 0;
-    const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
-    if (match) {
-        anchoLocal = parseFloat(match[1]);
-        largoLocal = parseFloat(match[2]);
-    }
+        let anchoLocal = 0;
+        let largoLocal = 0;
+        const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
+        
+        if (match) {
+            anchoLocal = parseFloat(match[1]);
+            largoLocal = parseFloat(match[2]);
+        }
 
-    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
-    
-    if (esMolduraReal) {
-        // REGLA DE ORO: Precio / 2.8 = Costo Metro Lineal
-        const costoML = Math.round(precioCompra / 2.8);
-        display.value = `$ ${costoML.toLocaleString()} por Metro Lineal`;
-    } else {
-        const areaM2 = (anchoLocal * largoLocal) / 10000;
-        const costoM2 = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
-        display.value = `$ ${costoM2.toLocaleString()} por m²`;
-    }
+        const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
+        
+        if (esMolduraReal) {
+            // REGLA DE ORO: Precio / 2.8 = Costo Metro Lineal
+            const costoML = Math.round(precioCompra / 2.8);
+            display.value = `$ ${costoML.toLocaleString()} por Metro Lineal`;
+        } else {
+            const areaM2 = (anchoLocal * largoLocal) / 10000;
+            const costoM2 = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
+            display.value = `$ ${costoM2.toLocaleString()} por m²`;
+        }
+    };
+
+    // --- 🛡️ ACTIVADORES (EVENT LISTENERS) ---
+    // Esto hace que el cuadro azul se llene solo mientras escribes
+    nombreInput.addEventListener('input', ejecutarCalculo);
+    categoriaInput.addEventListener('change', ejecutarCalculo);
+    precioInput.addEventListener('input', ejecutarCalculo);
 }
 
 // --- 2. FUNCIÓN REGISTRO MAESTRO (CON BLINDAJE Y LIMPIEZA DE CACHÉ) ---
@@ -554,9 +565,9 @@ async function ejecutarRegistroMaestro() {
 
     // 3. CÁLCULO DIRECTO (MANTENIENDO 2.8 COMO ESTÁNDAR)
     let costoUnitarioFinal = 0;
-    const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
+    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
-    if (esMoldura) {
+    if (esMolduraReal) {
         const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
         costoUnitarioFinal = Math.round(precioCompra / metros);
     } else {
@@ -564,10 +575,9 @@ async function ejecutarRegistroMaestro() {
         costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
     }
 
-    // 4. OBJETO PARA ATLAS (CON BLINDAJE ANTI-8716)
-    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
     const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
+    // 4. OBJETO PARA ATLAS (CON BLINDAJE ANTI-8716)
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
@@ -579,6 +589,7 @@ async function ejecutarRegistroMaestro() {
         desperdicio_total_cm: desperdicio,
 
         // --- 🛡️ ESCUDO DE ÁREA UNITARIA (CONSERVADO) ---
+        // Forzamos 100x100 para que Atlas NO vuelva a dividir por el área
         ancho_lamina_cm: 100, 
         largo_lamina_cm: 100, 
         
@@ -589,7 +600,7 @@ async function ejecutarRegistroMaestro() {
     };
     
     try {
-        console.log("📡 Enviando a Atlas:", nuevoMaterial);
+        console.log("📡 Enviando a Atlas con Blindaje 100x100:", nuevoMaterial);
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
         const response = await fetch(URL_REGISTRO, {
@@ -601,9 +612,9 @@ async function ejecutarRegistroMaestro() {
         const res = await response.json();
 
         if (res.success || response.ok) {
-            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
+            alert(`✅ REGISTRO CORRECTO EN ATLAS\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
             
-            // --- 🛡️ SOLUCIÓN PUNTO 1: LIMPIEZA PROFUNDA DE CACHÉ ---
+            // --- 🛡️ LIMPIEZA PROFUNDA (Para que aparezca en el Dashboard) ---
             localStorage.clear(); 
             sessionStorage.clear();
             
@@ -616,6 +627,11 @@ async function ejecutarRegistroMaestro() {
         alert("🚨 ERROR: " + e.message);
     }
 }
+
+// --- 3. INICIALIZADOR AL CARGAR EL SITIO ---
+document.addEventListener('DOMContentLoaded', () => {
+    activarCalculoEnTiempoReal();
+});
 
     // 1. CAPTURA DE DATOS
     const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
