@@ -357,47 +357,51 @@ try {
     let costoBaseAcumulado = 0;
     let resumenGastoML = ""; // Para el reporte visual
 
-     // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (CORREGIDO: 100% DINÁMICO) ---
+// --- 💰 CÁLCULO SUMATORIO DEFINITIVO (SIN ADIVINAR) ---
 materialesSeleccionados.forEach(m => {
     let costoItem = 0;
     let ventaItem = 0;
 
     if (m.unidad === 'ML') {
-        // 1. LÓGICA DE MOLDURA: Llama a la fórmula que extrae el desperdicio real de Atlas (o el dataset)
-        // Si Atlas dice 15, usará 15. Si dice 24, usará 24.
-        const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
+        // 1. OBTENER PERÍMETRO BASE EN METROS
+        const perimetroBaseM = ((Number(ancho) + Number(largo)) * 2) / 100;
+
+        // 2. EXTRAER DESPERDICIO DINÁMICO DE CADA MOLDURA (Atlas o Dataset)
+        // Convertimos a metros lo que venga en CM (ej: 15cm -> 0.15m)
+        const valorDesperdicioCM = Number(m.desperdicio || m.desperdicio_total_cm || m.dataset?.desperdicio || 0);
+        const desperdicioM = valorDesperdicioCM / 100;
+
+        // 3. LA SUMA SAGRADA: Perímetro + Desperdicio Específico
+        const gastoMLReal = Number((perimetroBaseM + desperdicioM).toFixed(3));
         
-        // El costo se basa en los ML reales calculados con el desperdicio específico de este material
+        // 4. CÁLCULO FINANCIERO SOBRE EL TOTAL SUMADO
         costoItem = Math.round(m.costoUnitario * gastoMLReal);
+        ventaItem = Math.round(costoItem * 2.5); // Regla de Oro x2.5
         
-        // REGLA DE ORO: Molduras se multiplican por 2.5
-        ventaItem = Math.round(costoItem * 2.5);
-        
-        // Sincronización para el reporte y otros archivos (Persistimos el gasto exacto)
+        // 5. SINCRONIZACIÓN TOTAL (Para reporte, inventario y visual)
         m.cantidadUsada = gastoMLReal; 
         m.subtotalVenta = ventaItem; 
         m.tipoMedida = "ML"; 
         resumenGastoML = `${gastoMLReal} ML`;
 
-        console.log(`📏 MOLDURA: ${m.nombre} | Gasto Real: ${gastoMLReal}ML | Costo Base: ${costoItem} | Venta(x2.5): ${ventaItem}`);
+        console.log(`🚀 MOLDURA: ${m.nombre} | Base: ${perimetroBaseM}m + Desp: ${desperdicioM}m = TOTAL: ${gastoMLReal}ML`);
     } else {
         // 2. LÓGICA DE OTROS: Área M2 (Vidrios, Respaldos, etc.)
         costoItem = Math.round(m.costoUnitario * areaCalculada);
-        
-        // REGLA: Otros materiales (Vidrio/Fondo) se multiplican por 3
-        ventaItem = Math.round(costoItem * 3);
+        ventaItem = Math.round(costoItem * 3); // Regla Otros x3
         
         m.cantidadUsada = areaCalculada;
         m.subtotalVenta = ventaItem;
         m.tipoMedida = "M2";
 
-        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | Costo Base: ${costoItem} | Venta(x3): ${ventaItem}`);
+        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | Venta(x3): ${ventaItem}`);
     }
 
-    // Mantener integridad de acumuladores existentes para el total de la orden
+    // Acumuladores globales de la cotización
     costoBaseAcumulado += costoItem;
     totalVentaAcumulado += ventaItem;
-});      
+});
+    
 
     // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
     const totalFinalCalculado = Math.round(totalVentaAcumulado + manoObraInput);
