@@ -495,7 +495,7 @@
 
     async function ejecutarRegistroMaestro() {
    
-// --- 1. FUNCIÓN DE APOYO: CÁLCULO VISUAL (CON ACTIVACIÓN ULTRA-RESISTENTE) ---
+// --- 1. FUNCIÓN DE APOYO: CÁLCULO VISUAL EN TIEMPO REAL ---
 function activarCalculoEnTiempoReal() {
     const nombreInput = document.getElementById('cat-nombre-maestro');
     const categoriaInput = document.getElementById('cat-categoria-maestro');
@@ -505,6 +505,7 @@ function activarCalculoEnTiempoReal() {
     // Verificación de integridad de elementos en el DOM
     if (!nombreInput || !categoriaInput || !precioInput || !display) return;
 
+    // Lógica interna de cálculo (Mantiene 2.8 para molduras y Área para láminas)
     const ejecutarCalculo = () => {
         const nombre = nombreInput.value.toUpperCase();
         const categoria = categoriaInput.value;
@@ -533,15 +534,10 @@ function activarCalculoEnTiempoReal() {
     };
 
     // --- 🛡️ ACTIVADORES (EVENT LISTENERS) ---
-    // Agregamos 'keyup' para asegurar la respuesta inmediata en todos los teclados
-    [nombreInput, precioInput].forEach(input => {
-        input.addEventListener('input', ejecutarCalculo);
-        input.addEventListener('keyup', ejecutarCalculo);
-    });
+    // Esto hace que el cuadro azul se llene solo mientras escribes
+    nombreInput.addEventListener('input', ejecutarCalculo);
     categoriaInput.addEventListener('change', ejecutarCalculo);
-    
-    // Ejecutar una vez al inicio por si hay datos autocompletados
-    ejecutarCalculo();
+    precioInput.addEventListener('input', ejecutarCalculo);
 }
 
 // --- 2. FUNCIÓN REGISTRO MAESTRO (CON BLINDAJE Y LIMPIEZA DE CACHÉ) ---
@@ -592,6 +588,7 @@ async function ejecutarRegistroMaestro() {
         desperdicio_total_cm: desperdicio,
 
         // --- 🛡️ ESCUDO DE ÁREA UNITARIA (CONSERVADO) ---
+        // Forzamos 100x100 para que Atlas NO vuelva a dividir por el área
         ancho_lamina_cm: 100, 
         largo_lamina_cm: 100, 
         
@@ -616,6 +613,7 @@ async function ejecutarRegistroMaestro() {
         if (res.success || response.ok) {
             alert(`✅ REGISTRO CORRECTO EN ATLAS\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
             
+            // --- 🛡️ LIMPIEZA PROFUNDA (Para que aparezca en el Dashboard) ---
             localStorage.clear(); 
             sessionStorage.clear();
             
@@ -628,15 +626,6 @@ async function ejecutarRegistroMaestro() {
         alert("🚨 ERROR: " + e.message);
     }
 }
-
-// --- 3. INICIALIZACIÓN AUTOMÁTICA ---
-// Asegura que la calculadora se active apenas el modal esté disponible
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', activarCalculoEnTiempoReal);
-} else {
-    activarCalculoEnTiempoReal();
-}
-
 
 // --- 3. INICIALIZADOR AL CARGAR EL SITIO ---
 document.addEventListener('DOMContentLoaded', () => {
