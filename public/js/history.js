@@ -133,13 +133,15 @@ async function generarReporteDiario() {
                     </thead>
                     <tbody>`;
 
-            // --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
 // --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
-            (f.items || []).forEach(item => {
-                const nombreMayus = (item.materialNombre || item.nombre || "").toUpperCase();
-                const esMoldura = item.unidad === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
+            (f.items || f.materiales || []).forEach(item => {
+                // 🕵️ DEBUG: Esto nos dirá en la consola (F12) qué está llegando realmente
+                console.log(`Analizando item de OT ${f.numeroFactura || 'S/N'}:`, item);
+
+                const nombreMayus = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
+                const esMoldura = (item.unidad || "").toUpperCase() === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
                 
-                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Buscando el consumo real con desperdicio) ---
+                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Consumo real) ---
                 let cantidadFinal = 0;
                 const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
                 const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
@@ -154,18 +156,23 @@ async function generarReporteDiario() {
                     cantidadFinal = Number(item.area_m2 || item.area || 0);
                 }
 
-                // --- 💰 CAPA DE COSTO BASE (Sincronizado con Atlas + Alias de Seguridad) ---
-                // Buscamos bajo cualquier nombre posible para no perder el rastro del costo
-                const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costo_unitario || 0);
-                
-                // Cálculo: Cantidad con desperdicio * Precio de compra en Atlas
+                // --- 💰 CAPA DE COSTO BASE (Sincronizado con Atlas) ---
+                const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costoUnitario || item.costo_unitario || 0);
                 const costoFila = Math.round(costoUnitario * cantidadFinal);
                 
-                // --- 🚨 REPARACIÓN DE COLUMNA SUBTOTAL VENTA (El Scanner de Alias) ---
-                // Venta Real: Buscamos en todos los nombres posibles que hayamos usado antes o ahora
-                const ventaFila = Math.round(Number(item.subtotalVenta || item.precio_venta_item || item.valor_venta || item.subtotal || 0));
+                // --- 🚨 REPARACIÓN DEFINITIVA: SCANNER DE VENTA MULTI-VARIABLE ---
+                // Agregamos todas las combinaciones posibles de nombres de variables
+                const ventaFila = Math.round(Number(
+                    item.subtotalVenta || 
+                    item.subtotal_venta || 
+                    item.precio_venta_item || 
+                    item.valor_venta || 
+                    item.subtotal || 
+                    item.precioVenta ||
+                    0
+                ));
                 
-                // Acumuladores para el resumen de la OT
+                // Acumuladores para el resumen
                 sumaCostoMateriales += costoFila;
                 sumaVentaMateriales += ventaFila;
 
