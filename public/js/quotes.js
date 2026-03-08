@@ -283,24 +283,24 @@ async function procesarCotizacion() {
         return;
     }
     
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA EXACTA DE TALLER) ---
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA DE DESPERDICIO FIJO 80CM) ---
-const obtenerMLConDesperdicio = (a, l) => {
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (BASADA EN DESPERDICIO DEL MAESTRO) ---
+const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
     
     // 1. Suma de lados x 2 (Perímetro base en CM)
-    // Ejemplo 80x100: (80 + 100) * 2 = 360 cm
+    // Ejemplo 60x80: (60 + 80) * 2 = 280 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. DESPERDICIO FIJO DE 80 CM (Independiente de la medida)
-    // Esto cubre los 4 ingletes y el sobrante de la varilla
-    const desperdicioFijoCM = 80; 
+    // 2. RECUPERACIÓN DEL DESPERDICIO INGRESADO EN EL MAESTRO
+    // Buscamos el valor 'desperdicio' que tú ingresaste (ej: 24). 
+    // Si el material no tiene nada ingresado, ponemos 0 para no alterar tu cálculo.
+    const desperdicioIngresado = parseFloat(materialEspecífico?.desperdicio) || 0;
     
-    // 3. Cálculo final: (360 + 80) / 100 = 4.40 ML
-    const totalML = (perimetroCM + desperdicioFijoCM) / 100;
+    // 3. Cálculo final: (280 + 24) / 100 = 3.04 ML
+    const totalML = (perimetroCM + desperdicioIngresado) / 100;
     
-    console.log(`📏 CÁLCULO MOLDURA: Perímetro ${perimetroCM}cm + Fijo ${desperdicioFijoCM}cm = ${totalML} ML`);
+    console.log(`📏 CÁLCULO MOLDURA: Perímetro ${perimetroCM}cm + Desperdicio Maestro ${desperdicioIngresado}cm = ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
