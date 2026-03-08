@@ -135,32 +135,40 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-    // 1. Cálculo de área (Mantenido con decimales para precisión de medida)
-    const area = Number(item.area_m2 || item.area || 1);
-    
-    // 2. Prioridad de Costo (Ajustado a costo_base_unitario de tu servidor)
-    const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || item.precioUnitario || item.costo || 0);
-    
-    // 3. 🔥 RESCATE DE NOMBRE (Mantenido)
-    let nombreReal = (item.materialNombre || item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
+                // 1. Cálculo de área/cantidad (Mantenido con decimales para precisión de medida)
+                // Usamos area_m2 para vidrios y cantidad para molduras (ML)
+                const area = Number(item.area_m2 || item.area || 1);
+                const esMoldura = item.unidad === 'ML';
+                const cantidadML = Number(item.cantidad || 0);
 
-    // 4. Lógica de Costos (REDONDEADO A ENTEROS 🚀)
-    // Usamos Math.round para eliminar decimales en el dinero
-    const costoFila = Math.round(costoBaseUnitario * area);
-    const sugeridoFila = Math.round(costoFila * 3);
-    
-    sumaCostoMateriales += costoFila;
-    sumaMaterialesX3 += sugeridoFila;
+                // CORRECCIÓN DE TEXTO: Solo añade el "Uso ML" si es efectivamente una moldura
+                const textoMedidaDetallada = esMoldura 
+                    ? `${area.toFixed(3)} ${medidaTexto} (Uso: ${cantidadML.toFixed(2)} ML)` 
+                    : `${area.toFixed(3)} ${medidaTexto}`;
+                
+                // 2. Prioridad de Costo (Ajustado a costo_base_unitario de tu servidor)
+                const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || item.precioUnitario || item.costo || 0);
+                
+                // 3. 🔥 RESCATE DE NOMBRE (Mantenido intacto)
+                let nombreReal = (item.materialNombre || item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
 
-    // 5. Renderizado de Fila
-    htmlContenido += `<tr>
-        <td style="text-align:left; font-weight:600;">${nombreReal}</td>
-        <td>${area.toFixed(3)} ${medidaTexto}</td>
-        <td>${formatter.format(costoFila)}</td>
-        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
-    </tr>`;
-});
+                // 4. Lógica de Costos (REDONDEADO A ENTEROS 🚀 - Mantenido intacto)
+                // Para el costo usamos el 'area' (que es la métrica base de cobro)
+                const costoFila = Math.round(costoBaseUnitario * area);
+                const sugeridoFila = Math.round(costoFila * 3);
+                
+                sumaCostoMateriales += costoFila;
+                sumaMaterialesX3 += sugeridoFila;
 
+                // 5. Renderizado de Fila (Integrando la nueva lógica de texto sin dañar la tabla)
+                htmlContenido += `<tr>
+                    <td style="text-align:left; font-weight:600;">${nombreReal}</td>
+                    <td>${textoMedidaDetallada}</td>
+                    <td>${formatter.format(costoFila)}</td>
+                    <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
+                </tr>`;
+            });
+            
             const totalOrden = sumaMaterialesX3 + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales - manoObra;
 

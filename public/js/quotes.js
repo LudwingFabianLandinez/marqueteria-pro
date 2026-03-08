@@ -587,26 +587,39 @@ window.facturarVenta = async function() {
 
     // 2. 🚀 RESCATE QUIRÚRGICO DE MATERIALES (Sincronizado con el cálculo real)
     // En lugar de recolectar datos "genéricos", usamos lo que ya calculamos en 'procesarCotizacion'
+    // 2. 🚀 RESCATE QUIRÚRGICO DE MATERIALES (Sincronizado con el cálculo real)
+    // Se asegura que 'cantidad' sea el valor real de consumo para el inventario
     const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
+        // Determinamos qué valor debe procesar el servidor para el stock:
+        // Si es ML, enviamos m.cantidadUsada (ej. 2.95). 
+        // Si es M2, enviamos datosCotizacionActual.areaFinal (ej. 0.48).
+        const cantidadRealConsumo = (m.unidad === 'ML') 
+            ? m.cantidadUsada 
+            : (datosCotizacionActual.areaFinal || 0);
+
         return {
             productoId: m.id,
             materialNombre: m.nombre.toUpperCase(), 
             descripcion: m.nombre.toUpperCase(),
             nombre: m.nombre.toUpperCase(),      
 
-            // 💰 COSTOS Y VENTAS REALES (Lo que garantiza la rentabilidad en el reporte)
+            // 💰 COSTOS Y VENTAS REALES (Blindaje de rentabilidad para el reporte)
             costo_base_unitario: m.costoUnitario,
             costoBase: m.costoUnitario,
-            precio_venta_item: m.subtotalVenta, // AQUÍ VA EL x2.5 o x3 calculado arriba
+            precio_venta_item: m.subtotalVenta, // x2.5 para molduras, x3 para el resto
 
-            // 📐 MEDIDAS EXACTAS (ML para Molduras, M2 para Vidrios/Fondos)
-            // Esto es lo que corrige el error del 0.480 en el reporte
-            cantidad: m.cantidadUsada, 
+            // 📐 MEDIDAS EXACTAS Y DESCUENTO DE STOCK
+            // 'cantidad' es el motor del inventario en el servidor
+            cantidad: Number(cantidadRealConsumo.toFixed(3)), 
             unidad: m.unidad, // 'ML' o 'M2'
             
             ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
             largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
-            area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
+            area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
+            
+            // Enviamos cantidadUsada por separado para que el reporte histórico
+            // pueda mostrar los ML específicos sin confundirse con el área.
+            cantidadUsada: Number(m.cantidadUsada.toFixed(3))
         };
     });
 
