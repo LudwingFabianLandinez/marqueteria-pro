@@ -508,16 +508,28 @@ function actualizarSaldoEnRecibo() {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO: ML/M2 + SUBTOTALES) ---
+    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CON REPARACIÓN DE SUBTOTALES) ---
     const materialesValidos = data.detalles?.materiales || [];
+    let sumaSubtotalesReparados = 0;
+
     const itemsHTML = materialesValidos.length > 0 
         ? materialesValidos.map(m => {
             const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
             const unidadVisual = (m.unidad || "").toUpperCase();
             
-            // 🛡️ RESCATE DE MEDIDA: Usamos cantidadUsada (ML) si existe, sino el área (M2)
-            const medidaExacta = m.cantidadUsada ? m.cantidadUsada : (unidadVisual === 'M2' ? data.areaFinal : '--');
-            const subtotalVisual = formatter.format(m.subtotalVenta || 0);
+            // 🛡️ RESCATE DE MEDIDA
+            const medidaExacta = m.cantidadUsada ? m.cantidadUsada : (unidadVisual === 'M2' ? data.areaFinal : 0);
+            
+            // 🚨 BLINDAJE ANTI-CERO: Si el subtotal es 0, lo recalculamos para la vista
+            let valorVentaItem = parseFloat(m.subtotalVenta) || 0;
+            if (valorVentaItem === 0) {
+                const costoBase = parseFloat(m.costoUnitario) || 0;
+                const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
+                valorVentaItem = Math.round((costoBase * medidaExacta) * factorM);
+            }
+            
+            sumaSubtotalesReparados += valorVentaItem;
+            const subtotalVisual = formatter.format(valorVentaItem);
             
             return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
                 <span style="display: flex; flex-direction: column;">
@@ -535,6 +547,16 @@ function actualizarSaldoEnRecibo() {
             </li>`;
         }).join('')
         : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
+
+    // 🛡️ RECALCULO DEL TOTAL FINAL (Si el data original venía en 0)
+    const manoObra = parseFloat(data.valor_mano_obra) || 0;
+    let totalExhibicion = parseFloat(data.precioSugeridoCliente) || 0;
+    
+    if (totalExhibicion === 0) {
+        totalExhibicion = sumaSubtotalesReparados + manoObra;
+        // Sincronizamos el objeto actual por si se factura después
+        data.precioSugeridoCliente = totalExhibicion; 
+    }
 
     document.getElementById('detalleObra').innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
@@ -564,7 +586,7 @@ function actualizarSaldoEnRecibo() {
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
-                    <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(data.precioSugeridoCliente)}</span>
+                    <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(totalExhibicion)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669;">
                     <span style="font-weight: 600;">ABONO RECIBIDO:</span>
@@ -572,7 +594,7 @@ function actualizarSaldoEnRecibo() {
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #cbd5e1;">
                     <span style="font-weight: 800; color: #1e293b;">SALDO PENDIENTE:</span>
-                    <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(data.precioSugeridoCliente)}</span>
+                    <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(totalExhibicion)}</span>
                 </div>
             </div>
 
@@ -614,6 +636,7 @@ function actualizarSaldoEnRecibo() {
                 <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
             </button>
         </div>`;
+    
     setTimeout(limpiarTextosNoDeseados, 100);
 }
 
