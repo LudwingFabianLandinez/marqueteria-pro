@@ -134,37 +134,35 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-    const esMoldura = item.unidad === 'ML';
-    const cantidadReal = Number(item.cantidad || 0); // Los 2.95 ML
-    const area = Number(item.area_m2 || item.area || 1); // El área en m²
+    // 1. Identificación estricta de la unidad
+    const esMoldura = item.unidad === 'ML' || item.materialNombre?.toUpperCase().includes('MOLDURA');
+    const cantidadML = Number(item.cantidad || 0); // Los 2.95 que vemos en tu imagen
+    const areaM2 = Number(item.area_m2 || item.area || 0); // Los 0.480 m2
 
-    const textoMedidaDetallada = esMoldura 
-        ? `${cantidadReal.toFixed(2)} ML ${medidaTexto}` 
-        : `${area.toFixed(3)} m² ${medidaTexto}`;
-    
-    // 🛡️ ATAQUE AL COSTO BASE:
-    // Prioridad 1: Usar costo_base_total si viene del servidor.
-    // Prioridad 2: Si no viene, calcular: (Unitario * Cantidad) si es ML, o (Unitario * Área) si es m².
-    const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
-    
-    const costoFila = Math.round(
-        item.costo_base_total || 
-        item.costo_fila || 
-        (costoBaseUnitario * (esMoldura ? cantidadReal : area))
-    );
+    // 2. Definición del Multiplicador (EL CORAZÓN DEL PROBLEMA)
+    // Si es moldura usa los 2.95, si es vidrio usa los 0.480
+    const factorCalculo = esMoldura ? cantidadML : areaM2;
 
-    // 🛡️ ATAQUE AL SUBTOTAL DE VENTA:
-    // Usamos el precio ya guardado, o calculamos el sugerido (x3) basado en el nuevo costoFila.
+    // 3. Texto de medida para el reporte
+    const textoMedida = esMoldura 
+        ? `${cantidadML.toFixed(2)} ML` 
+        : `${areaM2.toFixed(3)} m²`;
+    
+    // 4. Cálculo de Costos (Atacando los $54.327)
+    const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
+    
+    // Aquí es donde forzamos el cálculo correcto:
+    const costoFila = Math.round(costoUnitario * factorCalculo);
     const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3)));
     
     sumaCostoMateriales += costoFila;
     sumaVentaMateriales += ventaFila;
 
-    let nombreReal = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
+    let nombreReal = (item.materialNombre || item.nombre || "MATERIAL").toUpperCase();
 
     htmlContenido += `<tr>
         <td style="text-align:left; font-weight:600;">${nombreReal}</td>
-        <td>${textoMedidaDetallada}</td>
+        <td>${textoMedida} ${medidaTexto}</td>
         <td>${formatter.format(costoFila)}</td>
         <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
     </tr>`;
