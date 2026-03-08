@@ -123,21 +123,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    // --- 💰 EXTRACCIÓN DE PRECIO MULTI-CAMPO ---
-                    // --- 🔑 INYECCIÓN DE DATOS CRÍTICOS (CON RESCATE AUTOMÁTICO DE 24CM) ---
+                    // --- 🔑 INYECCIÓN DE DATOS CRÍTICOS (CON RESCATE DE 24CM PARA MOLDURAS) ---
 const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
 option.dataset.costo = precio;
 
-// 1. Buscamos el desperdicio en todos los campos posibles de Atlas
+// 1. Buscamos el desperdicio en todos los campos posibles de Atlas (Imagen 6 confirma 0)
 let valorDesperdicio = parseFloat(m.desperdicio_total_cm || m.desperdicio || m.merma || m.desperdicio_ml || 0);
 
-// 2. 🛡️ REGLA DE ORO: Si es Moldura (esML) y el dato es 0 o no existe, forzamos el 24
-if (esML && valorDesperdicio === 0) {
+// 2. 🛡️ REGLA DE ORO: Si es Moldura (esML) y el dato es 0 o no existe, FORZAMOS el 24
+// Esto corrige el error de Atlas donde el campo llega en 0.
+if (esML && (isNaN(valorDesperdicio) || valorDesperdicio === 0)) {
     valorDesperdicio = 24;
+    console.log(`💡 Aplicando rescate de 24cm a: ${nombreM}`);
 }
 option.dataset.desperdicio = valorDesperdicio;
 
-// Blindaje: Guardamos el objeto completo en el HTML para emergencias
+// Blindaje: Guardamos el objeto completo en el HTML para que la fórmula siempre tenga de donde sacar datos
 option.dataset.full = JSON.stringify(m);
 
 option.dataset.unidad = unidad; // Queda como ML o M2
@@ -146,7 +147,7 @@ option.textContent = `${nombreM} ${avisoStock}`;
 
 select.appendChild(option);
 
-// Si es moldura, la agregamos al datalist del buscador (Mantenemos tu avance)
+// 3. MANTENER AVANCE: Si es moldura, la agregamos al datalist del buscador
 if (esML && datalist && esParaBuscador) {
     const optBusqueda = document.createElement('option');
     optBusqueda.value = nombreM;
@@ -154,6 +155,7 @@ if (esML && datalist && esParaBuscador) {
     optBusqueda.dataset.id = m._id || m.id; 
     datalist.appendChild(optBusqueda);
 }
+
                 });
             };
 
@@ -343,7 +345,7 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
 
 
 try {
-    
+
     if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
     
     const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
