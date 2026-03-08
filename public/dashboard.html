@@ -315,11 +315,6 @@
                 <small style="color: #48bb78; display: block; margin-top: 5px;">Suma de las 4 esquinas para este modelo.</small>
             </div>
 
-            <div class="form-group" style="margin-top: 15px;">
-                <label style="color: #3182ce;">COSTO CALCULADO POR UNIDAD (ML / M²)</label>
-                <input type="text" id="cat-display-unitario" readonly style="background: #ebf8ff; font-weight: bold; color: #2c5282; border: 1px solid #bee3f8;">
-            </div>
-
             <div style="display: flex; gap: 10px; margin-top: 25px;">
                 <button onclick="ejecutarRegistroMaestro()" class="btn-action btn-green" style="flex: 2; justify-content: center; background: #3182ce;">
                     <i class="fas fa-save"></i> CREAR ID Y GUARDAR
@@ -495,52 +490,40 @@
 
     async function ejecutarRegistroMaestro() {
    
-// --- 1. FUNCIÓN DE APOYO: CÁLCULO VISUAL EN TIEMPO REAL ---
-function activarCalculoEnTiempoReal() {
+// --- 1. FUNCIÓN DE APOYO: CÁLCULO INTERNO (SIN INTERFAZ VISUAL) ---
+// Se mantiene la lógica para que pueda ser consultada internamente si es necesario
+function obtenerCalculoLogico() {
     const nombreInput = document.getElementById('cat-nombre-maestro');
     const categoriaInput = document.getElementById('cat-categoria-maestro');
     const precioInput = document.getElementById('cat-precio-maestro');
-    const display = document.getElementById('cat-display-unitario');
 
-    // Verificación de integridad de elementos en el DOM
-    if (!nombreInput || !categoriaInput || !precioInput || !display) return;
+    if (!nombreInput || !categoriaInput || !precioInput) return 0;
 
-    // Lógica interna de cálculo (Mantiene 2.8 para molduras y Área para láminas)
-    const ejecutarCalculo = () => {
-        const nombre = nombreInput.value.toUpperCase();
-        const categoria = categoriaInput.value;
-        const precioCompra = parseFloat(precioInput.value) || 0;
+    const nombre = nombreInput.value.toUpperCase();
+    const categoria = categoriaInput.value;
+    const precioCompra = parseFloat(precioInput.value) || 0;
 
-        let anchoLocal = 0;
-        let largoLocal = 0;
-        const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
-        
-        if (match) {
-            anchoLocal = parseFloat(match[1]);
-            largoLocal = parseFloat(match[2]);
-        }
+    let anchoLocal = 0;
+    let largoLocal = 0;
+    const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
+    
+    if (match) {
+        anchoLocal = parseFloat(match[1]);
+        largoLocal = parseFloat(match[2]);
+    }
 
-        const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
-        
-        if (esMolduraReal) {
-            // REGLA DE ORO: Precio / 2.8 = Costo Metro Lineal
-            const costoML = Math.round(precioCompra / 2.8);
-            display.value = `$ ${costoML.toLocaleString()} por Metro Lineal`;
-        } else {
-            const areaM2 = (anchoLocal * largoLocal) / 10000;
-            const costoM2 = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
-            display.value = `$ ${costoM2.toLocaleString()} por m²`;
-        }
-    };
-
-    // --- 🛡️ ACTIVADORES (EVENT LISTENERS) ---
-    // Esto hace que el cuadro azul se llene solo mientras escribes
-    nombreInput.addEventListener('input', ejecutarCalculo);
-    categoriaInput.addEventListener('change', ejecutarCalculo);
-    precioInput.addEventListener('input', ejecutarCalculo);
+    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
+    
+    if (esMolduraReal) {
+        // REGLA DE ORO: Precio / 2.8 = Costo Metro Lineal
+        return Math.round(precioCompra / 2.8);
+    } else {
+        const areaM2 = (anchoLocal * largoLocal) / 10000;
+        return areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
+    }
 }
 
-// --- 2. FUNCIÓN REGISTRO MAESTRO (CON BLINDAJE Y LIMPIEZA DE CACHÉ) ---
+// --- 2. FUNCIÓN REGISTRO MAESTRO (INTEGRIDAD TOTAL CON ATLAS) ---
 async function ejecutarRegistroMaestro() {
     // 1. CAPTURA DE DATOS
     const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
@@ -588,7 +571,6 @@ async function ejecutarRegistroMaestro() {
         desperdicio_total_cm: desperdicio,
 
         // --- 🛡️ ESCUDO DE ÁREA UNITARIA (CONSERVADO) ---
-        // Forzamos 100x100 para que Atlas NO vuelva a dividir por el área
         ancho_lamina_cm: 100, 
         largo_lamina_cm: 100, 
         
@@ -613,7 +595,7 @@ async function ejecutarRegistroMaestro() {
         if (res.success || response.ok) {
             alert(`✅ REGISTRO CORRECTO EN ATLAS\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
             
-            // --- 🛡️ LIMPIEZA PROFUNDA (Para que aparezca en el Dashboard) ---
+            // --- 🛡️ LIMPIEZA PROFUNDA ---
             localStorage.clear(); 
             sessionStorage.clear();
             
