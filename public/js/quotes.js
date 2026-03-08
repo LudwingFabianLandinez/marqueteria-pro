@@ -308,49 +308,41 @@ async function procesarCotizacion() {
         return;
     }
     
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SUMA OBLIGATORIA 3.04 ML) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA UNIVERSAL DINÁMICA) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
     
-    // 1. Perímetro base: (60 + 80) * 2 = 280 cm
+    // 1. Perímetro base: (ancho + largo) * 2
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. RESCATE DE DESPERDICIO (Prioridad: Dataset HTML > Objeto de Memoria > Rescate Manual)
+    // 2. RESCATE DE DATOS DESDE EL SELECTOR
     const selectMarco = document.getElementById('materialOtroId');
     const opcionSeleccionada = selectMarco?.options[selectMarco.selectedIndex];
     
-    // Extraemos el desperdicio del dataset (donde el Bloque 1 ya aseguró el 24)
-    const desperdicioDesdeSelect = opcionSeleccionada ? parseFloat(opcionSeleccionada.dataset.desperdicio) : 0;
-    
-    // 2.1 FORZADO DE BÚSQUEDA: Rescatamos del objeto 'full' si el materialEspecífico fallara
+    // 2.1 Recuperamos el objeto completo (JSON) por si el materialEspecífico no viene
     const materialRescate = materialEspecífico || (opcionSeleccionada ? JSON.parse(opcionSeleccionada.dataset.full || '{}') : null);
 
-    // Rastreador Universal: Busca el 24 en todas las variantes posibles
-    let desperdicioFinal = parseFloat(
-        desperdicioDesdeSelect || 
+    // 3. RECONOCIMIENTO DE CUALQUIER CANTIDAD (SIN PARCHES)
+    // Buscamos el valor real en el dataset del HTML o en el objeto de Atlas.
+    // Aquí NO hay números fijos (como el 24). Se usa lo que tú definas.
+    const desperdicioFinal = parseFloat(
+        opcionSeleccionada?.dataset.desperdicio || 
         materialRescate?.desperdicio_total_cm || 
         materialRescate?.desperdicio || 
         materialRescate?.merma || 
         0
     );
-
-    // 🛡️ ÚLTIMA LÍNEA DE DEFENSA: 
-    // Si detectamos que es moldura por nombre o unidad, y el desperdicio sigue siendo 0 (error de Atlas), forzamos 24.
-    const nombreMat = (opcionSeleccionada?.text || materialRescate?.nombre || "").toUpperCase();
-    if (desperdicioFinal === 0 && (nombreMat.includes("MOLDURA") || materialRescate?.unidad === "ML")) {
-        desperdicioFinal = 24;
-        console.warn("⚠️ Atlas reportó 0cm, pero el sistema detectó una MOLDURA. Aplicando rescate de 24cm.");
-    }
     
-    // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
+    // 4. CÁLCULO FINAL: (Perímetro + Tu dato de Atlas) / 100
+    // Ejemplo: (280 + 15) / 100 = 2.95 ML
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    // Log de Auditoría en Consola (F12) para confirmar el éxito
-    console.log(`📏 VERIFICACIÓN TALLER:`);
-    console.log(`- Perímetro Base: ${perimetroCM}cm`);
-    console.log(`- Desperdicio Aplicado: ${desperdicioFinal}cm`);
-    console.log(`- Total Final: ${totalML} ML`);
+    // Log de Auditoría: Para que veas en tiempo real que está sumando tu número de Atlas
+    console.log(`📊 CÁLCULO DINÁMICO:`);
+    console.log(`- Perímetro: ${perimetroCM}cm`);
+    console.log(`- Desperdicio leído de Atlas: ${desperdicioFinal}cm`);
+    console.log(`- Resultado: ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
