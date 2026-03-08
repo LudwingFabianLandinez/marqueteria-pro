@@ -284,7 +284,7 @@ async function procesarCotizacion() {
         return;
     }
     
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (BASADA EN DESPERDICIO DEL MAESTRO) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SUMA OBLIGATORIA PERÍMETRO + DESPERDICIO) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
@@ -292,14 +292,14 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     // 1. Perímetro base: (60 + 80) * 2 = 280 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. RESCATE DE DESPERDICIO (Prioridad: Objeto > Atributo HTML > 0)
+    // 2. RESCATE DE DESPERDICIO (Prioridad: Objeto > Atributo HTML > Maestro)
     const selectMarco = document.getElementById('materialOtroId');
     const desperdicioDesdeSelect = selectMarco?.options[selectMarco.selectedIndex]?.dataset.desperdicio;
     
-    // 2.1 FORZADO DE BÚSQUEDA: Si el objeto no existe, buscamos el material en el selector actual
+    // 2.1 FORZADO DE BÚSQUEDA: Si el objeto no existe, rescatamos del dataset completo
     const materialRescate = materialEspecífico || (selectMarco ? JSON.parse(selectMarco.options[selectMarco.selectedIndex]?.dataset.full || '{}') : null);
 
-    // Rastreador: Busca el 24 en cualquier campo que haya enviado el Maestro de Materiales
+    // Rastreador Universal: Busca el "24" en todas las variantes posibles de nombre
     const desperdicioFinal = parseFloat(
         materialRescate?.desperdicio || 
         materialRescate?.merma || 
@@ -309,10 +309,14 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     );
     
     // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
+    // IMPORTANTE: Aquí se hace la suma real de CM antes de convertir a ML
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    // Log para auditoría: Presiona F12 en el navegador para ver si está sumando el 24
-    console.log(`📏 SUMA TALLER: ${perimetroCM}cm + ${desperdicioFinal}cm = ${totalML} ML`);
+    // Log de Auditoría en Consola (F12): Para ver qué número está fallando
+    console.log(`📏 VERIFICACIÓN TALLER:`);
+    console.log(`- Perímetro: ${perimetroCM}cm`);
+    console.log(`- Desperdicio detectado: ${desperdicioFinal}cm`);
+    console.log(`- Resultado: ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
