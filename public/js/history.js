@@ -108,13 +108,12 @@ async function generarReporteDiario() {
 
         facturasAReportar.forEach(f => {
             let sumaCostoMateriales = 0;
-            let sumaMaterialesX3 = 0;
+            let sumaVentaMateriales = 0; // Cambiado para reflejar el subtotal de venta real
             const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
             const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
             let nombreCliente = (f.cliente?.nombre || f.clienteNombre || f.cliente || "CLIENTE GENERAL").toString().toUpperCase();
-
             const fechaLimpia = f.fecha ? f.fecha.split('T')[0] : '---';
 
             htmlContenido += `<div class="ot-card">
@@ -127,49 +126,42 @@ async function generarReporteDiario() {
                     <thead>
                         <tr>
                             <th style="text-align:left;">Descripción Material</th>
-                            <th>Medida Usada (m²)</th>
+                            <th>Medida/Cantidad</th>
                             <th>Costo Base</th>
-                            <th>Subtotal (x3)</th>
+                            <th>Subtotal Venta</th>
                         </tr>
                     </thead>
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                // 1. Cálculo de área/cantidad (Mantenido con decimales para precisión de medida)
-                // Usamos area_m2 para vidrios y cantidad para molduras (ML)
-                const area = Number(item.area_m2 || item.area || 1);
                 const esMoldura = item.unidad === 'ML';
-                const cantidadML = Number(item.cantidad || 0);
+                const cantidadReal = Number(item.cantidad || 0);
+                const area = Number(item.area_m2 || item.area || 1);
 
-                // CORRECCIÓN DE TEXTO: Solo añade el "Uso ML" si es efectivamente una moldura
                 const textoMedidaDetallada = esMoldura 
-                    ? `${area.toFixed(3)} ${medidaTexto} (Uso: ${cantidadML.toFixed(2)} ML)` 
-                    : `${area.toFixed(3)} ${medidaTexto}`;
+                    ? `${cantidadReal.toFixed(2)} ML ${medidaTexto}` 
+                    : `${area.toFixed(3)} m² ${medidaTexto}`;
                 
-                // 2. Prioridad de Costo (Ajustado a costo_base_unitario de tu servidor)
-                const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || item.precioUnitario || item.costo || 0);
-                
-                // 3. 🔥 RESCATE DE NOMBRE (Mantenido intacto)
-                let nombreReal = (item.materialNombre || item.nombre || item.descripcion || item.material || "MATERIAL").toUpperCase();
-
-                // 4. Lógica de Costos (REDONDEADO A ENTEROS 🚀 - Mantenido intacto)
-                // Para el costo usamos el 'area' (que es la métrica base de cobro)
-                const costoFila = Math.round(costoBaseUnitario * area);
-                const sugeridoFila = Math.round(costoFila * 3);
+                // 🛡️ CORRECCIÓN DE FÓRMULA: 
+                // Usamos los valores ya calculados que vienen del servidor (blindados en quotes.js)
+                const costoFila = Math.round(Number(item.costo_base_total || item.costo_fila || (item.costo_base_unitario * (esMoldura ? cantidadReal : area))));
+                const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3))); // Si no existe, aplica x3 por seguridad
                 
                 sumaCostoMateriales += costoFila;
-                sumaMaterialesX3 += sugeridoFila;
+                sumaVentaMateriales += ventaFila;
 
-                // 5. Renderizado de Fila (Integrando la nueva lógica de texto sin dañar la tabla)
+                let nombreReal = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
+
                 htmlContenido += `<tr>
                     <td style="text-align:left; font-weight:600;">${nombreReal}</td>
                     <td>${textoMedidaDetallada}</td>
                     <td>${formatter.format(costoFila)}</td>
-                    <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(sugeridoFila)}</td>
+                    <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
                 </tr>`;
             });
             
-            const totalOrden = sumaMaterialesX3 + manoObra;
+            // 📊 Totales finales sincronizados
+            const totalOrdenCalculado = sumaVentaMateriales + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales - manoObra;
 
             htmlContenido += `</tbody>
@@ -177,15 +169,15 @@ async function generarReporteDiario() {
                         <tr>
                             <td colspan="2" style="text-align:right;">TOTALES MATERIALES:</td>
                             <td>${formatter.format(sumaCostoMateriales)}</td>
-                            <td>${formatter.format(sumaMaterialesX3)}</td>
+                            <td>${formatter.format(sumaVentaMateriales)}</td>
                         </tr>
                     </tfoot>
                 </table>
                 <div class="resumen-grid">
                     <div><span class="label-resumen">SUMA COSTOS</span><span class="val-resumen">${formatter.format(sumaCostoMateriales)}</span></div>
-                    <div><span class="label-resumen">MATERIAL (X3)</span><span class="val-resumen">${formatter.format(sumaMaterialesX3)}</span></div>
+                    <div><span class="label-resumen">SUBTOTAL VENTA</span><span class="val-resumen">${formatter.format(sumaVentaMateriales)}</span></div>
                     <div><span class="label-resumen">MANO DE OBRA</span><span class="val-resumen">${formatter.format(manoObra)}</span></div>
-                    <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalOrden)}</span></div>
+                    <div><span class="label-resumen" style="color:#1e3a8a;">TOTAL ORDEN</span><span class="val-resumen" style="color:#1e3a8a; font-size:1.3rem;">${formatter.format(totalCobrado)}</span></div>
                 </div>
                 <div class="footer-rentabilidad">
                     <span class="rentabilidad-texto">RENTABILIDAD OBTENIDA: ${formatter.format(rentabilidadReal)} ✅</span>
@@ -196,7 +188,7 @@ async function generarReporteDiario() {
         htmlContenido += `<script>function exportarExcel() { var html = document.body.innerHTML; var blob = new Blob([html], { type: 'application/vnd.ms-excel' }); var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Reporte_Ventas_Chica_Morales.xls'; a.click(); }</script></body></html>`;
         nuevaVentana.document.write(htmlContenido);
         nuevaVentana.document.close();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error crítico generando reporte:", e); }
 }
 
 // 6. EXPORTAR EXCEL (SE MANTIENE IGUAL)
