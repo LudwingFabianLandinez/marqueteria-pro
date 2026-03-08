@@ -282,72 +282,89 @@ async function procesarCotizacion() {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
         return;
     }
-
-    // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (TU TABLA DE TALLER) ---
-    const obtenerMLConDesperdicio = (a, l) => {
-        const min = Math.min(a, l);
-        const max = Math.max(a, l);
-
-        if (min <= 20 && max <= 20) return 1.20;
-        if (min <= 20 && max <= 80) return 2.50;
-        if (min <= 40 && max <= 80) return 2.80; 
-        if (min <= 60 && max <= 80) return 3.40; 
-        if (min <= 80 && max <= 100) return 4.20;
-        if (min <= 100 && max <= 100) return 4.50;
-
-        return Number((((a + l) * 2) / 100 * 1.20).toFixed(2));
-    };
-
-    try {
-        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
-        
-        const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
-        const gastoMLReal = obtenerMLConDesperdicio(ancho, largo);
-        let costoBaseAcumulado = 0;
-
-        // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
-        materialesSeleccionados.forEach(m => {
-            if (m.unidad === 'ML') {
-                // USA LA TABLA DE DESPERDICIO (2.50, 3.40, etc.)
-                const costoItem = (m.costoUnitario * gastoMLReal);
-                costoBaseAcumulado += costoItem;
-                console.log(`📏 MOLDURA DETECTADA: ${m.nombre} | Costo/m: ${m.costoUnitario} | ML: ${gastoMLReal} | Subtotal: ${costoItem}`);
-            } else {
-                // USA EL ÁREA M2 (0.48, etc.)
-                const costoItem = (m.costoUnitario * areaCalculada);
-                costoBaseAcumulado += costoItem;
-                console.log(`🪟 VIDRIO/OTRO DETECTADO: ${m.nombre} | Costo/m2: ${m.costoUnitario} | Area: ${areaCalculada} | Subtotal: ${costoItem}`);
-            }
-        });
-
-        // --- 📈 APLICACIÓN DE UTILIDAD (Materiales x 3) + Mano de Obra ---
-        const subtotalConUtilidad = Math.round(costoBaseAcumulado * 3);
-        const totalFinal = subtotalConUtilidad + manoObraInput;
-
-        let dataFinal = {
-            valor_materiales: costoBaseAcumulado,
-            precioSugeridoCliente: totalFinal,
-            area: areaCalculada,
-            anchoOriginal: ancho,
-            largoOriginal: largo,
-            areaFinal: areaCalculada,
-            valor_mano_obra: manoObraInput,
-            detalles: { 
-                medidas: `${ancho} x ${largo} cm (Uso: ${gastoMLReal} ML)`, 
-                materiales: materialesSeleccionados 
-            }
-        };
-        
-        datosCotizacionActual = dataFinal;
-        mostrarResultado(dataFinal);
-        document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
-
-    } catch (error) {
-        console.error("Error en cálculo:", error);
-    } finally {
-        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
-    }
 }
+    
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA EXACTA DE TALLER) ---
+const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
+    const ancho = parseFloat(a) || 0;
+    const largo = parseFloat(l) || 0;
+    
+    // 1. Suma de lados x 2 (Perímetro base en CM)
+    const perimetroCM = (ancho + largo) * 2;
+    
+    // 2. Recuperar desperdicio desde el material o usar 15cm por defecto
+    const desperdicioCM = parseFloat(materialEspecífico?.desperdicio) || 15;
+    
+    // 3. Cálculo final en Metros Lineales (ML)
+    const totalML = (perimetroCM + desperdicioCM) / 100;
+    
+    return Number(totalML.toFixed(2));
+};
+
+try {
+    if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
+    
+    const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
+    let totalVentaAcumulado = 0;
+    let costoBaseAcumulado = 0;
+    let resumenGastoML = ""; // Para el reporte visual
+
+    // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
+    materialesSeleccionados.forEach(m => {
+        if (m.unidad === 'ML') {
+            // APLICAMOS LA NUEVA FÓRMULA DE TALLER
+            const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, m);
+            const costoItem = Math.round(m.costoUnitario * gastoMLReal);
+            
+            // REGLA DE ORO: Molduras se multiplican por 2.5
+            const ventaItem = Math.round(costoItem * 2.5);
+            
+            costoBaseAcumulado += costoItem;
+            totalVentaAcumulado += ventaItem;
+            resumenGastoML = `${gastoMLReal} ML`; // Guardamos para el detalle
+
+            console.log(`📏 MOLDURA: ${m.nombre} | ML: ${gastoMLReal} | Costo: ${costoItem} | Venta(x2.5): ${ventaItem}`);
+        } else {
+            // OTROS MATERIALES (VIDRIO, RESPALDO, ETC)
+            const costoItem = Math.round(m.costoUnitario * areaCalculada);
+            
+            // REGLA: Otros materiales mantienen su multiplicador (x3 para cubrir gastos)
+            const ventaItem = Math.round(costoItem * 3);
+            
+            costoBaseAcumulado += costoItem;
+            totalVentaAcumulado += ventaItem;
+
+            console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada} | Costo: ${costoItem} | Venta(x3): ${ventaItem}`);
+        }
+    });
+
+    // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
+    const totalFinal = totalVentaAcumulado + manoObraInput;
+
+    let dataFinal = {
+        valor_materiales: costoBaseAcumulado,
+        precioSugeridoCliente: totalFinal,
+        area: areaCalculada,
+        anchoOriginal: ancho,
+        largoOriginal: largo,
+        areaFinal: areaCalculada,
+        valor_mano_obra: manoObraInput,
+        detalles: { 
+            medidas: `${ancho} x ${largo} cm ${resumenGastoML ? '(Uso: ' + resumenGastoML + ')' : ''}`, 
+            materiales: materialesSeleccionados 
+        }
+    };
+    
+    datosCotizacionActual = dataFinal;
+    mostrarResultado(dataFinal);
+    document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
+
+} catch (error) {
+    console.error("Error en cálculo:", error);
+} finally {
+    if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
+}
+
 
 // FUNCIÓN PARA EL BUSCADOR INTELIGENTE (Punto 2b)
 function sincronizarBuscadorMoldura(valor) {
