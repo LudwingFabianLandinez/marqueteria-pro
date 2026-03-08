@@ -420,6 +420,14 @@
     window.API_URL = "/.netlify/functions/server";
 </script>
 <script>
+    // --- 🛠️ FIX DE EMERGENCIA: FUNCIÓN PARA ELIMINAR EL ERROR DE CONSOLA ---
+window.actualizarCalculoInmediato = function() {
+    const precioCompra = document.getElementById('cat-precio-maestro')?.value || 0;
+    const desperdicio = document.getElementById('cat-desperdicio-maestro')?.value || 0;
+    
+    // Esto solo sirve para que el navegador no se trabe al escribir
+    console.log("📝 Editando Material Maestro - Precio:", precioCompra, "Desperdicio:", desperdicio);
+};
     document.addEventListener('DOMContentLoaded', () => {
         if (window.loadInventory) window.loadInventory();
         if (window.loadProviders) window.loadProviders();
