@@ -670,16 +670,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
     const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
+    // --- 🛡️ OBJETO PARA ATLAS (VERSIÓN FINAL BLINDADA) ---
     const nuevoMaterial = {
         materialId: "NUEVO", 
         id: "NUEVO", 
         nombre: nombre, 
         categoria: categoriaParaCotizador, 
         
-        // --- 🛡️ BLINDAJE Y NUEVOS CAMPOS ---
+        // --- 🚀 BLINDAJE Y CAMPOS DE TRANSPORTE ---
         costo_base: costoUnitarioFinal, 
         precio_m2_costo: costoUnitarioFinal, 
-        precio_total_lamina: precioCompra,
+        
+        // REFUERZO: Si desperdicio_total_cm falla en el servidor, 
+        // usamos precio_total_lamina para "esconder" el valor 15 y que llegue a Atlas.
+        precio_total_lamina: desperdicio > 0 ? desperdicio : precioCompra,
         desperdicio_total_cm: desperdicio,
 
         // Forzamos 100x100 (ESCUDO CONSERVADO)
