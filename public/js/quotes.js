@@ -263,6 +263,9 @@ async function procesarCotizacion() {
             const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
             const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
             
+            // 🚀 NUEVO: Captura del desperdicio para que llegue al cálculo financiero
+            const desperdicioExtraido = parseFloat(opcion.dataset.desperdicio) || 0;
+
             // BLINDAJE TOTAL: Si es ML en Atlas, o si el nombre contiene marcas clave, ES ML.
             const esML = unidadDataset === 'ml' || 
                          categoriaMat.includes("MOLDURA") || 
@@ -276,7 +279,8 @@ async function procesarCotizacion() {
                 id: el.value,
                 nombre: opcion.text.split('(')[0].trim(),
                 costoUnitario: costoExtraido, // Ahora este valor es $/Metro Lineal gracias al Punto 1
-                unidad: esML ? 'ML' : 'M2'
+                unidad: esML ? 'ML' : 'M2',
+                desperdicio: esML ? desperdicioExtraido : 0 // 🛡️ Blindaje: solo pasamos desperdicio si es ML
             };
         })
         .filter(m => m !== null && m.costoUnitario > 0);
@@ -364,14 +368,17 @@ materialesSeleccionados.forEach(m => {
 
     if (m.unidad === 'ML') {
         // 1. OBTENER PERÍMETRO BASE EN METROS
+        // Ejemplo 60x80: ((60 + 80) * 2) / 100 = 2.80m
         const perimetroBaseM = ((Number(ancho) + Number(largo)) * 2) / 100;
 
-        // 2. EXTRAER DESPERDICIO DINÁMICO DE CADA MOLDURA (Atlas o Dataset)
-        // Convertimos a metros lo que venga en CM (ej: 15cm -> 0.15m)
-        const valorDesperdicioCM = Number(m.desperdicio || m.desperdicio_total_cm || m.dataset?.desperdicio || 0);
+        // 2. EXTRAER DESPERDICIO DINÁMICO (Sincronizado con Atlas)
+        // Convertimos CM a metros (Ej: 15cm -> 0.15m)
+        // Usamos m.desperdicio que es el valor que inyectamos en el mapeo anterior
+        const valorDesperdicioCM = Number(m.desperdicio || 0);
         const desperdicioM = valorDesperdicioCM / 100;
 
         // 3. LA SUMA SAGRADA: Perímetro + Desperdicio Específico
+        // Ejemplo: 2.80 + 0.15 = 2.95
         const gastoMLReal = Number((perimetroBaseM + desperdicioM).toFixed(3));
         
         // 4. CÁLCULO FINANCIERO SOBRE EL TOTAL SUMADO
