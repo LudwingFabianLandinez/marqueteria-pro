@@ -569,7 +569,7 @@ window.facturarVenta = async function() {
         return;
     }
     
-    // 1. Captura de elementos de interfaz
+    // 1. Captura de elementos de interfaz (Sin cambios para mantener integridad)
     const nombreInput = document.getElementById('nombreCliente');
     const telInput = document.getElementById('telCliente');
     const abonoInput = document.getElementById('abonoInicial');
@@ -585,38 +585,29 @@ window.facturarVenta = async function() {
         return;
     }
 
-    // 2. Rescate Universal de Materiales (Atrapa los 4 o los que elijas)
-    const itemsProcesados = [];
-    const todosLosSelects = document.querySelectorAll('select');
+    // 2. 🚀 RESCATE QUIRÚRGICO DE MATERIALES (Sincronizado con el cálculo real)
+    // En lugar de recolectar datos "genéricos", usamos lo que ya calculamos en 'procesarCotizacion'
+    const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
+        return {
+            productoId: m.id,
+            materialNombre: m.nombre.toUpperCase(), 
+            descripcion: m.nombre.toUpperCase(),
+            nombre: m.nombre.toUpperCase(),      
 
-    todosLosSelects.forEach(select => {
-        if (select.value && select.selectedIndex > 0) {
-            const opcion = select.options[select.selectedIndex];
+            // 💰 COSTOS Y VENTAS REALES (Lo que garantiza la rentabilidad en el reporte)
+            costo_base_unitario: m.costoUnitario,
+            costoBase: m.costoUnitario,
+            precio_venta_item: m.subtotalVenta, // AQUÍ VA EL x2.5 o x3 calculado arriba
+
+            // 📐 MEDIDAS EXACTAS (ML para Molduras, M2 para Vidrios/Fondos)
+            // Esto es lo que corrige el error del 0.480 en el reporte
+            cantidad: m.cantidadUsada, 
+            unidad: m.unidad, // 'ML' o 'M2'
             
-            // Verificamos que sea un material con costo inyectado
-            if (opcion.dataset.costo !== undefined) {
-                const nombreReal = opcion.text.split('(')[0].trim().toUpperCase();
-                const costoReal = parseFloat(opcion.dataset.costo) || 0;
-
-                itemsProcesados.push({
-                    productoId: select.value,
-                    // 🚀 RESCATE DE NOMBRE (Asegura que el reporte lo vea)
-                    materialNombre: nombreReal, 
-                    descripcion: nombreReal,
-                    nombre: nombreReal,      
-
-                    // 💰 RESCATE DE COSTOS (Asegura rentabilidad en reporte)
-                    costo_base_unitario: costoReal,
-                    costoBase: costoReal,    
-
-                    cantidad: 1,
-                    // Conservamos tu lógica de redondeo para evitar residuos en Atlas
-                    ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
-                    largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
-                    area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
-                });
-            }
-        }
+            ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
+            largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
+            area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
+        };
     });
 
     if (itemsProcesados.length === 0) {
@@ -624,28 +615,29 @@ window.facturarVenta = async function() {
         return;
     }
 
-    // 3. Estructura de datos final (La maleta)
-    // --- CAMBIO AQUÍ: Aseguramos que mano_obra_total se guarde ---
+    // 3. Estructura de datos final (La maleta blindada y ampliada)
     const facturaData = {
         cliente: { 
             nombre: nombre, 
             telefono: telefono 
         },
-        medidas: `${datosCotizacionActual.anchoOriginal || 0} x ${datosCotizacionActual.largoOriginal || 0}`,
+        // Mantenemos el formato de medidas que ya tenías pero con el detalle de uso
+        medidas: datosCotizacionActual.detalles.medidas,
         items: itemsProcesados,
         totalFactura: datosCotizacionActual.precioSugeridoCliente || 0,
         totalPagado: abono,
-        // Usamos tanto f.manoObra como f.mano_obra_total por seguridad para el reporte
+        // Sincronización de mano de obra y rentabilidad
         manoObra: datosCotizacionActual.valor_mano_obra || 0, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
+        rentabilidad: datosCotizacionActual.rentabilidad || 0,
         fecha: new Date().toISOString()
     };
 
-    // 4. Envío Quirúrgico al Servidor
+    // 4. Envío Quirúrgico al Servidor (Sin alterar las rutas de tu backend)
     try {
         if (btnVenta) {
             btnVenta.disabled = true;
-            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO VENTA REAL...';
         }
 
         const response = await fetch('/.netlify/functions/server/invoices', {
@@ -657,7 +649,7 @@ window.facturarVenta = async function() {
         const result = await response.json();
 
         if (result.success) {
-            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}`);
+            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}\n\nLos cálculos de ML y utilidad se han guardado correctamente.`);
             window.location.href = "/history.html";
         } else {
             throw new Error(result.error || "El servidor rechazó la venta.");
