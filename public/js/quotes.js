@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const datalist = document.getElementById('lista-molduras');
             if (datalist) datalist.innerHTML = '';
 
-            // 2. FUNCIÓN DE LLENADO INTELIGENTE
+// 2. FUNCIÓN DE LLENADO INTELIGENTE
             const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
@@ -98,10 +98,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!m.nombre || m.nombre.trim() === "" || m.nombre.includes("undefined")) return;
 
                     const stock = m.stock_actual || 0;
-                    const unidad = (m.unidad || m.tipo || "m2").toUpperCase();
+                    // --- 🛡️ NORMALIZACIÓN DE UNIDAD ---
+                    // Priorizamos lo que venga de Atlas (m.unidad o m.tipo)
+                    let unidad = (m.unidad || m.tipo || "m2").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
+                    const categoriaM = (m.categoria || "").toUpperCase();
                     
-                    const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.startsWith("K ");
+                    // --- 🔍 DETECCIÓN REFORZADA DE MOLDURA ---
+                    const esML = unidad === 'ML' || 
+                                 nombreM.includes("MOLDURA") || 
+                                 nombreM.includes("MARCO") || 
+                                 nombreM.startsWith("K ") ||
+                                 nombreM.includes("2312") ||
+                                 categoriaM.includes("MOLDURA");
+
+                    // Si es moldura, forzamos que la unidad sea ML para el calculador
+                    if (esML) unidad = 'ML';
+
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${unidad})`;
                     
@@ -110,16 +123,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    const precio = m.costo_base || m.costo_m2 || m.precio_m2_costo || 0;
+                    // --- 💰 EXTRACCIÓN DE PRECIO MULTI-CAMPO ---
+                    const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
                     
+                    // Inyectamos los datos críticos en el dataset del HTML
                     option.dataset.costo = precio;
-                    option.dataset.unidad = unidad;
+                    option.dataset.unidad = unidad; // Queda como ML o M2
+                    option.dataset.categoria = categoriaM;
+                    
                     option.textContent = `${nombreM} ${avisoStock}`;
                     select.appendChild(option);
 
+                    // Si es moldura, la agregamos al datalist del buscador
                     if (esML && datalist && esParaBuscador) {
                         const optBusqueda = document.createElement('option');
-                        optBusqueda.value = nombreM; 
+                        optBusqueda.value = nombreM;
+                        // Guardamos el ID en el datalist para que el buscador sepa qué seleccionar
+                        optBusqueda.dataset.id = m._id || m.id; 
                         datalist.appendChild(optBusqueda);
                     }
                 });
@@ -285,14 +305,18 @@ async function procesarCotizacion() {
         const gastoMLReal = obtenerMLConDesperdicio(ancho, largo);
         let costoBaseAcumulado = 0;
 
-        // --- 💰 CÁLCULO SUMATORIO DE MATERIALES ---
+        // --- 💰 CÁLCULO SUMATORIO DE MATERIALES (DENTRO DE procesarCotizacion) ---
         materialesSeleccionados.forEach(m => {
             if (m.unidad === 'ML') {
-                // Costo Moldura = Precio Unitario x Metros de tu tabla
-                costoBaseAcumulado += (m.costoUnitario * gastoMLReal);
+                // USA LA TABLA DE DESPERDICIO (2.50, 3.40, etc.)
+                const costoItem = (m.costoUnitario * gastoMLReal);
+                costoBaseAcumulado += costoItem;
+                console.log(`📏 MOLDURA DETECTADA: ${m.nombre} | Costo/m: ${m.costoUnitario} | ML: ${gastoMLReal} | Subtotal: ${costoItem}`);
             } else {
-                // Costo Vidrio/Otros = Precio Unitario x Area M2
-                costoBaseAcumulado += (m.costoUnitario * areaCalculada);
+                // USA EL ÁREA M2 (0.48, etc.)
+                const costoItem = (m.costoUnitario * areaCalculada);
+                costoBaseAcumulado += costoItem;
+                console.log(`🪟 VIDRIO/OTRO DETECTADO: ${m.nombre} | Costo/m2: ${m.costoUnitario} | Area: ${areaCalculada} | Subtotal: ${costoItem}`);
             }
         });
 
