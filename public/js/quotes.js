@@ -284,8 +284,7 @@ async function procesarCotizacion() {
         return;
     }
     
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SÍ O SÍ SUMA EL DESPERDICIO) ---
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SÍ O SÍ SUMA EL DESPERDICIO) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (BASADA EN DESPERDICIO DEL MAESTRO) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
@@ -294,16 +293,25 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const perimetroCM = (ancho + largo) * 2;
     
     // 2. RESCATE DE DESPERDICIO (Prioridad: Objeto > Atributo HTML > 0)
-    // Intentamos sacar el desperdicio del objeto, y si no, lo buscamos en el select de la pantalla
+    // Buscamos el valor en el objeto (probando varios nombres comunes) 
+    // o directamente en el dataset del selector de la pantalla.
     const selectMarco = document.getElementById('materialOtroId');
     const desperdicioDesdeSelect = selectMarco?.options[selectMarco.selectedIndex]?.dataset.desperdicio;
     
-    const desperdicioFinal = parseFloat(materialEspecífico?.desperdicio || desperdicioDesdeSelect || 0);
+    // Rastreador: Busca el 24 en cualquier campo que haya enviado el Maestro de Materiales
+    const desperdicioFinal = parseFloat(
+        materialEspecífico?.desperdicio || 
+        materialEspecífico?.merma || 
+        materialEspecífico?.desperdicio_ml || 
+        desperdicioDesdeSelect || 
+        0
+    );
     
     // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    console.log(`📏 SUMA OBLIGATORIA: ${perimetroCM}cm + ${desperdicioFinal}cm = ${totalML} ML`);
+    // Log para auditoría: Presiona F12 en el navegador para ver si está sumando el 24
+    console.log(`📏 SUMA TALLER: ${perimetroCM}cm + ${desperdicioFinal}cm = ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
