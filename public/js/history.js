@@ -134,31 +134,41 @@ async function generarReporteDiario() {
                     <tbody>`;
 
             (f.items || []).forEach(item => {
-                const esMoldura = item.unidad === 'ML';
-                const cantidadReal = Number(item.cantidad || 0);
-                const area = Number(item.area_m2 || item.area || 1);
+    const esMoldura = item.unidad === 'ML';
+    const cantidadReal = Number(item.cantidad || 0); // Los 2.95 ML
+    const area = Number(item.area_m2 || item.area || 1); // El área en m²
 
-                const textoMedidaDetallada = esMoldura 
-                    ? `${cantidadReal.toFixed(2)} ML ${medidaTexto}` 
-                    : `${area.toFixed(3)} m² ${medidaTexto}`;
-                
-                // 🛡️ CORRECCIÓN DE FÓRMULA: 
-                // Usamos los valores ya calculados que vienen del servidor (blindados en quotes.js)
-                const costoFila = Math.round(Number(item.costo_base_total || item.costo_fila || (item.costo_base_unitario * (esMoldura ? cantidadReal : area))));
-                const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3))); // Si no existe, aplica x3 por seguridad
-                
-                sumaCostoMateriales += costoFila;
-                sumaVentaMateriales += ventaFila;
+    const textoMedidaDetallada = esMoldura 
+        ? `${cantidadReal.toFixed(2)} ML ${medidaTexto}` 
+        : `${area.toFixed(3)} m² ${medidaTexto}`;
+    
+    // 🛡️ ATAQUE AL COSTO BASE:
+    // Prioridad 1: Usar costo_base_total si viene del servidor.
+    // Prioridad 2: Si no viene, calcular: (Unitario * Cantidad) si es ML, o (Unitario * Área) si es m².
+    const costoBaseUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
+    
+    const costoFila = Math.round(
+        item.costo_base_total || 
+        item.costo_fila || 
+        (costoBaseUnitario * (esMoldura ? cantidadReal : area))
+    );
 
-                let nombreReal = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
+    // 🛡️ ATAQUE AL SUBTOTAL DE VENTA:
+    // Usamos el precio ya guardado, o calculamos el sugerido (x3) basado en el nuevo costoFila.
+    const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3)));
+    
+    sumaCostoMateriales += costoFila;
+    sumaVentaMateriales += ventaFila;
 
-                htmlContenido += `<tr>
-                    <td style="text-align:left; font-weight:600;">${nombreReal}</td>
-                    <td>${textoMedidaDetallada}</td>
-                    <td>${formatter.format(costoFila)}</td>
-                    <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
-                </tr>`;
-            });
+    let nombreReal = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
+
+    htmlContenido += `<tr>
+        <td style="text-align:left; font-weight:600;">${nombreReal}</td>
+        <td>${textoMedidaDetallada}</td>
+        <td>${formatter.format(costoFila)}</td>
+        <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
+    </tr>`;
+});
             
             // 📊 Totales finales sincronizados
             const totalOrdenCalculado = sumaVentaMateriales + manoObra;
