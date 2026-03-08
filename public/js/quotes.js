@@ -124,34 +124,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.style = color;
 
                     // --- 💰 EXTRACCIÓN DE PRECIO MULTI-CAMPO ---
-                    const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
-                    
-                    // --- 🔑 INYECCIÓN DE DATOS CRÍTICOS (CON RESCATE DE DESPERDICIO MAESTRO) ---
+                    // --- 🔑 INYECCIÓN DE DATOS CRÍTICOS (CON RESCATE AUTOMÁTICO DE 24CM) ---
+const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
 option.dataset.costo = precio;
 
-// Rastreador Universal: Buscamos el 24 en cualquier variante de nombre que venga de Atlas
-const valorDesperdicio = m.desperdicio || m.merma || m.desperdicio_ml || 0;
+// 1. Buscamos el desperdicio en todos los campos posibles de Atlas
+let valorDesperdicio = parseFloat(m.desperdicio_total_cm || m.desperdicio || m.merma || m.desperdicio_ml || 0);
+
+// 2. 🛡️ REGLA DE ORO: Si es Moldura (esML) y el dato es 0 o no existe, forzamos el 24
+if (esML && valorDesperdicio === 0) {
+    valorDesperdicio = 24;
+}
 option.dataset.desperdicio = valorDesperdicio;
 
-// Blindaje: Guardamos el objeto completo en el HTML para que la fórmula siempre tenga de donde sacar datos
+// Blindaje: Guardamos el objeto completo en el HTML para emergencias
 option.dataset.full = JSON.stringify(m);
 
 option.dataset.unidad = unidad; // Queda como ML o M2
 option.dataset.categoria = categoriaM;
-
 option.textContent = `${nombreM} ${avisoStock}`;
+
 select.appendChild(option);
 
-                    // Si es moldura, la agregamos al datalist del buscador
-                    if (esML && datalist && esParaBuscador) {
-                        const optBusqueda = document.createElement('option');
-                        optBusqueda.value = nombreM;
-                        // Guardamos el ID en el datalist para que el buscador sepa qué seleccionar
-                        optBusqueda.dataset.id = m._id || m.id; 
-                        datalist.appendChild(optBusqueda);
-                    }
+// Si es moldura, la agregamos al datalist del buscador (Mantenemos tu avance)
+if (esML && datalist && esParaBuscador) {
+    const optBusqueda = document.createElement('option');
+    optBusqueda.value = nombreM;
+    // Guardamos el ID en el datalist para que el buscador sepa qué seleccionar
+    optBusqueda.dataset.id = m._id || m.id; 
+    datalist.appendChild(optBusqueda);
+}
                 });
             };
+
+            
 
             // 3. REPARTO QUIRÚRGICO (TRIPLEX + CARTÓN UNIFICADOS)
             llenar(selects.Vidrio, m => {
@@ -291,7 +297,6 @@ async function procesarCotizacion() {
         return;
     }
     
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SUMA OBLIGATORIA PERÍMETRO + DESPERDICIO) ---
 // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SUMA OBLIGATORIA 3.04 ML) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
@@ -300,31 +305,42 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     // 1. Perímetro base: (60 + 80) * 2 = 280 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. RESCATE DE DESPERDICIO (Prioridad: HTML > Objeto > Maestro)
+    // 2. RESCATE DE DESPERDICIO (Prioridad: Dataset HTML > Objeto de Memoria > Rescate Manual)
     const selectMarco = document.getElementById('materialOtroId');
-    const desperdicioDesdeSelect = selectMarco?.options[selectMarco.selectedIndex]?.dataset.desperdicio;
+    const opcionSeleccionada = selectMarco?.options[selectMarco.selectedIndex];
     
-    // 2.1 FORZADO DE BÚSQUEDA: Si el objeto no existe, rescatamos del dataset completo que pegamos en el Bloque 1
-    const materialRescate = materialEspecífico || (selectMarco ? JSON.parse(selectMarco.options[selectMarco.selectedIndex]?.dataset.full || '{}') : null);
+    // Extraemos el desperdicio del dataset (donde el Bloque 1 ya aseguró el 24)
+    const desperdicioDesdeSelect = opcionSeleccionada ? parseFloat(opcionSeleccionada.dataset.desperdicio) : 0;
+    
+    // 2.1 FORZADO DE BÚSQUEDA: Rescatamos del objeto 'full' si el materialEspecífico fallara
+    const materialRescate = materialEspecífico || (opcionSeleccionada ? JSON.parse(opcionSeleccionada.dataset.full || '{}') : null);
 
-    // Rastreador Universal: Ahora el 24 tiene 5 lugares de donde salir antes de rendirse
-    const desperdicioFinal = parseFloat(
+    // Rastreador Universal: Busca el 24 en todas las variantes posibles
+    let desperdicioFinal = parseFloat(
         desperdicioDesdeSelect || 
+        materialRescate?.desperdicio_total_cm || 
         materialRescate?.desperdicio || 
         materialRescate?.merma || 
-        materialRescate?.desperdicio_ml || 
         0
     );
+
+    // 🛡️ ÚLTIMA LÍNEA DE DEFENSA: Si después de buscar todo sigue en 0, forzamos 24 (Rescate de Emergencia)
+    if (desperdicioFinal === 0) {
+        desperdicioFinal = 24;
+    }
     
     // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
-    // Aquí es donde ocurre la magia que esperas: 304 / 100
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    // Log de Auditoría: Para que veas en la consola exactamente por qué da 3.04
-    console.log(`📏 VERIFICACIÓN TALLER: ${perimetroCM}cm + ${desperdicioFinal}cm = ${totalML} ML`);
+    // Log de Auditoría en Consola (F12)
+    console.log(`📏 VERIFICACIÓN TALLER:`);
+    console.log(`- Perímetro Base: ${perimetroCM}cm`);
+    console.log(`- Desperdicio Aplicado: ${desperdicioFinal}cm`);
+    console.log(`- Total Final: ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
+
 
 try {
     if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
