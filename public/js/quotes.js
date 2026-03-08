@@ -626,20 +626,27 @@ window.facturarVenta = async function() {
     }
 
     // 3. Estructura de datos final (La maleta blindada y ampliada)
+    // Sincronizada con el backend y history.js para evitar cálculos erróneos en el reporte
     const facturaData = {
         cliente: { 
             nombre: nombre, 
             telefono: telefono 
         },
-        // Mantenemos el formato de medidas que ya tenías pero con el detalle de uso
+        // Mantenemos el formato de medidas que ya tenías pero con el detalle de uso (ML/M2)
         medidas: datosCotizacionActual.detalles.medidas,
         items: itemsProcesados,
+        
+        // TOTALES DE LA ORDEN
         totalFactura: datosCotizacionActual.precioSugeridoCliente || 0,
         totalPagado: abono,
-        // Sincronización de mano de obra y rentabilidad
+        
+        // 🛡️ BLINDAJE DE RENTABILIDAD Y COSTOS (Sincronización Total)
+        // Enviamos los valores ya calculados para que el reporte sea una "foto" de la realidad
         manoObra: datosCotizacionActual.valor_mano_obra || 0, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
-        rentabilidad: datosCotizacionActual.rentabilidad || 0,
+        suma_costos: datosCotizacionActual.suma_costos || 0, // Lo que te costó a ti el material
+        rentabilidad: datosCotizacionActual.rentabilidad || 0, // Ganancia neta real del taller
+        
         fecha: new Date().toISOString()
     };
 
@@ -650,6 +657,7 @@ window.facturarVenta = async function() {
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO VENTA REAL...';
         }
 
+        // Llamada al endpoint de Netlify que procesa la factura y el stock
         const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -659,15 +667,21 @@ window.facturarVenta = async function() {
         const result = await response.json();
 
         if (result.success) {
+            // Éxito: El servidor procesó el descuento de stock y guardó en MongoDB/Atlas
             alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}\n\nLos cálculos de ML y utilidad se han guardado correctamente.`);
+            
+            // Redirección al historial para verificar el reporte de auditoría
             window.location.href = "/history.html";
         } else {
+            // El servidor devolvió un error controlado
             throw new Error(result.error || "El servidor rechazó la venta.");
         }
 
     } catch (error) {
-        console.error("Error crítico en facturación:", error);
+        // Manejo de errores de red o del servidor
+        console.error("🚨 Error crítico en facturación:", error);
         alert("🚨 ERROR AL GUARDAR: " + error.message);
+        
         if (btnVenta) {
             btnVenta.disabled = false;
             btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
