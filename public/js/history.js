@@ -135,7 +135,7 @@ async function generarReporteDiario() {
 
 // --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
             (f.items || f.materiales || []).forEach(item => {
-                // 🕵️ DEBUG: Esto nos dirá en la consola (F12) qué está llegando realmente
+                // 🕵️ DEBUG ACTIVO: Mantenemos el log por seguridad
                 console.log(`Analizando item de OT ${f.numeroFactura || 'S/N'}:`, item);
 
                 const nombreMayus = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
@@ -160,19 +160,19 @@ async function generarReporteDiario() {
                 const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costoUnitario || item.costo_unitario || 0);
                 const costoFila = Math.round(costoUnitario * cantidadFinal);
                 
-                // --- 🚨 REPARACIÓN DEFINITIVA: SCANNER DE VENTA MULTI-VARIABLE ---
-                // Agregamos todas las combinaciones posibles de nombres de variables
+                // --- 🚨 REPARACIÓN FINAL: SCANNER DE VENTA MULTI-VARIABLE (Basado en F12) ---
+                // Se incluyen los nombres exactos detectados en la consola del navegador
                 const ventaFila = Math.round(Number(
+                    item.precioVenta ||     // Detectado en consola F12
+                    item.valor_venta ||     // Detectado en consola F12
                     item.subtotalVenta || 
                     item.subtotal_venta || 
                     item.precio_venta_item || 
-                    item.valor_venta || 
                     item.subtotal || 
-                    item.precioVenta ||
                     0
                 ));
                 
-                // Acumuladores para el resumen
+                // Acumuladores para el resumen de la OT
                 sumaCostoMateriales += costoFila;
                 sumaVentaMateriales += ventaFila;
 
