@@ -682,9 +682,11 @@ window.facturarVenta = async function() {
     // --- 🛡️ PUNTO 2: BLINDAJE DE CONSUMO E INVENTARIO (facturarVenta) ---
     const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
         // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO:
-        // Priorizamos 'm.cantidadUsada' porque ya contiene el (Perímetro + Desperdicio Atlas) 
-        // calculado en el paso anterior. Si no existe, recurrimos al área.
+        // Mantener el valor exacto para resta de stock (Perímetro + Desperdicio Atlas)
         const cantidadRealConsumo = m.cantidadUsada || (datosCotizacionActual.areaFinal || 0);
+        
+        // 🚨 CAPTURA DEL VALOR DE VENTA (Para evitar los ceros en el reporte)
+        const valorVentaFinal = parseFloat(m.subtotalVenta) || 0;
 
         return {
             productoId: m.id,
@@ -692,10 +694,17 @@ window.facturarVenta = async function() {
             descripcion: m.nombre.toUpperCase(),
             nombre: m.nombre.toUpperCase(),      
 
-            // 💰 COSTOS Y VENTAS REALES (Blindaje de rentabilidad para history.js)
+            // 💰 COSTOS Y VENTAS REALES (Blindaje total para history.js y reportes)
             costo_base_unitario: m.costoUnitario,
-            costoBase: m.costoUnitario,
-            precio_venta_item: m.subtotalVenta, 
+            costoBase: m.costoUnitario, 
+            costo_unitario: m.costoUnitario, // Alias de seguridad 1
+            
+            // 💎 REPARACIÓN DE LA COLUMNA "SUBTOTAL VENTA"
+            // Enviamos el dato bajo múltiples nombres para que el reporte lo encuentre sí o sí
+            precio_venta_item: valorVentaFinal, 
+            subtotalVenta: valorVentaFinal, // <--- Este suele ser el que lee el reporte de la foto
+            valor_venta: valorVentaFinal,   // Alias de seguridad 2
+            subtotal: valorVentaFinal,      // Alias de seguridad 3
 
             // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas)
             // 'cantidad' es el valor exacto que se restará del stock (ej: 2.95)
