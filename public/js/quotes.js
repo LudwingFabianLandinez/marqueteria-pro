@@ -343,6 +343,7 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
 
 
 try {
+    
     if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
     
     const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
