@@ -138,37 +138,45 @@ async function generarReporteDiario() {
     const nombreMayus = (item.materialNombre || item.nombre || "").toUpperCase();
     const esMoldura = item.unidad === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
     
-    // 2. RASTREADOR DE CANTIDAD (Busca el 2.95 donde sea que esté)
-    const cantidadML = Number(item.cantidad || item.cantidad_ml || item.uso_ml || item.metros_lineales || 0);
+    // 2. EXTRACCIÓN AGRESIVA DEL ML (Buscamos el 2.95)
+    // Primero intentamos sacar el valor del texto (Ej: "Uso: 2.95 ML") si las variables fallan
+    let valorML = 0;
+    const textoInfo = (item.medidaTexto || "").toUpperCase();
+    if (textoInfo.includes("USO:")) {
+        const match = textoInfo.match(/USO:\s*([\d.]+)/);
+        if (match) valorML = Number(match[1]);
+    }
+
+    // Prioridad de búsqueda para el 2.95
+    const cantidadML = Number(valorML || item.cantidad || item.cantidad_ml || item.uso_ml || 0);
     const areaM2 = Number(item.area_m2 || item.area || 0);
 
-    // 3. LÓGICA DE CÁLCULO RADICAL
-    // Si es moldura y detectamos cantidad, usamos esa. Si no, usamos el área como respaldo.
+    // 3. ASIGNACIÓN DEL FACTOR DE CÁLCULO
+    // Si es moldura, PROHIBIMOS usar el área (0.48). Si cantidadML es 0, buscamos en el respaldo.
     let factorCalculo = 0;
     if (esMoldura) {
-        factorCalculo = cantidadML > 0 ? cantidadML : areaM2; 
+        factorCalculo = cantidadML; 
+        // Si sigue siendo 0, es porque la data está mal estructurada, pero no usamos el área.
     } else {
         factorCalculo = areaM2;
     }
 
-    // 4. Formateo de texto para la tabla
-    const textoMedida = esMoldura 
-        ? `${(cantidadML || areaM2).toFixed(2)} ML` 
-        : `${areaM2.toFixed(3)} m²`;
-    
-    // 5. ATAQUE AL COSTO BASE ($54.327)
+    // 4. CÁLCULO DE COSTO BASE (Atacando los $54.327)
     const costoUnitario = Number(item.costo_base_unitario || item.costoBase || 0);
+    const costoFila = Math.round(costoUnitario * factorCalculo);
     
-    // Si el servidor ya nos da el costo total lo usamos, si no, multiplicamos
-    const costoFila = Math.round(item.costo_base_total || (costoUnitario * factorCalculo));
+    // 5. CÁLCULO DE VENTA (Sincronizado)
     const ventaFila = Math.round(Number(item.precio_venta_item || (costoFila * 3)));
     
     sumaCostoMateriales += costoFila;
     sumaVentaMateriales += ventaFila;
 
+    // 6. RENDERIZADO DE FILA
+    const medidaMostrar = esMoldura ? `${factorCalculo.toFixed(2)} ML` : `${areaM2.toFixed(3)} m²`;
+
     htmlContenido += `<tr>
-        <td style="text-align:left; font-weight:600;">${nombreMayus || "MATERIAL"}</td>
-        <td>${textoMedida}</td>
+        <td style="text-align:left; font-weight:600;">${nombreMayus}</td>
+        <td>${medidaMostrar}</td>
         <td>${formatter.format(costoFila)}</td>
         <td style="background:#f0fdf4; font-weight:bold;">${formatter.format(ventaFila)}</td>
     </tr>`;
