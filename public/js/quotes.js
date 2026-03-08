@@ -127,7 +127,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
 option.dataset.costo = precio;
 
-// 1. RECONOCIMIENTO TOTAL: Buscamos el desperdicio en cualquier campo que uses en Atlas.
 // Ya no forzamos el 24. El código ahora leerá EXACTAMENTE lo que tú escribas en el Maestro.
 let valorDesperdicio = parseFloat(
     m.desperdicio_total_cm || 
@@ -328,8 +327,6 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const materialRescate = materialEspecífico || (opcionSeleccionada ? JSON.parse(opcionSeleccionada.dataset.full || '{}') : null);
 
     // 3. RECONOCIMIENTO DE CUALQUIER CANTIDAD (SIN PARCHES)
-    // Buscamos el valor real en el dataset del HTML o en el objeto de Atlas.
-    // Aquí NO hay números fijos (como el 24). Se usa lo que tú definas.
     const desperdicioFinal = parseFloat(
         opcionSeleccionada?.dataset.desperdicio || 
         materialRescate?.desperdicio_total_cm || 
