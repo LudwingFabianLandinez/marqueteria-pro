@@ -99,16 +99,29 @@ function calcularValoresTecnicos(doc) {
     // --- IDENTIFICACIÓN QUIRÚRGICA DE MOLDURA ---
     const nombreMat = (doc.nombre || "").toUpperCase();
     const categoriaMat = (doc.categoria || "").toUpperCase();
-    const esMoldura = categoriaMat.includes("MOLDURA") || nombreMat.includes("MOLDURA");
+    // Blindaje: Es moldura si lo dice la categoría, el nombre, o si empieza por "K "
+    const esMoldura = categoriaMat.includes("MOLDURA") || 
+                      nombreMat.includes("MOLDURA") || 
+                      nombreMat.startsWith("K ") ||
+                      nombreMat.includes("2312");
 
     if (esMoldura) {
-        // 1. BLINDAJE PARA MOLDURAS: El precio de inventario es el mismo de la tira
+        // 1. BLINDAJE PARA MOLDURAS: Convertimos tira a precio por Metro Lineal
         doc.tipo = 'ml';
+        
+        // Calculamos el largo en metros (usamos 2.90 como estándar de taller si no existe)
+        const largoMetros = (doc.largo_lamina_cm && doc.largo_lamina_cm > 0) 
+                            ? (doc.largo_lamina_cm / 100) 
+                            : 2.90;
+
         if (doc.precio_total_lamina) {
-            doc.precio_m2_costo = doc.precio_total_lamina; // Aquí forzamos los $8618 exactos
+            // CAMBIO CRÍTICO: El costo operativo es el precio de UN metro (Precio Tira / Largo)
+            // Esto permite que el cotizador multiplique (Costo Metro * Metros Desperdicio)
+            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / largoMetros); 
         }
-        // Mantenemos la referencia de que una tira equivale a 2.9 ML para el stock
-        doc.area_por_lamina_m2 = 2.9; 
+
+        // Mantenemos la referencia de que una tira equivale a su largo real para el stock
+        doc.area_por_lamina_m2 = largoMetros; 
     } 
     else if (doc.tipo === 'm2') {
         // 2. LÓGICA M2 (INTACTA): Vidrios, MDF, Espejos siguen igual
@@ -124,8 +137,9 @@ function calcularValoresTecnicos(doc) {
     } 
     else if (doc.tipo === 'ml') {
         // 3. LÓGICA ML GENERAL (Mantenida por compatibilidad)
-        if (doc.largo_lamina_cm > 0 && doc.precio_total_lamina) {
-            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / (doc.largo_lamina_cm / 100));
+        const largoM = (doc.largo_lamina_cm > 0) ? (doc.largo_lamina_cm / 100) : 2.90;
+        if (doc.precio_total_lamina) {
+            doc.precio_m2_costo = Math.round(doc.precio_total_lamina / largoM);
         }
     }
 

@@ -213,19 +213,24 @@ async function procesarCotizacion() {
                                  parseFloat(opcion.dataset.costom2) || 
                                  parseFloat(opcion.dataset.precio) || 0;
 
+            // --- 🛡️ EXTRACCIÓN Y CLASIFICACIÓN CONTUNDENTE ---
             const nombreMat = (opcion.text || "").toUpperCase();
             const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
+            const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
             
-            const esML = categoriaMat.includes("MOLDURA") || 
+            // BLINDAJE TOTAL: Si es ML en Atlas, o si el nombre contiene marcas clave, ES ML.
+            const esML = unidadDataset === 'ml' || 
+                         categoriaMat.includes("MOLDURA") || 
                          nombreMat.includes("MOLDURA") || 
                          nombreMat.includes("MARCO") || 
                          nombreMat.startsWith("K ") ||
-                         opcion.dataset.unidad === 'ml';
+                         nombreMat.includes("2312") || // Moldura específica de prueba
+                         nombreMat.includes("2311");
 
             return {
                 id: el.value,
                 nombre: opcion.text.split('(')[0].trim(),
-                costoUnitario: costoExtraido,
+                costoUnitario: costoExtraido, // Ahora este valor es $/Metro Lineal gracias al Punto 1
                 unidad: esML ? 'ML' : 'M2'
             };
         })
@@ -372,12 +377,22 @@ function mostrarResultado(data) {
 
     // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO Y SIN FILTROS) ---
     // Esta parte ahora toma directamente lo que procesamos en el Paso 1
+    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CON AUDITORÍA DE UNIDAD) ---
     const materialesValidos = data.detalles?.materiales || [];
     const itemsHTML = materialesValidos.length > 0 
         ? materialesValidos.map(m => {
             const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
+            // Extraemos la unidad para mostrarla sutilmente y confirmar el cálculo
+            const unidadVisual = (m.unidad || "").toUpperCase();
+            
             return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <span><i class="fas fa-check-circle" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual}</span>
+                <span style="display: flex; align-items: center;">
+                    <i class="fas fa-check-circle" style="color:#10b981; margin-right: 8px;"></i> 
+                    ${nombreVisual}
+                </span>
+                <span style="font-size: 0.75rem; color: #64748b; background: #f8fafc; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; font-weight: bold;">
+                    ${unidadVisual}
+                </span>
             </li>`;
         }).join('')
         : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
