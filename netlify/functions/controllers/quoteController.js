@@ -89,36 +89,46 @@ const generateQuote = async (req, res) => {
         materialesDB.forEach(mat => {
             const nombreUP = (mat.nombre || "").toUpperCase();
 
-            /**
-             * DETECCIÓN REDUNDANTE (La clave del éxito):
-             * Prioridad 1: Campo 'tipo' de Atlas sea 'ml'.
-             * Prioridad 2: Si tiene un 'largo_lamina_cm' definido (como tus 290).
-             * Prioridad 3: Palabras clave en el nombre.
-             */
+            // 1. DETERMINACIÓN CONTUNDENTE DEL TIPO
+            // Prioridad absoluta: Si en Atlas dice 'ml' o tiene un largo físico (como tus 290)
             const esMoldura = (mat.tipo && mat.tipo.toLowerCase().includes("ml")) || 
                               (mat.largo_lamina_cm && Number(mat.largo_lamina_cm) > 0) ||
                               nombreUP.includes("MOLDURA") || 
                               nombreUP.includes("MARCO") || 
                               nombreUP.includes("K "); 
 
-            // Sincronización de Precios
-            const precioCostoBase = mat.precio_total_lamina || mat.precio_m2_costo || mat.precio || 0;
+            // 2. EXTRACCIÓN ROBUSTA DEL PRECIO
+            // Buscamos en todos los campos posibles donde Atlas guarde el dinero
+            const precioCostoBase = Number(mat.precio_total_lamina) || 
+                                    Number(mat.precio_m2_costo) || 
+                                    Number(mat.precio) || 0;
             
             let costoItem = 0;
 
             if (esMoldura) {
-                // --- LÓGICA DE MOLDURA ---
-                // Si Atlas dice que mide 290cm, usamos 2.9m. Si no, por defecto 2.90m.
-                const largoTiraMetros = mat.largo_lamina_cm ? (Number(mat.largo_lamina_cm) / 100) : 2.90;
-                const precioMetroLineal = precioCostoBase / largoTiraMetros;
+                // --- LÓGICA DE MOLDURA (ML) ---
+                // Si Atlas dice 290cm, usamos 2.9m. Si no, forzamos 2.90m para evitar divisiones por cero.
+                const divisorLargo = (Number(mat.largo_lamina_cm) > 0) ? (Number(mat.largo_lamina_cm) / 100) : 2.90;
+                
+                // Calculamos el precio por cada metro lineal
+                const precioMetroLineal = precioCostoBase / divisorLargo;
+                
+                // Multiplicamos por el gastoML (que viene de tu tabla de desperdicio)
                 costoItem = precioMetroLineal * gastoML;
+                
+                // LOG DE AUDITORÍA (Ver en consola de Netlify)
+                console.log(`✅ [ML] ${mat.nombre}: Precio=${precioCostoBase} / Largo=${divisorLargo} * Gasto=${gastoML} = ${costoItem}`);
             } else {
-                // --- LÓGICA DE SUPERFICIE (VIDRIOS) ---
+                // --- LÓGICA DE SUPERFICIE (VIDRIOS/M2) ---
                 costoItem = area_m2 * precioCostoBase;
+                
+                console.log(`🪟 [M2] ${mat.nombre}: Area=${area_m2.toFixed(4)} * Precio=${precioCostoBase} = ${costoItem}`);
             }
             
+            // Sumatoria al total general
             costoMaterialesTotal += costoItem;
             
+            // 3. ESTRUCTURA DE RESPUESTA (Sin omitir nada de lo logrado)
             listaDetallada.push({ 
                 id: mat._id,
                 nombre: mat.nombre, 
