@@ -126,14 +126,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // --- 💰 EXTRACCIÓN DE PRECIO MULTI-CAMPO ---
                     const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
                     
-                    // Inyectamos los datos críticos en el dataset del HTML
-                    option.dataset.costo = precio;
-                    option.dataset.desperdicio = m.desperdicio || 0;
-                    option.dataset.unidad = unidad; // Queda como ML o M2
-                    option.dataset.categoria = categoriaM;
-                    
-                    option.textContent = `${nombreM} ${avisoStock}`;
-                    select.appendChild(option);
+                    // --- 🔑 INYECCIÓN DE DATOS CRÍTICOS (CON RESCATE DE DESPERDICIO MAESTRO) ---
+option.dataset.costo = precio;
+
+// Rastreador Universal: Buscamos el 24 en cualquier variante de nombre que venga de Atlas
+const valorDesperdicio = m.desperdicio || m.merma || m.desperdicio_ml || 0;
+option.dataset.desperdicio = valorDesperdicio;
+
+// Blindaje: Guardamos el objeto completo en el HTML para que la fórmula siempre tenga de donde sacar datos
+option.dataset.full = JSON.stringify(m);
+
+option.dataset.unidad = unidad; // Queda como ML o M2
+option.dataset.categoria = categoriaM;
+
+option.textContent = `${nombreM} ${avisoStock}`;
+select.appendChild(option);
 
                     // Si es moldura, la agregamos al datalist del buscador
                     if (esML && datalist && esParaBuscador) {
@@ -285,6 +292,7 @@ async function procesarCotizacion() {
     }
     
 // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SUMA OBLIGATORIA PERÍMETRO + DESPERDICIO) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SUMA OBLIGATORIA 3.04 ML) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
@@ -292,31 +300,28 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     // 1. Perímetro base: (60 + 80) * 2 = 280 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. RESCATE DE DESPERDICIO (Prioridad: Objeto > Atributo HTML > Maestro)
+    // 2. RESCATE DE DESPERDICIO (Prioridad: HTML > Objeto > Maestro)
     const selectMarco = document.getElementById('materialOtroId');
     const desperdicioDesdeSelect = selectMarco?.options[selectMarco.selectedIndex]?.dataset.desperdicio;
     
-    // 2.1 FORZADO DE BÚSQUEDA: Si el objeto no existe, rescatamos del dataset completo
+    // 2.1 FORZADO DE BÚSQUEDA: Si el objeto no existe, rescatamos del dataset completo que pegamos en el Bloque 1
     const materialRescate = materialEspecífico || (selectMarco ? JSON.parse(selectMarco.options[selectMarco.selectedIndex]?.dataset.full || '{}') : null);
 
-    // Rastreador Universal: Busca el "24" en todas las variantes posibles de nombre
+    // Rastreador Universal: Ahora el 24 tiene 5 lugares de donde salir antes de rendirse
     const desperdicioFinal = parseFloat(
+        desperdicioDesdeSelect || 
         materialRescate?.desperdicio || 
         materialRescate?.merma || 
         materialRescate?.desperdicio_ml || 
-        desperdicioDesdeSelect || 
         0
     );
     
     // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
-    // IMPORTANTE: Aquí se hace la suma real de CM antes de convertir a ML
+    // Aquí es donde ocurre la magia que esperas: 304 / 100
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    // Log de Auditoría en Consola (F12): Para ver qué número está fallando
-    console.log(`📏 VERIFICACIÓN TALLER:`);
-    console.log(`- Perímetro: ${perimetroCM}cm`);
-    console.log(`- Desperdicio detectado: ${desperdicioFinal}cm`);
-    console.log(`- Resultado: ${totalML} ML`);
+    // Log de Auditoría: Para que veas en la consola exactamente por qué da 3.04
+    console.log(`📏 VERIFICACIÓN TALLER: ${perimetroCM}cm + ${desperdicioFinal}cm = ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
