@@ -293,16 +293,17 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const perimetroCM = (ancho + largo) * 2;
     
     // 2. RESCATE DE DESPERDICIO (Prioridad: Objeto > Atributo HTML > 0)
-    // Buscamos el valor en el objeto (probando varios nombres comunes) 
-    // o directamente en el dataset del selector de la pantalla.
     const selectMarco = document.getElementById('materialOtroId');
     const desperdicioDesdeSelect = selectMarco?.options[selectMarco.selectedIndex]?.dataset.desperdicio;
     
+    // 2.1 FORZADO DE BÚSQUEDA: Si el objeto no existe, buscamos el material en el selector actual
+    const materialRescate = materialEspecífico || (selectMarco ? JSON.parse(selectMarco.options[selectMarco.selectedIndex]?.dataset.full || '{}') : null);
+
     // Rastreador: Busca el 24 en cualquier campo que haya enviado el Maestro de Materiales
     const desperdicioFinal = parseFloat(
-        materialEspecífico?.desperdicio || 
-        materialEspecífico?.merma || 
-        materialEspecífico?.desperdicio_ml || 
+        materialRescate?.desperdicio || 
+        materialRescate?.merma || 
+        materialRescate?.desperdicio_ml || 
         desperdicioDesdeSelect || 
         0
     );
