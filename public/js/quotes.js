@@ -284,18 +284,23 @@ async function procesarCotizacion() {
     }
     
 // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA EXACTA DE TALLER) ---
-const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA DE DESPERDICIO FIJO 80CM) ---
+const obtenerMLConDesperdicio = (a, l) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
     
     // 1. Suma de lados x 2 (Perímetro base en CM)
+    // Ejemplo 80x100: (80 + 100) * 2 = 360 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. Recuperar desperdicio desde el material o usar 15cm por defecto
-    const desperdicioCM = parseFloat(materialEspecífico?.desperdicio) || 15;
+    // 2. DESPERDICIO FIJO DE 80 CM (Independiente de la medida)
+    // Esto cubre los 4 ingletes y el sobrante de la varilla
+    const desperdicioFijoCM = 80; 
     
-    // 3. Cálculo final en Metros Lineales (ML)
-    const totalML = (perimetroCM + desperdicioCM) / 100;
+    // 3. Cálculo final: (360 + 80) / 100 = 4.40 ML
+    const totalML = (perimetroCM + desperdicioFijoCM) / 100;
+    
+    console.log(`📏 CÁLCULO MOLDURA: Perímetro ${perimetroCM}cm + Fijo ${desperdicioFijoCM}cm = ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
