@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const datalist = document.getElementById('lista-molduras');
             if (datalist) datalist.innerHTML = '';
 
-            // 2. FUNCIÓN DE LLENADO INTELIGENTE
+// 2. FUNCIÓN DE LLENADO INTELIGENTE
             const llenar = (select, filtroBusqueda, esParaBuscador = false) => {
                 if (!select) return;
                 select.innerHTML = `<option value="">-- Seleccionar --</option>`;
@@ -98,10 +98,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!m.nombre || m.nombre.trim() === "" || m.nombre.includes("undefined")) return;
 
                     const stock = m.stock_actual || 0;
-                    const unidad = (m.unidad || m.tipo || "m2").toUpperCase();
+                    // --- 🛡️ NORMALIZACIÓN DE UNIDAD ---
+                    // Priorizamos lo que venga de Atlas (m.unidad o m.tipo)
+                    let unidad = (m.unidad || m.tipo || "m2").toUpperCase();
                     const nombreM = m.nombre.toUpperCase();
+                    const categoriaM = (m.categoria || "").toUpperCase();
                     
-                    const esML = unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.startsWith("K ");
+                    // --- 🔍 DETECCIÓN REFORZADA DE MOLDURA ---
+                    const esML = unidad === 'ML' || 
+                                 nombreM.includes("MOLDURA") || 
+                                 nombreM.includes("MARCO") || 
+                                 nombreM.startsWith("K ") ||
+                                 nombreM.includes("2312") ||
+                                 categoriaM.includes("MOLDURA");
+
+                    // Si es moldura, forzamos que la unidad sea ML para el calculador
+                    if (esML) unidad = 'ML';
+
                     const color = stock <= 0 ? 'color: #ef4444; font-weight: bold;' : '';
                     const avisoStock = stock <= 0 ? '(SIN STOCK)' : `(${stock.toFixed(2)} ${unidad})`;
                     
@@ -110,20 +123,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                     option.value = m._id || m.id;
                     option.style = color;
 
-                    const precio = m.costo_base || m.costo_m2 || m.precio_m2_costo || 0;
-                    
-                    option.dataset.costo = precio;
-                    option.dataset.unidad = unidad;
-                    option.textContent = `${nombreM} ${avisoStock}`;
-                    select.appendChild(option);
+                    // --- 📥 CARGA DINÁMICA DE DATOS (RESPETA CUALQUIER VALOR DE ATLAS) ---
+const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
+option.dataset.costo = precio;
 
-                    if (esML && datalist && esParaBuscador) {
-                        const optBusqueda = document.createElement('option');
-                        optBusqueda.value = nombreM; 
-                        datalist.appendChild(optBusqueda);
-                    }
+// Ya no forzamos el 24. El código ahora leerá EXACTAMENTE lo que tú escribas en el Maestro.
+let valorDesperdicio = parseFloat(
+    m.desperdicio_total_cm || 
+    m.desperdicio || 
+    m.merma || 
+    m.desperdicio_ml || 
+    0
+);
+
+// 2. 🛡️ ASIGNACIÓN DINÁMICA: 
+// Se guarda el valor real (10, 24, 35, etc.). 
+// Solo será 0 si en Atlas realmente está vacío o en 0.
+option.dataset.desperdicio = valorDesperdicio;
+
+// Blindaje: Guardamos el objeto completo para que el Bloque 2 pueda leerlo.
+option.dataset.full = JSON.stringify(m);
+
+option.dataset.unidad = unidad; // ML o M2
+option.dataset.categoria = categoriaM;
+option.textContent = `${nombreM} ${avisoStock}`;
+
+// Auditoría técnica en consola para que veas qué número se está cargando por cada moldura
+if (esML) {
+    console.log(`✅ Moldura: ${nombreM} | Desperdicio cargado: ${valorDesperdicio}cm`);
+}
+
+select.appendChild(option);
+
+// 3. MANTENER AVANCE: Si es moldura, la agregamos al datalist del buscador
+if (esML && datalist && esParaBuscador) {
+    const optBusqueda = document.createElement('option');
+    optBusqueda.value = nombreM;
+    // Guardamos el ID en el datalist para que el buscador sepa qué seleccionar
+    optBusqueda.dataset.id = m._id || m.id; 
+    datalist.appendChild(optBusqueda);
+}
+
                 });
             };
+
+            
 
             // 3. REPARTO QUIRÚRGICO (TRIPLEX + CARTÓN UNIFICADOS)
             llenar(selects.Vidrio, m => {
@@ -199,7 +243,7 @@ async function procesarCotizacion() {
         'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
     ];
 
-    // Mapeo inteligente con Blindaje Multi-Campo
+    // Mapeo inteligente con Blindaje Multi-Campo (Sincronizado)
     let materialesSeleccionados = selectsIds
         .map(id => {
             const el = document.getElementById(id);
@@ -213,33 +257,39 @@ async function procesarCotizacion() {
                                  parseFloat(opcion.dataset.costom2) || 
                                  parseFloat(opcion.dataset.precio) || 0;
 
+            // --- 🛡️ EXTRACCIÓN Y CLASIFICACIÓN CONTUNDENTE ---
             const nombreMat = (opcion.text || "").toUpperCase();
             const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
+            const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
             
-            const esML = categoriaMat.includes("MOLDURA") || 
+            // 🚀 NUEVO: Captura del desperdicio para que llegue al cálculo financiero
+            const desperdicioExtraido = parseFloat(opcion.dataset.desperdicio) || 0;
+
+            // BLINDAJE TOTAL: Si es ML en Atlas, o si el nombre contiene marcas clave, ES ML.
+            const esML = unidadDataset === 'ml' || 
+                         categoriaMat.includes("MOLDURA") || 
                          nombreMat.includes("MOLDURA") || 
                          nombreMat.includes("MARCO") || 
                          nombreMat.startsWith("K ") ||
-                         opcion.dataset.unidad === 'ml';
+                         nombreMat.includes("2312") || // Moldura específica de prueba
+                         nombreMat.includes("2311");
 
             return {
                 id: el.value,
                 nombre: opcion.text.split('(')[0].trim(),
-                costoUnitario: costoExtraido,
-                unidad: esML ? 'ML' : 'M2'
+                costoUnitario: costoExtraido, // Ahora este valor es $/Metro Lineal gracias al Punto 1
+                unidad: esML ? 'ML' : 'M2',
+                desperdicio: esML ? desperdicioExtraido : 0 // 🛡️ Blindaje: solo pasamos desperdicio si es ML
             };
         })
         .filter(m => m !== null && m.costoUnitario > 0);
 
-    // --- 🕵️‍♂️ RASTREO CORREGIDO DEL BUSCADOR DE MOLDURAS (Sincronizado con input-moldura) ---
+    // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS ---
     const inputTextoMoldura = document.getElementById('input-moldura');
     const selectMolduraOculto = document.getElementById('materialOtroId');
 
-    // Si hay texto en el buscador, nos aseguramos de que el material esté en la lista
     if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
         const optM = selectMolduraOculto.options[selectMolduraOculto.selectedIndex];
-        
-        // Verificamos si ya se incluyó por el mapeo de selectsIds para no duplicar
         const yaIncluido = materialesSeleccionados.find(m => m.id === selectMolduraOculto.value);
 
         if (optM && optM.value !== "" && !yaIncluido) {
@@ -253,7 +303,6 @@ async function procesarCotizacion() {
                 costoUnitario: costoM,
                 unidad: 'ML'
             });
-            console.log("✅ Moldura capturada desde buscador de texto:", inputTextoMoldura.value, "Costo:", costoM);
         }
     }
 
@@ -261,51 +310,152 @@ async function procesarCotizacion() {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
         return;
     }
+    
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA UNIVERSAL DINÁMICA) ---
+const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
+    const ancho = parseFloat(a) || 0;
+    const largo = parseFloat(l) || 0;
+    
+    // 1. Perímetro base: (ancho + largo) * 2
+    const perimetroCM = (ancho + largo) * 2;
+    
+    // 2. RESCATE DE DATOS DESDE EL SELECTOR
+    const selectMarco = document.getElementById('materialOtroId');
+    const opcionSeleccionada = selectMarco?.options[selectMarco.selectedIndex];
+    
+    // 2.1 Recuperamos el objeto completo (JSON) por si el materialEspecífico no viene
+    const materialRescate = materialEspecífico || (opcionSeleccionada ? JSON.parse(opcionSeleccionada.dataset.full || '{}') : null);
 
-    try {
-        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
+    // 3. RECONOCIMIENTO DE CUALQUIER CANTIDAD (SIN PARCHES)
+    const desperdicioFinal = parseFloat(
+        opcionSeleccionada?.dataset.desperdicio || 
+        materialRescate?.desperdicio_total_cm || 
+        materialRescate?.desperdicio || 
+        materialRescate?.merma || 
+        0
+    );
+    
+    // 4. CÁLCULO FINAL: (Perímetro + Tu dato de Atlas) / 100
+    // Ejemplo: (280 + 15) / 100 = 2.95 ML
+    const totalML = (perimetroCM + desperdicioFinal) / 100;
+    
+    // Log de Auditoría: Para que veas en tiempo real que está sumando tu número de Atlas
+    console.log(`📊 CÁLCULO DINÁMICO:`);
+    console.log(`- Perímetro: ${perimetroCM}cm`);
+    console.log(`- Desperdicio leído de Atlas: ${desperdicioFinal}cm`);
+    console.log(`- Resultado: ${totalML} ML`);
+    
+    return Number(totalML.toFixed(2));
+};
+
+
+try {
+
+    if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
+    
+    const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
+    let totalVentaAcumulado = 0;
+    let costoBaseAcumulado = 0;
+    let resumenGastoML = ""; // Para el reporte visual
+
+// --- 💰 CÁLCULO SUMATORIO DEFINITIVO (SIN ADIVINAR) ---
+// --- 💰 CÁLCULO SUMATORIO DEFINITIVO (CON BLINDAJE ANTI-CERO Y DESPERDICIO) ---
+materialesSeleccionados.forEach(m => {
+    let costoItem = 0;
+    let ventaItem = 0;
+
+    // Aseguramos que el costo unitario sea un número válido para evitar NaN
+    const costoUnitarioReal = parseFloat(m.costoUnitario) || 0;
+
+    if (m.unidad === 'ML') {
+        // 1. OBTENER PERÍMETRO BASE EN METROS
+        const perimetroBaseM = ((Number(ancho) + Number(largo)) * 2) / 100;
+
+        // 2. EXTRAER DESPERDICIO DINÁMICO (Sincronizado con Atlas)
+        const valorDesperdicioCM = Number(m.desperdicio || 0);
+        const desperdicioM = valorDesperdicioCM / 100;
+
+        // 3. LA SUMA SAGRADA: Perímetro + Desperdicio Específico
+        const gastoMLReal = Number((perimetroBaseM + desperdicioM).toFixed(3));
         
-        const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
-        const perimetroCalculado = Number((((ancho + largo) * 2) / 100).toFixed(2));
-        let costoBaseLocal = 0;
-
-        // --- Lógica Híbrida: ML para Molduras, M2 para el resto ---
-        materialesSeleccionados.forEach(m => {
-            const nombreM = (m.nombre || "").toUpperCase();
-            const esML = m.unidad === 'ML' || nombreM.includes("MOLDURA") || nombreM.includes("MARCO") || nombreM.startsWith("K ");
-
-            if (esML) {
-                costoBaseLocal += (m.costoUnitario * perimetroCalculado);
-            } else {
-                costoBaseLocal += (m.costoUnitario * areaCalculada);
-            }
-        });
-
-        let dataFinal = {
-            valor_materiales: costoBaseLocal,
-            area: areaCalculada,
-            detalles: { 
-                medidas: `${ancho} x ${largo} cm`, 
-                materiales: materialesSeleccionados 
-            }
-        };
-
-        const subtotalMaterialesX3 = Math.round((dataFinal.valor_materiales || 0) * 3);
-        dataFinal.precioSugeridoCliente = subtotalMaterialesX3 + manoObraInput;
-        dataFinal.anchoOriginal = ancho;
-        dataFinal.largoOriginal = largo;
-        dataFinal.areaFinal = areaCalculada;
-        dataFinal.valor_mano_obra = manoObraInput;
+        // 4. CÁLCULO FINANCIERO (Costo Base)
+        costoItem = Math.round(costoUnitarioReal * gastoMLReal);
         
-        datosCotizacionActual = dataFinal;
-        mostrarResultado(dataFinal);
-        document.getElementById('resultado').scrollIntoView({ behavior: 'smooth' });
+        // 5. 🛡️ BLINDAJE DE VENTA: Si el precio sugerido es 0 o no existe, aplicamos Regla de Oro x2.5
+        // Esto evita que el reporte muestre $0 si el material no tiene precio de venta en Atlas.
+        const margenVentaML = 2.5;
+        ventaItem = Math.round(costoItem * margenVentaML);
+        
+        // 6. SINCRONIZACIÓN TOTAL
+        m.cantidadUsada = gastoMLReal; 
+        m.subtotalVenta = ventaItem; 
+        m.tipoMedida = "ML"; 
+        resumenGastoML = `${gastoMLReal} ML`;
 
-    } catch (error) {
-        console.error("Error en cálculo:", error);
-    } finally {
-        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
+        console.log(`🚀 MOLDURA: ${m.nombre} | Base: ${perimetroBaseM}m + Desp: ${desperdicioM}m = TOTAL: ${gastoMLReal}ML | VENTA: $${ventaItem}`);
+        
+    } else {
+        // 2. LÓGICA DE OTROS: Área M2 (Vidrios, Respaldos, etc.)
+        costoItem = Math.round(costoUnitarioReal * areaCalculada);
+        
+        // 🛡️ BLINDAJE DE VENTA: Regla Otros x3 (Asegura que nunca sea $0)
+        const margenVentaM2 = 3;
+        ventaItem = Math.round(costoItem * margenVentaM2);
+        
+        m.cantidadUsada = areaCalculada;
+        m.subtotalVenta = ventaItem;
+        m.tipoMedida = "M2";
+
+        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | VENTA: $${ventaItem}`);
     }
+
+    // Acumuladores globales para el Gran Total de la Cotización
+    costoBaseAcumulado += costoItem;
+    totalVentaAcumulado += ventaItem;
+});
+    
+
+    // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
+    const totalFinalCalculado = Math.round(totalVentaAcumulado + manoObraInput);
+    
+    // REGLA DE ORO SOLICITADA: Total Orden - Suma de Costos Base - Mano de Obra
+    const rentabilidadFinal = Math.round(totalFinalCalculado - costoBaseAcumulado - manoObraInput);
+
+    let dataFinal = {
+        valor_materiales: costoBaseAcumulado,    // Suma de costos base (lo que te cuesta a ti)
+        suma_costos: costoBaseAcumulado,         // Alias para compatibilidad con otros archivos
+        precioSugeridoCliente: totalFinalCalculado, // El valor que paga el cliente
+        area: areaCalculada,
+        anchoOriginal: ancho,
+        largoOriginal: largo,
+        areaFinal: areaCalculada,
+        valor_mano_obra: manoObraInput,
+        rentabilidad: rentabilidadFinal,         // Utilidad neta real del taller
+        detalles: { 
+            medidas: `${ancho} x ${largo} cm ${resumenGastoML ? '(Uso: ' + resumenGastoML + ')' : ''}`, 
+            materiales: materialesSeleccionados 
+        }
+    };
+    
+    // Sincronización con la persistencia global
+    datosCotizacionActual = dataFinal;
+    
+    // Enviamos los datos listos al reporte visual
+    if (typeof mostrarResultado === 'function') {
+        mostrarResultado(dataFinal);
+    }
+    
+    // Navegación automática para ver el resultado
+    const resDiv = document.getElementById('resultado');
+    if (resDiv) {
+        resDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+
+} catch (error) {
+    console.error("🚨 Error crítico en el cálculo:", error);
+} finally {
+    if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
+}
 }
 
 // FUNCIÓN PARA EL BUSCADOR INTELIGENTE (Punto 2b)
@@ -344,7 +494,7 @@ function actualizarSaldoEnRecibo() {
     limpiarTextosNoDeseados();
 }
 
-function mostrarResultado(data) {
+    function mostrarResultado(data) {
     const divRes = document.getElementById('resultado');
     
     // --- BLOQUE DE ANCHO TOTAL (Blindaje de Diseño) ---
@@ -358,14 +508,30 @@ function mostrarResultado(data) {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO Y SIN FILTROS) ---
-    // Esta parte ahora toma directamente lo que procesamos en el Paso 1
+    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO: ML/M2 + SUBTOTALES) ---
     const materialesValidos = data.detalles?.materiales || [];
     const itemsHTML = materialesValidos.length > 0 
         ? materialesValidos.map(m => {
             const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
-            return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <span><i class="fas fa-check-circle" style="color:#10b981; margin-right: 8px;"></i> ${nombreVisual}</span>
+            const unidadVisual = (m.unidad || "").toUpperCase();
+            
+            // 🛡️ RESCATE DE MEDIDA: Usamos cantidadUsada (ML) si existe, sino el área (M2)
+            const medidaExacta = m.cantidadUsada ? m.cantidadUsada : (unidadVisual === 'M2' ? data.areaFinal : '--');
+            const subtotalVisual = formatter.format(m.subtotalVenta || 0);
+            
+            return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
+                <span style="display: flex; flex-direction: column;">
+                    <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-check-circle" style="color:#10b981; font-size: 0.9rem;"></i> 
+                        ${nombreVisual}
+                    </span>
+                    <small style="color: #64748b; margin-left: 22px; font-size: 0.75rem; font-weight: 500;">
+                        CANTIDAD: ${medidaExacta} ${unidadVisual}
+                    </small>
+                </span>
+                <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem; padding-top: 2px;">
+                    ${subtotalVisual}
+                </span>
             </li>`;
         }).join('')
         : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
@@ -382,11 +548,19 @@ function mostrarResultado(data) {
                     <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
                 </div>
             </div>
-            <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 10px; border-radius: 6px;">
-                <strong>Medidas:</strong> ${data.detalles?.medidas || '--'}
+            
+            <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 6px; border-left: 4px solid #1e3a8a;">
+                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || '--'}
             </p>
-            <h4 style="color: #475569; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0;">Materiales incluidos:</h4>
-            <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">${itemsHTML}</ul>
+
+            <h4 style="color: #475569; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                Desglose de Materiales:
+            </h4>
+            
+            <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">
+                ${itemsHTML}
+            </ul>
+
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
@@ -403,20 +577,19 @@ function mostrarResultado(data) {
             </div>
 
             <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #475569; font-weight: bold;">OBSERVACIONES:</h4>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
             </div>
         </div>
-        <div class="no-print" style="margin-top: 20px; width: 100%;">
-            <button onclick="imprimirResumen()" style="background: #334155; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">
-                <i class="fas fa-print"></i> IMPRIMIR PARA CLIENTE
+
+        <div class="no-print" style="margin-top: 20px; width: 100%; display: flex; gap: 10px;">
+            <button onclick="imprimirResumen()" style="background: #1e3a8a; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: background 0.3s;">
+                <i class="fas fa-print"></i> IMPRIMIR ORDEN (CLIENTE)
             </button>
         </div>`;
-
+    
     document.getElementById('containerAcciones').innerHTML = `
         <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
             <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
@@ -460,7 +633,7 @@ window.facturarVenta = async function() {
         return;
     }
     
-    // 1. Captura de elementos de interfaz
+    // 1. Captura de elementos de interfaz (Sin cambios para mantener integridad)
     const nombreInput = document.getElementById('nombreCliente');
     const telInput = document.getElementById('telCliente');
     const abonoInput = document.getElementById('abonoInicial');
@@ -476,38 +649,37 @@ window.facturarVenta = async function() {
         return;
     }
 
-    // 2. Rescate Universal de Materiales (Atrapa los 4 o los que elijas)
-    const itemsProcesados = [];
-    const todosLosSelects = document.querySelectorAll('select');
+    // --- 🛡️ PUNTO 2: BLINDAJE DE CONSUMO E INVENTARIO (facturarVenta) ---
+    const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
+        // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO:
+        // Priorizamos 'm.cantidadUsada' porque ya contiene el (Perímetro + Desperdicio Atlas) 
+        // calculado en el paso anterior. Si no existe, recurrimos al área.
+        const cantidadRealConsumo = m.cantidadUsada || (datosCotizacionActual.areaFinal || 0);
 
-    todosLosSelects.forEach(select => {
-        if (select.value && select.selectedIndex > 0) {
-            const opcion = select.options[select.selectedIndex];
+        return {
+            productoId: m.id,
+            materialNombre: m.nombre.toUpperCase(), 
+            descripcion: m.nombre.toUpperCase(),
+            nombre: m.nombre.toUpperCase(),      
+
+            // 💰 COSTOS Y VENTAS REALES (Blindaje de rentabilidad para history.js)
+            costo_base_unitario: m.costoUnitario,
+            costoBase: m.costoUnitario,
+            precio_venta_item: m.subtotalVenta, 
+
+            // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas)
+            // 'cantidad' es el valor exacto que se restará del stock (ej: 2.95)
+            cantidad: Number(Number(cantidadRealConsumo).toFixed(3)), 
+            unidad: (m.unidad || "").toUpperCase(), 
             
-            // Verificamos que sea un material con costo inyectado
-            if (opcion.dataset.costo !== undefined) {
-                const nombreReal = opcion.text.split('(')[0].trim().toUpperCase();
-                const costoReal = parseFloat(opcion.dataset.costo) || 0;
-
-                itemsProcesados.push({
-                    productoId: select.value,
-                    // 🚀 RESCATE DE NOMBRE (Asegura que el reporte lo vea)
-                    materialNombre: nombreReal, 
-                    descripcion: nombreReal,
-                    nombre: nombreReal,      
-
-                    // 💰 RESCATE DE COSTOS (Asegura rentabilidad en reporte)
-                    costo_base_unitario: costoReal,
-                    costoBase: costoReal,    
-
-                    cantidad: 1,
-                    // Conservamos tu lógica de redondeo para evitar residuos en Atlas
-                    ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
-                    largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
-                    area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(2))
-                });
-            }
-        }
+            ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
+            largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
+            area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
+            
+            // 📝 RESPALDO DE AUDITORÍA
+            // Aseguramos que el historial guarde el consumo con desperdicio incluido
+            cantidadUsada: Number(Number(cantidadRealConsumo).toFixed(3))
+        };
     });
 
     if (itemsProcesados.length === 0) {
@@ -515,30 +687,39 @@ window.facturarVenta = async function() {
         return;
     }
 
-    // 3. Estructura de datos final (La maleta)
-    // --- CAMBIO AQUÍ: Aseguramos que mano_obra_total se guarde ---
+    // 3. Estructura de datos final (La maleta blindada y ampliada)
+    // Sincronizada con el backend y history.js para evitar cálculos erróneos en el reporte
     const facturaData = {
         cliente: { 
             nombre: nombre, 
             telefono: telefono 
         },
-        medidas: `${datosCotizacionActual.anchoOriginal || 0} x ${datosCotizacionActual.largoOriginal || 0}`,
+        // Mantenemos el formato de medidas que ya tenías pero con el detalle de uso (ML/M2)
+        medidas: datosCotizacionActual.detalles.medidas,
         items: itemsProcesados,
+        
+        // TOTALES DE LA ORDEN
         totalFactura: datosCotizacionActual.precioSugeridoCliente || 0,
         totalPagado: abono,
-        // Usamos tanto f.manoObra como f.mano_obra_total por seguridad para el reporte
+        
+        // 🛡️ BLINDAJE DE RENTABILIDAD Y COSTOS (Sincronización Total)
+        // Enviamos los valores ya calculados para que el reporte sea una "foto" de la realidad
         manoObra: datosCotizacionActual.valor_mano_obra || 0, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
+        suma_costos: datosCotizacionActual.suma_costos || 0, // Lo que te costó a ti el material
+        rentabilidad: datosCotizacionActual.rentabilidad || 0, // Ganancia neta real del taller
+        
         fecha: new Date().toISOString()
     };
 
-    // 4. Envío Quirúrgico al Servidor
+    // 4. Envío Quirúrgico al Servidor (Sin alterar las rutas de tu backend)
     try {
         if (btnVenta) {
             btnVenta.disabled = true;
-            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO VENTA REAL...';
         }
 
+        // Llamada al endpoint de Netlify que procesa la factura y el stock
         const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -548,15 +729,21 @@ window.facturarVenta = async function() {
         const result = await response.json();
 
         if (result.success) {
-            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}`);
+            // Éxito: El servidor procesó el descuento de stock y guardó en MongoDB/Atlas
+            alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}\n\nLos cálculos de ML y utilidad se han guardado correctamente.`);
+            
+            // Redirección al historial para verificar el reporte de auditoría
             window.location.href = "/history.html";
         } else {
+            // El servidor devolvió un error controlado
             throw new Error(result.error || "El servidor rechazó la venta.");
         }
 
     } catch (error) {
-        console.error("Error crítico en facturación:", error);
+        // Manejo de errores de red o del servidor
+        console.error("🚨 Error crítico en facturación:", error);
         alert("🚨 ERROR AL GUARDAR: " + error.message);
+        
         if (btnVenta) {
             btnVenta.disabled = false;
             btnVenta.innerHTML = '<i class="fas fa-save"></i> REINTENTAR GUARDAR';
