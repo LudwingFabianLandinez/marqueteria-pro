@@ -282,7 +282,6 @@ async function procesarCotizacion() {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
         return;
     }
-}
     
 // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA EXACTA DE TALLER) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
@@ -364,7 +363,7 @@ try {
 } finally {
     if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
 }
-
+}
 
 // FUNCIÓN PARA EL BUSCADOR INTELIGENTE (Punto 2b)
 function sincronizarBuscadorMoldura(valor) {
