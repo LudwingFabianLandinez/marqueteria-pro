@@ -430,7 +430,7 @@ function actualizarSaldoEnRecibo() {
     limpiarTextosNoDeseados();
 }
 
-function mostrarResultado(data) {
+    function mostrarResultado(data) {
     const divRes = document.getElementById('resultado');
     
     // --- BLOQUE DE ANCHO TOTAL (Blindaje de Diseño) ---
@@ -444,23 +444,29 @@ function mostrarResultado(data) {
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO Y SIN FILTROS) ---
-    // Esta parte ahora toma directamente lo que procesamos en el Paso 1
-    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CON AUDITORÍA DE UNIDAD) ---
+    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CORREGIDO: ML/M2 + SUBTOTALES) ---
     const materialesValidos = data.detalles?.materiales || [];
     const itemsHTML = materialesValidos.length > 0 
         ? materialesValidos.map(m => {
             const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
-            // Extraemos la unidad para mostrarla sutilmente y confirmar el cálculo
             const unidadVisual = (m.unidad || "").toUpperCase();
             
-            return `<li style="margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="display: flex; align-items: center;">
-                    <i class="fas fa-check-circle" style="color:#10b981; margin-right: 8px;"></i> 
-                    ${nombreVisual}
+            // 🛡️ RESCATE DE MEDIDA: Usamos cantidadUsada (ML) si existe, sino el área (M2)
+            const medidaExacta = m.cantidadUsada ? m.cantidadUsada : (unidadVisual === 'M2' ? data.areaFinal : '--');
+            const subtotalVisual = formatter.format(m.subtotalVenta || 0);
+            
+            return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
+                <span style="display: flex; flex-direction: column;">
+                    <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-check-circle" style="color:#10b981; font-size: 0.9rem;"></i> 
+                        ${nombreVisual}
+                    </span>
+                    <small style="color: #64748b; margin-left: 22px; font-size: 0.75rem; font-weight: 500;">
+                        CANTIDAD: ${medidaExacta} ${unidadVisual}
+                    </small>
                 </span>
-                <span style="font-size: 0.75rem; color: #64748b; background: #f8fafc; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; font-weight: bold;">
-                    ${unidadVisual}
+                <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem; padding-top: 2px;">
+                    ${subtotalVisual}
                 </span>
             </li>`;
         }).join('')
@@ -478,11 +484,19 @@ function mostrarResultado(data) {
                     <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
                 </div>
             </div>
-            <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 10px; border-radius: 6px;">
-                <strong>Medidas:</strong> ${data.detalles?.medidas || '--'}
+            
+            <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 6px; border-left: 4px solid #1e3a8a;">
+                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || '--'}
             </p>
-            <h4 style="color: #475569; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0;">Materiales incluidos:</h4>
-            <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">${itemsHTML}</ul>
+
+            <h4 style="color: #475569; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                Desglose de Materiales:
+            </h4>
+            
+            <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">
+                ${itemsHTML}
+            </ul>
+
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
@@ -499,20 +513,19 @@ function mostrarResultado(data) {
             </div>
 
             <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.9rem; color: #475569; font-weight: bold;">OBSERVACIONES:</h4>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
             </div>
         </div>
-        <div class="no-print" style="margin-top: 20px; width: 100%;">
-            <button onclick="imprimirResumen()" style="background: #334155; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">
-                <i class="fas fa-print"></i> IMPRIMIR PARA CLIENTE
+
+        <div class="no-print" style="margin-top: 20px; width: 100%; display: flex; gap: 10px;">
+            <button onclick="imprimirResumen()" style="background: #1e3a8a; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: background 0.3s;">
+                <i class="fas fa-print"></i> IMPRIMIR ORDEN (CLIENTE)
             </button>
         </div>`;
-
+    
     document.getElementById('containerAcciones').innerHTML = `
         <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
             <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
