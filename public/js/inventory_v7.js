@@ -678,16 +678,13 @@ if (formCompra) {
             }
 
             // --- 📏 LÓGICA DE COSTO (PRESERVADA Y UNIFICADA) ---
-            // --- 📏 LÓGICA DE COSTO (PRESERVADA Y UNIFICADA) ---
             let costoFinalAtlas = costoIngresado;
             
-            // 1. Identificación ultra-precisa de materiales de superficie
-            // Reforzamos la detección de Espejo y Vidrio para que actúen como el Antirreflectivo
             const esMaterialSuperficie = !esMoldura && (
                 esVidrio || 
-                nombreUP.includes("VIDRIO") ||        // <--- Asegura Vidrio 2mm
-                nombreUP.includes("ESPEJO") ||        // <--- Asegura Espejo 3mm
-                nombreUP.includes("ANTIRREFLECTIVO") || // El que ya funciona
+                nombreUP.includes("VIDRIO") || 
+                nombreUP.includes("ESPEJO") || 
+                nombreUP.includes("ANTIRREFLECTIVO") || 
                 esAcabado || 
                 categoriaDeterminada === "RESPALDO" ||
                 categoriaDeterminada === "VIDRIO" ||
@@ -697,31 +694,20 @@ if (formCompra) {
             );
 
             if (esMaterialSuperficie) {
-                // ASEGURAMOS CAPTURA: Si por algún motivo las variables vienen vacías, 
-                // las re-capturamos directamente del DOM para el cálculo matemático.
                 const largoCalculo = largoCm || parseFloat(document.getElementById('compraLargo')?.value) || 0;
                 const anchoCalculo = anchoCm || parseFloat(document.getElementById('compraAncho')?.value) || 0;
-                
                 const areaM2 = (largoCalculo * anchoCalculo) / 10000;
 
                 if (areaM2 > 0) {
-                    // DIVISIÓN MAESTRA: Si el Antirreflectivo funciona, esta misma fórmula
-                    // ahora corregirá al Vidrio 2mm y Espejo 3mm.
                     costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
-                    
-                    // AUDITORÍA EN CONSOLA (Para tu control de integridad)
                     console.log(`🛡️ ATLAS-LOG [${nombreReal}]: Hoja de ${areaM2.toFixed(2)}m2 | Costo m2: ${costoFinalAtlas}`);
-                } else {
-                    // Si no hay medidas, mantenemos el costo ingresado pero avisamos
-                    console.warn(`⚠️ ATENCIÓN: ${nombreReal} es superficie pero no tiene medidas detectadas. Se guardará costo total.`);
                 }
             }
 
-            // --- 🛡️ CORRECCIÓN DINÁMICA DE PRECISIÓN (SOLUCIÓN AL 0.03) ---
+            // --- 🛡️ CORRECCIÓN DINÁMICA DE PRECISIÓN ---
             const largoReferencia = (largoCm > 0) ? largoCm : 290;
             const factorAnchoEscala = esMoldura ? 100 : anchoCm;
 
-            // EL ANCLA: Cálculo directo para molduras (Evita la conversión errónea a M2 en el primer paso)
             const VALOR_REAL_INCREMENTO = esMoldura 
                 ? Number((cant * (largoReferencia / 100)).toFixed(2)) 
                 : Number(((largoCm * anchoCm / 10000) * cant).toFixed(2));
@@ -729,14 +715,28 @@ if (formCompra) {
             const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
-            // --- 📦 OBJETO PARA ATLAS (INTEGRIDAD TOTAL) ---
+            // --- 🚨 REPARACIÓN: CAPTURA DESPERDICIO Y CALCULO VENTA 🚨 ---
+            const desperdicioInput = document.getElementById('cat-desperdicio-maestro'); // ID VERDE
+            const desperdicioValor = desperdicioInput ? parseFloat(desperdicioInput.value) || 0 : 0;
+            
+            // Calculamos precio de venta sugerido (ej: margen 50%) para que el reporte no sea 0
+            const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
+
+            // --- 📦 OBJETO PARA ATLAS (SIN DAÑAR LO ANTERIOR) ---
             const datosParaAtlas = {
                 materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
                 nombre: nombreReal,
                 esNuevo: esNuevoMaterial,
                 categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas,
+                precio_total_lamina: costoFinalAtlas, // Costo Unitario (ML o M2)
+                
+                // Nuevos campos para Reporte y Cotizador
+                precio_m2_costo: costoFinalAtlas,
+                precio_venta_sugerido: precioVentaSugerido,
+                desperdicio: desperdicioValor,
+                desperdicio_total_cm: desperdicioValor,
+
                 ancho_lamina_cm: factorAnchoEscala,
                 largo_lamina_cm: largoReferencia,
                 tipo_material: esMoldura ? 'ml' : 'm2',
@@ -761,7 +761,7 @@ if (formCompra) {
             let objetoFinal; 
 
             if (existente) {
-                // --- 🛡️ SUMA ATÓMICA (Sincronización inmediata de memoria) ---
+                // --- 🛡️ SUMA ATÓMICA ---
                 const stockAnterior = Number(existente.stock_actual) || 0;
                 const nuevoStockSuma = stockAnterior + VALOR_REAL_INCREMENTO;
                 
@@ -769,6 +769,8 @@ if (formCompra) {
                 existente.ancho_lamina_cm = factorAnchoEscala;
                 existente.largo_lamina_cm = largoReferencia;
                 existente.precio_total_lamina = costoFinalAtlas;
+                existente.precio_venta_sugerido = precioVentaSugerido; // Actualizamos venta
+                existente.desperdicio = desperdicioValor; // Actualizamos desperdicio
                 existente.categoria = categoriaDeterminada;
                 
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
@@ -781,6 +783,8 @@ if (formCompra) {
                     categoria: categoriaDeterminada,
                     stock_actual: Number(VALOR_REAL_INCREMENTO.toFixed(2)),
                     precio_total_lamina: costoFinalAtlas,
+                    precio_venta_sugerido: precioVentaSugerido,
+                    desperdicio: desperdicioValor,
                     ancho_lamina_cm: factorAnchoEscala,
                     largo_lamina_cm: largoReferencia
                 };
@@ -791,7 +795,6 @@ if (formCompra) {
             // --- ⚓ ACTUALIZACIÓN DE STORAGE ---
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
 
-            // --- 🚀 ACTUALIZACIÓN VISUAL INMEDIATA (Sin esperar recarga) ---
             if (typeof actualizarStockEnTablaVisual === 'function') {
                 actualizarStockEnTablaVisual(nombreReal, VALOR_REAL_INCREMENTO, esMoldura ? 'ML' : 'M2');
             }
@@ -802,10 +805,9 @@ if (formCompra) {
             pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            // --- 🚀 REDIBUJADO TOTAL DE TABLA ---   
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
 
-            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nStock Total: ${objetoFinal.stock_actual.toFixed(2)}`);
+            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nDesperdicio: ${desperdicioValor} CM\nSubtotal Venta Activo.`);
 
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
             formulario.reset();
