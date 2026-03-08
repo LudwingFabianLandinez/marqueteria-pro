@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     // Inyectamos los datos críticos en el dataset del HTML
                     option.dataset.costo = precio;
+                    option.dataset.desperdicio = m.desperdicio || 0;
                     option.dataset.unidad = unidad; // Queda como ML o M2
                     option.dataset.categoria = categoriaM;
                     
@@ -284,28 +285,25 @@ async function procesarCotizacion() {
     }
     
 // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SÍ O SÍ SUMA EL DESPERDICIO) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (SÍ O SÍ SUMA EL DESPERDICIO) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const ancho = parseFloat(a) || 0;
     const largo = parseFloat(l) || 0;
     
-    // 1. Perímetro base (60 + 80) * 2 = 280 cm
+    // 1. Perímetro base: (60 + 80) * 2 = 280 cm
     const perimetroCM = (ancho + largo) * 2;
     
-    // 2. RASTREADOR DEL DESPERDICIO (Busca el 24 en todas las formas posibles)
-    // Buscamos en: .desperdicio, .desperdicio_ml, .merma o .extra
-    const desperdicioExtra = parseFloat(
-        materialEspecífico?.desperdicio || 
-        materialEspecífico?.desperdicio_ml || 
-        materialEspecífico?.merma || 
-        0
-    );
+    // 2. RESCATE DE DESPERDICIO (Prioridad: Objeto > Atributo HTML > 0)
+    // Intentamos sacar el desperdicio del objeto, y si no, lo buscamos en el select de la pantalla
+    const selectMarco = document.getElementById('materialOtroId');
+    const desperdicioDesdeSelect = selectMarco?.options[selectMarco.selectedIndex]?.dataset.desperdicio;
     
-    // 3. CÁLCULO FINAL MATEMÁTICO (3.04 ML)
-    // Sumamos los centímetros y dividimos por 100 para pasar a Metros Lineales
-    const totalML = (perimetroCM + desperdicioExtra) / 100;
+    const desperdicioFinal = parseFloat(materialEspecífico?.desperdicio || desperdicioDesdeSelect || 0);
     
-    // LOG para auditoría en consola (F12 para ver si detecta el 24)
-    console.log(`✅ TALLER: Perímetro ${perimetroCM} + Desperdicio ${desperdicioExtra} = ${totalML} ML`);
+    // 3. CÁLCULO FINAL: (280 + 24) / 100 = 3.04 ML
+    const totalML = (perimetroCM + desperdicioFinal) / 100;
+    
+    console.log(`📏 SUMA OBLIGATORIA: ${perimetroCM}cm + ${desperdicioFinal}cm = ${totalML} ML`);
     
     return Number(totalML.toFixed(2));
 };
