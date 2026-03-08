@@ -495,32 +495,40 @@ function actualizarSaldoEnRecibo() {
 }
 
     function mostrarResultado(data) {
+    console.log("DEBUG DATA RECIBIDA:", data); 
     const divRes = document.getElementById('resultado');
     
-    // --- BLOQUE DE ANCHO TOTAL (Blindaje de Diseño) ---
+    // --- BLOQUE DE ANCHO TOTAL ---
     divRes.style.display = 'block';
     divRes.style.width = '100%';
     divRes.style.maxWidth = 'none'; 
     divRes.style.boxSizing = 'border-box';
-    // --------------------------------------------------
 
     divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
 
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES (CON REPARACIÓN DE SUBTOTALES) ---
-    const materialesValidos = data.detalles?.materiales || [];
+    // --- 🖋️ GENERADOR DE LISTA DE MATERIALES CON REPARACIÓN AGRESIVA ---
+    // Intentamos sacar materiales de 'data' o de la variable global 'materialesSeleccionados'
+    const materialesAProcesar = (data.detalles?.materiales && data.detalles.materiales.length > 0) 
+        ? data.detalles.materiales 
+        : (typeof materialesSeleccionados !== 'undefined' ? materialesSeleccionados : []);
+
     let sumaSubtotalesReparados = 0;
 
-    const itemsHTML = materialesValidos.length > 0 
-        ? materialesValidos.map(m => {
+    const itemsHTML = materialesAProcesar.length > 0 
+        ? materialesAProcesar.map(m => {
             const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
-            const unidadVisual = (m.unidad || "").toUpperCase();
+            const unidadVisual = (m.unidad || "ML").toUpperCase();
             
-            // 🛡️ RESCATE DE MEDIDA
-            const medidaExacta = m.cantidadUsada ? m.cantidadUsada : (unidadVisual === 'M2' ? data.areaFinal : 0);
+            // 🛡️ RESCATE DE MEDIDA: Prioridad a cantidadUsada, luego areaFinal, luego cálculo manual
+            let medidaExacta = parseFloat(m.cantidadUsada) || 0;
+            if (medidaExacta === 0) {
+                medidaExacta = (unidadVisual === 'M2') ? (parseFloat(data.areaFinal) || 0) : 0;
+            }
             
-            // 🚨 BLINDAJE ANTI-CERO: Si el subtotal es 0, lo recalculamos para la vista
+            // 🚨 REPARACIÓN TOTAL DE VENTA: 
+            // Si subtotalVenta es 0, multiplicamos costo por cantidad y factor
             let valorVentaItem = parseFloat(m.subtotalVenta) || 0;
             if (valorVentaItem === 0) {
                 const costoBase = parseFloat(m.costoUnitario) || 0;
@@ -529,7 +537,6 @@ function actualizarSaldoEnRecibo() {
             }
             
             sumaSubtotalesReparados += valorVentaItem;
-            const subtotalVisual = formatter.format(valorVentaItem);
             
             return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
                 <span style="display: flex; flex-direction: column;">
@@ -542,19 +549,19 @@ function actualizarSaldoEnRecibo() {
                     </small>
                 </span>
                 <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem; padding-top: 2px;">
-                    ${subtotalVisual}
+                    ${formatter.format(valorVentaItem)}
                 </span>
             </li>`;
         }).join('')
         : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
 
-    // 🛡️ RECALCULO DEL TOTAL FINAL (Si el data original venía en 0)
+    // 🛡️ RECALCULO DEL TOTAL FINAL
     const manoObra = parseFloat(data.valor_mano_obra) || 0;
     let totalExhibicion = parseFloat(data.precioSugeridoCliente) || 0;
     
-    if (totalExhibicion === 0) {
+    // Si el total sigue en cero después del proceso, forzamos la suma reparada
+    if (totalExhibicion === 0 || isNaN(totalExhibicion)) {
         totalExhibicion = sumaSubtotalesReparados + manoObra;
-        // Sincronizamos el objeto actual por si se factura después
         data.precioSugeridoCliente = totalExhibicion; 
     }
 
@@ -572,7 +579,7 @@ function actualizarSaldoEnRecibo() {
             </div>
             
             <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 6px; border-left: 4px solid #1e3a8a;">
-                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || '--'}
+                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || (typeof ancho !== 'undefined' ? `${ancho}x${largo} cm` : '--')}
             </p>
 
             <h4 style="color: #475569; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
