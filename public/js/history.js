@@ -108,10 +108,9 @@ async function generarReporteDiario() {
 
         facturasAReportar.forEach(f => {
             let sumaCostoMateriales = 0;
-            let sumaVentaMateriales = 0; // Cambiado para reflejar el subtotal de venta real
+            let sumaVentaMateriales = 0; 
             const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
-            const medidaTexto = f.medidas ? `(${f.medidas} cm)` : '';
 
             let nombreCliente = (f.cliente?.nombre || f.clienteNombre || f.cliente || "CLIENTE GENERAL").toString().toUpperCase();
             const fechaLimpia = f.fecha ? f.fecha.split('T')[0] : '---';
@@ -133,16 +132,11 @@ async function generarReporteDiario() {
                     </thead>
                     <tbody>`;
 
-// --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
-            // --- 🛡️ REESCRITURA FINAL: SINCRONIZACIÓN TOTAL CON EL SERVIDOR ---
             (f.items || f.materiales || []).forEach(item => {
-                // 🕵️ DEBUG: Mantenemos el log para validar cualquier cambio en la base de datos
-                console.log(`Analizando item de OT ${f.numeroFactura || 'S/N'}:`, item);
-
                 const nombreMayus = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
                 const esMoldura = (item.unidad || "").toUpperCase() === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
                 
-                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Consumo real) ---
+                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Consumo real - Mantenido de v13.1.7) ---
                 let cantidadFinal = 0;
                 const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
                 const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
@@ -157,35 +151,32 @@ async function generarReporteDiario() {
                     cantidadFinal = Number(item.area_m2 || item.area || 0);
                 }
 
-                // --- 💰 CAPA DE COSTO BASE (Sincronizado con Atlas) ---
+                // --- 💰 CAPA DE COSTO BASE ---
                 const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costoUnitario || item.costo_unitario || 0);
                 const costoFila = Math.round(costoUnitario * cantidadFinal);
                 
-                // --- 🚨 REPARACIÓN MAESTRA DE VENTA (Búsqueda en Cascada) ---
-                // 1. Intentamos buscar en el ítem (nombres detectados en tu consola F12)
+                // --- 🚨 REPARACIÓN MAESTRA DE VENTA (Búsqueda en Cascada + Cálculo Fallback) ---
+                // 1. Prioridad: Campos guardados en Atlas
                 let ventaFila = Math.round(Number(
-                    item.precioVenta || 
-                    item.valor_venta || 
                     item.subtotalVenta || 
                     item.precio_venta_item || 
-                    item.subtotal || 
+                    item.valor_venta || 
+                    item.precioVenta || 
+                    item.total_item || 
                     0
                 ));
 
-                // 2. FALLBACK CRÍTICO: Si el ítem individual no tiene precio, 
-                // lo buscamos en la raíz de la orden (donde vimos 'valor_materiales' en tu consola)
-                if (ventaFila === 0) {
-                    ventaFila = Math.round(Number(f.valor_materiales || f.precioSugeridoCliente || 0));
-                    // Nota: Dividimos internamente si hay múltiples ítems, pero aquí rescatamos el valor global
+                // 2. FALLBACK DE EMERGENCIA: Si el valor sigue siendo 0, calculamos en el aire
+                if (ventaFila === 0 && costoUnitario > 0) {
+                    const factorVenta = esMoldura ? 2.5 : 3;
+                    ventaFila = Math.round((costoUnitario * cantidadFinal) * factorVenta);
                 }
                 
-                // Acumuladores para el resumen de la OT
                 sumaCostoMateriales += costoFila;
                 sumaVentaMateriales += ventaFila;
 
-                // --- 🖼️ RENDERIZADO DE FILA EN TABLA ---
                 const unidadMedida = esMoldura ? "ML" : "m²";
-                const medidaTextoFila = `${cantidadFinal.toFixed(2)} ${unidadMedida}`;
+                const medidaTextoFila = `${cantidadFinal.toFixed(3)} ${unidadMedida}`;
 
                 htmlContenido += `<tr>
                     <td style="text-align:left; font-weight:600;">${nombreMayus}</td>
@@ -195,8 +186,6 @@ async function generarReporteDiario() {
                 </tr>`;
             });
             
-            // 📊 Totales finales sincronizados
-            const totalOrdenCalculado = sumaVentaMateriales + manoObra;
             const rentabilidadReal = totalCobrado - sumaCostoMateriales - manoObra;
 
             htmlContenido += `</tbody>

@@ -663,7 +663,7 @@ window.facturarVenta = async function() {
         return;
     }
     
-    // 1. Captura de elementos de interfaz (Sin cambios para mantener integridad)
+    // 1. Captura de elementos de interfaz (Se mantiene integridad original)
     const nombreInput = document.getElementById('nombreCliente');
     const telInput = document.getElementById('telCliente');
     const abonoInput = document.getElementById('abonoInicial');
@@ -681,12 +681,19 @@ window.facturarVenta = async function() {
 
     // --- 🛡️ PUNTO 2: BLINDAJE DE CONSUMO E INVENTARIO (facturarVenta) ---
     const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
-        // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO:
-        // Mantener el valor exacto para resta de stock (Perímetro + Desperdicio Atlas)
+        // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO (Se mantiene el avance de ML/M2 exactos)
         const cantidadRealConsumo = m.cantidadUsada || (datosCotizacionActual.areaFinal || 0);
         
-        // 🚨 CAPTURA DEL VALOR DE VENTA (Para evitar los ceros en el reporte)
-        const valorVentaFinal = parseFloat(m.subtotalVenta) || 0;
+        // 🚨 REPARACIÓN CERTERA DEL VALOR DE VENTA (Punto clave solicitado)
+        // Si m.subtotalVenta viene en 0 o no existe, lo calculamos con la regla de oro:
+        let valorVentaFinal = parseFloat(m.subtotalVenta) || 0;
+        
+        if (valorVentaFinal === 0) {
+            const unidadVisual = (m.unidad || "").toUpperCase();
+            // REGLA: x2.5 para Molduras (ML) y x3 para Materiales de área (M2/Global)
+            const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
+            valorVentaFinal = Math.round((m.costoUnitario * cantidadRealConsumo) * factorM);
+        }
 
         return {
             productoId: m.id,
@@ -694,29 +701,27 @@ window.facturarVenta = async function() {
             descripcion: m.nombre.toUpperCase(),
             nombre: m.nombre.toUpperCase(),      
 
-            // 💰 COSTOS Y VENTAS REALES (Blindaje total para history.js y reportes)
+            // 💰 COSTOS Y VENTAS REALES (Blindaje total para history.js)
             costo_base_unitario: m.costoUnitario,
             costoBase: m.costoUnitario, 
-            costo_unitario: m.costoUnitario, // Alias de seguridad 1
+            costo_unitario: m.costoUnitario,
+            valor_material: Math.round(m.costoUnitario * cantidadRealConsumo), // Lo que te costó a ti
             
             // 💎 REPARACIÓN DE LA COLUMNA "SUBTOTAL VENTA"
-            // Enviamos el dato bajo múltiples nombres para que el reporte lo encuentre sí o sí
             precio_venta_item: valorVentaFinal, 
-            subtotalVenta: valorVentaFinal, // <--- Este suele ser el que lee el reporte de la foto
-            valor_venta: valorVentaFinal,   // Alias de seguridad 2
-            subtotal: valorVentaFinal,      // Alias de seguridad 3
+            subtotalVenta: valorVentaFinal, // <--- Este es el campo que leerá el reporte de Atlas
+            valor_venta: valorVentaFinal,   
+            subtotal: valorVentaFinal,
+            total_item: valorVentaFinal,
 
-            // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas)
-            // 'cantidad' es el valor exacto que se restará del stock (ej: 2.95)
+            // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas mantenida)
             cantidad: Number(Number(cantidadRealConsumo).toFixed(3)), 
             unidad: (m.unidad || "").toUpperCase(), 
-            
             ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
             largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
             area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
             
             // 📝 RESPALDO DE AUDITORÍA
-            // Aseguramos que el historial guarde el consumo con desperdicio incluido
             cantidadUsada: Number(Number(cantidadRealConsumo).toFixed(3))
         };
     });
@@ -726,14 +731,12 @@ window.facturarVenta = async function() {
         return;
     }
 
-    // 3. Estructura de datos final (La maleta blindada y ampliada)
-    // Sincronizada con el backend y history.js para evitar cálculos erróneos en el reporte
+    // 3. Estructura de datos final (Sincronizada con backend para evitar ceros)
     const facturaData = {
         cliente: { 
             nombre: nombre, 
             telefono: telefono 
         },
-        // Mantenemos el formato de medidas que ya tenías pero con el detalle de uso (ML/M2)
         medidas: datosCotizacionActual.detalles.medidas,
         items: itemsProcesados,
         
@@ -741,24 +744,22 @@ window.facturarVenta = async function() {
         totalFactura: datosCotizacionActual.precioSugeridoCliente || 0,
         totalPagado: abono,
         
-        // 🛡️ BLINDAJE DE RENTABILIDAD Y COSTOS (Sincronización Total)
-        // Enviamos los valores ya calculados para que el reporte sea una "foto" de la realidad
+        // 🛡️ BLINDAJE DE RENTABILIDAD Y COSTOS
         manoObra: datosCotizacionActual.valor_mano_obra || 0, 
         mano_obra_total: datosCotizacionActual.valor_mano_obra || 0,
-        suma_costos: datosCotizacionActual.suma_costos || 0, // Lo que te costó a ti el material
-        rentabilidad: datosCotizacionActual.rentabilidad || 0, // Ganancia neta real del taller
+        suma_costos: datosCotizacionActual.suma_costos || 0, 
+        rentabilidad: datosCotizacionActual.rentabilidad || 0, 
         
         fecha: new Date().toISOString()
     };
 
-    // 4. Envío Quirúrgico al Servidor (Sin alterar las rutas de tu backend)
+    // 4. Envío Quirúrgico al Servidor
     try {
         if (btnVenta) {
             btnVenta.disabled = true;
             btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO VENTA REAL...';
         }
 
-        // Llamada al endpoint de Netlify que procesa la factura y el stock
         const response = await fetch('/.netlify/functions/server/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -768,18 +769,13 @@ window.facturarVenta = async function() {
         const result = await response.json();
 
         if (result.success) {
-            // Éxito: El servidor procesó el descuento de stock y guardó en MongoDB/Atlas
             alert(`✅ VENTA EXITOSA\nOrden N°: ${result.ot || 'Generada'}\n\nLos cálculos de ML y utilidad se han guardado correctamente.`);
-            
-            // Redirección al historial para verificar el reporte de auditoría
             window.location.href = "/history.html";
         } else {
-            // El servidor devolvió un error controlado
             throw new Error(result.error || "El servidor rechazó la venta.");
         }
 
     } catch (error) {
-        // Manejo de errores de red o del servidor
         console.error("🚨 Error crítico en facturación:", error);
         alert("🚨 ERROR AL GUARDAR: " + error.message);
         

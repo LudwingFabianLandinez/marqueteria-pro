@@ -36,8 +36,6 @@ const InvoiceSchema = new mongoose.Schema({
         ancho: { type: Number, default: 0 },
         largo: { type: Number, default: 0 },
         area_m2: { type: Number, default: 0 }, 
-        
-        // --- SECCIÓN DE COSTOS POR ITEM ---
         costo_base_unitario: { 
             type: Number, 
             default: 0 
@@ -49,7 +47,8 @@ const InvoiceSchema = new mongoose.Schema({
         total_item: { 
             type: Number,
             default: 0 
-        } 
+        },
+        subtotalVenta: { type: Number, default: 0 }
     }],
     
     // --- CAMPOS GLOBALES DE COSTO (Blindaje para Reportes) ---
