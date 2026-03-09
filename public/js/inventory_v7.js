@@ -1181,61 +1181,66 @@ if (formCompra) {
     // --- ACTIVACIÓN MAESTRA DE FUNCIONES GLOBALES ---
 
     window.abrirModalEditar = function(idRecibido) {
-        // 1. Limpiamos el ID
-        const idLimpio = String(idRecibido).trim();
+    // 1. Limpiamos el ID
+    const idLimpio = String(idRecibido).trim();
 
-        // 2. Buscamos el material (Búsqueda dual para no perder el rastro)
-        // Buscamos tanto en el ID temporal como en el _id definitivo de Atlas
-        const m = window.todosLosMateriales.find(mat => 
-            (String(mat.id) === idLimpio || String(mat._id) === idLimpio)
-        );
+    // 2. Buscamos el material (Búsqueda dual para no perder el rastro)
+    const m = window.todosLosMateriales.find(mat => 
+        (String(mat.id) === idLimpio || String(mat._id) === idLimpio)
+    );
 
-        if (!m) {
-            console.error("❌ No se encontró el material con ID:", idLimpio);
-            alert("Error: No se encontró la información del material.");
-            return;
-        }
+    if (!m) {
+        console.error("❌ No se encontró el material con ID:", idLimpio);
+        alert("Error: No se encontró la información del material.");
+        return;
+    }
 
-        // 3. IDENTIDAD MAESTRA (Prioridad absoluta al _id de Atlas para evitar 404)
-        // Si el material ya existe en Atlas, usamos su _id. Si es nuevo, usamos su ID temporal.
-        const idMaestro = m._id || m.id;
-        window.materialEditandoId = idMaestro; 
-        
-        // Llenamos los campos (Respetando tus IDs de ARCHIVO.docx y dashboard.html)
-        if(document.getElementById('matId')) document.getElementById('matId').value = idMaestro;
-        if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre || '';
-        if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria || '';
-        
-        // Prioridad de costo para sincronizar con el Cotizador: 
-        // Usamos el precio por m2 si existe, de lo contrario el costo por lámina.
-        const costoFinal = m.precio_m2_costo || m.precio_total_lamina || 0;
-        if(document.getElementById('matCosto')) document.getElementById('matCosto').value = costoFinal;
-        
-        if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo || 0;
-        
-        // Sincronización de dimensiones para cálculo de m2/ml
-        if(document.getElementById('matAncho')) {
-            document.getElementById('matAncho').value = m.ancho_lamina_cm || m.ancho || 0;
-        }
-        if(document.getElementById('matLargo')) {
-            document.getElementById('matLargo').value = m.largo_lamina_cm || m.largo || 0;
-        }
-        
-        // Sincronización con el listado de proveedores
-        if(document.getElementById('proveedorSelect')) {
-            const provId = m.proveedorId || (m.proveedor && (m.proveedor._id || m.proveedor.id)) || "";
-            document.getElementById('proveedorSelect').value = provId;
-        }
+    // 3. IDENTIDAD MAESTRA
+    const idMaestro = m._id || m.id;
+    window.materialEditandoId = idMaestro; 
+    
+    // Llenamos los campos (Respetando IDs existentes)
+    if(document.getElementById('matId')) document.getElementById('matId').value = idMaestro;
+    if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre || '';
+    if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria || '';
+    
+    // Prioridad de costo para sincronizar con el Cotizador
+    const costoFinal = m.precio_m2_costo || m.precio_total_lamina || 0;
+    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = costoFinal;
+    
+    if(document.getElementById('matStockMin')) document.getElementById('matStockMin').value = m.stock_minimo || 0;
+    
+    // Sincronización de dimensiones
+    if(document.getElementById('matAncho')) {
+        document.getElementById('matAncho').value = m.ancho_lamina_cm || m.ancho || 0;
+    }
+    if(document.getElementById('matLargo')) {
+        document.getElementById('matLargo').value = m.largo_lamina_cm || m.largo || 0;
+    }
 
-        // 4. ANCLAJE DE SEGURIDAD Y APERTURA
-        const modal = document.getElementById('modalNuevoMaterial');
-        if(modal) {
-            // Guardamos el ID en el dataset por seguridad extra (evita confusiones en el DOM)
-            modal.dataset.id = idMaestro; 
-            modal.style.display = 'flex'; 
-            console.log(`📂 Editando Material: ${m.nombre} (ID Maestro: ${idMaestro})`);
-        }
-    };
+    // --- 🛡️ PASO A: EL ESCUDO DE DESPERDICIO (Sincronización v21.1) ---
+    // Buscamos en todas las variables posibles y llenamos el input del modal
+    const valorDesperdicioPrevio = m.desperdicio_total_cm || m.desperdicio || 0;
+    const inputDesp = document.getElementById('matDesperdicio');
+    if (inputDesp) {
+        inputDesp.value = valorDesperdicioPrevio;
+        console.log(`🛡️ ESCUDO: Desperdicio cargado en modal: ${valorDesperdicioPrevio} cm`);
+    }
+
+    // Sincronización con el listado de proveedores
+    if(document.getElementById('proveedorSelect')) {
+        const provId = m.proveedorId || (m.proveedor && (m.proveedor._id || m.proveedor.id)) || "";
+        document.getElementById('proveedorSelect').value = provId;
+    }
+
+    // 4. ANCLAJE DE SEGURIDAD Y APERTURA
+    const modal = document.getElementById('modalNuevoMaterial');
+    if(modal) {
+        modal.dataset.id = idMaestro; 
+        modal.style.display = 'flex'; 
+        console.log(`📂 Editando Material: ${m.nombre} (ID Maestro: ${idMaestro})`);
+    }
+};
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
 // Colócalo justo debajo de window.abrirModalEditar
@@ -1247,34 +1252,39 @@ window.guardarCambiosEdicion = async function() {
     const nuevaCategoria = document.getElementById('matCategoria').value;
     const nuevoCosto = parseFloat(document.getElementById('matCosto').value) || 0;
     
-    // --- 🚨 ESCUDO DE DESPERDICIO (PUNTO CRÍTICO) 🚨 ---
-    // Buscamos el valor en el modal. Si está vacío, rescatamos el de la memoria.
-    const inputDesp = document.getElementById('matDesperdicio') || document.getElementById('cat-desperdicio-maestro');
+    // --- 🛡️ UNIFICACIÓN Y ESCUDO DE DESPERDICIO (v21.2) 🛡️ ---
+    // 1. Identificamos el material en memoria para no perder datos
     const materialPrevio = window.todosLosMateriales.find(m => String(m._id || m.id) === String(id));
-
+    
+    // 2. Capturamos el input del modal (probamos ambos IDs por si acaso)
+    const inputDesp = document.getElementById('matDesperdicio') || document.getElementById('cat-desperdicio-maestro');
+    
     let desperdicioFinal = 0;
-    if (inputDesp && inputDesp.value !== "" && inputDesp.value !== "0") {
+
+    // 3. Lógica de Rescate: Si el input está vacío o es 0, recuperamos lo que ya existía
+    if (inputDesp && inputDesp.value !== "" && parseFloat(inputDesp.value) !== 0) {
         desperdicioFinal = parseFloat(inputDesp.value);
     } else {
-        // Recuperamos el valor que ya tenía (el "15" de la compra, por ejemplo)
-        desperdicioFinal = (materialPrevio && (materialPrevio.desperdicio || materialPrevio.desperdicio_total_cm)) 
-                           ? parseFloat(materialPrevio.desperdicio || materialPrevio.desperdicio_total_cm) 
-                           : 0;
+        // Buscamos en cualquiera de las dos variables previas
+        desperdicioFinal = (materialPrevio?.desperdicio_total_cm || materialPrevio?.desperdicio || 0);
     }
 
+    // 4. Construimos el objeto UNIFICADO (ambas variables iguales)
     const datosActualizados = {
         nombre: nuevoNombre,
         categoria: nuevaCategoria,
         precio_total_lamina: nuevoCosto,
         precio_m2_costo: nuevoCosto,
+        // Mandamos ambos para que el Cotizador siempre encuentre el dato
         desperdicio: desperdicioFinal,
         desperdicio_total_cm: desperdicioFinal,
-        ancho_lamina_cm: materialPrevio?.ancho_lamina_cm || 0,
-        largo_lamina_cm: materialPrevio?.largo_lamina_cm || 0
+        // Mantenemos dimensiones para no romper el cálculo de área/lineal
+        ancho_lamina_cm: materialPrevio?.ancho_lamina_cm || materialPrevio?.ancho || 0,
+        largo_lamina_cm: materialPrevio?.largo_lamina_cm || materialPrevio?.largo || 0
     };
 
     try {
-        console.log("📡 Sincronizando Edición con Atlas...", datosActualizados);
+        console.log("📡 Sincronizando con Atlas (Unificación de Desperdicio)...", datosActualizados);
         
         const response = await fetch(`${window.API_URL}/materials/${id}`, {
             method: 'PUT',
@@ -1282,21 +1292,35 @@ window.guardarCambiosEdicion = async function() {
             body: JSON.stringify(datosActualizados)
         });
 
-        if (!response.ok) throw new Error("Error en servidor");
+        if (!response.ok) throw new Error("Error en servidor al actualizar Atlas");
 
-        // Actualizamos memoria local para que no haga falta recargar
+        // 5. ACTUALIZACIÓN DE MEMORIA LOCAL (Punto Vital)
         if (materialPrevio) {
+            // Fusionamos los datos nuevos con los viejos para no perder nada
             Object.assign(materialPrevio, datosActualizados);
+            
+            // Guardamos en el motor principal del Inventario
+            const index = window.todosLosMateriales.findIndex(m => String(m._id || m.id) === String(id));
+            if (index !== -1) {
+                window.todosLosMateriales[index] = materialPrevio;
+            }
+            
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         }
 
-        alert("✅ Cambios guardados con éxito.");
-        if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
-        window.cerrarModales();
+        alert("✅ ¡Desperdicio Unificado! Cambios guardados con éxito.");
+        
+        if (typeof renderTable === 'function') {
+            renderTable(window.todosLosMateriales);
+        }
+        
+        if (typeof window.cerrarModales === 'function') {
+            window.cerrarModales();
+        }
 
     } catch (error) {
-        console.error("❌ Error:", error);
-        alert("⚠️ No se pudo actualizar en Atlas.");
+        console.error("❌ Error en la unificación:", error);
+        alert("⚠️ No se pudo actualizar en Atlas. Revisa la conexión.");
     }
 };
 
