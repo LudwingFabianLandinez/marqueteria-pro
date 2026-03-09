@@ -128,7 +128,9 @@ const precio = m.precio_m2_costo || m.costo_m2 || m.costo_base || 0;
 option.dataset.costo = precio;
 
 // Ya no forzamos el 24. El código ahora leerá EXACTAMENTE lo que tú escribas en el Maestro.
-let valorDesperdicio = parseFloat(
+// 1. 🛡️ EXTRACCIÓN CON RESCATE (EL TÚNEL):
+// Intentamos leer los campos que Atlas borra (0), pero si fallan, rescatamos del ancho.
+let valorDesperdicioOficial = parseFloat(
     m.desperdicio_total_cm || 
     m.desperdicio || 
     m.merma || 
@@ -136,21 +138,30 @@ let valorDesperdicio = parseFloat(
     0
 );
 
+// Si es moldura y el oficial llegó en 0, lo sacamos del túnel 'ancho_lamina_cm'
+if (esML && valorDesperdicioOficial === 0) {
+    if (m.ancho_lamina_cm && m.ancho_lamina_cm !== 100) {
+        valorDesperdicioOficial = parseFloat(m.ancho_lamina_cm);
+        console.log(`📡 TÚNEL DETECTADO para ${nombreM}: Rescatando ${valorDesperdicioOficial}cm desde ancho`);
+    }
+}
+
+let valorDesperdicio = valorDesperdicioOficial;
+
 // 2. 🛡️ ASIGNACIÓN DINÁMICA: 
-// Se guarda el valor real (10, 24, 35, etc.). 
-// Solo será 0 si en Atlas realmente está vacío o en 0.
+// Se guarda el valor real (10, 15, 24, etc.). 
 option.dataset.desperdicio = valorDesperdicio;
 
-// Blindaje: Guardamos el objeto completo para que el Bloque 2 pueda leerlo.
+// Blindaje: Guardamos el objeto completo para que el resto del código pueda leerlo.
 option.dataset.full = JSON.stringify(m);
 
 option.dataset.unidad = unidad; // ML o M2
 option.dataset.categoria = categoriaM;
 option.textContent = `${nombreM} ${avisoStock}`;
 
-// Auditoría técnica en consola para que veas qué número se está cargando por cada moldura
+// Auditoría técnica en consola para confirmar la suma de 2.95
 if (esML) {
-    console.log(`✅ Moldura: ${nombreM} | Desperdicio cargado: ${valorDesperdicio}cm`);
+    console.log(`✅ Moldura: ${nombreM} | Desperdicio Final: ${valorDesperdicio}cm`);
 }
 
 select.appendChild(option);
@@ -258,29 +269,32 @@ async function procesarCotizacion() {
                                  parseFloat(opcion.dataset.precio) || 0;
 
             // --- 🛡️ EXTRACCIÓN Y CLASIFICACIÓN CONTUNDENTE ---
-            const nombreMat = (opcion.text || "").toUpperCase();
-            const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
-            const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
-            
-            // 🚀 NUEVO: Captura del desperdicio para que llegue al cálculo financiero
-            const desperdicioExtraido = parseFloat(opcion.dataset.desperdicio) || 0;
+            // --- 🛡️ EXTRACCIÓN Y CLASIFICACIÓN CONTUNDENTE (DENTRO DEL MAP) ---
+const nombreMat = (opcion.text || "").toUpperCase();
+const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
+const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
 
-            // BLINDAJE TOTAL: Si es ML en Atlas, o si el nombre contiene marcas clave, ES ML.
-            const esML = unidadDataset === 'ml' || 
-                         categoriaMat.includes("MOLDURA") || 
-                         nombreMat.includes("MOLDURA") || 
-                         nombreMat.includes("MARCO") || 
-                         nombreMat.startsWith("K ") ||
-                         nombreMat.includes("2312") || // Moldura específica de prueba
-                         nombreMat.includes("2311");
+// 🚀 RESCATE CRÍTICO: Captura del desperdicio desde el dataset (Donde ya vive el 15 del túnel)
+const desperdicioExtraido = parseFloat(opcion.dataset.desperdicio) || 0;
 
-            return {
-                id: el.value,
-                nombre: opcion.text.split('(')[0].trim(),
-                costoUnitario: costoExtraido, // Ahora este valor es $/Metro Lineal gracias al Punto 1
-                unidad: esML ? 'ML' : 'M2',
-                desperdicio: esML ? desperdicioExtraido : 0 // 🛡️ Blindaje: solo pasamos desperdicio si es ML
-            };
+// BLINDAJE TOTAL: Si es ML en Atlas, o si el nombre contiene marcas clave, ES ML.
+// Mantiene: "K ", "MOLDURA", "MARCO", "2312", "2311" y detección por categoría.
+const esML = unidadDataset === 'ml' || 
+             categoriaMat.includes("MOLDURA") || 
+             nombreMat.includes("MOLDURA") || 
+             nombreMat.includes("MARCO") || 
+             nombreMat.startsWith("K ") ||
+             nombreMat.includes("2312") || 
+             nombreMat.includes("2311");
+
+return {
+    id: el.value,
+    nombre: opcion.text.split('(')[0].trim(),
+    costoUnitario: costoExtraido, // Valor $/Metro Lineal del Punto 1
+    unidad: esML ? 'ML' : 'M2',
+    // 🛡️ Blindaje financiero: Pasamos el desperdicio real (ej: 15) solo si es ML
+    desperdicio: esML ? desperdicioExtraido : 0 
+};
         })
         .filter(m => m !== null && m.costoUnitario > 0);
 
@@ -322,12 +336,13 @@ if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
     }
     
 // --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA UNIVERSAL DINÁMICA) ---
+// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA UNIVERSAL DINÁMICA) ---
 const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
-    const ancho = parseFloat(a) || 0;
-    const largo = parseFloat(l) || 0;
+    const anchoMedida = parseFloat(a) || 0;
+    const largoMedida = parseFloat(l) || 0;
     
-    // 1. Perímetro base: (ancho + largo) * 2
-    const perimetroCM = (ancho + largo) * 2;
+    // 1. Perímetro base en CM: (ancho + largo) * 2 = 280
+    const perimetroCM = (anchoMedida + largoMedida) * 2;
     
     // 2. RESCATE DE DATOS DESDE EL SELECTOR
     const selectMarco = document.getElementById('materialOtroId');
@@ -337,6 +352,8 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     const materialRescate = materialEspecífico || (opcionSeleccionada ? JSON.parse(opcionSeleccionada.dataset.full || '{}') : null);
 
     // 3. RECONOCIMIENTO DE CUALQUIER CANTIDAD (SIN PARCHES)
+    // Prioridad 1: El dataset rescatado (donde viaja el 15 del túnel)
+    // Prioridad 2: Los campos del objeto JSON por si acaso
     const desperdicioFinal = parseFloat(
         opcionSeleccionada?.dataset.desperdicio || 
         materialRescate?.desperdicio_total_cm || 
@@ -349,11 +366,11 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
     // Ejemplo: (280 + 15) / 100 = 2.95 ML
     const totalML = (perimetroCM + desperdicioFinal) / 100;
     
-    // Log de Auditoría: Para que veas en tiempo real que está sumando tu número de Atlas
-    console.log(`📊 CÁLCULO DINÁMICO:`);
-    console.log(`- Perímetro: ${perimetroCM}cm`);
-    console.log(`- Desperdicio leído de Atlas: ${desperdicioFinal}cm`);
-    console.log(`- Resultado: ${totalML} ML`);
+    // Log de Auditoría: Confirmación visual del 2.95
+    console.log(`📊 CÁLCULO DINÁMICO EJECUTADO:`);
+    console.log(`- Perímetro Base: ${perimetroCM}cm`);
+    console.log(`- Desperdicio Aplicado: ${desperdicioFinal}cm`);
+    console.log(`- Resultado Final: ${totalML.toFixed(2)} ML`);
     
     return Number(totalML.toFixed(2));
 };
