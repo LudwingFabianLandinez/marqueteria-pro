@@ -680,51 +680,51 @@ window.facturarVenta = async function() {
     }
 
     // --- 🛡️ PUNTO 2: BLINDAJE DE CONSUMO E INVENTARIO (facturarVenta) ---
-    const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
-        // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO (Se mantiene el avance de ML/M2 exactos)
-        const cantidadRealConsumo = m.cantidadUsada || (datosCotizacionActual.areaFinal || 0);
+const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
+    // 🚀 LÓGICA DE CONSUMO REAL DINÁMICO (Se mantiene el avance de ML/M2 exactos)
+    const cantidadRealConsumo = m.cantidadUsada || (datosCotizacionActual.areaFinal || 0);
+    
+    // 🚨 REPARACIÓN CERTERA DEL VALOR DE VENTA (Punto clave solicitado)
+    // Si m.subtotalVenta viene en 0 o no existe, lo calculamos con la regla de oro:
+    let valorVentaFinal = parseFloat(m.subtotalVenta) || 0;
+    
+    if (valorVentaFinal === 0) {
+        const unidadVisual = (m.unidad || "").toUpperCase();
+        // REGLA: x2.5 para Molduras (ML) y x3 para Materiales de área (M2/Global)
+        const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
+        valorVentaFinal = Math.round((m.costoUnitario * cantidadRealConsumo) * factorM);
+    }
+
+    return {
+        productoId: m.id,
+        materialNombre: m.nombre.toUpperCase(), 
+        descripcion: m.nombre.toUpperCase(),
+        nombre: m.nombre.toUpperCase(),      
+
+        // 💰 COSTOS Y VENTAS REALES (Blindaje total para history.js)
+        costo_base_unitario: m.costoUnitario,
+        costoBase: m.costoUnitario, 
+        costo_unitario: m.costoUnitario,
+        valor_material: Math.round(m.costoUnitario * cantidadRealConsumo), // Lo que te costó a ti
         
-        // 🚨 REPARACIÓN CERTERA DEL VALOR DE VENTA (Punto clave solicitado)
-        // Si m.subtotalVenta viene en 0 o no existe, lo calculamos con la regla de oro:
-        let valorVentaFinal = parseFloat(m.subtotalVenta) || 0;
+        // 💎 REPARACIÓN DE LA COLUMNA "SUBTOTAL VENTA"
+        precio_venta_item: valorVentaFinal, 
+        subtotalVenta: valorVentaFinal, // <--- Este es el campo que leerá el reporte de Atlas
+        valor_venta: valorVentaFinal,   
+        subtotal: valorVentaFinal,
+        total_item: valorVentaFinal,
+
+        // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas mantenida)
+        cantidad: Number(Number(cantidadRealConsumo).toFixed(3)), 
+        unidad: (m.unidad || "").toUpperCase(), 
+        ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
+        largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
+        area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
         
-        if (valorVentaFinal === 0) {
-            const unidadVisual = (m.unidad || "").toUpperCase();
-            // REGLA: x2.5 para Molduras (ML) y x3 para Materiales de área (M2/Global)
-            const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
-            valorVentaFinal = Math.round((m.costoUnitario * cantidadRealConsumo) * factorM);
-        }
-
-        return {
-            productoId: m.id,
-            materialNombre: m.nombre.toUpperCase(), 
-            descripcion: m.nombre.toUpperCase(),
-            nombre: m.nombre.toUpperCase(),      
-
-            // 💰 COSTOS Y VENTAS REALES (Blindaje total para history.js)
-            costo_base_unitario: m.costoUnitario,
-            costoBase: m.costoUnitario, 
-            costo_unitario: m.costoUnitario,
-            valor_material: Math.round(m.costoUnitario * cantidadRealConsumo), // Lo que te costó a ti
-            
-            // 💎 REPARACIÓN DE LA COLUMNA "SUBTOTAL VENTA"
-            precio_venta_item: valorVentaFinal, 
-            subtotalVenta: valorVentaFinal, // <--- Este es el campo que leerá el reporte de Atlas
-            valor_venta: valorVentaFinal,   
-            subtotal: valorVentaFinal,
-            total_item: valorVentaFinal,
-
-            // 📐 MOTOR DE INVENTARIO (Sincronización con Atlas mantenida)
-            cantidad: Number(Number(cantidadRealConsumo).toFixed(3)), 
-            unidad: (m.unidad || "").toUpperCase(), 
-            ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
-            largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
-            area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
-            
-            // 📝 RESPALDO DE AUDITORÍA
-            cantidadUsada: Number(Number(cantidadRealConsumo).toFixed(3))
-        };
-    });
+        // 📝 RESPALDO DE AUDITORÍA
+        cantidadUsada: Number(Number(cantidadRealConsumo).toFixed(3))
+    };
+});
 
     if (itemsProcesados.length === 0) {
         alert("⚠️ No has seleccionado ningún material para la venta.");
