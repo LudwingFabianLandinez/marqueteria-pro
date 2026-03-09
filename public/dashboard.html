@@ -363,10 +363,22 @@
                     <input type="number" id="compraCosto" name="valorUnitario" required>
                 </div>
             </div>
-            <div id="displayConversion" style="background: #f8fafc; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; border: 1px solid #edf2f7;">
+
+            <div id="displayConversion" style="background: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; border: 1px solid #edf2f7;">
                 <strong>Conversión automática:</strong><br>
-                <span id="labelConversion" style="color: #2f855a; font-weight: bold;">Total a ingresar: 0.00 m²</span>
+                <span id="labelConversion" style="color: #2f855a; font-weight: bold; display: block; margin-bottom: 8px;">Total a ingresar: 0.00 m²</span>
+                
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 8px 0;">
+                
+                <label style="color: #4a5568; font-weight: bold; display: block; margin-bottom: 4px;">Desperdicio de esta compra (cm):</label>
+                <input type="number" id="desperdicio" name="desperdicio" step="0.1" value="0" 
+                       style="width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 4px; background: white;"
+                       placeholder="Escribir desperdicio (ej: 15)">
+                <small style="color: #718096; display: block; margin-top: 4px; line-height: 1.2;">
+                    * Obligatorio para Molduras. Si dejas 0 en materiales existentes, se usará el valor del Maestro.
+                </small>
             </div>
+
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button type="submit" class="btn-action btn-green" style="flex: 1;">Guardar Compra</button>
                 <button type="button" class="btn-action" style="background: #e2e8f0; color: #4a5568; flex: 1;" onclick="document.getElementById('modalCompra').style.display='none'">Cancelar</button>
@@ -495,113 +507,75 @@ window.actualizarCalculoInmediato = function() {
             label.style.color = "#2f855a"; 
         }
     }
-
-    async function ejecutarRegistroMaestro() {
-   
-// --- 1. FUNCIÓN DE APOYO: CÁLCULO INTERNO (SIN INTERFAZ VISUAL) ---
-// Se mantiene la lógica para que pueda ser consultada internamente si es necesario
-function obtenerCalculoLogico() {
-    const nombreInput = document.getElementById('cat-nombre-maestro');
-    const categoriaInput = document.getElementById('cat-categoria-maestro');
-    const precioInput = document.getElementById('cat-precio-maestro');
-    // NUEVO: Capturamos el input del desperdicio para validación
-    const desperdicioInput = document.getElementById('cat-desperdicio-maestro');
-
-    if (!nombreInput || !categoriaInput || !precioInput) return 0;
-
-    const nombre = nombreInput.value.toUpperCase();
-    const categoria = categoriaInput.value;
-    const precioCompra = parseFloat(precioInput.value) || 0;
-    const valorDesperdicio = desperdicioInput ? parseFloat(desperdicioInput.value) || 0 : 0;
-
-    let anchoLocal = 0;
-    let largoLocal = 0;
-    const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
     
-    if (match) {
-        anchoLocal = parseFloat(match[1]);
-        largoLocal = parseFloat(match[2]);
-    }
-
-    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
-    
-    if (esMolduraReal) {
-        // Mantenemos tu REGLA DE ORO intacta
-        const costoMetroLineal = Math.round(precioCompra / 2.8);
-        
-        // Log de control para que veas en consola que YA NO SE IGNORA el dato
-        console.log(`📊 CÁLCULO LOG: Costo ML $${costoMetroLineal} | Desperdicio a guardar: ${valorDesperdicio}cm`);
-        
-        return costoMetroLineal;
-    } else {
-        const areaM2 = (anchoLocal * largoLocal) / 10000;
-        return areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
-    }
-}
 // --- 2. FUNCIÓN REGISTRO MAESTRO (INTEGRIDAD TOTAL CON ATLAS) ---
 async function ejecutarRegistroMaestro() {
-    // 1. CAPTURA DE DATOS (REFORZADA)
-    const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
-    const categoria = document.getElementById('cat-categoria-maestro').value;
-    const precioCompra = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
-    
-    // Captura directa desde el ID del input verde para asegurar el valor real
-    const desperdicioInput = document.getElementById('cat-desperdicio-maestro');
-    const desperdicio = desperdicioInput ? parseFloat(desperdicioInput.value) || 0 : 0;
-
-    if (!nombre || precioCompra <= 0) {
-        alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
-        return;
-    }
-
-    // 2. ESCÁNER DE MEDIDAS LOCAL (CONSERVADO)
-    let anchoLocal = 0;
-    let largoLocal = 0;
-    const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
-    if (match) {
-        anchoLocal = parseFloat(match[1]);
-        largoLocal = parseFloat(match[2]);
-    }
-
-    // 3. CÁLCULO DIRECTO (MANTENIENDO 2.8 COMO ESTÁNDAR)
-    let costoUnitarioFinal = 0;
-    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
-
-    if (esMolduraReal) {
-        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
-        costoUnitarioFinal = Math.round(precioCompra / metros);
-    } else {
-        const areaM2 = (anchoLocal * largoLocal) / 10000;
-        costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
-    }
-
-    const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
-
-    // 4. OBJETO PARA ATLAS (CON BLINDAJE Y DESPERDICIO ASEGURADO)
-    const nuevoMaterial = {
-        materialId: "NUEVO", 
-        id: "NUEVO", 
-        nombre: nombre, 
-        categoria: categoriaParaCotizador, 
-        costo_base: costoUnitarioFinal, 
-        precio_m2_costo: costoUnitarioFinal, 
-        precio_total_lamina: precioCompra,
-        desperdicio_total_cm: desperdicio,
-        desperdicio: desperdicio,
-        merma: desperdicio,
-
-        // --- 🛡️ ESCUDO DE ÁREA UNITARIA (CONSERVADO) ---
-        ancho_lamina_cm: 100, 
-        largo_lamina_cm: 100, 
-        
-        stock_actual: 0,
-        unidad: esMolduraReal ? "ML" : "M2",
-        tipo_material: esMolduraReal ? 'ml' : 'm2',
-        estado: 'Activo'
-    };
-    
     try {
-        console.log("📡 Enviando a Atlas con Desperdicio:", desperdicio);
+        // 1. CAPTURA DE DATOS
+        const nombreInput = document.getElementById('cat-nombre-maestro');
+        const categoriaInput = document.getElementById('cat-categoria-maestro');
+        const precioInput = document.getElementById('cat-precio-maestro');
+        const desperdicioInput = document.getElementById('cat-desperdicio-maestro');
+
+        if (!nombreInput || !precioInput) {
+            throw new Error("No se encontraron los campos del formulario");
+        }
+
+        const nombre = nombreInput.value.trim().toUpperCase();
+        const categoria = categoriaInput.value;
+        const precioCompra = parseFloat(precioInput.value) || 0;
+        const desperdicio = desperdicioInput ? parseFloat(desperdicioInput.value) || 0 : 0;
+
+        if (!nombre || precioCompra <= 0) {
+            alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
+            return;
+        }
+
+        // 2. ESCÁNER DE MEDIDAS
+        let anchoLocal = 0;
+        let largoLocal = 0;
+        const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
+        if (match) {
+            anchoLocal = parseFloat(match[1]);
+            largoLocal = parseFloat(match[2]);
+        }
+
+        // 3. LÓGICA DE COSTO (REGLA DE ORO 2.8 PARA MOLDURAS)
+        let costoUnitarioFinal = 0;
+        const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
+
+        if (esMolduraReal) {
+            const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
+            costoUnitarioFinal = Math.round(precioCompra / metros);
+        } else {
+            const areaM2 = (anchoLocal * largoLocal) / 10000;
+            costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
+        }
+
+        const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
+
+        // 4. OBJETO PARA ATLAS
+        const nuevoMaterial = {
+            materialId: "NUEVO", 
+            id: "NUEVO", 
+            nombre: nombre, 
+            categoria: categoriaParaCotizador, 
+            costo_base: costoUnitarioFinal, 
+            precio_m2_costo: costoUnitarioFinal, 
+            precio_total_lamina: precioCompra,
+            desperdicio_total_cm: desperdicio,
+            desperdicio: desperdicio,
+            merma: desperdicio,
+            ancho_lamina_cm: 100, 
+            largo_lamina_cm: 100, 
+            stock_actual: 0,
+            unidad: esMolduraReal ? "ML" : "M2",
+            tipo_material: esMolduraReal ? 'ml' : 'm2',
+            estado: 'Activo'
+        };
+
+        console.log("📡 Enviando a Atlas:", nuevoMaterial);
+        
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
         const response = await fetch(URL_REGISTRO, {
@@ -613,22 +587,17 @@ async function ejecutarRegistroMaestro() {
         const res = await response.json();
 
         if (res.success || response.ok) {
-            // El alert ahora confirma explícitamente el desperdicio que se envió
-            alert(`✅ REGISTRO CORRECTO EN ATLAS\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio Guardado: ${desperdicio} cm`);
-            
-            // --- 🛡️ LIMPIEZA PROFUNDA ---
-            localStorage.clear(); 
-            sessionStorage.clear();
-            
+            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
+            localStorage.removeItem('inventory'); 
             location.reload();
         } else {
-            throw new Error(res.error || "Error en Atlas");
+            throw new Error(res.error || "Error en respuesta del servidor");
         }
+
     } catch (e) {
-        console.error("❌ Fallo en el puente con Atlas:", e);
+        console.error("❌ Error en ejecutarRegistroMaestro:", e);
         alert("🚨 ERROR: " + e.message);
     }
-}
 
 // --- 3. INICIALIZADOR AL CARGAR EL SITIO ---
 document.addEventListener('DOMContentLoaded', () => {
