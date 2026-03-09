@@ -723,6 +723,7 @@ if (formCompra) {
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
             // --- 📦 OBJETO PARA ATLAS (SIN DAÑAR LO ANTERIOR) ---
+           // --- 📦 OBJETO PARA ATLAS (PUNTO 1: BLINDAJE DE MOLDURAS) ---
             const datosParaAtlas = {
                 materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
                 nombre: nombreReal,
@@ -731,15 +732,21 @@ if (formCompra) {
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas, // Costo Unitario (ML o M2)
                 
-                // Nuevos campos para Reporte y Cotizador
-                precio_m2_costo: costoFinalAtlas,
+                // --- 🛡️ LÓGICA DE DESPERDICIO Y PRECIO (SOLO MOLDURA) ---
+                // Si es moldura, el desperdicio es lineal. Si es m2, se mantiene igual.
+                precio_m2_costo: costoFinalAtlas, 
                 precio_venta_sugerido: precioVentaSugerido,
-                desperdicio: desperdicioValor,
-                desperdicio_total_cm: desperdicioValor,
+                desperdicio: desperdicioValor, 
+                desperdicio_total_cm: desperdicioValor, 
 
+                // --- 📏 DIMENSIONES Y ESCALA ---
+                // factorAnchoEscala ya viene pre-calculado (100 para molduras)
                 ancho_lamina_cm: factorAnchoEscala,
                 largo_lamina_cm: largoReferencia,
+                
+                // Mantenemos la distinción técnica que pide el Cotizador
                 tipo_material: esMoldura ? 'ml' : 'm2',
+                
                 costo_total: costoIngresado * cant,
                 timestamp: new Date().toISOString(),
                 _id: esNuevoMaterial ? undefined : idMasterAtlas 
@@ -851,10 +858,23 @@ function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
                 // --- 🚀 PASO 2: ACTUALIZAR MEMORIA VOLÁTIL ---
                 if (window.todosLosMateriales) {
                     const idx = window.todosLosMateriales.findIndex(m => limpiarNombre(m.nombre) === nombreNormalizado);
-                    if (idx !== -1) {
-                        window.todosLosMateriales[idx].stock_actual = nuevoValor;
-                        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-                    }
+                    // --- 🛡️ CORRECCIÓN PUNTO 3: BLINDAJE DE MEMORIA VOLÁTIL (v18.7) ---
+if (idx !== -1) {
+    // 1. Actualizamos el Stock (Lo que ya tenías)
+    window.todosLosMateriales[idx].stock_actual = nuevoValor;
+
+    // 2. BLINDAJE: Sincronizamos Desperdicio y Precios de la compra actual
+    // Esto evita que al redibujar la tabla el desperdicio vuelva a 0
+    window.todosLosMateriales[idx].desperdicio_total_cm = desperdicioValor;
+    window.todosLosMateriales[idx].precio_total_lamina = costoFinalAtlas;
+    window.todosLosMateriales[idx].precio_m2_costo = costoFinalAtlas;
+    window.todosLosMateriales[idx].precio_venta_sugerido = precioVentaSugerido;
+
+    // 3. Persistencia Total
+    localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+    
+    console.log(`⚓ MEMORIA SINCRONIZADA: ${nombreNormalizado} actualizado con Desperdicio: ${desperdicioValor} y Stock: ${nuevoValor}`);
+}
                 }
 
                 // --- 🚀 PASO 3: UI ---
@@ -1235,8 +1255,14 @@ window.verHistorial = async function(idRecibido, nombre) {
                         <div style="font-size:0.7rem; color:#94a3b8;">${fecha}</div>
                     </div>
                     <div style="text-align:right;">
-   <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
-    ${esEntrada ? '+' : ''}${parseFloat(mov.cantidad).toFixed(2)}
+   // --- 🛡️ CORRECCIÓN PUNTO 2: VARIABLE DE HISTORIAL (BLINDADO v18.6) ---
+<div style="text-align:right;">
+    <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
+        ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)}
+    </div>
+    <div style="font-size:0.6rem; color:#64748b; font-weight: bold; text-transform: uppercase;">
+        ${ (h.nombre || nombre).toUpperCase().includes("MOLDURA") || (h.nombre || nombre).toUpperCase().startsWith("K ") ? 'ML' : 'M2' }
+    </div>
 </div>
     <div style="font-size:0.6rem; color:#64748b; font-weight: bold;">UNID / M2</div>
 </div>
