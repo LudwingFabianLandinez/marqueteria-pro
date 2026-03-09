@@ -242,6 +242,15 @@ function limpiarTextosNoDeseados() {
     });
 }
 
+const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
+    const anchoMedida = parseFloat(a) || 0;
+    const largoMedida = parseFloat(l) || 0;
+    const perimetroCM = (anchoMedida + largoMedida) * 2;
+    const valorDesp = parseFloat(materialEspecífico.desperdicio) || 0;
+    const totalML = (perimetroCM + valorDesp) / 100;
+    return Number(totalML.toFixed(3));
+};
+
 async function procesarCotizacion() {
     const btnCalc = document.querySelector('.btn-calc');
     const ancho = parseFloat(document.getElementById('ancho').value);
@@ -333,17 +342,6 @@ if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
     if (!ancho || !largo || materialesSeleccionados.length === 0) {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
         return;
-    }
-    
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA UNIVERSAL DINÁMICA) ---
-// --- 📐 LÓGICA DE GASTO REAL DE MOLDURA (FÓRMULA UNIVERSAL DINÁMICA) ---
-const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
-    const anchoMedida = parseFloat(a) || 0;
-    const largoMedida = parseFloat(l) || 0;
-    
-    // 1. Perímetro base en CM: (ancho + largo) * 2 = 280
-    const perimetroCM = (anchoMedida + largoMedida) * 2;
-    
     // 2. RESCATE DE DATOS DESDE EL SELECTOR
     const selectMarco = document.getElementById('materialOtroId');
     const opcionSeleccionada = selectMarco?.options[selectMarco.selectedIndex];
