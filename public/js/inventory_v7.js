@@ -266,8 +266,7 @@
     };
 
     // --- SECCIÓN INVENTARIO (CON RECONCILIACIÓN ACTIVA) ---
-
-    async function fetchInventory() {
+async function fetchInventory() {
     try {
         const resultado = await window.API.getInventory();
         const datosRaw = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
@@ -279,91 +278,84 @@
         const consolidado = {};
 
         // --- 🛡️ FILTRO DE CONSOLIDACIÓN UNIFICADA (v23.0) ---
-            datosFiltrados.forEach(m => {
-                if (!m.nombre) return;
-                const nombreUP = limpiarNombre(m.nombre);
-                const stockM = parseFloat(m.stock_actual) || 0;
-                const catM = String(m.categoria || '').toUpperCase();
+        datosFiltrados.forEach(m => {
+            if (!m.nombre) return;
+            const nombreUP = limpiarNombre(m.nombre);
+            const stockM = parseFloat(m.stock_actual) || 0;
+            const catM = String(m.categoria || '').toUpperCase();
 
-                // 1. ⚔️ REGLA DE RESIDUOS: Solo borramos si es un valor despreciable mayor a 0
-                if (stockM > 0 && stockM < 0.50) {
-                    console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
-                    return;
-                }
+            // 1. ⚔️ REGLA DE RESIDUOS
+            if (stockM > 0 && stockM < 0.50) {
+                console.log(`🗑️ Ignorando residuo de Atlas: ${stockM} para ${nombreUP}`);
+                return;
+            }
 
-                // 2. 🛡️ LÓGICA DE UNIFICACIÓN (Evita el doble ítem sin bloquear al Maestro)
-                if (!consolidado[nombreUP]) {
-                    // Si el nombre no existe, lo agregamos (Sea stock 0 o lo que sea)
-                    // Esto permite que el Maestro SIEMPRE sea visible.
-                    consolidado[nombreUP] = { ...m, stock_actual: stockM };
-                } else {
-                    // SI YA EXISTE (Duplicado), fusionamos los datos en un solo registro:
-                    
-                    // A. Sumamos el stock (5.60 + 0 = 5.60)
-                    consolidado[nombreUP].stock_actual += stockM;
-
-                    // B. PRIORIDAD DE CATEGORÍA: Si este duplicado tiene categoría real 
-                    // (ACABADO, VIDRIO, MOLDURA) y el anterior era GENERAL, lo corregimos.
-                    if (catM !== "GENERAL" && catM !== "") {
-                        consolidado[nombreUP].categoria = m.categoria;
-                        // Mantenemos el ID del registro que tiene la categoría correcta
-                        consolidado[nombreUP]._id = m._id || m.id;
+            // 2. 🛡️ LÓGICA DE UNIFICACIÓN (Rescatando campos de Atlas)
+            if (!consolidado[nombreUP]) {
+                consolidado[nombreUP] = { ...m, stock_actual: stockM };
+            } else {
+                consolidado[nombreUP].stock_actual += stockM;
+                if (catM !== "GENERAL" && catM !== "") {
+                    consolidado[nombreUP].categoria = m.categoria;
+                    consolidado[nombreUP]._id = m._id || m.id;
+                    // 🚨 RESCATE DE DESPERDICIO: Si el duplicado trae el dato de Atlas, lo preservamos
+                    if (m.desperdicio_total_cm) {
+                        consolidado[nombreUP].desperdicio_total_cm = m.desperdicio_total_cm;
                     }
                 }
-            });
+            }
+        });
 
         window.todosLosMateriales = Object.values(consolidado).map(m => {
-    const nombreUP = limpiarNombre(m.nombre);
-    const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
+            const nombreUP = limpiarNombre(m.nombre);
+            const esMoldura = nombreUP.includes('MOLDURA') || (m.categoria && m.categoria.toUpperCase().includes('MOLDURA'));
 
-    // --- INTEGRIDAD DE COSTOS BLINDADOS ---
-    let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
-
-    if (esMoldura) {
-        // AJUSTE QUIRÚRGICO: Solo eliminamos el forzado a 10345.
-        // Ahora respetará el costo que traiga de Atlas (ej. $8.618).
-        costoFijo = costoFijo; 
-    } else {
-        // BLINDAJE VIDRIO (Inalterado): Mantenemos la sintonía con el avance de $30.682.
-        if (costoFijo === 16141 || costoFijo === 0) {
-            costoFijo = 30682;
-        }
-    }
-
-    // --- INTEGRIDAD DE STOCK Y ESCUDO ---
-    let stockFinal = m.stock_actual;
-    
-    if (esMoldura) {
-        const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
-        const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
-
-        // Sintonía con el sistema de memoria logrado en avances previos:
-        if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
-            if (memoria.stock > stockFinal) {
-                stockFinal = memoria.stock;
+            // --- INTEGRIDAD DE COSTOS BLINDADOS ---
+            let costoFijo = parseFloat(m.precio_m2_costo) || parseFloat(m.costo_m2) || 0;
+            if (!esMoldura) {
+                if (costoFijo === 16141 || costoFijo === 0) {
+                    costoFijo = 30682;
+                }
             }
-        }
 
-        // AJUSTE QUIRÚRGICO: Eliminamos el "if (stockFinal < 2.80)".
-        // Esto permite que el material nuevo nazca en 0 y solo suba cuando registres la compra.
+            // --- INTEGRIDAD DE STOCK Y ESCUDO ---
+            let stockFinal = m.stock_actual;
+            if (esMoldura) {
+                const claveEscudo = `escudo_v18_${nombreUP.replace(/\s+/g, '_')}`;
+                const memoria = JSON.parse(localStorage.getItem(claveEscudo) || 'null');
+
+                if (memoria && (Date.now() - memoria.timestamp < 86400000)) {
+                    if (memoria.stock > stockFinal) {
+                        stockFinal = memoria.stock;
+                    }
+                }
+            }
+
+            // --- 📏 EL TÚNEL: SINCRO DE DESPERDICIO PARA MOLDURAS ---
+            // Extraemos el valor real de Atlas (ej. 15). 
+            const valorDespAtlas = parseFloat(m.desperdicio_total_cm) || 0;
+
+            return {
+                ...m,
+                precio_m2_costo: Math.round(costoFijo),
+                stock_actual: Number(Number(stockFinal).toFixed(2)),
+                // 🚀 ESTO ES LO QUE CONSUMIRÁ QUOTES.JS
+                desperdicio_total_cm: valorDespAtlas,
+                desperdicio: valorDespAtlas 
+            };
+        });
+
+        // SINCRO FINAL
+        localStorage.removeItem('inventory');
+        localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+        if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
+
+        console.log("✅ Inventario Sincronizado: Desperdicio Atlas cargado en memoria.");
+
+    } catch (error) {
+        console.error("❌ Error en inventario:", error);
     }
-
-    return {
-        ...m,
-        precio_m2_costo: Math.round(costoFijo),
-        stock_actual: Number(Number(stockFinal).toFixed(2))
-    };
-});
-
-// SINCRO FINAL: Limpiamos caché para aplicar los nuevos valores netos inmediatamente
-localStorage.removeItem('inventory');
-localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-renderTable(window.todosLosMateriales);
-
-} catch (error) {
-    console.error("❌ Error en inventario:", error);
 }
-    }
 
     function renderTable(materiales) {
         const cuerpoTabla = document.getElementById('inventoryTable');
