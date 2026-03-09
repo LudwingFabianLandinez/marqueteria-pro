@@ -407,7 +407,7 @@
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button onclick="window.guardarMaterial()" class="btn-action btn-green" style="flex: 1;">Guardar Cambios</button>
+                <button onclick="window.guardarCambiosEdicion()" class="btn-action btn-green" style="flex: 1;">Guardar Cambios</button>
                 <button type="button" class="btn-action" style="background: #e2e8f0; color: #4a5568; flex: 1;" onclick="document.getElementById('modalNuevoMaterial').style.display='none'">Cancelar</button>
             </div>
         </div>
@@ -723,6 +723,67 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("🚨 ERROR: " + e.message);
     }
 }
+
+// --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
+window.guardarCambiosEdicion = async function() {
+    const id = window.materialEditandoId; // Este ID se setea al abrir el modal desde inventory.js
+    if (!id) return alert("❌ Error: No se detectó el ID del material.");
+
+    // 1. Captura de datos del modal
+    const nuevoNombre = document.getElementById('matNombre').value.trim().toUpperCase();
+    const nuevoCosto = parseFloat(document.getElementById('matCosto').value) || 0;
+    
+    // 2. 🚨 ESCUDO DE DESPERDICIO (PUNTO CRÍTICO) 🚨
+    // Buscamos el material en la memoria local para ver qué desperdicio tenía antes
+    const materialPrevio = (window.todosLosMateriales || []).find(m => String(m._id || m.id) === String(id));
+    
+    // Si el modal tuviera un campo de desperdicio lo usaríamos, 
+    // pero como no lo tiene, RESCATAMOS el valor previo para que Atlas no lo resetee a 0.
+    const desperdicioProtegido = (materialPrevio && (materialPrevio.desperdicio_total_cm || materialPrevio.desperdicio)) 
+                                 ? parseFloat(materialPrevio.desperdicio_total_cm || materialPrevio.desperdicio) 
+                                 : 0;
+
+    const datosActualizados = {
+        nombre: nuevoNombre,
+        precio_m2_costo: nuevoCosto,
+        precio_total_lamina: nuevoCosto,
+        desperdicio_total_cm: desperdicioProtegido, // 🛡️ Aquí se inyecta el blindaje
+        desperdicio: desperdicioProtegido,
+        ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || materialPrevio?.ancho_lamina_cm || 100,
+        largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || materialPrevio?.largo_lamina_cm || 100,
+        stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
+    };
+
+    try {
+        console.log("📡 Editando en Atlas con Escudo de Desperdicio:", desperdicioProtegido);
+        
+        const response = await fetch(`${window.API_URL}/materials/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datosActualizados)
+        });
+
+        if (!response.ok) throw new Error("No se pudo actualizar en el servidor");
+
+        // Actualizamos la memoria local para que el cambio se vea sin recargar
+        if (materialPrevio) {
+            Object.assign(materialPrevio, datosActualizados);
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+        }
+
+        alert(`✅ Material Actualizado\nEl desperdicio de ${desperdicioProtegido}cm se mantuvo protegido.`);
+        
+        // Cerramos modal y refrescamos tabla
+        document.getElementById('modalNuevoMaterial').style.display = 'none';
+        if (typeof window.renderTable === 'function') window.renderTable(window.todosLosMateriales);
+        else location.reload(); // Si no hay renderTable, recargamos
+
+    } catch (error) {
+        console.error("❌ Error en guardado:", error);
+        alert("🚨 ERROR: No se pudo guardar en Atlas.");
+    }
+};
+
 </script>
 
 <div id="modalHistorialPrecios" class="modal" style="display:none; position:fixed; z-index:999999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
