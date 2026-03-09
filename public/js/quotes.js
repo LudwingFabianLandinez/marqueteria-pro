@@ -288,23 +288,33 @@ async function procesarCotizacion() {
     const inputTextoMoldura = document.getElementById('input-moldura');
     const selectMolduraOculto = document.getElementById('materialOtroId');
 
-    if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
-        const optM = selectMolduraOculto.options[selectMolduraOculto.selectedIndex];
-        const yaIncluido = materialesSeleccionados.find(m => m.id === selectMolduraOculto.value);
+    // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS (REPARADO Y BLINDADO) ---
+if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
+    const optM = selectMolduraOculto.options[selectMolduraOculto.selectedIndex];
+    const yaIncluido = materialesSeleccionados.find(m => m.id === selectMolduraOculto.value);
 
-        if (optM && optM.value !== "" && !yaIncluido) {
-            const costoM = parseFloat(optM.dataset.costo) || 
-                           parseFloat(optM.dataset.costom2) || 
-                           parseFloat(optM.dataset.precio) || 0;
+    if (optM && optM.value !== "" && !yaIncluido) {
+        // 1. Mantenemos tu extracción de costo multi-origen
+        const costoM = parseFloat(optM.dataset.costo) || 
+                       parseFloat(optM.dataset.costom2) || 
+                       parseFloat(optM.dataset.precio) || 0;
 
-            materialesSeleccionados.push({
-                id: selectMolduraOculto.value,
-                nombre: inputTextoMoldura.value.split('(')[0].trim(),
-                costoUnitario: costoM,
-                unidad: 'ML'
-            });
-        }
+        // 2. 🚀 RESCATE CRÍTICO: Capturamos el desperdicio específico de esta moldura
+        const desperdicioM = parseFloat(optM.dataset.desperdicio) || 0;
+
+        // 3. Inserción en el array de cálculo con todos los datos necesarios
+        materialesSeleccionados.push({
+            id: selectMolduraOculto.value,
+            nombre: inputTextoMoldura.value.split('(')[0].trim(),
+            costoUnitario: costoM,
+            unidad: 'ML',
+            desperdicio: desperdicioM // <--- Aquí es donde se "conecta" el dato para el cálculo de los 2.95 ML
+        });
+
+        // Auditoría rápida en consola para confirmar la captura
+        console.log(`🔍 Buscador detectó: ${inputTextoMoldura.value} | Desperdicio: ${desperdicioM}cm`);
     }
+}
 
     if (!ancho || !largo || materialesSeleccionados.length === 0) {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
