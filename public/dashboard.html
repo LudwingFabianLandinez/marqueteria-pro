@@ -511,7 +511,7 @@ window.actualizarCalculoInmediato = function() {
 // --- 2. FUNCIÓN REGISTRO MAESTRO (INTEGRIDAD TOTAL CON ATLAS) ---
 async function ejecutarRegistroMaestro() {
     try {
-        // 1. CAPTURA DE DATOS
+        // 1. CAPTURA DE DATOS (CON SEGURIDAD)
         const nombreInput = document.getElementById('cat-nombre-maestro');
         const categoriaInput = document.getElementById('cat-categoria-maestro');
         const precioInput = document.getElementById('cat-precio-maestro');
@@ -531,7 +531,7 @@ async function ejecutarRegistroMaestro() {
             return;
         }
 
-        // 2. ESCÁNER DE MEDIDAS
+        // 2. ESCÁNER DE MEDIDAS (IDENTIFICACIÓN DE MOLDURA)
         let anchoLocal = 0;
         let largoLocal = 0;
         const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
@@ -545,6 +545,7 @@ async function ejecutarRegistroMaestro() {
         const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
         if (esMolduraReal) {
+            // Si tiene medida en el nombre (ej: 4cm X 300cm) usa 300, si no usa 2.8m
             const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
             costoUnitarioFinal = Math.round(precioCompra / metros);
         } else {
@@ -554,7 +555,7 @@ async function ejecutarRegistroMaestro() {
 
         const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
-        // 4. OBJETO PARA ATLAS
+        // 4. OBJETO PARA ATLAS (VERSIÓN FINAL CON ESCUDO DE TRANSPORTE)
         const nuevoMaterial = {
             materialId: "NUEVO", 
             id: "NUEVO", 
@@ -562,10 +563,15 @@ async function ejecutarRegistroMaestro() {
             categoria: categoriaParaCotizador, 
             costo_base: costoUnitarioFinal, 
             precio_m2_costo: costoUnitarioFinal, 
-            precio_total_lamina: precioCompra,
+            
+            // --- 🛡️ ESCUDO DE TRANSPORTE ANTI-CERO ---
+            // Si el servidor ignora desperdicio_total_cm, usamos este campo para forzar el valor
+            precio_total_lamina: desperdicio > 0 ? desperdicio : precioCompra,
             desperdicio_total_cm: desperdicio,
             desperdicio: desperdicio,
             merma: desperdicio,
+
+            // Forzamos 100x100 para evitar errores de división en el cotizador
             ancho_lamina_cm: 100, 
             largo_lamina_cm: 100, 
             stock_actual: 0,
@@ -574,7 +580,7 @@ async function ejecutarRegistroMaestro() {
             estado: 'Activo'
         };
 
-        console.log("📡 Enviando a Atlas:", nuevoMaterial);
+        console.log("📡 Enviando con Escudo y Desperdicio:", nuevoMaterial);
         
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
@@ -598,100 +604,15 @@ async function ejecutarRegistroMaestro() {
         console.error("❌ Error en ejecutarRegistroMaestro:", e);
         alert("🚨 ERROR: " + e.message);
     }
+}
 
 // --- 3. INICIALIZADOR AL CARGAR EL SITIO ---
+// Asegúrate de que esto esté fuera de la función anterior
 document.addEventListener('DOMContentLoaded', () => {
-    activarCalculoEnTiempoReal();
+    if (typeof activarCalculoEnTiempoReal === 'function') {
+        activarCalculoEnTiempoReal();
+    }
 });
-
-    // 1. CAPTURA DE DATOS
-    const nombre = document.getElementById('cat-nombre-maestro').value.trim().toUpperCase();
-    const categoria = document.getElementById('cat-categoria-maestro').value;
-    const precioCompra = parseFloat(document.getElementById('cat-precio-maestro').value) || 0;
-    const desperdicio = parseFloat(document.getElementById('cat-desperdicio-maestro').value) || 0;
-
-    if (!nombre || precioCompra <= 0) {
-        alert("⚠️ Por favor, ingresa el nombre y el precio de costo.");
-        return;
-    }
-
-    // 2. ESCÁNER DE MEDIDAS LOCAL (CONSERVADO)
-    let anchoLocal = 0;
-    let largoLocal = 0;
-    const match = nombre.match(/(\d+(?:\.\d+)?)\s*[X]\s*(\d+(?:\.\d+)?)/i);
-
-    if (match) {
-        anchoLocal = parseFloat(match[1]);
-        largoLocal = parseFloat(match[2]);
-    }
-
-    // 3. CÁLCULO DIRECTO (CONSERVADO Y ACTUALIZADO A 2.8)
-    let costoUnitarioFinal = 0;
-    const esMoldura = categoria === "MOLDURAS" || nombre.includes("MOLDURA");
-
-    if (esMoldura) {
-        const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
-        costoUnitarioFinal = Math.round(precioCompra / metros);
-    } else {
-        const areaM2 = (anchoLocal * largoLocal) / 10000;
-        costoUnitarioFinal = areaM2 > 0 ? Math.round(precioCompra / areaM2) : precioCompra;
-    }
-
-    // 4. OBJETO PARA ATLAS (Sincronizado con BLINDAJE ANTI-8716)
-    const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
-    const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
-
-    // --- 🛡️ OBJETO PARA ATLAS (VERSIÓN FINAL BLINDADA) ---
-    const nuevoMaterial = {
-        materialId: "NUEVO", 
-        id: "NUEVO", 
-        nombre: nombre, 
-        categoria: categoriaParaCotizador, 
-        
-        // --- 🚀 BLINDAJE Y CAMPOS DE TRANSPORTE ---
-        costo_base: costoUnitarioFinal, 
-        precio_m2_costo: costoUnitarioFinal, 
-        
-        // REFUERZO: Si desperdicio_total_cm falla en el servidor, 
-        // usamos precio_total_lamina para "esconder" el valor 15 y que llegue a Atlas.
-        precio_total_lamina: desperdicio > 0 ? desperdicio : precioCompra,
-        desperdicio_total_cm: desperdicio,
-
-        // Forzamos 100x100 (ESCUDO CONSERVADO)
-        ancho_lamina_cm: 100, 
-        largo_lamina_cm: 100, 
-        
-        stock_actual: 0,
-        unidad: esMolduraReal ? "ML" : "M2",
-        tipo_material: esMolduraReal ? 'ml' : 'm2',
-        estado: 'Activo'
-    };
-    
-    try {
-        console.log("📡 Enviando con Escudo y Desperdicio:", nuevoMaterial);
-
-        const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
-
-        const response = await fetch(URL_REGISTRO, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(nuevoMaterial)
-        });
-
-        const res = await response.json();
-
-        if (res.success || response.ok) {
-            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${nuevoMaterial.precio_m2_costo}\nDesperdicio: ${desperdicio} cm`);
-            localStorage.removeItem('inventory'); 
-            location.reload();
-        } else {
-            throw new Error(res.error || "Error en Atlas");
-        }
-    } catch (e) {
-        console.error("❌ Fallo en el puente con Atlas:", e);
-        alert("🚨 ERROR: " + e.message);
-    }
-}
 
 // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
 window.guardarCambiosEdicion = async function() {
