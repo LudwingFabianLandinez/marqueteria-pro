@@ -555,30 +555,34 @@ async function ejecutarRegistroMaestro() {
 
         const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
-        // 4. OBJETO PARA ATLAS (VERSIÓN FINAL CON ESCUDO DE TRANSPORTE)
-        const nuevoMaterial = {
-            materialId: "NUEVO", 
-            id: "NUEVO", 
-            nombre: nombre, 
-            categoria: categoriaParaCotizador, 
-            costo_base: costoUnitarioFinal, 
-            precio_m2_costo: costoUnitarioFinal, 
-            
-            // --- 🛡️ ESCUDO DE TRANSPORTE ANTI-CERO ---
-            // Si el servidor ignora desperdicio_total_cm, usamos este campo para forzar el valor
-            precio_total_lamina: desperdicio > 0 ? desperdicio : precioCompra,
-            desperdicio_total_cm: desperdicio,
-            desperdicio: desperdicio,
-            merma: desperdicio,
+        // --- 🛡️ OBJETO PARA ATLAS CON TRANSPORTE DE DESPERDICIO (FIX 2.95 ML) ---
+const nuevoMaterial = {
+    materialId: "NUEVO", 
+    id: "NUEVO", 
+    nombre: nombre, 
+    categoria: categoriaParaCotizador, 
+    costo_base: costoUnitarioFinal, 
+    precio_m2_costo: costoUnitarioFinal, 
+    
+    // --- 🚀 ESCUDO DE TRANSPORTE ANTI-CERO (REFORZADO) ---
+    // Si el servidor ignora desperdicio_total_cm, usamos estos campos para forzar el valor
+    precio_total_lamina: desperdicio > 0 ? desperdicio : precioCompra,
+    desperdicio_total_cm: desperdicio,
+    desperdicio: desperdicio,
+    merma: desperdicio,
 
-            // Forzamos 100x100 para evitar errores de división en el cotizador
-            ancho_lamina_cm: 100, 
-            largo_lamina_cm: 100, 
-            stock_actual: 0,
-            unidad: esMolduraReal ? "ML" : "M2",
-            tipo_material: esMolduraReal ? 'ml' : 'm2',
-            estado: 'Activo'
-        };
+    // --- 💡 EL TRUCO PARA EL SUMATORIO DE 2.95 ---
+    // Usamos ancho_lamina_cm como túnel de transporte para el desperdicio.
+    // Para molduras, el ancho no se usa en el cálculo, así que guardamos el desperdicio aquí (ej: 15).
+    ancho_lamina_cm: esMolduraReal ? (desperdicio > 0 ? desperdicio : 100) : 100, 
+    largo_lamina_cm: 100, 
+    
+    stock_actual: 0,
+    unidad: esMolduraReal ? "ML" : "M2",
+    tipo_material: esMolduraReal ? 'ml' : 'm2',
+    estado: 'Activo'
+};
+        
 
         console.log("📡 Enviando con Escudo y Desperdicio:", nuevoMaterial);
         
