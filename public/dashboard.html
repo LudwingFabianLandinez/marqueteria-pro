@@ -556,6 +556,7 @@ async function ejecutarRegistroMaestro() {
         const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
         // --- 🛡️ OBJETO PARA ATLAS CON TRANSPORTE DE DESPERDICIO (FIX 2.95 ML) ---
+// --- 🛡️ OBJETO PARA ATLAS: VERSIÓN TÚNEL DEFINITIVO (PARA 2.95 ML) ---
 const nuevoMaterial = {
     materialId: "NUEVO", 
     id: "NUEVO", 
@@ -564,17 +565,18 @@ const nuevoMaterial = {
     costo_base: costoUnitarioFinal, 
     precio_m2_costo: costoUnitarioFinal, 
     
-    // --- 🚀 ESCUDO DE TRANSPORTE ANTI-CERO (REFORZADO) ---
-    // Si el servidor ignora desperdicio_total_cm, usamos estos campos para forzar el valor
-    precio_total_lamina: desperdicio > 0 ? desperdicio : precioCompra,
+    // 1. REFUERZO DE TRANSPORTE (Mantenemos por si el servidor despierta)
+    precio_total_lamina: precioCompra, 
     desperdicio_total_cm: desperdicio,
     desperdicio: desperdicio,
     merma: desperdicio,
 
-    // --- 💡 EL TRUCO PARA EL SUMATORIO DE 2.95 ---
-    // Usamos ancho_lamina_cm como túnel de transporte para el desperdicio.
-    // Para molduras, el ancho no se usa en el cálculo, así que guardamos el desperdicio aquí (ej: 15).
-    ancho_lamina_cm: esMolduraReal ? (desperdicio > 0 ? desperdicio : 100) : 100, 
+    // 2. 🚀 EL TÚNEL (SOLUCIÓN AL BLOQUEO DE ATLAS)
+    // Forzamos el desperdicio (15) en 'ancho_lamina_cm' porque Atlas SIEMPRE lo guarda.
+    // Para molduras, el ancho no se usa, así que lo sacrificamos para salvar el desperdicio.
+    ancho_lamina_cm: esMolduraReal ? (parseFloat(desperdicio) || 0) : 100, 
+    
+    // El largo lo dejamos en 100 para no romper cálculos de área en otros materiales
     largo_lamina_cm: 100, 
     
     stock_actual: 0,
