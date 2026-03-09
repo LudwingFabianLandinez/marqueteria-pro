@@ -739,13 +739,13 @@ if (formCompra) {
             // Calculamos precio de venta sugerido (ej: margen 50%) para que el reporte no sea 0
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-            // --- 🛡️ PASO PREVIO: BLINDAJE DE HERENCIA (PRIORIDAD #1) ---
-            // Si el material ya existe, rescatamos su desperdicio actual de la memoria local
+            // --- 🛡️ PASO PREVIO: BLINDAJE DE HERENCIA (SÓLO MOLDURAS) ---
             const desperdicioEnMaestro = (existente && existente.desperdicio_total_cm) ? parseFloat(existente.desperdicio_total_cm) : 0;
             const desperdicioCapturado = parseFloat(desperdicioValor) || 0;
 
             // REGLA DE ORO: Si la compra trae 0 (campo vacío), hereda el del Maestro para no dañarlo
-            const desperdicioFinalSincronizado = (desperdicCapturado > 0) ? desperdicioCapturado : desperdicioEnMaestro;
+            // Corregido: desperdicioCapturado (con 'o') para evitar el ReferenceError
+            const desperdicioFinalSincronizado = (desperdicioCapturado > 0) ? desperdicioCapturado : desperdicioEnMaestro;
 
             // --- 📦 OBJETO PARA ATLAS (SINCRONIZADO Y REDUNDANTE) ---
             const datosParaAtlas = {
@@ -760,7 +760,7 @@ if (formCompra) {
                 precio_m2_costo: costoFinalAtlas, 
                 precio_venta_sugerido: precioVentaSugerido,
                 
-                // Enviamos el valor sincronizado en 3 campos para "atrapar" el modelo de Atlas sí o sí
+                // Enviamos el valor sincronizado en 3 campos para "atrapar" el modelo de Atlas
                 desperdicio: desperdicioFinalSincronizado, 
                 desperdicio_total_cm: desperdicioFinalSincronizado,
                 desperdicio_total: desperdicioFinalSincronizado, 
@@ -776,8 +776,8 @@ if (formCompra) {
                 _id: esNuevoMaterial ? undefined : idMasterAtlas 
             };
 
-            // LOG DE SEGURIDAD: Verifica en tu consola que estos valores no sean 0 antes de enviarlos
-            console.log(`📡 ATLAS-SYNC [${nombreReal}]: Desperdicio Final = ${desperdicioFinalSincronizado} (Capturado: ${desperdicCapturado}, Maestro: ${desperdicEnMaestro})`);
+            // LOG DE SEGURIDAD: Monitoreo en consola para validar la herencia
+            console.log(`📡 ATLAS-SYNC [${nombreReal}]: Desperdicio Final = ${desperdicioFinalSincronizado} (Capturado: ${desperdicioCapturado}, Maestro: ${desperdicioEnMaestro})`);
 
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
                 method: 'POST',
@@ -823,7 +823,6 @@ if (formCompra) {
                     precio_total_lamina: costoFinalAtlas,
                     precio_venta_sugerido: precioVentaSugerido,
                     
-                    // Aseguramos el dato en el nuevo objeto local
                     desperdicio: desperdicioFinalSincronizado,
                     desperdicio_total_cm: desperdicioFinalSincronizado,
                     
@@ -849,7 +848,6 @@ if (formCompra) {
 
             if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
 
-            // Alerta final con el dato real que quedó guardado
             alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nDesperdicio Protegido: ${desperdicioFinalSincronizado} CM\nSubtotal Venta Activo.`);
 
             if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
