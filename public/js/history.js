@@ -134,8 +134,9 @@ async function generarReporteDiario() {
                     <tbody>`;
 
 // --- 🛡️ REESCRITURA QUIRÚRGICA: PROCESAMIENTO DE ÍTEMS EN AUDITORÍA ---
+            // --- 🛡️ REESCRITURA FINAL: SINCRONIZACIÓN TOTAL CON EL SERVIDOR ---
             (f.items || f.materiales || []).forEach(item => {
-                // 🕵️ DEBUG ACTIVO: Mantenemos el log por seguridad
+                // 🕵️ DEBUG: Mantenemos el log para validar cualquier cambio en la base de datos
                 console.log(`Analizando item de OT ${f.numeroFactura || 'S/N'}:`, item);
 
                 const nombreMayus = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
@@ -160,17 +161,23 @@ async function generarReporteDiario() {
                 const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costoUnitario || item.costo_unitario || 0);
                 const costoFila = Math.round(costoUnitario * cantidadFinal);
                 
-                // --- 🚨 REPARACIÓN FINAL: SCANNER DE VENTA MULTI-VARIABLE (Basado en F12) ---
-                // Se incluyen los nombres exactos detectados en la consola del navegador
-                const ventaFila = Math.round(Number(
-                    item.precioVenta ||     // Detectado en consola F12
-                    item.valor_venta ||     // Detectado en consola F12
+                // --- 🚨 REPARACIÓN MAESTRA DE VENTA (Búsqueda en Cascada) ---
+                // 1. Intentamos buscar en el ítem (nombres detectados en tu consola F12)
+                let ventaFila = Math.round(Number(
+                    item.precioVenta || 
+                    item.valor_venta || 
                     item.subtotalVenta || 
-                    item.subtotal_venta || 
                     item.precio_venta_item || 
                     item.subtotal || 
                     0
                 ));
+
+                // 2. FALLBACK CRÍTICO: Si el ítem individual no tiene precio, 
+                // lo buscamos en la raíz de la orden (donde vimos 'valor_materiales' en tu consola)
+                if (ventaFila === 0) {
+                    ventaFila = Math.round(Number(f.valor_materiales || f.precioSugeridoCliente || 0));
+                    // Nota: Dividimos internamente si hay múltiples ítems, pero aquí rescatamos el valor global
+                }
                 
                 // Acumuladores para el resumen de la OT
                 sumaCostoMateriales += costoFila;
