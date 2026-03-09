@@ -220,17 +220,15 @@ router.patch('/invoices/:id', async (req, res) => {
 router.post('/invoices', async (req, res) => {
     try {
         let facturaData = req.body;
+        console.log("📥 Iniciando proceso de guardado en Atlas...");
 
-        // 👤 1. RESCATE DEL NOMBRE DEL CLIENTE (NUEVO: PARA HISTORIAL)
-        // Como quotes.js envía { cliente: { nombre: "..." } }, lo extraemos aquí:
+        // 👤 1. RESCATE DEL NOMBRE DEL CLIENTE (MANTENIDO)
         let nombreParaTabla = "CLIENTE GENÉRICO";
         if (facturaData.cliente && typeof facturaData.cliente === 'object') {
             nombreParaTabla = facturaData.cliente.nombre || "CLIENTE GENÉRICO";
         } else if (typeof facturaData.cliente === 'string') {
             nombreParaTabla = facturaData.cliente;
         }
-        
-        // Guardamos el nombre plano para que la tabla lo encuentre fácil
         facturaData.clienteNombre = String(nombreParaTabla).toUpperCase();
 
         // 🔥 2. BLOQUE DE RESCATE DE MATERIALES (MANTENIDO E INTACTO)
@@ -238,7 +236,6 @@ router.post('/invoices', async (req, res) => {
             facturaData.items = facturaData.items.map(item => {
                 const nombreDetectado = item.nombre || item.descripcion || item.materialNombre || "MATERIAL";
                 const nombreFinal = String(nombreDetectado).toUpperCase();
-
                 return {
                     ...item,
                     materialNombre: nombreFinal, 
@@ -248,32 +245,43 @@ router.post('/invoices', async (req, res) => {
             });
         }
 
-        // --- LÓGICA DE CONSECUTIVO OT (REINICIO INTELIGENTE v17.4.0) ---
+        // --- LÓGICA DE CONSECUTIVO OT (REFORZADA v18.0.0) ---
+        // Buscamos la última factura asegurando que Atlas nos de el dato más reciente
         const ultimaFactura = await Invoice.findOne().sort({ createdAt: -1 }).lean();
         let siguienteNumero = 1;
 
         if (ultimaFactura) {
+            // Buscamos el número en numeroOrden o numeroFactura indistintamente
             const idTexto = ultimaFactura.numeroOrden || ultimaFactura.numeroFactura || "";
-            if (idTexto.startsWith('OT-')) {
+            // Usamos regex para extraer solo los números al final (ej: de 'OT-00025' extrae 25)
+            const match = idTexto.match(/\d+$/);
+            if (match) {
+                siguienteNumero = parseInt(match[0]) + 1;
+            } else if (idTexto.startsWith('OT-')) {
+                // Fallback a tu lógica anterior por si el regex no aplica
                 const partes = idTexto.split('-');
                 const ultimoNum = parseInt(partes[partes.length - 1]);
-                if (!isNaN(ultimoNum)) {
-                    siguienteNumero = ultimoNum + 1;
-                }
+                if (!isNaN(ultimoNum)) siguienteNumero = ultimoNum + 1;
             }
         }
 
         const otConsecutivo = `OT-${String(siguienteNumero).padStart(5, '0')}`;
         facturaData.numeroFactura = otConsecutivo;
         facturaData.numeroOrden = otConsecutivo; 
+        console.log(`🆕 Asignando consecutivo: ${otConsecutivo}`);
         
-        // --- GUARDADO EN ATLAS CON FORZADO ---
+        // --- GUARDADO EN ATLAS CON MONITOREO DE ERRORES ---
         const nuevaFactura = new Invoice(facturaData);
-        
-        // Esto obliga a Mongoose a guardar el array de items aunque sea complejo
         nuevaFactura.markModified('items'); 
         
-        await nuevaFactura.save();
+        try {
+            await nuevaFactura.save();
+            console.log(`✅ ¡ÉXITO! ${otConsecutivo} guardada en Atlas.`);
+        } catch (saveError) {
+            // Este log aparecerá en Netlify y nos dirá exactamente qué campo rechaza Atlas
+            console.error("🚨 ATLAS RECHAZÓ EL GUARDADO:", saveError.message);
+            throw new Error(`Error de validación en Atlas: ${saveError.message}`);
+        }
 
         // --- DESCUENTO DE STOCK (MANTENIDO INTACTO) ---
         if (facturaData.items) {
@@ -293,8 +301,12 @@ router.post('/invoices', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("🚨 Error en /invoices:", error.message);
-        res.status(500).json({ success: false, error: error.message });
+        console.error("🚨 ERROR FINAL EN /INVOICES:", error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            tip: "Revisa los logs de Netlify para ver el error detallado de Mongoose" 
+        });
     }
 });
 
