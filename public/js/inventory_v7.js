@@ -498,7 +498,7 @@ async function fetchInventory() {
     // --- FACTURACIÓN (PRESERVADO) ---
 
 async function facturarVenta() {
-    // ... (Validaciones iniciales de cotización y cliente se mantienen igual) ...
+    // ... (Validaciones iniciales se mantienen igual) ...
     const nombre = document.getElementById('nombreCliente')?.value.trim();
     const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
     const btnVenta = document.getElementById('btnFinalizarVenta');
@@ -511,26 +511,26 @@ async function facturarVenta() {
 
         if (esMoldura) {
             // --- 📏 LÓGICA ML (PERÍMETRO REAL + DESPERDICIO) ---
-            // 1. Buscamos el desperdicio configurado en Atlas para esta moldura específica
+            // 1. Buscamos el desperdicio configurado (el que viste de 80cm o 15cm en Atlas)
             const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
             const despCm = parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0);
             
-            // 2. CÁLCULO QUIRÚRGICO DEL PERÍMETRO: (Ancho + Largo) * 2
-            // Convertimos CM a Metros para que el descuento en Atlas sea coherente
-            const anchoM = datosCotizacionActual.anchoOriginal / 100;
-            const largoM = datosCotizacionActual.largoOriginal / 100;
-            const perimetroML = (anchoM + largoM) * 2;
+            // 2. CÁLCULO DEL PERÍMETRO: (Ancho + Largo) * 2 
+            // Ejemplo: (60 + 80) * 2 = 280 cm
+            const anchoOriginal = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
+            const largoOriginal = parseFloat(datosCotizacionActual.largoOriginal) || 0;
+            const perimetroCm = (anchoOriginal + largoOriginal) * 2;
 
-            // 3. RESULTADO: Perímetro en metros + Desperdicio convertido a metros
-            cantidadFinalADescontar = perimetroML + (despCm / 100);
+            // 3. RESULTADO EN METROS: (280cm / 100) + (15cm / 100) = 2.95 ML
+            cantidadFinalADescontar = (perimetroCm / 100) + (despCm / 100);
             
-            console.log(`📏 [ML] ${nombreUP}: Perímetro(${perimetroML.toFixed(2)}m) + Desp(${despCm}cm) = Total: ${cantidadFinalADescontar.toFixed(2)}m`);
+            console.log(`✅ [MOLDURA] ${nombreUP}: Perímetro ${(perimetroCm/100).toFixed(2)}m + Desp ${(despCm/100).toFixed(2)}m = ${cantidadFinalADescontar.toFixed(2)} ML`);
         } else {
-            // --- 🟦 LÓGICA M2 (ÁREA NETA SIN DESPERDICIO) ---
-            // Para Vidrios, Paspartú, etc., mantenemos el área final neta de la cotización
+            // --- 🟦 LÓGICA M2 (VIDRIOS, PASPARTÚ, ETC.) ---
+            // Se mantiene el área neta sin desperdicio como ya funcionaba
             cantidadFinalADescontar = datosCotizacionActual.areaFinal;
             
-            console.log(`🟦 [M2] ${nombreUP}: Descontando área neta ${cantidadFinalADescontar.toFixed(4)} m²`);
+            console.log(`🟦 [M2] ${nombreUP}: Área Neta ${cantidadFinalADescontar.toFixed(4)} m²`);
         }
 
         return {
@@ -538,12 +538,12 @@ async function facturarVenta() {
             materialNombre: m.nombre,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
-            area_m2: cantidadFinalADescontar, // Valor final que restará el stock en Atlas
+            area_m2: cantidadFinalADescontar, 
             costo_unitario: m.costoUnitario
         };
     });
 
-    // --- 🛡️ PROCESO DE GUARDADO (SE MANTIENE IGUAL) ---
+    // --- 🛡️ PROCESO DE GUARDADO (SIN CAMBIOS) ---
     const facturaData = {
         clienteNombre: nombre, 
         clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
