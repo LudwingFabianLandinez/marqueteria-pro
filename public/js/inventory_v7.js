@@ -510,25 +510,26 @@ async function facturarVenta() {
         let cantidadFinalADescontar = 0;
 
         if (esMoldura) {
-            // --- 📏 LÓGICA ML (PERÍMETRO REAL + DESPERDICIO) ---
-            // 1. Buscamos el desperdicio configurado (el que viste de 80cm o 15cm en Atlas)
-            const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
-            const despCm = parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0);
+            // --- 📏 MOTOR LINEAL INVIOLABLE (PERÍMETRO + DESPERDICIO) ---
+            // Extraemos medidas originales para evitar que el sistema use el área (0.48)
+            const anchoPieza = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
+            const largoPieza = parseFloat(datosCotizacionActual.largoOriginal) || 0;
             
-            // 2. CÁLCULO DEL PERÍMETRO: (Ancho + Largo) * 2 
-            // Ejemplo: (60 + 80) * 2 = 280 cm
-            const anchoOriginal = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
-            const largoOriginal = parseFloat(datosCotizacionActual.largoOriginal) || 0;
-            const perimetroCm = (anchoOriginal + largoOriginal) * 2;
+            // 1. Perímetro: (Ancho + Largo) * 2 / 100 -> Ejemplo: (60 + 80) * 2 = 2.80m
+            const perimetroM = ((anchoPieza + largoPieza) * 2) / 100;
 
-            // 3. RESULTADO EN METROS: (280cm / 100) + (15cm / 100) = 2.95 ML
-            cantidadFinalADescontar = (perimetroCm / 100) + (despCm / 100);
+            // 2. Desperdicio: Buscamos en memoria el valor de Atlas (ej. 15cm o 80cm)
+            const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
+            const desperdicioM = (parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0)) / 100;
             
-            console.log(`✅ [MOLDURA] ${nombreUP}: Perímetro ${(perimetroCm/100).toFixed(2)}m + Desp ${(despCm/100).toFixed(2)}m = ${cantidadFinalADescontar.toFixed(2)} ML`);
+            // 3. Resultado Final: Perímetro Metros + Desperdicio Metros -> 2.80 + 0.15 = 2.95 ML
+            cantidadFinalADescontar = perimetroM + desperdicioM;
+            
+            console.log(`🚀 [MOLDURA] ${nombreUP}: Perímetro ${perimetroM.toFixed(2)}m + Desp ${desperdicioM.toFixed(2)}m = Total ${cantidadFinalADescontar.toFixed(2)} ML`);
         } else {
-            // --- 🟦 LÓGICA M2 (VIDRIOS, PASPARTÚ, ETC.) ---
-            // Se mantiene el área neta sin desperdicio como ya funcionaba
-            cantidadFinalADescontar = datosCotizacionActual.areaFinal;
+            // --- 🟦 LÓGICA M2 PRESERVADA (VIDRIOS/PASPARTÚ) ---
+            // Mantenemos el cálculo de área neta sin desperdicio para materiales de superficie
+            cantidadFinalADescontar = parseFloat(datosCotizacionActual.areaFinal) || 0;
             
             console.log(`🟦 [M2] ${nombreUP}: Área Neta ${cantidadFinalADescontar.toFixed(4)} m²`);
         }
@@ -538,6 +539,7 @@ async function facturarVenta() {
             materialNombre: m.nombre,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
+            // 'area_m2' es el alias que usa el backend para restar del stock_actual
             area_m2: cantidadFinalADescontar, 
             costo_unitario: m.costoUnitario
         };
