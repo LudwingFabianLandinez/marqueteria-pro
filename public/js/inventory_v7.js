@@ -392,8 +392,14 @@ async function fetchInventory() {
         fila.setAttribute('data-nombre', nombreClaveAttr);
         
         const nombreUP = m.nombre.toUpperCase();
-        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
-        const unidadFinal = esMoldura ? 'ml' : 'm²';
+// Detectamos si es moldura por nombre o si ya viene marcado como 'ml' desde Atlas
+const esMoldura = nombreUP.includes("MOLDURA") || 
+                   nombreUP.startsWith("K ") || 
+                   (m.tipo && m.tipo.toLowerCase() === 'ml');
+
+// IMPORTANTE: Usa 'ML' en mayúsculas si tu tabla de inventario filtra así, 
+// o asegúrate de que coincida con el campo 'tipo' de Atlas.
+const unidadFinal = esMoldura ? 'ML' : 'M2';
         
         // --- 📏 LÓGICA DE DIMENSIONES Y ÁREA ---
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
