@@ -413,6 +413,12 @@
                 <input type="number" id="matCosto" step="0.01">
             </div>
 
+            <div class="form-group" style="background: #fffaf0; padding: 10px; border-radius: 6px; border: 1px solid #feebc8;">
+                <label style="color: #c05621; font-weight: bold;">DESPERDICIO (CM) - 🛡️ PROTEGIDO</label>
+                <input type="number" id="matDesperdicio" step="0.1" placeholder="Ej: 15">
+                <small style="color: #7b341e;">Este valor es vital para el cálculo de molduras.</small>
+                </div>
+
             <div class="form-group">
                 <label>Punto de Reorden (Stock Mínimo)</label>
                 <input type="number" id="matStockMin" step="0.01" placeholder="Avisar cuando quede menos de...">
@@ -621,37 +627,49 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
+// --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v21.5 - DOBLE ENTRADA Y BLINDAJE) ---
 window.guardarCambiosEdicion = async function() {
-    const id = window.materialEditandoId; // Este ID se setea al abrir el modal desde inventory.js
+    const id = window.materialEditandoId; 
     if (!id) return alert("❌ Error: No se detectó el ID del material.");
 
-    // 1. Captura de datos del modal
+    // 1. Captura de datos básicos
     const nuevoNombre = document.getElementById('matNombre').value.trim().toUpperCase();
     const nuevoCosto = parseFloat(document.getElementById('matCosto').value) || 0;
-    
-    // 2. 🚨 ESCUDO DE DESPERDICIO (PUNTO CRÍTICO) 🚨
-    // Buscamos el material en la memoria local para ver qué desperdicio tenía antes
+    const nuevoAncho = parseFloat(document.getElementById('matAncho').value) || 0;
+    const nuevoLargo = parseFloat(document.getElementById('matLargo').value) || 0;
+    const nuevoStockMin = parseFloat(document.getElementById('matStockMin').value) || 0;
+
+    // 2. 🚨 CAPTURA DEL CAMPO DE DESPERDICIO (NUEVA LÓGICA) 🚨
     const materialPrevio = (window.todosLosMateriales || []).find(m => String(m._id || m.id) === String(id));
     
-    // Si el modal tuviera un campo de desperdicio lo usaríamos, 
-    // pero como no lo tiene, RESCATAMOS el valor previo para que Atlas no lo resetee a 0.
-    const desperdicioProtegido = (materialPrevio && (materialPrevio.desperdicio_total_cm || materialPrevio.desperdicio)) 
-                                 ? parseFloat(materialPrevio.desperdicio_total_cm || materialPrevio.desperdicio) 
-                                 : 0;
+    // Intentamos capturar del input del modal (el campo naranja que agregaste)
+    const inputDesperdicio = document.getElementById('matDesperdicio');
+    let desperdicioFinal = 0;
 
+    if (inputDesperdicio && inputDesperdicio.value !== "" && parseFloat(inputDesperdicio.value) !== 0) {
+        // SI EL USUARIO ESCRIBIÓ ALGO: Usamos ese valor (ej: los 15cm)
+        desperdicioFinal = parseFloat(inputDesperdicio.value);
+    } else {
+        // SI EL CAMPO ESTÁ VACÍO O ES 0: Rescatamos lo que ya existía para no borrarlo
+        desperdicioFinal = parseFloat(materialPrevio?.desperdicio_total_cm || materialPrevio?.desperdicio || 0);
+    }
+
+    // 3. Construcción del objeto para Atlas
     const datosActualizados = {
         nombre: nuevoNombre,
         precio_m2_costo: nuevoCosto,
         precio_total_lamina: nuevoCosto,
-        desperdicio_total_cm: desperdicioProtegido, // 🛡️ Aquí se inyecta el blindaje
-        desperdicio: desperdicioProtegido,
-        ancho_lamina_cm: parseFloat(document.getElementById('matAncho').value) || materialPrevio?.ancho_lamina_cm || 100,
-        largo_lamina_cm: parseFloat(document.getElementById('matLargo').value) || materialPrevio?.largo_lamina_cm || 100,
-        stock_minimo: parseFloat(document.getElementById('matStockMin').value) || 0
+        // Inyectamos el desperdicio en todos los campos posibles por compatibilidad
+        desperdicio_total_cm: desperdicioFinal, 
+        desperdicio: desperdicioFinal,
+        // Si es moldura y no tiene ancho, usamos el desperdicio como "ancho" para asegurar el dato en Atlas
+        ancho_lamina_cm: (nuevoNombre.includes("MOLDURA") || nuevoNombre.startsWith("K ")) && nuevoAncho === 0 ? desperdicioFinal : nuevoAncho,
+        largo_lamina_cm: nuevoLargo || materialPrevio?.largo_lamina_cm || 100,
+        stock_minimo: nuevoStockMin
     };
 
     try {
-        console.log("📡 Editando en Atlas con Escudo de Desperdicio:", desperdicioProtegido);
+        console.log("📡 Enviando a Atlas (Desperdicio Asegurado):", desperdicioFinal, datosActualizados);
         
         const response = await fetch(`${window.API_URL}/materials/${id}`, {
             method: 'PUT',
@@ -661,22 +679,30 @@ window.guardarCambiosEdicion = async function() {
 
         if (!response.ok) throw new Error("No se pudo actualizar en el servidor");
 
-        // Actualizamos la memoria local para que el cambio se vea sin recargar
+        // 4. Actualización de memoria local (Punto Vital)
         if (materialPrevio) {
             Object.assign(materialPrevio, datosActualizados);
+            
+            // Forzamos actualización en el array global
+            const index = window.todosLosMateriales.findIndex(m => String(m._id || m.id) === String(id));
+            if (index !== -1) window.todosLosMateriales[index] = materialPrevio;
+            
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
         }
 
-        alert(`✅ Material Actualizado\nEl desperdicio de ${desperdicioProtegido}cm se mantuvo protegido.`);
+        alert(`✅ Material Actualizado\nDesperdicio registrado: ${desperdicioFinal} cm`);
         
-        // Cerramos modal y refrescamos tabla
+        // Cerrar modal y refrescar
         document.getElementById('modalNuevoMaterial').style.display = 'none';
-        if (typeof window.renderTable === 'function') window.renderTable(window.todosLosMateriales);
-        else location.reload(); // Si no hay renderTable, recargamos
+        if (typeof window.renderTable === 'function') {
+            window.renderTable(window.todosLosMateriales);
+        } else {
+            location.reload();
+        }
 
     } catch (error) {
         console.error("❌ Error en guardado:", error);
-        alert("🚨 ERROR: No se pudo guardar en Atlas.");
+        alert("🚨 ERROR: No se pudo guardar en Atlas. Revisa la consola.");
     }
 };
 
