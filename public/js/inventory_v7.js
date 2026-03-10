@@ -497,8 +497,11 @@ async function fetchInventory() {
 
     // --- FACTURACIÓN (PRESERVADO) ---
 
- async function facturarVenta() {
+async function facturarVenta() {
     // ... (Validaciones iniciales de cotización y cliente se mantienen igual) ...
+    const nombre = document.getElementById('nombreCliente')?.value.trim();
+    const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
+    const btnVenta = document.getElementById('btnFinalizarVenta');
 
     const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
         const nombreUP = m.nombre.toUpperCase().trim();
@@ -507,20 +510,24 @@ async function fetchInventory() {
         let cantidadFinalADescontar = 0;
 
         if (esMoldura) {
-            // --- 📏 LÓGICA ML (CON DESPERDICIO) ---
-            // 1. Buscamos el desperdicio solo para molduras
+            // --- 📏 LÓGICA ML (PERÍMETRO REAL + DESPERDICIO) ---
+            // 1. Buscamos el desperdicio configurado en Atlas para esta moldura específica
             const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
             const despCm = parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0);
             
-            // 2. Calculamos: Metros Lineales del perímetro + Desperdicio
-            // (Usamos el largo original de la pieza para el cálculo lineal)
-            const metrosLinealesBase = (datosCotizacionActual.largoOriginal / 100); 
-            cantidadFinalADescontar = metrosLinealesBase + (despCm / 100);
+            // 2. CÁLCULO QUIRÚRGICO DEL PERÍMETRO: (Ancho + Largo) * 2
+            // Convertimos CM a Metros para que el descuento en Atlas sea coherente
+            const anchoM = datosCotizacionActual.anchoOriginal / 100;
+            const largoM = datosCotizacionActual.largoOriginal / 100;
+            const perimetroML = (anchoM + largoM) * 2;
+
+            // 3. RESULTADO: Perímetro en metros + Desperdicio convertido a metros
+            cantidadFinalADescontar = perimetroML + (despCm / 100);
             
-            console.log(`📏 [ML] ${nombreUP}: ${metrosLinealesBase}m + ${despCm}cm desp = ${cantidadFinalADescontar.toFixed(2)}`);
+            console.log(`📏 [ML] ${nombreUP}: Perímetro(${perimetroML.toFixed(2)}m) + Desp(${despCm}cm) = Total: ${cantidadFinalADescontar.toFixed(2)}m`);
         } else {
-            // --- 🟦 LÓGICA M2 (SIN DESPERDICIO) ---
-            // Para Vidrios, Paspartú, etc., descontamos el área neta de la cotización
+            // --- 🟦 LÓGICA M2 (ÁREA NETA SIN DESPERDICIO) ---
+            // Para Vidrios, Paspartú, etc., mantenemos el área final neta de la cotización
             cantidadFinalADescontar = datosCotizacionActual.areaFinal;
             
             console.log(`🟦 [M2] ${nombreUP}: Descontando área neta ${cantidadFinalADescontar.toFixed(4)} m²`);
@@ -531,13 +538,12 @@ async function fetchInventory() {
             materialNombre: m.nombre,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
-            area_m2: cantidadFinalADescontar, // Atlas recibe este valor para restar
+            area_m2: cantidadFinalADescontar, // Valor final que restará el stock en Atlas
             costo_unitario: m.costoUnitario
         };
     });
 
-    // ... (El resto del fetch a window.API.saveInvoice se mantiene igual) ...
-    // --- 🛡️ CONTINUACIÓN DEL BLOQUE ANTERIOR ---
+    // --- 🛡️ PROCESO DE GUARDADO (SE MANTIENE IGUAL) ---
     const facturaData = {
         clienteNombre: nombre, 
         clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
@@ -559,11 +565,17 @@ async function fetchInventory() {
             window.location.href = "/history.html";
         } else {
             alert("🚨 Error: " + (res.message || "Falla en servidor"));
-            if(btnVenta) btnVenta.disabled = false;
+            if(btnVenta) {
+                btnVenta.disabled = false;
+                btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
+            }
         }
     } catch (e) {
         console.error("Error:", e);
-        if(btnVenta) btnVenta.disabled = false;
+        if(btnVenta) {
+            btnVenta.disabled = false;
+            btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
+        }
     }
 }
 
