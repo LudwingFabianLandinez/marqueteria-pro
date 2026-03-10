@@ -624,6 +624,7 @@ if (formCompra) {
             const inputCosto = document.getElementById('compraCosto');
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
+            const inputDesperdicio = document.getElementById('desperdicio'); // Input manual del modal
 
             let nombreInput = (selectMat.value === "NUEVO") 
                 ? inputNuevo.value.trim() 
@@ -631,7 +632,7 @@ if (formCompra) {
             
             const nombreUP = nombreInput.toUpperCase();
             
-            // --- 🛡️ DETECCIÓN MEJORADA DE MOLDURA (Sintonía con Cotizador) ---
+            // --- 🛡️ DETECCIÓN MEJORADA DE MOLDURA ---
             const esMoldura = nombreUP.includes("MOLDURAS") || nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
             let nombreReal = esMoldura ? nombreUP : nombreInput;
 
@@ -640,7 +641,7 @@ if (formCompra) {
             const largoCm = parseFloat(inputLargo?.value) || 0;
             const anchoCm = parseFloat(inputAncho?.value) || 0;
             
-            // --- 🚀 CLASIFICACIÓN INTELIGENTE DE CATEGORÍA ---
+            // --- 🚀 CLASIFICACIÓN DE CATEGORÍA ---
             let categoriaDeterminada;
             const esVidrio = nombreUP.includes("VIDRIO") || nombreUP.includes("CRISTAL") || nombreUP.includes("ESPEJO");
             const esAcabado = nombreUP.includes("CHAPILLA") || nombreUP.includes("AFRICANA") || nombreUP.includes("PASSEPARTOUT") || nombreUP.includes("LONA") || nombreUP.includes("TELA");
@@ -657,46 +658,24 @@ if (formCompra) {
                 categoriaDeterminada = "GENERAL";
             }
 
-            // --- 🛡️ BUSQUEDA DE EXISTENTE REFORZADA ---
+            // --- 🛡️ BUSQUEDA DE EXISTENTE ---
             if (!window.todosLosMateriales) window.todosLosMateriales = [];
-            
             let existente = window.todosLosMateriales.find(m => 
                 m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
             );
 
-            if (existente) {
-                console.log(`♻️ Sincronizando ID para evitar duplicado: ${existente.nombre}`);
-                existente.categoria = categoriaDeterminada; 
-            }
-
-            // --- 📏 LÓGICA DE COSTO (PRESERVADA Y UNIFICADA) ---
+            // --- 📏 LÓGICA DE COSTO ---
             let costoFinalAtlas = costoIngresado;
-            
-            const esMaterialSuperficie = !esMoldura && (
-                esVidrio || 
-                nombreUP.includes("VIDRIO") || 
-                nombreUP.includes("ESPEJO") || 
-                nombreUP.includes("ANTIRREFLECTIVO") || 
-                esAcabado || 
-                categoriaDeterminada === "RESPALDO" ||
-                categoriaDeterminada === "VIDRIO" ||
-                nombreUP.includes("TRIPLEX") || 
-                nombreUP.includes("MDF") || 
-                nombreUP.includes("FOAM")
-            );
+            const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || categoriaDeterminada === "RESPALDO" || categoriaDeterminada === "VIDRIO");
 
             if (esMaterialSuperficie) {
-                const largoCalculo = largoCm || parseFloat(document.getElementById('compraLargo')?.value) || 0;
-                const anchoCalculo = anchoCm || parseFloat(document.getElementById('compraAncho')?.value) || 0;
-                const areaM2 = (largoCalculo * anchoCalculo) / 10000;
-
+                const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
                     costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
-                    console.log(`🛡️ ATLAS-LOG [${nombreReal}]: Hoja de ${areaM2.toFixed(2)}m2 | Costo m2: ${costoFinalAtlas}`);
                 }
             }
 
-            // --- 🛡️ CORRECCIÓN DINÁMICA DE PRECISIÓN ---
+            // --- 🛡️ PROTECCIÓN DE DIMENSIONES ---
             const largoReferencia = (largoCm > 0) ? largoCm : 290;
             const factorAnchoEscala = esMoldura ? 100 : anchoCm;
 
@@ -707,74 +686,44 @@ if (formCompra) {
             const idMasterAtlas = (existente && (existente._id || existente.id)) ? (existente._id || existente.id) : null;
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
-            // --- 🚨 REPARACIÓN DEFINITIVA: CAPTURA DESPERDICIO Y CALCULO VENTA (v20.1) 🚨 ---
-            
-            // 1. Intentamos capturar el valor del cuadro verde por múltiples vías (ID, Data-ID o Selector)
-            const desperdicioInput = document.getElementById('cat-desperdicio-maestro') || 
-                                     document.querySelector('[data-id="campo-verde-desperdicio"]') ||
-                                     document.getElementById('compraDesperdicio');
+            // --- 🚨 SINCRONIZACIÓN DE DESPERDICIO (REGLA DE ORO) 🚨 ---
+            // Capturamos el valor manual. Si es 0 o vacío, heredamos lo que Atlas ya tenía.
+            const desperdicioValorManual = inputDesperdicio ? parseFloat(inputDesperdicio.value) : 0;
+            const desperdicioEnMaestro = (existente && (existente.desperdicio_total_cm || existente.desperdicio)) 
+                ? parseFloat(existente.desperdicio_total_cm || existente.desperdicio) 
+                : 0;
 
-            let desperdicioValor = 0;
-            if (desperdicioInput && desperdicioInput.value && desperdicioInput.value !== "") {
-                desperdicioValor = parseFloat(desperdicioInput.value);
-                if (isNaN(desperdicioValor)) desperdicioValor = 0;
-            } else {
-                // 🛡️ PLAN B: Si el input no se encuentra o está vacío, rescatamos el valor existente
-                // para evitar que un error de interfaz sobreescriba con 0 en Atlas.
-                desperdicioValor = (existente && (existente.desperdicio || existente.desperdicio_total_cm)) 
-                                    ? parseFloat(existente.desperdicio || existente.desperdicio_total_cm) 
-                                    : 0;
-            }
+            const desperdicioFinalSincronizado = (desperdicioValorManual > 0) ? desperdicioValorManual : desperdicioEnMaestro;
 
-            console.log(`📡 ATLAS-SYNC [${nombreReal}]: Desperdicio capturado = ${desperdicioValor} cm`);
-
-            // Calculamos precio de venta sugerido (ej: margen 50%) para que el reporte no sea 0
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-            // --- 🛡️ CAPTURA DIRECTA Y HERENCIA (BLOQUE CORREGIDO) ---
-            // Leemos el valor directamente del DOM para evitar que llegue vacío
-            const inputDesperdicio = document.getElementById('desperdicio');
-            const desperdicioValorManual = inputDesperdicio ? inputDesperdicio.value : "0";
+            // --- 📦 OBJETO PARA ATLAS (BLINDAJE DE EMERGENCIA) ---
+            const datosParaAtlas = {
+                materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
+                nombre: nombreReal,
+                esNuevo: esNuevoMaterial,
+                categoria: categoriaDeterminada,
+                cantidad_laminas: cant,
+                precio_total_lamina: costoFinalAtlas, 
 
-            // Recuperamos el valor del Maestro si existe
-            const desperdicioEnMaestro = (existente && existente.desperdicio_total_cm) ? parseFloat(existente.desperdicio_total_cm) : 0;
-            const desperdicioCapturado = parseFloat(desperdicioValorManual) || 0;
+                // TRIPLE ENVÍO PARA ASEGURAR COMPATIBILIDAD
+                desperdicio: desperdicioFinalSincronizado,
+                desperdicio_total_cm: desperdicioFinalSincronizado,
+                desperdicio_total: desperdicioFinalSincronizado,
 
-            // REGLA DE ORO: Si el input está vacío o es 0, hereda el del Maestro para protegerlo
-            const desperdicioFinalSincronizado = (desperdicioCapturado > 0) ? desperdicioCapturado : desperdicioEnMaestro;
+                // 🚀 EL TÚNEL: Guardamos el desperdicio en el ancho para molduras
+                ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
+                largo_lamina_cm: largoReferencia,
 
-           // --- 📦 OBJETO PARA ATLAS (BLINDAJE DE EMERGENCIA v2.0) ---
-const datosParaAtlas = {
-    materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
-    nombre: nombreReal,
-    esNuevo: esNuevoMaterial,
-    categoria: categoriaDeterminada,
-    cantidad_laminas: cant,
-    precio_total_lamina: costoFinalAtlas, 
+                precio_m2_costo: costoFinalAtlas, 
+                precio_venta_sugerido: precioVentaSugerido,
+                tipo_material: esMoldura ? 'ml' : 'm2',
+                costo_total: costoIngresado * cant,
+                timestamp: new Date().toISOString(),
+                _id: esNuevoMaterial ? undefined : idMasterAtlas 
+            };
 
-    // --- 🛡️ TRIPLE BLINDAJE DE DESPERDICIO ---
-    // Enviamos el dato con todos los nombres posibles para que el Backend capture alguno
-    desperdicio: parseFloat(desperdicioFinalSincronizado) || 0,
-    desperdicio_total_cm: parseFloat(desperdicioFinalSincronizado) || 0,
-    desperdicio_total: parseFloat(desperdicioFinalSincronizado) || 0,
-    merma: parseFloat(desperdicioFinalSincronizado) || 0,
-
-    // --- 🚨 HACK DE RESPALDO (Uso del ancho como transporte) ---
-    // Si Atlas sigue poniendo 0 en los campos de arriba, el cotizador 
-    // buscará el 15 aquí en 'ancho_lamina_cm' como último recurso.
-    ancho_lamina_cm: esMoldura ? (parseFloat(desperdicioFinalSincronizado) || 1) : factorAnchoEscala,
-    largo_lamina_cm: largoReferencia,
-
-    precio_m2_costo: costoFinalAtlas, 
-    precio_venta_sugerido: precioVentaSugerido,
-    tipo_material: esMoldura ? 'ml' : 'm2',
-    costo_total: costoIngresado * cant,
-    timestamp: new Date().toISOString(),
-    _id: esNuevoMaterial ? undefined : idMasterAtlas 
-};
-
-            // LOG DE SEGURIDAD: Verifica en consola que no sea 0 antes del fetch
-            console.log(`📡 ATLAS-SYNC [${nombreReal}]: Final = ${desperdicioFinalSincronizado} (Manual: ${desperdicioCapturado}, Maestro: ${desperdicioEnMaestro})`);
+            console.log(`📡 ATLAS-SYNC: Desperdicio Final = ${desperdicioFinalSincronizado} (Manual: ${desperdicioValorManual}, Maestro: ${desperdicioEnMaestro})`);
 
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
                 method: 'POST',
@@ -782,32 +731,19 @@ const datosParaAtlas = {
                 body: JSON.stringify(datosParaAtlas)
             });
 
-            const textoRespuesta = await response.text();
-            let resultadoAtlas;
-            try { resultadoAtlas = JSON.parse(textoRespuesta); } catch (err) { throw new Error("Atlas no respondió JSON válido."); }
+            if (!response.ok) throw new Error("Atlas rechazó la conexión.");
+            const resultadoAtlas = await response.json();
 
-            if (!response.ok) throw new Error(resultadoAtlas.error || "Atlas rechazó la conexión.");
-
+            // --- ⚓ ACTUALIZACIÓN LOCAL ---
             const idDeAtlas = resultadoAtlas.data?._id || resultadoAtlas.data?.id;
-            let objetoFinal; 
+            let objetoFinal;
 
             if (existente) {
-                // --- 🛡️ SUMA ATÓMICA Y SINCRONIZACIÓN LOCAL ---
                 const stockAnterior = Number(existente.stock_actual) || 0;
-                const nuevoStockSuma = stockAnterior + VALOR_REAL_INCREMENTO;
-                
-                existente.stock_actual = Number(nuevoStockSuma.toFixed(2));
-                existente.ancho_lamina_cm = factorAnchoEscala;
-                existente.largo_lamina_cm = largoReferencia;
-                existente.precio_total_lamina = costoFinalAtlas;
-                existente.precio_venta_sugerido = precioVentaSugerido; 
-                
-                // Sincronización local blindada con el valor resultante (Heredado o Nuevo)
-                existente.desperdicio = desperdicioFinalSincronizado;
+                existente.stock_actual = Number((stockAnterior + VALOR_REAL_INCREMENTO).toFixed(2));
+                existente.ancho_lamina_cm = datosParaAtlas.ancho_lamina_cm;
                 existente.desperdicio_total_cm = desperdicioFinalSincronizado;
-                
-                existente.categoria = categoriaDeterminada;
-                
+                existente.desperdicio = desperdicioFinalSincronizado;
                 if (idDeAtlas) { existente._id = idDeAtlas; existente.id = idDeAtlas; }
                 objetoFinal = existente;
             } else {
@@ -818,47 +754,35 @@ const datosParaAtlas = {
                     categoria: categoriaDeterminada,
                     stock_actual: Number(VALOR_REAL_INCREMENTO.toFixed(2)),
                     precio_total_lamina: costoFinalAtlas,
-                    precio_venta_sugerido: precioVentaSugerido,
-                    
-                    desperdicio: desperdicioFinalSincronizado,
                     desperdicio_total_cm: desperdicioFinalSincronizado,
-                    
-                    ancho_lamina_cm: factorAnchoEscala,
+                    desperdicio: desperdicioFinalSincronizado,
+                    ancho_lamina_cm: datosParaAtlas.ancho_lamina_cm,
                     largo_lamina_cm: largoReferencia
                 };
                 window.todosLosMateriales.unshift(nuevoMaterial);
                 objetoFinal = nuevoMaterial;
             }
 
-            // --- ⚓ ACTUALIZACIÓN DE STORAGE ---
             localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-
-            if (typeof actualizarStockEnTablaVisual === 'function') {
-                actualizarStockEnTablaVisual(nombreReal, VALOR_REAL_INCREMENTO, esMoldura ? 'ML' : 'M2');
-            }
-
-            // Lógica de pendientes (Preservada)
+            
+            // Limpieza de pendientes
             let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
             pendientes = pendientes.filter(p => p.nombre.toLowerCase() !== nombreReal.toLowerCase());
-            pendientes.push({ ...objetoFinal, fechaCompra: new Date().toISOString() });
             localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
 
-            if (typeof renderTable === 'function') renderTable(window.todosLosMateriales);
+            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nDesperdicio Protegido: ${desperdicioFinalSincronizado} CM`);
+            
+            location.reload();
 
-            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}\nDesperdicio Protegido: ${desperdicioFinalSincronizado} CM\nSubtotal Venta Activo.`);
-
-            if(document.getElementById('modalCompra')) document.getElementById('modalCompra').style.display = 'none';
-            formulario.reset();
-            if (typeof cargarListasModal === 'function') cargarListasModal();
-            } catch (error) {
-                console.error("❌ Error en Proceso de Compra:", error);
-                alert("⚠️ FALLO DE ATLAS:\n" + error.message);
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
-            }
-        };
-    }
-    }
+        } catch (error) {
+            console.error("❌ Error:", error);
+            alert("⚠️ FALLO DE ATLAS:\n" + error.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
+        }
+    };
+}
+}
 
     function actualizarStockEnTablaVisual(nombre, cantidadASumar, tipo) {
         const limpiarNombre = (t) => String(t).toUpperCase().trim();

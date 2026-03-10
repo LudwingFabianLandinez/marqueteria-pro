@@ -384,7 +384,7 @@
                 <button type="button" class="btn-action" style="background: #e2e8f0; color: #4a5568; flex: 1;" onclick="document.getElementById('modalCompra').style.display='none'">Cancelar</button>
             </div>
         </form>
-    </div>
+    </div>  
 </div>
 
 <div id="modalNuevoMaterial" class="modal" style="display: none;">
@@ -551,7 +551,7 @@ async function ejecutarRegistroMaestro() {
         const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
         if (esMolduraReal) {
-            // Si tiene medida en el nombre (ej: 4cm X 300cm) usa 300, si no usa 2.8m
+            // Si tiene medida en el nombre (ej: 4cm X 300cm) usa largoLocal, si no usa 2.8m (280cm)
             const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
             costoUnitarioFinal = Math.round(precioCompra / metros);
         } else {
@@ -561,38 +561,36 @@ async function ejecutarRegistroMaestro() {
 
         const categoriaParaCotizador = esMolduraReal ? "MOLDURAS" : categoria;
 
-        // --- 🛡️ OBJETO PARA ATLAS CON TRANSPORTE DE DESPERDICIO (FIX 2.95 ML) ---
-// --- 🛡️ OBJETO PARA ATLAS: VERSIÓN TÚNEL DEFINITIVO (PARA 2.95 ML) ---
-const nuevoMaterial = {
-    materialId: "NUEVO", 
-    id: "NUEVO", 
-    nombre: nombre, 
-    categoria: categoriaParaCotizador, 
-    costo_base: costoUnitarioFinal, 
-    precio_m2_costo: costoUnitarioFinal, 
-    
-    // 1. REFUERZO DE TRANSPORTE (Mantenemos por si el servidor despierta)
-    precio_total_lamina: precioCompra, 
-    desperdicio_total_cm: desperdicio,
-    desperdicio: desperdicio,
-    merma: desperdicio,
+        // --- 🛡️ OBJETO PARA ATLAS: VERSIÓN TÚNEL DEFINITIVO (PARA 2.95 ML) ---
+        const nuevoMaterial = {
+            materialId: "NUEVO", 
+            id: "NUEVO", 
+            nombre: nombre, 
+            categoria: categoriaParaCotizador, 
+            costo_base: costoUnitarioFinal, 
+            precio_m2_costo: costoUnitarioFinal, 
+            
+            // 1. REFUERZO DE DATOS (Múltiples campos para que Atlas no ignore el desperdicio)
+            precio_total_lamina: precioCompra, 
+            desperdicio_total_cm: desperdicio,
+            desperdicio: desperdicio,
+            merma: desperdicio,
 
-    // 2. 🚀 EL TÚNEL (SOLUCIÓN AL BLOQUEO DE ATLAS)
-    // Forzamos el desperdicio (15) en 'ancho_lamina_cm' porque Atlas SIEMPRE lo guarda.
-    // Para molduras, el ancho no se usa, así que lo sacrificamos para salvar el desperdicio.
-    ancho_lamina_cm: esMolduraReal ? (parseFloat(desperdicio) || 0) : 100, 
-    
-    // El largo lo dejamos en 100 para no romper cálculos de área en otros materiales
-    largo_lamina_cm: 100, 
-    
-    stock_actual: 0,
-    unidad: esMolduraReal ? "ML" : "M2",
-    tipo_material: esMolduraReal ? 'ml' : 'm2',
-    estado: 'Activo'
-};
-        
+            // 2. 🚀 EL TÚNEL (SOLUCIÓN DEFINITIVA PARA MOLDURAS)
+            // Si es moldura, inyectamos el desperdicio (ej: 15) en 'ancho_lamina_cm'.
+            // Esto es lo que garantiza el 2.95 en el cotizador aunque Atlas resetee los otros campos.
+            ancho_lamina_cm: esMolduraReal ? (parseFloat(desperdicio) || 0) : (anchoLocal || 100), 
+            
+            // Si es moldura usamos el largo del nombre o 280 (estándar), si no 100.
+            largo_lamina_cm: esMolduraReal ? (largoLocal || 280) : (largoLocal || 100), 
+            
+            stock_actual: 0,
+            unidad: esMolduraReal ? "ML" : "M2",
+            tipo_material: esMolduraReal ? 'ml' : 'm2',
+            estado: 'Activo'
+        };
 
-        console.log("📡 Enviando con Escudo y Desperdicio:", nuevoMaterial);
+        console.log("📡 Registrando Material Maestro con Blindaje:", nuevoMaterial);
         
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
@@ -605,7 +603,7 @@ const nuevoMaterial = {
         const res = await response.json();
 
         if (res.success || response.ok) {
-            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
+            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio Protegido: ${desperdicio} cm`);
             localStorage.removeItem('inventory'); 
             location.reload();
         } else {
