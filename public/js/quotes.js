@@ -253,8 +253,8 @@ const obtenerMLConDesperdicio = (a, l, materialEspecífico) => {
 
 async function procesarCotizacion() {
     const btnCalc = document.querySelector('.btn-calc');
-    const ancho = parseFloat(document.getElementById('ancho').value);
-    const largo = parseFloat(document.getElementById('largo').value);
+    const ancho = parseFloat(document.getElementById('ancho').value) || 0;
+    const largo = parseFloat(document.getElementById('largo').value) || 0;
     const manoObraInput = parseFloat(document.getElementById('manoObra').value) || 0;
 
     // 1. Recolección de materiales estándar (Vidrio, Respaldo, etc.)
@@ -263,7 +263,6 @@ async function procesarCotizacion() {
         'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
     ];
 
-    // Mapeo inteligente con Blindaje Multi-Campo (Sincronizado)
     let materialesSeleccionados = selectsIds
         .map(id => {
             const el = document.getElementById(id);
@@ -272,221 +271,141 @@ async function procesarCotizacion() {
             const opcion = el.options[el.selectedIndex];
             if (!opcion) return null;
 
-            // --- 🛡️ EXTRACCIÓN DE COSTO MULTI-ORIGEN ---
             const costoExtraido = parseFloat(opcion.dataset.costo) || 
                                  parseFloat(opcion.dataset.costom2) || 
                                  parseFloat(opcion.dataset.precio) || 0;
 
-            // --- 🛡️ EXTRACCIÓN Y CLASIFICACIÓN CONTUNDENTE ---
-            // --- 🛡️ EXTRACCIÓN Y CLASIFICACIÓN CONTUNDENTE (DENTRO DEL MAP) ---
-const nombreMat = (opcion.text || "").toUpperCase();
-const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
-const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
+            const nombreMat = (opcion.text || "").toUpperCase();
+            const categoriaMat = (opcion.dataset.categoria || "").toUpperCase();
+            const unidadDataset = (opcion.dataset.unidad || "").toLowerCase();
+            const desperdicioExtraido = parseFloat(opcion.dataset.desperdicio) || 0;
 
-// 🚀 RESCATE CRÍTICO: Captura del desperdicio desde el dataset (Donde ya vive el 15 del túnel)
-const desperdicioExtraido = parseFloat(opcion.dataset.desperdicio) || 0;
+            const esML = unidadDataset === 'ml' || 
+                         categoriaMat.includes("MOLDURA") || 
+                         nombreMat.includes("MOLDURA") || 
+                         nombreMat.includes("MARCO") || 
+                         nombreMat.startsWith("K ") ||
+                         nombreMat.includes("2312") || 
+                         nombreMat.includes("2311");
 
-// BLINDAJE TOTAL: Si es ML en Atlas, o si el nombre contiene marcas clave, ES ML.
-// Mantiene: "K ", "MOLDURA", "MARCO", "2312", "2311" y detección por categoría.
-const esML = unidadDataset === 'ml' || 
-             categoriaMat.includes("MOLDURA") || 
-             nombreMat.includes("MOLDURA") || 
-             nombreMat.includes("MARCO") || 
-             nombreMat.startsWith("K ") ||
-             nombreMat.includes("2312") || 
-             nombreMat.includes("2311");
-
-return {
-    id: el.value,
-    nombre: opcion.text.split('(')[0].trim(),
-    costoUnitario: costoExtraido, // Valor $/Metro Lineal del Punto 1
-    unidad: esML ? 'ML' : 'M2',
-    // 🛡️ Blindaje financiero: Pasamos el desperdicio real (ej: 15) solo si es ML
-    desperdicio: esML ? desperdicioExtraido : 0 
-};
+            return {
+                id: el.value,
+                nombre: opcion.text.split('(')[0].trim(),
+                costoUnitario: costoExtraido,
+                unidad: esML ? 'ML' : 'M2',
+                desperdicio: esML ? desperdicioExtraido : 0 
+            };
         })
         .filter(m => m !== null && m.costoUnitario > 0);
 
-    // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS ---
+    // --- 🕵️‍♂️ RASTREO DEL BUSCADOR DE MOLDURAS ---
     const inputTextoMoldura = document.getElementById('input-moldura');
     const selectMolduraOculto = document.getElementById('materialOtroId');
 
-    // --- 🕵️‍♂️ RASTREO QUIRÚRGICO DEL BUSCADOR DE MOLDURAS (REPARADO Y BLINDADO) ---
-if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
-    const optM = selectMolduraOculto.options[selectMolduraOculto.selectedIndex];
-    const yaIncluido = materialesSeleccionados.find(m => m.id === selectMolduraOculto.value);
+    if (inputTextoMoldura && inputTextoMoldura.value.trim() !== "") {
+        const optM = selectMolduraOculto.options[selectMolduraOculto.selectedIndex];
+        const yaIncluido = materialesSeleccionados.find(m => m.id === selectMolduraOculto.value);
 
-    if (optM && optM.value !== "" && !yaIncluido) {
-        // 1. Mantenemos tu extracción de costo multi-origen
-        const costoM = parseFloat(optM.dataset.costo) || 
-                       parseFloat(optM.dataset.costom2) || 
-                       parseFloat(optM.dataset.precio) || 0;
+        if (optM && optM.value !== "" && !yaIncluido) {
+            const costoM = parseFloat(optM.dataset.costo) || 
+                           parseFloat(optM.dataset.costom2) || 
+                           parseFloat(optM.dataset.precio) || 0;
+            const desperdicioM = parseFloat(optM.dataset.desperdicio) || 0;
 
-        // 2. 🚀 RESCATE CRÍTICO: Capturamos el desperdicio específico de esta moldura
-        const desperdicioM = parseFloat(optM.dataset.desperdicio) || 0;
-
-        // 3. Inserción en el array de cálculo con todos los datos necesarios
-        materialesSeleccionados.push({
-            id: selectMolduraOculto.value,
-            nombre: inputTextoMoldura.value.split('(')[0].trim(),
-            costoUnitario: costoM,
-            unidad: 'ML',
-            desperdicio: desperdicioM // <--- Aquí es donde se "conecta" el dato para el cálculo de los 2.95 ML
-        });
-
-        // Auditoría rápida en consola para confirmar la captura
-        console.log(`🔍 Buscador detectó: ${inputTextoMoldura.value} | Desperdicio: ${desperdicioM}cm`);
+            materialesSeleccionados.push({
+                id: selectMolduraOculto.value,
+                nombre: inputTextoMoldura.value.split('(')[0].trim(),
+                costoUnitario: costoM,
+                unidad: 'ML',
+                desperdicio: desperdicioM
+            });
+            console.log(`🔍 Buscador detectó: ${inputTextoMoldura.value} | Desperdicio: ${desperdicioM}cm`);
+        }
     }
-}
 
+    // Validación de entrada
     if (!ancho || !largo || materialesSeleccionados.length === 0) {
         alert("⚠️ Por favor ingresa medidas y selecciona al menos un material.");
         return;
-    // 2. RESCATE DE DATOS DESDE EL SELECTOR
-    const selectMarco = document.getElementById('materialOtroId');
-    const opcionSeleccionada = selectMarco?.options[selectMarco.selectedIndex];
-    
-    // 2.1 Recuperamos el objeto completo (JSON) por si el materialEspecífico no viene
-    const materialRescate = materialEspecífico || (opcionSeleccionada ? JSON.parse(opcionSeleccionada.dataset.full || '{}') : null);
-
-    // 3. RECONOCIMIENTO DE CUALQUIER CANTIDAD (SIN PARCHES)
-    // Prioridad 1: El dataset rescatado (donde viaja el 15 del túnel)
-    // Prioridad 2: Los campos del objeto JSON por si acaso
-    const desperdicioFinal = parseFloat(
-        opcionSeleccionada?.dataset.desperdicio || 
-        materialRescate?.desperdicio_total_cm || 
-        materialRescate?.desperdicio || 
-        materialRescate?.merma || 
-        0
-    );
-    
-    // 4. CÁLCULO FINAL: (Perímetro + Tu dato de Atlas) / 100
-    // Ejemplo: (280 + 15) / 100 = 2.95 ML
-    const totalML = (perimetroCM + desperdicioFinal) / 100;
-    
-    // Log de Auditoría: Confirmación visual del 2.95
-    console.log(`📊 CÁLCULO DINÁMICO EJECUTADO:`);
-    console.log(`- Perímetro Base: ${perimetroCM}cm`);
-    console.log(`- Desperdicio Aplicado: ${desperdicioFinal}cm`);
-    console.log(`- Resultado Final: ${totalML.toFixed(2)} ML`);
-    
-    return Number(totalML.toFixed(2));
-};
-
-
-try {
-
-    if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
-    
-    const areaCalculada = Number(((ancho * largo) / 10000).toFixed(2)); 
-    let totalVentaAcumulado = 0;
-    let costoBaseAcumulado = 0;
-    let resumenGastoML = ""; // Para el reporte visual
-
-    // --- 💰 CÁLCULO SUMATORIO DEFINITIVO (CON BLINDAJE ANTI-CERO Y DESPERDICIO UNIFICADO) ---
-materialesSeleccionados.forEach(m => {
-    let costoItem = 0;
-    let ventaItem = 0;
-
-    // Aseguramos que el costo unitario sea un número válido para evitar NaN
-    const costoUnitarioReal = parseFloat(m.costoUnitario) || 0;
-
-    if (m.unidad === 'ML') {
-        // 1. OBTENER PERÍMETRO BASE EN METROS (Ej: 60x80 -> 2.80m)
-        const perimetroBaseM = ((Number(ancho) + Number(largo)) * 2) / 100;
-
-        // 2. 🛡️ EXTRACCIÓN DEL DESPERDICIO (Sincronizado con Atlas e Inventario)
-        // PRIORIDAD 1: El valor que ya viene en el objeto 'm'
-        // PRIORIDAD 2: El valor que rescatamos del selector (desperdicioFinal que calculamos antes)
-        // PRIORIDAD 3: Búsqueda profunda en materialesOriginales
-        let valorDesperdicioCM = parseFloat(m.desperdicio);
-        
-        if (isNaN(valorDesperdicioCM) || valorDesperdicioCM === 0) {
-            // Usamos la variable desperdicioFinal que definimos líneas arriba del forEach
-            valorDesperdicioCM = (typeof desperdicioFinal !== 'undefined') ? desperdicioFinal : 0;
-        }
-
-        // Si sigue siendo 0, buscamos en memoria por ID
-        if (valorDesperdicioCM === 0) {
-            const materialEnMemoria = materialesOriginales.find(mat => String(mat._id || mat.id) === String(m.id));
-            valorDesperdicioCM = parseFloat(materialEnMemoria?.desperdicio_total_cm || materialEnMemoria?.desperdicio || 0);
-        }
-
-        const desperdicioM = valorDesperdicioCM / 100;
-
-        // 3. 📐 LA SUMA SAGRADA: Perímetro + Desperdicio Específico (Ej: 2.80 + 0.15 = 2.95)
-        // Usamos obtenerMLConDesperdicio para asegurar que la lógica sea idéntica en todo el sistema
-        const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, { desperdicio: valorDesperdicioCM });
-        
-        // 4. CÁLCULO FINANCIERO (Costo Base para el taller)
-        costoItem = Math.round(costoUnitarioReal * gastoMLReal);
-        
-        // 5. 🛡️ BLINDAJE DE VENTA: Regla de Oro x2.5 para Molduras
-        const margenVentaML = 2.5;
-        ventaItem = Math.round(costoItem * margenVentaML);
-        
-        // 6. SINCRONIZACIÓN TOTAL PARA REPORTE Y FACTURACIÓN
-        m.desperdicio = valorDesperdicioCM; 
-        m.cantidadUsada = gastoMLReal; 
-        m.subtotalVenta = ventaItem; 
-        m.tipoMedida = "ML"; 
-        resumenGastoML = `${gastoMLReal} ML`;
-
-        console.log(`🚀 MOLDURA: ${m.nombre} | Base: ${perimetroBaseM}m + Desp: ${desperdicioM}m (${valorDesperdicioCM}cm) = TOTAL: ${gastoMLReal}ML | VENTA: $${ventaItem}`);
-        
-    } else {
-        // 2. LÓGICA DE OTROS: Área M2 (Vidrios, Respaldos, etc.)
-        // Usamos areaCalculada (asegúrate de que esta variable esté definida arriba en procesarCotizacion)
-        const areaM2 = areaCalculada || ((ancho * largo) / 10000);
-        costoItem = Math.round(costoUnitarioReal * areaM2);
-        
-        const margenVentaM2 = 3;
-        ventaItem = Math.round(costoItem * margenVentaM2);
-        
-        m.cantidadUsada = areaM2;
-        m.subtotalVenta = ventaItem;
-        m.tipoMedida = "M2";
-
-        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaM2}M2 | VENTA: $${ventaItem}`);
     }
 
-    // Acumuladores globales para el Gran Total de la Cotización
-    costoBaseAcumulado += costoItem;
-    totalVentaAcumulado += ventaItem;
-});
+    try {
+        if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
         
+        const areaCalculada = Number(((ancho * largo) / 10000).toFixed(3)); 
+        let totalVentaAcumulado = 0;
+        let costoBaseAcumulado = 0;
+        let resumenGastoML = ""; 
 
-        // --- 📈 TOTAL FINAL: Materiales con Utilidad + Mano de Obra ---
+        // --- 💰 CÁLCULO SUMATORIO DEFINITIVO ---
+        materialesSeleccionados.forEach(m => {
+            let costoItem = 0;
+            let ventaItem = 0;
+            const costoUnitarioReal = parseFloat(m.costoUnitario) || 0;
+
+            if (m.unidad === 'ML') {
+                // 🛡️ CAPTURA CRÍTICA DEL DESPERDICIO
+                let valorDesperdicioCM = parseFloat(m.desperdicio) || 0;
+                
+                // Si el objeto no lo trae, lo buscamos en el select directamente
+                if (valorDesperdicioCM === 0) {
+                    const optDirecta = document.querySelector(`#materialOtroId option[value="${m.id}"]`);
+                    valorDesperdicioCM = parseFloat(optDirecta?.dataset.desperdicio) || 0;
+                }
+
+                // 📐 LA SUMA SAGRADA (Usando la función externa obtenerMLConDesperdicio)
+                const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, { desperdicio: valorDesperdicioCM });
+                
+                costoItem = Math.round(costoUnitarioReal * gastoMLReal);
+                ventaItem = Math.round(costoItem * 2.5); // Regla Oro Molduras
+                
+                m.desperdicio = valorDesperdicioCM; 
+                m.cantidadUsada = gastoMLReal; 
+                m.subtotalVenta = ventaItem; 
+                m.tipoMedida = "ML"; 
+                resumenGastoML = `${gastoMLReal} ML`;
+
+                console.log(`🚀 MOLDURA: ${m.nombre} | Base + ${valorDesperdicioCM}cm = ${gastoMLReal}ML`);
+                
+            } else {
+                costoItem = Math.round(costoUnitarioReal * areaCalculada);
+                ventaItem = Math.round(costoItem * 3); // Regla Oro Otros
+                
+                m.cantidadUsada = areaCalculada;
+                m.subtotalVenta = ventaItem;
+                m.tipoMedida = "M2";
+            }
+
+            costoBaseAcumulado += costoItem;
+            totalVentaAcumulado += ventaItem;
+        });
+
+        // --- 📈 TOTALES FINALES ---
         const totalFinalCalculado = Math.round(totalVentaAcumulado + manoObraInput);
-        
-        // REGLA DE ORO SOLICITADA: Total Orden - Suma de Costos Base - Mano de Obra
         const rentabilidadFinal = Math.round(totalFinalCalculado - costoBaseAcumulado - manoObraInput);
 
         let dataFinal = {
-            valor_materiales: costoBaseAcumulado,    // Suma de costos base (lo que te cuesta a ti)
-            suma_costos: costoBaseAcumulado,         // Alias para compatibilidad con otros archivos
-            precioSugeridoCliente: totalFinalCalculado, // El valor que paga el cliente
+            valor_materiales: costoBaseAcumulado,
+            suma_costos: costoBaseAcumulado,
+            precioSugeridoCliente: totalFinalCalculado,
             area: areaCalculada,
             anchoOriginal: ancho,
             largoOriginal: largo,
             areaFinal: areaCalculada,
             valor_mano_obra: manoObraInput,
-            rentabilidad: rentabilidadFinal,         // Utilidad neta real del taller
+            rentabilidad: rentabilidadFinal,
             detalles: { 
                 medidas: `${ancho} x ${largo} cm ${resumenGastoML ? '(Uso: ' + resumenGastoML + ')' : ''}`, 
                 materiales: materialesSeleccionados 
             }
         };
         
-        // Sincronización con la persistencia global
         datosCotizacionActual = dataFinal;
         
-        // Enviamos los datos listos al reporte visual
         if (typeof mostrarResultado === 'function') {
             mostrarResultado(dataFinal);
         }
         
-        // Navegación automática para ver el resultado
         const resDiv = document.getElementById('resultado');
         if (resDiv) {
             resDiv.scrollIntoView({ behavior: 'smooth' });
@@ -497,7 +416,7 @@ materialesSeleccionados.forEach(m => {
     } finally {
         if(btnCalc) btnCalc.innerHTML = '<i class="fas fa-coins"></i> Calcular Precio Final';
     }
-    }
+}
 
     // FUNCIÓN PARA EL BUSCADOR INTELIGENTE (Punto 2b)
     function sincronizarBuscadorMoldura(valor) {
