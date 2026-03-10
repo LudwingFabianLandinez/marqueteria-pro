@@ -643,13 +643,13 @@ async function procesarCotizacion() {
 const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
     // 🚀 LÓGICA DE CONSUMO REAL: Rescatamos el gasto exacto (Ej: 2.95 ML) calculado en el paso anterior
     const cantidadRealConsumo = parseFloat(m.cantidadUsada) || (parseFloat(datosCotizacionActual.areaFinal) || 0);
+    const unidadVisual = (m.unidad || "").toUpperCase();
     
     // 🚨 REPARACIÓN CERTERA DEL VALOR DE VENTA (BLINDAJE ANTI-CERO)
     // Extraemos el subtotal calculado. Si no existe o es 0, ejecutamos la Regla de Oro.
     let valorVentaFinal = parseFloat(m.subtotalVenta) || 0;
     
     if (valorVentaFinal === 0) {
-        const unidadVisual = (m.unidad || "").toUpperCase();
         const costoBase = parseFloat(m.costoUnitario) || 0;
         // REGLA: x2.5 para Molduras (ML) y x3 para Materiales de área (M2/Global)
         const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
@@ -671,7 +671,6 @@ const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
         valor_material: Math.round(m.costoUnitario * cantidadRealConsumo), 
         
         // 💎 DATOS DE VENTA (LO QUE PAGA EL CLIENTE - REPARADO)
-        // Llenamos todas las variantes posibles para que history.js nunca lea un undefined o 0
         precio_venta_item: valorVentaFinal, 
         subtotalVenta: valorVentaFinal, 
         valor_venta: valorVentaFinal,   
@@ -680,10 +679,16 @@ const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
 
         // 📐 MOTOR DE INVENTARIO Y MEDIDAS (Sincronización con Atlas)
         cantidad: Number(Number(cantidadRealConsumo).toFixed(3)), 
-        unidad: (m.unidad || "").toUpperCase(), 
+        unidad: unidadVisual, 
         ancho: Number((datosCotizacionActual.anchoOriginal || 0).toFixed(2)),
         largo: Number((datosCotizacionActual.largoOriginal || 0).toFixed(2)),
-        area_m2: Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
+        
+        // 🔥 SOLUCIÓN AL CÍRCULO VICIOSO:
+        // Si es ML, la "medida de ocupación" en Atlas debe ser el consumo real (Ej: 2.95).
+        // Si es M2, se mantiene el área calculada de la pieza (Ej: 0.48).
+        area_m2: (unidadVisual === 'ML') 
+            ? Number(Number(cantidadRealConsumo).toFixed(3)) 
+            : Number((datosCotizacionActual.areaFinal || 0).toFixed(3)),
         
         // 📝 RESPALDO DE AUDITORÍA
         cantidadUsada: Number(Number(cantidadRealConsumo).toFixed(3)),
