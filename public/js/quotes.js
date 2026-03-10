@@ -392,14 +392,22 @@ materialesSeleccionados.forEach(m => {
     const costoUnitarioReal = parseFloat(m.costoUnitario) || 0;
 
     if (m.unidad === 'ML') {
-        // 1. OBTENER PERÍMETRO BASE EN METROS (Ej: 70x70 -> 2.80m)
+        // 1. OBTENER PERÍMETRO BASE EN METROS (Ej: 60x80 -> 2.80m)
         const perimetroBaseM = ((Number(ancho) + Number(largo)) * 2) / 100;
 
         // 2. 🛡️ EXTRACCIÓN DEL DESPERDICIO (Sincronizado con Atlas e Inventario)
-        // Buscamos en 'm.desperdicio' (que viene del dataset) o rescatamos de la memoria global
+        // PRIORIDAD 1: El valor que ya viene en el objeto 'm'
+        // PRIORIDAD 2: El valor que rescatamos del selector (desperdicioFinal que calculamos antes)
+        // PRIORIDAD 3: Búsqueda profunda en materialesOriginales
         let valorDesperdicioCM = parseFloat(m.desperdicio);
         
         if (isNaN(valorDesperdicioCM) || valorDesperdicioCM === 0) {
+            // Usamos la variable desperdicioFinal que definimos líneas arriba del forEach
+            valorDesperdicioCM = (typeof desperdicioFinal !== 'undefined') ? desperdicioFinal : 0;
+        }
+
+        // Si sigue siendo 0, buscamos en memoria por ID
+        if (valorDesperdicioCM === 0) {
             const materialEnMemoria = materialesOriginales.find(mat => String(mat._id || mat.id) === String(m.id));
             valorDesperdicioCM = parseFloat(materialEnMemoria?.desperdicio_total_cm || materialEnMemoria?.desperdicio || 0);
         }
@@ -407,18 +415,18 @@ materialesSeleccionados.forEach(m => {
         const desperdicioM = valorDesperdicioCM / 100;
 
         // 3. 📐 LA SUMA SAGRADA: Perímetro + Desperdicio Específico (Ej: 2.80 + 0.15 = 2.95)
-        const gastoMLReal = Number((perimetroBaseM + desperdicioM).toFixed(3));
+        // Usamos obtenerMLConDesperdicio para asegurar que la lógica sea idéntica en todo el sistema
+        const gastoMLReal = obtenerMLConDesperdicio(ancho, largo, { desperdicio: valorDesperdicioCM });
         
         // 4. CÁLCULO FINANCIERO (Costo Base para el taller)
         costoItem = Math.round(costoUnitarioReal * gastoMLReal);
         
         // 5. 🛡️ BLINDAJE DE VENTA: Regla de Oro x2.5 para Molduras
-        // Garantiza que la venta se calcule sobre el metraje real con desperdicio
         const margenVentaML = 2.5;
         ventaItem = Math.round(costoItem * margenVentaML);
         
         // 6. SINCRONIZACIÓN TOTAL PARA REPORTE Y FACTURACIÓN
-        m.desperdicio = valorDesperdicioCM; // Guardamos el valor usado para auditoría
+        m.desperdicio = valorDesperdicioCM; 
         m.cantidadUsada = gastoMLReal; 
         m.subtotalVenta = ventaItem; 
         m.tipoMedida = "ML"; 
@@ -428,17 +436,18 @@ materialesSeleccionados.forEach(m => {
         
     } else {
         // 2. LÓGICA DE OTROS: Área M2 (Vidrios, Respaldos, etc.)
-        costoItem = Math.round(costoUnitarioReal * areaCalculada);
+        // Usamos areaCalculada (asegúrate de que esta variable esté definida arriba en procesarCotizacion)
+        const areaM2 = areaCalculada || ((ancho * largo) / 10000);
+        costoItem = Math.round(costoUnitarioReal * areaM2);
         
-        // 🛡️ BLINDAJE DE VENTA: Regla Otros x3 (Vidrios y fondos)
         const margenVentaM2 = 3;
         ventaItem = Math.round(costoItem * margenVentaM2);
         
-        m.cantidadUsada = areaCalculada;
+        m.cantidadUsada = areaM2;
         m.subtotalVenta = ventaItem;
         m.tipoMedida = "M2";
 
-        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaCalculada}M2 | VENTA: $${ventaItem}`);
+        console.log(`🪟 OTRO: ${m.nombre} | Area: ${areaM2}M2 | VENTA: $${ventaItem}`);
     }
 
     // Acumuladores globales para el Gran Total de la Cotización
