@@ -136,20 +136,27 @@ async function generarReporteDiario() {
                 const nombreMayus = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
                 const esMoldura = (item.unidad || "").toUpperCase() === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
                 
-                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (Consumo real - Mantenido de v13.1.7) ---
-                let cantidadFinal = 0;
-                const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
-                const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
+                // --- 📐 CAPA DE PRECISIÓN ABSOLUTA (CORREGIDA PARA MOLDURAS) ---
+let cantidadFinal = 0;
 
-                if (item.cantidadUsada) {
-                    cantidadFinal = Number(item.cantidadUsada);
-                } else if (item.cantidad) {
-                    cantidadFinal = Number(item.cantidad);
-                } else if (matchTexto) {
-                    cantidadFinal = Number(matchTexto[1]);
-                } else {
-                    cantidadFinal = Number(item.area_m2 || item.area || 0);
-                }
+// PRIORIDAD 1: Si es moldura, ir directamente al área calculada (Donde guardamos los 2.95)
+if (esMoldura) {
+    cantidadFinal = Number(item.area_m2 || item.area || item.cantidadUsada || 0);
+} else {
+    // Para Vidrios/M2 mantenemos tu lógica actual
+    const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
+    const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
+
+    if (item.cantidadUsada) {
+        cantidadFinal = Number(item.cantidadUsada);
+    } else if (item.cantidad) {
+        cantidadFinal = Number(item.cantidad);
+    } else if (matchTexto) {
+        cantidadFinal = Number(matchTexto[1]);
+    } else {
+        cantidadFinal = Number(item.area_m2 || item.area || 0);
+    }
+}
 
                 // --- 💰 CAPA DE COSTO BASE ---
                 const costoUnitario = Number(item.costo_base_unitario || item.costoBase || item.costoUnitario || item.costo_unitario || 0);
