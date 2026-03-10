@@ -391,22 +391,20 @@ async function fetchInventory() {
         const nombreClaveAttr = m.nombre.toLowerCase().trim();
         fila.setAttribute('data-nombre', nombreClaveAttr);
         
-        // --- 🛡️ FILTRO INTELIGENTE DE UNIDADES ---
-const nombreLimpio = (m.nombre || "").trim().toUpperCase();
-
-// 2. Limpieza de tipo: eliminamos cualquier residuo de espacios y estandarizamos a Mayúsculas
+        // --- 🛡️ FILTRO INTELIGENTE DE UNIDADES ---const nombreUP = m.nombre.toUpperCase();
+// Limpiamos el tipo que viene de Atlas: le quitamos espacios y lo pasamos a MAYÚSCULAS
 const tipoAtlasLimpio = (m.tipo || "").trim().toUpperCase();
 
-// 3. DETECCIÓN MULTICAPA (Blindada):
-// Ahora buscamos "MOLDURA" sin importar si hay espacios locos antes o después.
-const esMoldura = nombreLimpio.includes("MOLDURA") || 
-                  nombreLimpio.startsWith("K ") || 
-                  nombreLimpio.startsWith("MP K") || // Refuerzo para tu nomenclatura
-                  tipoAtlasLimpio === "ML" ||
-                  tipoAtlasLimpio === "ML "; // Por si el espacio está dentro del string de Atlas
+// Ahora detectamos si es moldura de forma infalible:
+// Agregamos .includes para el tipo por si Atlas tiene espacios internos o saltos de línea
+const esMoldura = nombreUP.includes("MOLDURA") || 
+                  nombreUP.startsWith("K ") || 
+                  nombreUP.includes("MP K") || 
+                  tipoAtlasLimpio.includes("ML"); 
 
-// 4. Asignamos la unidad final (Siempre en mayúsculas para que el dashboard la reconozca)
+// Asignamos la unidad final siempre en Mayúsculas para el sistema
 const unidadFinal = esMoldura ? 'ML' : 'M2';
+
         
         // --- 📏 LÓGICA DE DIMENSIONES Y ÁREA ---
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
