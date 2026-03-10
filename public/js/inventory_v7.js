@@ -487,7 +487,7 @@ async function fetchInventory() {
         `;
         cuerpoTabla.appendChild(fila);
     });
-}
+}   
 
     // --- FACTURACIÓN (PRESERVADO) ---
 
