@@ -507,12 +507,11 @@ async function facturarVenta() {
     const nombreUP = m.nombre.toUpperCase().trim();
     const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
     
-    let cantidadFinalCalculada = 0;
-    let costoTotalCalculado = 0;
+    let cantidadParaReporte = 0;
+    let costoParaCalculo = 0;
 
     if (esMoldura) {
         // --- 📏 MOTOR LINEAL (FORZADO) ---
-        // Extraemos medidas brutas directamente para anular el 0.480
         const anchoPx = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
         const largoPx = parseFloat(datosCotizacionActual.largoOriginal) || 0;
         
@@ -524,17 +523,17 @@ async function facturarVenta() {
         const desperdicioM = (parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0)) / 100;
         
         // 3. CANTIDAD REAL (MEDIDA): 2.80 + 0.15 = 2.95 ML
-        cantidadFinalCalculada = perimetroM + desperdicioM;
+        cantidadParaReporte = perimetroM + desperdicioM;
 
-        // 4. COSTO TOTAL DE LA LÍNEA: 2.95 * $18.416 = $54.327
-        // Enviamos el costo TOTAL de la línea como 'costo_unitario' para que Atlas lo sume bien
-        costoTotalCalculado = Math.round(cantidadFinalCalculada * (parseFloat(m.costoUnitario) || 0));
+        // 4. PRECIO UNITARIO: Enviamos el precio por ML original ($18.416)
+        // El reporte hará: 2.95 * 18.416 = 54.327 automáticamente
+        costoParaCalculo = parseFloat(m.costoUnitario) || 0;
         
-        console.log(`🚀 [MOLDURA] ${nombreUP}: Perímetro ${perimetroM}m + Desp ${desperdicioM}m = ${cantidadFinalCalculada} ML | Costo: $${costoTotalCalculado}`);
+        console.log(`🚀 [MOLDURA] ${nombreUP}: ML ${cantidadParaReporte.toFixed(2)} | Unitario: $${costoParaCalculo}`);
     } else {
         // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) ---
-        cantidadFinalCalculada = parseFloat(datosCotizacionActual.areaFinal) || 0;
-        costoTotalCalculado = Math.round(cantidadFinalCalculada * (parseFloat(m.costoUnitario) || 0));
+        cantidadParaReporte = parseFloat(datosCotizacionActual.areaFinal) || 0;
+        costoParaCalculo = parseFloat(m.costoUnitario) || 0;
     }
 
     return {
@@ -542,10 +541,10 @@ async function facturarVenta() {
         materialNombre: m.nombre,
         ancho: datosCotizacionActual.anchoOriginal,
         largo: datosCotizacionActual.largoOriginal,
-        // area_m2: Es el valor que el reporte muestra en "MEDIDA" y descuenta Stock
-        area_m2: cantidadFinalCalculada, 
-        // costo_unitario: Es el valor que Atlas suma para el total de la factura ($54.327)
-        costo_unitario: costoTotalCalculado 
+        // Al poner 2.95 aquí, el reporte mostrará "2.95 ML" en la columna MEDIDA
+        area_m2: cantidadParaReporte, 
+        // Al poner 18416 aquí, el reporte multiplicará correctamente y mostrará $54.327
+        costo_unitario: costoParaCalculo 
     };
 });
 
