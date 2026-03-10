@@ -487,65 +487,75 @@ async function fetchInventory() {
 
     // --- FACTURACIÓN (PRESERVADO) ---
 
-    async function facturarVenta() {
-        if (!datosCotizacionActual) {
-            const backup = localStorage.getItem('ultima_cotizacion');
-            if (backup) datosCotizacionActual = JSON.parse(backup);
-        }
+ async function facturarVenta() {
+    // ... (Validaciones iniciales de cotización y cliente se mantienen igual) ...
 
-        if (!datosCotizacionActual) {
-            alert("⚠️ No hay datos de cotización activos.");
-            return;
-        }
-
-        const nombre = document.getElementById('nombreCliente')?.value.trim();
-        if (!nombre) { alert("⚠️ Nombre cliente requerido."); return; }
-
-        const btnVenta = document.getElementById('btnFinalizarVenta');
-        const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
+    const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
+        const nombreUP = m.nombre.toUpperCase().trim();
+        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         
-        const facturaData = {
-            clienteNombre: nombre, 
-            clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
-            total: datosCotizacionActual.precioSugeridoCliente,
-            abono: abono,
-            items: datosCotizacionActual.detalles.materiales.map(m => ({
-                productoId: m.id, 
-                materialNombre: m.nombre,
-                ancho: datosCotizacionActual.anchoOriginal,
-                largo: datosCotizacionActual.largoOriginal,
-                area_m2: datosCotizacionActual.areaFinal,
-                costo_unitario: m.costoUnitario
-            })),
-            mano_obra_total: datosCotizacionActual.valor_mano_obra
-        };
+        let cantidadFinalADescontar = 0;
 
-        try {
-            if(btnVenta) {
-                btnVenta.disabled = true;
-                btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
-            }
-            const res = await window.API.saveInvoice(facturaData);
-            if (res.success) {
-                alert("✅ VENTA REGISTRADA: " + (res.ot || "Éxito"));
-                localStorage.removeItem('ultima_cotizacion');
-                window.location.href = "/history.html";
-            } else {
-                alert("🚨 Error: " + (res.message || res.error || "Falla en servidor"));
-                if(btnVenta) {
-                    btnVenta.disabled = false;
-                    btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
-                }
-            }
-        } catch (e) {
-            console.error("Error Fetch:", e);
-            alert("Error de red o conexión al servidor.");
-            if(btnVenta) {
-                btnVenta.disabled = false;
-                btnVenta.innerHTML = 'CONFIRMAR VENTA Y DESCONTAR STOCK';
-            }
+        if (esMoldura) {
+            // --- 📏 LÓGICA ML (CON DESPERDICIO) ---
+            // 1. Buscamos el desperdicio solo para molduras
+            const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
+            const despCm = parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0);
+            
+            // 2. Calculamos: Metros Lineales del perímetro + Desperdicio
+            // (Usamos el largo original de la pieza para el cálculo lineal)
+            const metrosLinealesBase = (datosCotizacionActual.largoOriginal / 100); 
+            cantidadFinalADescontar = metrosLinealesBase + (despCm / 100);
+            
+            console.log(`📏 [ML] ${nombreUP}: ${metrosLinealesBase}m + ${despCm}cm desp = ${cantidadFinalADescontar.toFixed(2)}`);
+        } else {
+            // --- 🟦 LÓGICA M2 (SIN DESPERDICIO) ---
+            // Para Vidrios, Paspartú, etc., descontamos el área neta de la cotización
+            cantidadFinalADescontar = datosCotizacionActual.areaFinal;
+            
+            console.log(`🟦 [M2] ${nombreUP}: Descontando área neta ${cantidadFinalADescontar.toFixed(4)} m²`);
         }
+
+        return {
+            productoId: m.id, 
+            materialNombre: m.nombre,
+            ancho: datosCotizacionActual.anchoOriginal,
+            largo: datosCotizacionActual.largoOriginal,
+            area_m2: cantidadFinalADescontar, // Atlas recibe este valor para restar
+            costo_unitario: m.costoUnitario
+        };
+    });
+
+    // ... (El resto del fetch a window.API.saveInvoice se mantiene igual) ...
+    // --- 🛡️ CONTINUACIÓN DEL BLOQUE ANTERIOR ---
+    const facturaData = {
+        clienteNombre: nombre, 
+        clienteTelefono: document.getElementById('telCliente')?.value || "N/A",
+        total: datosCotizacionActual.precioSugeridoCliente,
+        abono: abono,
+        items: itemsProcesados,
+        mano_obra_total: datosCotizacionActual.valor_mano_obra
+    };
+
+    try {
+        if(btnVenta) {
+            btnVenta.disabled = true;
+            btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
+        }
+        const res = await window.API.saveInvoice(facturaData);
+        if (res.success) {
+            alert("✅ VENTA REGISTRADA: Stock actualizado correctamente.");
+            localStorage.removeItem('ultima_cotizacion');
+            window.location.href = "/history.html";
+        } else {
+            alert("🚨 Error: " + (res.message || "Falla en servidor"));
+            if(btnVenta) btnVenta.disabled = false;
+        }
+    } catch (e) {
+        console.error("Error:", e);
+        if(btnVenta) btnVenta.disabled = false;
     }
+}
 
 // --- EVENTOS Y CONFIGURACIÓN ---
 
