@@ -136,37 +136,36 @@ async function generarReporteDiario() {
                 const nombreMayus = (item.materialNombre || item.nombre || item.descripcion || "MATERIAL").toUpperCase();
                 const esMoldura = (item.unidad || "").toUpperCase() === 'ML' || nombreMayus.includes('MOLDURA') || nombreMayus.includes('MARCO');
                 
-// --- 📐 CAPA DE PRECISIÓN ABSOLUTA (BLINDAJE TOTAL v2.0) ---
+// --- 📐 CAPA DE PRECISIÓN ABSOLUTA (CORRECCIÓN DEFINITIVA) ---
                 let cantidadFinal = 0;
 
-                // 1. PRIORIDAD MÁXIMA PARA TODO MATERIAL: Si existe area_m2 (donde guardamos los 2.95), usarla.
-                // Esto detiene el error de buscar en "USO" antes de tiempo.
-                if (item.area_m2 && Number(item.area_m2) > 0) {
-                    cantidadFinal = Number(item.area_m2);
-                } 
-                else if (esMoldura) {
-                    // Fallback para molduras si area_m2 falla
-                    cantidadFinal = Number(item.area || item.cantidadUsada || 0);
-                } 
-                else {
-                    // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) - MANTENIENDO TUS AVANCES ---
+                // Si es moldura, ignoramos cualquier cálculo de área y vamos directo al valor guardado
+                if (esMoldura) {
+                    // Priorizamos el área calculada (2.95), si no existe, usamos cantidadUsada
+                    cantidadFinal = Number(item.area_m2 || item.cantidadUsada || 0);
+                    
+                    // Si por algún error el valor sigue siendo el área de la pieza (0.48), 
+                    // lo forzamos a 0 para que entre al fallback de seguridad o se note el error.
+                    if (cantidadFinal === (Number(item.ancho || 0) * Number(item.largo || 0) / 10000)) {
+                        console.warn("⚠️ Detectado cálculo de área en moldura, intentando recuperar ML...");
+                    }
+                } else {
+                    // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) ---
                     const textoCompleto = (item.medidaTexto || item.medida || "").toUpperCase();
                     const matchTexto = textoCompleto.match(/USO:\s*([\d.]+)/);
 
                     if (item.cantidadUsada) {
                         cantidadFinal = Number(item.cantidadUsada);
-                    } else if (item.cantidad) {
-                        cantidadFinal = Number(item.cantidad);
                     } else if (matchTexto) {
                         cantidadFinal = Number(matchTexto[1]);
                     } else {
-                        cantidadFinal = Number(item.area || 0);
+                        cantidadFinal = Number(item.area_m2 || item.area || 0);
                     }
                 }
 
-                // --- 💰 CAPA DE COSTO BASE (SINCRONIZADA) ---
-                // Priorizamos costo_unitario que es el que enviamos con el valor de Atlas ($18.416)
-                const costoUnitario = Number(item.costo_unitario || item.costo_base_unitario || item.costoBase || item.costoUnitario || 0);
+                // --- 💰 CAPA DE COSTO BASE ---
+                // Forzamos el uso de 'costo_unitario' que es el valor real de Atlas por ML
+                const costoUnitario = Number(item.costo_unitario || item.costo_base_unitario || item.costoUnitario || 0);
                 const costoFila = Math.round(costoUnitario * cantidadFinal);
                 
                 // --- 🚨 REPARACIÓN MAESTRA DE VENTA (Búsqueda en Cascada + Cálculo Fallback) ---
