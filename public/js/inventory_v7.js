@@ -401,14 +401,25 @@ async function fetchInventory() {
         const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || (esMoldura ? 280 : 220));
         const areaReferencia = (anchoRef * largoRef) / 10000;
 
-        // --- 💰 CÁLCULO DE COSTO VISUAL (Lógica Unificada Preservada) ---
+        // --- 💰 CÁLCULO DE COSTO VISUAL (Cirugía Precisa para Molduras) ---
         let precioFinalVisual = 0;
-        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
         
         if (esMoldura) {
-            const largoML = (largoRef > 0) ? (largoRef / 100) : 2.8;
-            precioFinalVisual = precioBase / largoML;
+            // PRIORIDAD QUIRÚRGICA: Usamos directamente el costo guardado en Atlas (ej. 18416)
+            // Esto evita que el sistema intente recalcular y arroje valores erróneos como 6577
+            const costoAtlasDirecto = parseFloat(m.precio_m2_costo) || 0;
+            const costoVaraBase = parseFloat(m.precio_total_lamina) || 0;
+
+            if (costoAtlasDirecto > 0) {
+                precioFinalVisual = costoAtlasDirecto;
+            } else {
+                // Solo si Atlas no tiene el dato, calculamos sobre la vara
+                const largoML = (largoRef > 0) ? (largoRef / 100) : 2.8;
+                precioFinalVisual = costoVaraBase / largoML;
+            }
         } else {
+            // --- 🟦 LÓGICA PRESERVADA PARA OTROS MATERIALES (M2) ---
+            const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
             const esMaterialEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
                                          nombreUP.includes("CHAPILLA") || 
                                          nombreUP.includes("AFRICANA");
@@ -426,7 +437,6 @@ async function fetchInventory() {
         let textoStock = "";
 
         if (esMoldura) {
-            // Para molduras, el stock_acumulado en Atlas se trata como Metros Lineales totales
             textoStock = `
                 <div style="font-weight: 800; font-size: 1rem;">${stockTotalM2.toFixed(2)} ML</div>
                 <div style="font-size: 0.65rem; color: #64748b; font-weight: bold; text-transform: uppercase;">
