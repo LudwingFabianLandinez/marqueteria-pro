@@ -391,20 +391,9 @@ async function fetchInventory() {
         const nombreClaveAttr = m.nombre.toLowerCase().trim();
         fila.setAttribute('data-nombre', nombreClaveAttr);
         
-        // --- 🛡️ FILTRO INTELIGENTE DE UNIDADES ---const nombreUP = m.nombre.toUpperCase();
-// Limpiamos el tipo que viene de Atlas: le quitamos espacios y lo pasamos a MAYÚSCULAS
-const tipoAtlasLimpio = (m.tipo || "").trim().toUpperCase();
-
-// Ahora detectamos si es moldura de forma infalible:
-// Agregamos .includes para el tipo por si Atlas tiene espacios internos o saltos de línea
-const esMoldura = nombreUP.includes("MOLDURA") || 
-                  nombreUP.startsWith("K ") || 
-                  nombreUP.includes("MP K") || 
-                  tipoAtlasLimpio.includes("ML"); 
-
-// Asignamos la unidad final siempre en Mayúsculas para el sistema
-const unidadFinal = esMoldura ? 'ML' : 'M2';
-
+        const nombreUP = m.nombre.toUpperCase();
+        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
+        const unidadFinal = esMoldura ? 'ml' : 'm²';
         
         // --- 📏 LÓGICA DE DIMENSIONES Y ÁREA ---
         const matchM = nombreUP.match(/(\d+)\s*[xX*]\s*(\d+)/);
