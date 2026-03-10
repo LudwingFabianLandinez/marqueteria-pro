@@ -385,7 +385,7 @@ async function fetchInventory() {
         }
     });
 
-    // 2. RENDERIZADO DE FILAS UNIFICADAS
+ // 2. RENDERIZADO DE FILAS UNIFICADAS
     Object.values(mapaUnificado).forEach(m => {
         const fila = document.createElement('tr');
         const nombreClaveAttr = m.nombre.toLowerCase().trim();
@@ -401,22 +401,27 @@ async function fetchInventory() {
         const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || (esMoldura ? 280 : 220));
         const areaReferencia = (anchoRef * largoRef) / 10000;
 
-        // --- 💰 CÁLCULO DE COSTO VISUAL (Lógica Unificada Preservada) ---
+        // --- 💰 CÁLCULO DE COSTO VISUAL (Sincronizado con Atlas & Alertas) ---
         let precioFinalVisual = 0;
-        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
+        // Priorizamos el precio_m2_costo que Atlas guarda como el valor unitario ya calculado
+        const costoUnitarioAtlas = parseFloat(m.precio_m2_costo) || 0;
+        const precioBaseVaraOLamina = parseFloat(m.precio_total_lamina) || 0;
         
         if (esMoldura) {
-            const largoML = (largoRef > 0) ? (largoRef / 100) : 2.8;
-            precioFinalVisual = precioBase / largoML;
+            // Si el costo unitario ya existe en Atlas (vía alerta), lo usamos. 
+            // Si es 0, hacemos el cálculo de respaldo sobre el precio de la vara.
+            precioFinalVisual = (costoUnitarioAtlas > 0) ? costoUnitarioAtlas : (precioBaseVaraOLamina / ((largoRef || 280) / 100));
         } else {
             const esMaterialEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
                                          nombreUP.includes("CHAPILLA") || 
                                          nombreUP.includes("AFRICANA");
 
             if (esMaterialEspecialM2) {
-                precioFinalVisual = precioBase; 
+                // En materiales especiales, el precio unitario es el precio base
+                precioFinalVisual = costoUnitarioAtlas || precioBaseVaraOLamina; 
             } else {
-                precioFinalVisual = (precioBase > 50000 && areaReferencia > 0) ? (precioBase / areaReferencia) : precioBase;
+                // Para vidrios: si el precio es de lámina completa (>50k), dividimos por el área
+                precioFinalVisual = (precioBaseVaraOLamina > 50000 && areaReferencia > 0) ? (precioBaseVaraOLamina / areaReferencia) : (costoUnitarioAtlas || precioBaseVaraOLamina);
             }
         }
         precioFinalVisual = Math.round(precioFinalVisual);
@@ -426,7 +431,6 @@ async function fetchInventory() {
         let textoStock = "";
 
         if (esMoldura) {
-            // Para molduras, el stock_acumulado en Atlas se trata como Metros Lineales totales
             textoStock = `
                 <div style="font-weight: 800; font-size: 1rem;">${stockTotalM2.toFixed(2)} ML</div>
                 <div style="font-size: 0.65rem; color: #64748b; font-weight: bold; text-transform: uppercase;">
