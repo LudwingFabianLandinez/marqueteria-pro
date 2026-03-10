@@ -503,40 +503,39 @@ async function facturarVenta() {
     const abono = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
     const btnVenta = document.getElementById('btnFinalizarVenta');
 
-    const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
+   const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
         const nombreUP = m.nombre.toUpperCase().trim();
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         
-        let cantidadFinalADescontar = 0;
-        let costoBaseFinal = 0;
+        let cantidadFinal = 0;
+        let costoTotalItem = 0;
 
         if (esMoldura) {
-            // --- 📏 MOTOR LINEAL (PERÍMETRO + DESPERDICIO) ---
+            // --- 📏 MOTOR LINEAL (2.95 ML) ---
             const anchoPieza = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
             const largoPieza = parseFloat(datosCotizacionActual.largoOriginal) || 0;
             
             // 1. Perímetro: (60 + 80) * 2 / 100 = 2.80m
             const perimetroM = ((anchoPieza + largoPieza) * 2) / 100;
 
-            // 2. Desperdicio: Buscamos el valor de Atlas (ej. 15cm)
+            // 2. Desperdicio: Buscamos en memoria el valor de Atlas (ej. 15cm)
             const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
             const desperdicioM = (parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0)) / 100;
             
-            // 3. CANTIDAD REAL: 2.80 + 0.15 = 2.95 ML
-            cantidadFinalADescontar = perimetroM + desperdicioM;
+            // 3. CANTIDAD REAL PARA REPORTE Y STOCK: 2.80 + 0.15 = 2.95 ML
+            cantidadFinal = perimetroM + desperdicioM;
 
-            // 4. COSTO BASE REAL: 2.95 ML * $18.416 = $54.327
-            // Usamos m.costoUnitario que es el precio por ML que viene de la cotización
-            costoBaseFinal = cantidadFinalADescontar * (parseFloat(m.costoUnitario) || 0);
+            // 4. COSTO BASE PARA ATLAS: 2.95 ML * $18.416 = $54.327
+            // Forzamos el redondeo para que en Atlas no haya decimales infinitos
+            costoTotalItem = Math.round(cantidadFinal * (parseFloat(m.costoUnitario) || 0));
             
-            console.log(`🚀 [MOLDURA] ${nombreUP}: Uso ${cantidadFinalADescontar.toFixed(2)} ML | Costo Base: $${Math.round(costoBaseFinal)}`);
+            console.log(`🚀 [MOLDURA] ${nombreUP}: Medida ${cantidadFinal.toFixed(2)} ML | Costo a Atlas: $${costoTotalItem}`);
         } else {
             // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) ---
-            cantidadFinalADescontar = parseFloat(datosCotizacionActual.areaFinal) || 0;
-            // Costo Base: Área * Costo por m2
-            costoBaseFinal = cantidadFinalADescontar * (parseFloat(m.costoUnitario) || 0);
+            cantidadFinal = parseFloat(datosCotizacionActual.areaFinal) || 0;
+            costoTotalItem = Math.round(cantidadFinal * (parseFloat(m.costoUnitario) || 0));
             
-            console.log(`🟦 [M2] ${nombreUP}: Área ${cantidadFinalADescontar.toFixed(4)} m² | Costo Base: $${Math.round(costoBaseFinal)}`);
+            console.log(`🟦 [M2] ${nombreUP}: Área ${cantidadFinal.toFixed(4)} m² | Costo a Atlas: $${costoTotalItem}`);
         }
 
         return {
@@ -544,10 +543,10 @@ async function facturarVenta() {
             materialNombre: m.nombre,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
-            // 'area_m2' es lo que el reporte muestra como MEDIDA y lo que descuenta stock
-            area_m2: cantidadFinalADescontar, 
-            // 'costo_unitario' es lo que el reporte usa para la columna COSTO BASE
-            costo_unitario: costoBaseFinal 
+            // 'area_m2' -> Se va al reporte como "MEDIDA" y descuenta Stock
+            area_m2: cantidadFinal, 
+            // 'costo_unitario' -> Se va a Atlas para sumar el 'costo_materiales_total' ($54.327)
+            costo_unitario: costoTotalItem 
         };
     });
 
