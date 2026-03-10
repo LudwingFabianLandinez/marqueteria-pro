@@ -367,19 +367,37 @@ async function fetchInventory() {
     // 1. MAPA PARA UNIFICAR (Aplanar duplicados - Lógica preservada)
     const mapaUnificado = {};
 
-    materiales.forEach(m => {
+   materiales.forEach(m => {
+        // Normalización estricta para evitar duplicados por espacios o minúsculas
         const nombreClave = m.nombre.toUpperCase().trim();
         
+        // Calculamos el stock de este registro individualmente
+        const stockDeEsteRegistro = typeof calcularStockReal === 'function' 
+            ? calcularStockReal(m) 
+            : (parseFloat(m.stock_actual) || 0);
+        
         if (!mapaUnificado[nombreClave]) {
-            mapaUnificado[nombreClave] = { ...m, id_referencia: m._id || m.id, stock_acumulado: calcularStockReal(m) };
+            // Si es la primera vez que vemos este nombre, creamos la base
+            mapaUnificado[nombreClave] = { 
+                ...m, 
+                id_referencia: m._id || m.id, 
+                stock_acumulado: stockDeEsteRegistro 
+            };
         } else {
-            mapaUnificado[nombreClave].stock_acumulado += calcularStockReal(m);
-            const precioActual = parseFloat(m.precio_total_lamina) || 0;
-            const precioMaestro = parseFloat(mapaUnificado[nombreClave].precio_total_lamina) || 0;
+            // Si ya existe, SUMAMOS el stock acumulado
+            mapaUnificado[nombreClave].stock_acumulado += stockDeEsteRegistro;
             
-            if (precioActual > precioMaestro) {
-                mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
+            // LÓGICA DE PRECIO MAESTRO: Priorizamos el registro con el costo unitario más reciente/alto
+            const precioActualML = parseFloat(m.precio_m2_costo) || 0;
+            const precioEnMapaML = parseFloat(mapaUnificado[nombreClave].precio_m2_costo) || 0;
+            
+            // Si el nuevo registro trae el precio correcto ($94.149), actualizamos los datos maestros
+            if (precioActualML > 0) {
                 mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
+                mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
+                mapaUnificado[nombreClave].ancho_lamina_cm = m.ancho_lamina_cm;
+                mapaUnificado[nombreClave].largo_lamina_cm = m.largo_lamina_cm;
+                // Importante: Actualizamos el ID para que los botones apunten al registro de Atlas
                 mapaUnificado[nombreClave].id_referencia = m._id || m.id;
             }
         }
