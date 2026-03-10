@@ -743,34 +743,35 @@ if (formCompra) {
             // REGLA DE ORO: Si el input está vacío o es 0, hereda el del Maestro para protegerlo
             const desperdicioFinalSincronizado = (desperdicioCapturado > 0) ? desperdicioCapturado : desperdicioEnMaestro;
 
-            // --- 📦 OBJETO PARA ATLAS (SINCRONIZADO Y REDUNDANTE) ---
-            const datosParaAtlas = {
-                materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
-                nombre: nombreReal,
-                esNuevo: esNuevoMaterial,
-                categoria: categoriaDeterminada,
-                cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas, // Costo Unitario (ML o M2)
-                
-                // --- 🛡️ LÓGICA DE DESPERDICIO Y PRECIO (BLINDAJE ULTRA) ---
-                precio_m2_costo: costoFinalAtlas, 
-                precio_venta_sugerido: precioVentaSugerido,
-                
-                // Triple envío para asegurar compatibilidad con el esquema de Atlas
-                desperdicio: desperdicioFinalSincronizado, 
-                desperdicio_total_cm: desperdicioFinalSincronizado,
-                desperdicio_total: desperdicioFinalSincronizado, 
+           // --- 📦 OBJETO PARA ATLAS (BLINDAJE DE EMERGENCIA v2.0) ---
+const datosParaAtlas = {
+    materialId: esNuevoMaterial ? "NUEVO" : idMasterAtlas, 
+    nombre: nombreReal,
+    esNuevo: esNuevoMaterial,
+    categoria: categoriaDeterminada,
+    cantidad_laminas: cant,
+    precio_total_lamina: costoFinalAtlas, 
 
-                // --- 📏 DIMENSIONES Y ESCALA (MANTENIDO) ---
-                ancho_lamina_cm: factorAnchoEscala,
-                largo_lamina_cm: largoReferencia,
-                
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                
-                costo_total: costoIngresado * cant,
-                timestamp: new Date().toISOString(),
-                _id: esNuevoMaterial ? undefined : idMasterAtlas 
-            };
+    // --- 🛡️ TRIPLE BLINDAJE DE DESPERDICIO ---
+    // Enviamos el dato con todos los nombres posibles para que el Backend capture alguno
+    desperdicio: parseFloat(desperdicioFinalSincronizado) || 0,
+    desperdicio_total_cm: parseFloat(desperdicioFinalSincronizado) || 0,
+    desperdicio_total: parseFloat(desperdicioFinalSincronizado) || 0,
+    merma: parseFloat(desperdicioFinalSincronizado) || 0,
+
+    // --- 🚨 HACK DE RESPALDO (Uso del ancho como transporte) ---
+    // Si Atlas sigue poniendo 0 en los campos de arriba, el cotizador 
+    // buscará el 15 aquí en 'ancho_lamina_cm' como último recurso.
+    ancho_lamina_cm: esMoldura ? (parseFloat(desperdicioFinalSincronizado) || 1) : factorAnchoEscala,
+    largo_lamina_cm: largoReferencia,
+
+    precio_m2_costo: costoFinalAtlas, 
+    precio_venta_sugerido: precioVentaSugerido,
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    costo_total: costoIngresado * cant,
+    timestamp: new Date().toISOString(),
+    _id: esNuevoMaterial ? undefined : idMasterAtlas 
+};
 
             // LOG DE SEGURIDAD: Verifica en consola que no sea 0 antes del fetch
             console.log(`📡 ATLAS-SYNC [${nombreReal}]: Final = ${desperdicioFinalSincronizado} (Manual: ${desperdicioCapturado}, Maestro: ${desperdicioEnMaestro})`);
