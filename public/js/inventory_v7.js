@@ -1154,17 +1154,20 @@ if (formCompra) {
     };
 
     window.prepararEdicionMaterial = function(id) {
-        const m = window.todosLosMateriales.find(mat => mat.id === id);
-        if (!m) return;
-        
-        // GUARDAR ID PARA EL GUARDADO FINAL
-        window.materialEditandoId = m.id; 
+    const m = window.todosLosMateriales.find(mat => mat.id === id);
+    if (!m) return;
+    
+    window.materialEditandoId = m.id; 
 
-        if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
-        if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
-        if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
-        if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
-    }
+    if(document.getElementById('matId')) document.getElementById('matId').value = m.id;
+    if(document.getElementById('matNombre')) document.getElementById('matNombre').value = m.nombre;
+    if(document.getElementById('matCategoria')) document.getElementById('matCategoria').value = m.categoria;
+    if(document.getElementById('matCosto')) document.getElementById('matCosto').value = m.precio_total_lamina;
+
+    // 🚀 AGREGA ESTA LÍNEA (Asegúrate que el ID coincida con el del input de la foto)
+    const inputDesperdicio = document.getElementById('matDesperdicio') || document.querySelector('input[placeholder="Ej: 33"]');
+    if(inputDesperdicio) inputDesperdicio.value = m.desperdicio_total_cm || 0;
+}
         
 
     // --- CONEXIÓN DEFINITIVA DE BOTONES ---
