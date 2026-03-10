@@ -504,51 +504,50 @@ async function facturarVenta() {
     const btnVenta = document.getElementById('btnFinalizarVenta');
 
    const itemsProcesados = datosCotizacionActual.detalles.materiales.map(m => {
-        const nombreUP = m.nombre.toUpperCase().trim();
-        const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
+    const nombreUP = m.nombre.toUpperCase().trim();
+    const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
+    
+    let cantidadFinalCalculada = 0;
+    let costoTotalCalculado = 0;
+
+    if (esMoldura) {
+        // --- 📏 MOTOR LINEAL (FORZADO) ---
+        // Extraemos medidas brutas directamente para anular el 0.480
+        const anchoPx = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
+        const largoPx = parseFloat(datosCotizacionActual.largoOriginal) || 0;
         
-        let cantidadFinal = 0;
-        let costoTotalItem = 0;
+        // 1. Perímetro: ((60 + 80) * 2) / 100 = 2.80m
+        const perimetroM = ((anchoPx + largoPx) * 2) / 100;
 
-        if (esMoldura) {
-            // --- 📏 MOTOR LINEAL (2.95 ML) ---
-            const anchoPieza = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
-            const largoPieza = parseFloat(datosCotizacionActual.largoOriginal) || 0;
-            
-            // 1. Perímetro: (60 + 80) * 2 / 100 = 2.80m
-            const perimetroM = ((anchoPieza + largoPieza) * 2) / 100;
+        // 2. Desperdicio: Buscamos en memoria el valor de Atlas (ej. 15cm)
+        const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
+        const desperdicioM = (parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0)) / 100;
+        
+        // 3. CANTIDAD REAL (MEDIDA): 2.80 + 0.15 = 2.95 ML
+        cantidadFinalCalculada = perimetroM + desperdicioM;
 
-            // 2. Desperdicio: Buscamos en memoria el valor de Atlas (ej. 15cm)
-            const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
-            const desperdicioM = (parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0)) / 100;
-            
-            // 3. CANTIDAD REAL PARA REPORTE Y STOCK: 2.80 + 0.15 = 2.95 ML
-            cantidadFinal = perimetroM + desperdicioM;
+        // 4. COSTO TOTAL DE LA LÍNEA: 2.95 * $18.416 = $54.327
+        // Enviamos el costo TOTAL de la línea como 'costo_unitario' para que Atlas lo sume bien
+        costoTotalCalculado = Math.round(cantidadFinalCalculada * (parseFloat(m.costoUnitario) || 0));
+        
+        console.log(`🚀 [MOLDURA] ${nombreUP}: Perímetro ${perimetroM}m + Desp ${desperdicioM}m = ${cantidadFinalCalculada} ML | Costo: $${costoTotalCalculado}`);
+    } else {
+        // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) ---
+        cantidadFinalCalculada = parseFloat(datosCotizacionActual.areaFinal) || 0;
+        costoTotalCalculado = Math.round(cantidadFinalCalculada * (parseFloat(m.costoUnitario) || 0));
+    }
 
-            // 4. COSTO BASE PARA ATLAS: 2.95 ML * $18.416 = $54.327
-            // Forzamos el redondeo para que en Atlas no haya decimales infinitos
-            costoTotalItem = Math.round(cantidadFinal * (parseFloat(m.costoUnitario) || 0));
-            
-            console.log(`🚀 [MOLDURA] ${nombreUP}: Medida ${cantidadFinal.toFixed(2)} ML | Costo a Atlas: $${costoTotalItem}`);
-        } else {
-            // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) ---
-            cantidadFinal = parseFloat(datosCotizacionActual.areaFinal) || 0;
-            costoTotalItem = Math.round(cantidadFinal * (parseFloat(m.costoUnitario) || 0));
-            
-            console.log(`🟦 [M2] ${nombreUP}: Área ${cantidadFinal.toFixed(4)} m² | Costo a Atlas: $${costoTotalItem}`);
-        }
-
-        return {
-            productoId: m.id, 
-            materialNombre: m.nombre,
-            ancho: datosCotizacionActual.anchoOriginal,
-            largo: datosCotizacionActual.largoOriginal,
-            // 'area_m2' -> Se va al reporte como "MEDIDA" y descuenta Stock
-            area_m2: cantidadFinal, 
-            // 'costo_unitario' -> Se va a Atlas para sumar el 'costo_materiales_total' ($54.327)
-            costo_unitario: costoTotalItem 
-        };
-    });
+    return {
+        productoId: m.id, 
+        materialNombre: m.nombre,
+        ancho: datosCotizacionActual.anchoOriginal,
+        largo: datosCotizacionActual.largoOriginal,
+        // area_m2: Es el valor que el reporte muestra en "MEDIDA" y descuenta Stock
+        area_m2: cantidadFinalCalculada, 
+        // costo_unitario: Es el valor que Atlas suma para el total de la factura ($54.327)
+        costo_unitario: costoTotalCalculado 
+    };
+});
 
     // --- 🛡️ PROCESO DE GUARDADO (SIN CAMBIOS) ---
     const facturaData = {
