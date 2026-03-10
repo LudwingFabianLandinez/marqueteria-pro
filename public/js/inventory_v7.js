@@ -367,43 +367,25 @@ async function fetchInventory() {
     // 1. MAPA PARA UNIFICAR (Aplanar duplicados - Lógica preservada)
     const mapaUnificado = {};
 
-   materiales.forEach(m => {
-        // Normalización estricta para evitar duplicados por espacios o minúsculas
+    materiales.forEach(m => {
         const nombreClave = m.nombre.toUpperCase().trim();
         
-        // Calculamos el stock de este registro individualmente
-        const stockDeEsteRegistro = typeof calcularStockReal === 'function' 
-            ? calcularStockReal(m) 
-            : (parseFloat(m.stock_actual) || 0);
-        
         if (!mapaUnificado[nombreClave]) {
-            // Si es la primera vez que vemos este nombre, creamos la base
-            mapaUnificado[nombreClave] = { 
-                ...m, 
-                id_referencia: m._id || m.id, 
-                stock_acumulado: stockDeEsteRegistro 
-            };
+            mapaUnificado[nombreClave] = { ...m, id_referencia: m._id || m.id, stock_acumulado: calcularStockReal(m) };
         } else {
-            // Si ya existe, SUMAMOS el stock acumulado
-            mapaUnificado[nombreClave].stock_acumulado += stockDeEsteRegistro;
+            mapaUnificado[nombreClave].stock_acumulado += calcularStockReal(m);
+            const precioActual = parseFloat(m.precio_total_lamina) || 0;
+            const precioMaestro = parseFloat(mapaUnificado[nombreClave].precio_total_lamina) || 0;
             
-            // LÓGICA DE PRECIO MAESTRO: Priorizamos el registro con el costo unitario más reciente/alto
-            const precioActualML = parseFloat(m.precio_m2_costo) || 0;
-            const precioEnMapaML = parseFloat(mapaUnificado[nombreClave].precio_m2_costo) || 0;
-            
-            // Si el nuevo registro trae el precio correcto ($94.149), actualizamos los datos maestros
-            if (precioActualML > 0) {
-                mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
+            if (precioActual > precioMaestro) {
                 mapaUnificado[nombreClave].precio_total_lamina = m.precio_total_lamina;
-                mapaUnificado[nombreClave].ancho_lamina_cm = m.ancho_lamina_cm;
-                mapaUnificado[nombreClave].largo_lamina_cm = m.largo_lamina_cm;
-                // Importante: Actualizamos el ID para que los botones apunten al registro de Atlas
+                mapaUnificado[nombreClave].precio_m2_costo = m.precio_m2_costo;
                 mapaUnificado[nombreClave].id_referencia = m._id || m.id;
             }
         }
     });
 
- // 2. RENDERIZADO DE FILAS UNIFICADAS
+    // 2. RENDERIZADO DE FILAS UNIFICADAS
     Object.values(mapaUnificado).forEach(m => {
         const fila = document.createElement('tr');
         const nombreClaveAttr = m.nombre.toLowerCase().trim();
@@ -419,27 +401,22 @@ async function fetchInventory() {
         const largoRef = matchM ? parseFloat(matchM[2]) : (parseFloat(m.largo_lamina_cm) || (esMoldura ? 280 : 220));
         const areaReferencia = (anchoRef * largoRef) / 10000;
 
-        // --- 💰 CÁLCULO DE COSTO VISUAL (Sincronizado con Atlas & Alertas) ---
+        // --- 💰 CÁLCULO DE COSTO VISUAL (Lógica Unificada Preservada) ---
         let precioFinalVisual = 0;
-        // Priorizamos el precio_m2_costo que Atlas guarda como el valor unitario ya calculado
-        const costoUnitarioAtlas = parseFloat(m.precio_m2_costo) || 0;
-        const precioBaseVaraOLamina = parseFloat(m.precio_total_lamina) || 0;
+        const precioBase = parseFloat(m.precio_total_lamina) || parseFloat(m.precio_m2_costo) || 0;
         
         if (esMoldura) {
-            // Si el costo unitario ya existe en Atlas (vía alerta), lo usamos. 
-            // Si es 0, hacemos el cálculo de respaldo sobre el precio de la vara.
-            precioFinalVisual = (costoUnitarioAtlas > 0) ? costoUnitarioAtlas : (precioBaseVaraOLamina / ((largoRef || 280) / 100));
+            const largoML = (largoRef > 0) ? (largoRef / 100) : 2.8;
+            precioFinalVisual = precioBase / largoML;
         } else {
             const esMaterialEspecialM2 = nombreUP.includes("PASSEPARTOUT") || 
                                          nombreUP.includes("CHAPILLA") || 
                                          nombreUP.includes("AFRICANA");
 
             if (esMaterialEspecialM2) {
-                // En materiales especiales, el precio unitario es el precio base
-                precioFinalVisual = costoUnitarioAtlas || precioBaseVaraOLamina; 
+                precioFinalVisual = precioBase; 
             } else {
-                // Para vidrios: si el precio es de lámina completa (>50k), dividimos por el área
-                precioFinalVisual = (precioBaseVaraOLamina > 50000 && areaReferencia > 0) ? (precioBaseVaraOLamina / areaReferencia) : (costoUnitarioAtlas || precioBaseVaraOLamina);
+                precioFinalVisual = (precioBase > 50000 && areaReferencia > 0) ? (precioBase / areaReferencia) : precioBase;
             }
         }
         precioFinalVisual = Math.round(precioFinalVisual);
@@ -449,6 +426,7 @@ async function fetchInventory() {
         let textoStock = "";
 
         if (esMoldura) {
+            // Para molduras, el stock_acumulado en Atlas se trata como Metros Lineales totales
             textoStock = `
                 <div style="font-weight: 800; font-size: 1rem;">${stockTotalM2.toFixed(2)} ML</div>
                 <div style="font-size: 0.65rem; color: #64748b; font-weight: bold; text-transform: uppercase;">
@@ -505,7 +483,7 @@ async function fetchInventory() {
         `;
         cuerpoTabla.appendChild(fila);
     });
-}   
+}
 
     // --- FACTURACIÓN (PRESERVADO) ---
 
