@@ -508,30 +508,35 @@ async function facturarVenta() {
         const esMoldura = nombreUP.includes("MOLDURA") || nombreUP.startsWith("K ");
         
         let cantidadFinalADescontar = 0;
+        let costoBaseFinal = 0;
 
         if (esMoldura) {
-            // --- 📏 MOTOR LINEAL INVIOLABLE (PERÍMETRO + DESPERDICIO) ---
-            // Extraemos medidas originales para evitar que el sistema use el área (0.48)
+            // --- 📏 MOTOR LINEAL (PERÍMETRO + DESPERDICIO) ---
             const anchoPieza = parseFloat(datosCotizacionActual.anchoOriginal) || 0;
             const largoPieza = parseFloat(datosCotizacionActual.largoOriginal) || 0;
             
-            // 1. Perímetro: (Ancho + Largo) * 2 / 100 -> Ejemplo: (60 + 80) * 2 = 2.80m
+            // 1. Perímetro: (60 + 80) * 2 / 100 = 2.80m
             const perimetroM = ((anchoPieza + largoPieza) * 2) / 100;
 
-            // 2. Desperdicio: Buscamos en memoria el valor de Atlas (ej. 15cm o 80cm)
+            // 2. Desperdicio: Buscamos el valor de Atlas (ej. 15cm)
             const matMemoria = window.todosLosMateriales?.find(mat => String(mat._id || mat.id) === String(m.id));
             const desperdicioM = (parseFloat(matMemoria?.desperdicio_total_cm || matMemoria?.desperdicio || 0)) / 100;
             
-            // 3. Resultado Final: Perímetro Metros + Desperdicio Metros -> 2.80 + 0.15 = 2.95 ML
+            // 3. CANTIDAD REAL: 2.80 + 0.15 = 2.95 ML
             cantidadFinalADescontar = perimetroM + desperdicioM;
+
+            // 4. COSTO BASE REAL: 2.95 ML * $18.416 = $54.327
+            // Usamos m.costoUnitario que es el precio por ML que viene de la cotización
+            costoBaseFinal = cantidadFinalADescontar * (parseFloat(m.costoUnitario) || 0);
             
-            console.log(`🚀 [MOLDURA] ${nombreUP}: Perímetro ${perimetroM.toFixed(2)}m + Desp ${desperdicioM.toFixed(2)}m = Total ${cantidadFinalADescontar.toFixed(2)} ML`);
+            console.log(`🚀 [MOLDURA] ${nombreUP}: Uso ${cantidadFinalADescontar.toFixed(2)} ML | Costo Base: $${Math.round(costoBaseFinal)}`);
         } else {
-            // --- 🟦 LÓGICA M2 PRESERVADA (VIDRIOS/PASPARTÚ) ---
-            // Mantenemos el cálculo de área neta sin desperdicio para materiales de superficie
+            // --- 🟦 LÓGICA M2 (VIDRIOS/PASPARTÚ) ---
             cantidadFinalADescontar = parseFloat(datosCotizacionActual.areaFinal) || 0;
+            // Costo Base: Área * Costo por m2
+            costoBaseFinal = cantidadFinalADescontar * (parseFloat(m.costoUnitario) || 0);
             
-            console.log(`🟦 [M2] ${nombreUP}: Área Neta ${cantidadFinalADescontar.toFixed(4)} m²`);
+            console.log(`🟦 [M2] ${nombreUP}: Área ${cantidadFinalADescontar.toFixed(4)} m² | Costo Base: $${Math.round(costoBaseFinal)}`);
         }
 
         return {
@@ -539,9 +544,10 @@ async function facturarVenta() {
             materialNombre: m.nombre,
             ancho: datosCotizacionActual.anchoOriginal,
             largo: datosCotizacionActual.largoOriginal,
-            // 'area_m2' es el alias que usa el backend para restar del stock_actual
+            // 'area_m2' es lo que el reporte muestra como MEDIDA y lo que descuenta stock
             area_m2: cantidadFinalADescontar, 
-            costo_unitario: m.costoUnitario
+            // 'costo_unitario' es lo que el reporte usa para la columna COSTO BASE
+            costo_unitario: costoBaseFinal 
         };
     });
 
