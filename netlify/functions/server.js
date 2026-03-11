@@ -150,34 +150,48 @@ router.post('/quotes', async (req, res) => {
 });
 
 // --- GESTIÓN DE FACTURAS (MAPEO DE CLIENTE CORREGIDO) ---
-// --- GESTIÓN DE FACTURAS (MAPEO DE CLIENTE AGRESIVO v17.5.2) ---
 router.get('/invoices', async (req, res) => {
     try {
         const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
         
         res.json(facturas.map(f => {
-            // 🔍 1. BÚSQUEDA EXHAUSTIVA DEL NOMBRE (Prioridad absoluta a datos reales)
+            // 🔍 1. BÚSQUEDA ULTRA-EXHAUSTIVA (Sin margen de error)
             let nombreReal = null;
 
-            if (f.clienteNombre && String(f.clienteNombre).trim() !== "" && f.clienteNombre !== "null") {
+            // Prioridad 1: Campo directo 'clienteNombre'
+            if (f.clienteNombre && String(f.clienteNombre).trim() !== "" && String(f.clienteNombre).toLowerCase() !== "null") {
                 nombreReal = f.clienteNombre;
-            } else if (f.nombreCliente && String(f.nombreCliente).trim() !== "" && f.nombreCliente !== "null") {
+            } 
+            // Prioridad 2: Campo alternativo 'nombreCliente'
+            else if (f.nombreCliente && String(f.nombreCliente).trim() !== "" && String(f.nombreCliente).toLowerCase() !== "null") {
                 nombreReal = f.nombreCliente;
-            } else if (f.cliente) {
-                // Si 'f.cliente' es un objeto sacamos el nombre, si es string lo usamos directo
-                nombreReal = (typeof f.cliente === 'object') 
-                    ? (f.cliente.nombre || f.cliente.clienteNombre || null) 
-                    : f.cliente;
+            } 
+            // Prioridad 3: Estructura de objeto 'cliente.nombre'
+            else if (f.cliente) {
+                if (typeof f.cliente === 'object') {
+                    nombreReal = f.cliente.nombre || f.cliente.clienteNombre || null;
+                } else if (typeof f.cliente === 'string' && f.cliente.toLowerCase() !== "null") {
+                    nombreReal = f.cliente;
+                }
             }
 
-            // 🧹 2. LIMPIEZA FINAL (Eliminamos cualquier rastro de "GENÉRICO")
-            const nombreFinal = (nombreReal && String(nombreReal).toLowerCase() !== "null" && String(nombreReal).toLowerCase() !== "undefined" && String(nombreReal).trim() !== "")
-                ? String(nombreReal).toUpperCase()
-                : "SIN NOMBRE"; // Cambiado de "GENÉRICO" a "SIN NOMBRE" para diagnóstico
+            // 🧹 2. FILTRO ANTI-GENÉRICO Y LIMPIEZA
+            // Si el nombre resultante contiene la palabra "GENERICO", lo tratamos como "SIN NOMBRE"
+            let nombreFinal = "SIN NOMBRE";
+            
+            if (nombreReal && 
+                !String(nombreReal).toUpperCase().includes("GENÉRICO") && 
+                !String(nombreReal).toUpperCase().includes("GENERICO") &&
+                String(nombreReal).toLowerCase() !== "null" && 
+                String(nombreReal).trim() !== "") {
+                
+                nombreFinal = String(nombreReal).trim().toUpperCase();
+            }
 
+            // 📦 3. RETORNO DE DATA (Manteniendo todos tus otros campos intactos)
             return {
                 ...f, 
-                cliente: nombreFinal, // Este es el campo que lee tu tabla de historial
+                cliente: nombreFinal, // Este es el que usa tu tabla del historial
                 total: f.total || f.totalVenta || 0,
                 numeroOrden: f.numeroOrden || f.numeroFactura || "S/N"
             };
@@ -223,8 +237,7 @@ router.post('/invoices', async (req, res) => {
         let facturaData = req.body;
         console.log("📥 Iniciando proceso de guardado en Atlas...");
 
-        // 👤 1. RESCATE DEFINITIVO DEL NOMBRE DEL CLIENTE (ACTUALIZADO)
-    // 👤 1. RESCATE DEFINITIVO Y FORMATEO PARA ATLAS (REFORZADO)
+        // 👤 1. RESCATE DEFINITIVO Y FORMATEO PARA ATLAS (REFORZADO)
         let nombreParaTabla = "SIN NOMBRE";
         
         // Buscamos el nombre en todas las posibles rutas que el frontend pueda estar usando
@@ -237,11 +250,15 @@ router.post('/invoices', async (req, res) => {
             nombreParaTabla = nombreRecibido.toString().trim().toUpperCase();
         }
 
-        // --- SOLUCIÓN AL ERROR DE ATLAS ---
-        // Forzamos el nombre en 'clienteNombre' para el historial
+        // 🔥 TRIPLE ASIGNACIÓN: No dañamos nada, solo aseguramos que el nombre esté en todo lado
+        
+        // 1. Para el historial que busca el campo directo
         facturaData.clienteNombre = nombreParaTabla;
+        
+        // 2. Para procesos internos que usen nombreCliente
+        facturaData.nombreCliente = nombreParaTabla;
 
-        // Creamos el objeto 'cliente' con la propiedad 'nombre' para que la DB no lo rechace
+        // 3. PARA ATLAS Y EL HISTORIAL QUE BUSCA OBJETOS (Soluciona el error de validación)
         facturaData.cliente = {
             nombre: nombreParaTabla
         };
