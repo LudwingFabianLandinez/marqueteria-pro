@@ -454,35 +454,40 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (REESCRITO CON LÓGICA DE FILTRADO ESTRICTO)
+// 11. BUSCADOR Y FILTROS (VERSIÓN FINAL: CAPTURA DINÁMICA DE VALORES)
 function configurarBuscador() {
-    const inputBusqueda = document.getElementById('searchInputFacturas');
-
-    // --- LÓGICA DE FILTRADO (ESTRICTA: DEBE CUMPLIR AMBAS CONDICIONES) ---
+    // La lógica se define aquí para asegurar que siempre lea los valores actuales del DOM
     const ejecutarFiltrado = () => {
-        const term = inputBusqueda?.value.toLowerCase().trim() || "";
-        const fechaDesde = document.getElementById('fechaDesde')?.value; 
-        const fechaHasta = document.getElementById('fechaHasta')?.value;
+        // CAPTURA DINÁMICA: Buscamos los elementos justo antes de filtrar
+        const input = document.getElementById('searchInputFacturas');
+        const fDesdeInput = document.getElementById('fechaDesde');
+        const fHastaInput = document.getElementById('fechaHasta');
+
+        const term = input ? input.value.toLowerCase().trim() : "";
+        const fechaDesde = fDesdeInput ? fDesdeInput.value : "";
+        const fechaHasta = fHastaInput ? fHastaInput.value : "";
+
+        console.log(`🔍 Iniciando filtrado estricto para: "${term}"`);
 
         const filtradas = todasLasFacturas.filter(f => {
-            // 1. PREPARACIÓN DE DATOS (Igual que en la tabla)
+            // 1. Datos de Identidad (OT y Nombre)
             const ot = formatearNumeroOT(f).toLowerCase();
             let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
             let nombreLimpio = String(nombreRaw).toLowerCase();
             
-            // Normalizar genéricos para que coincidan con "SIN NOMBRE"
+            // Normalización para que "Genérico" sea buscable como "sin nombre"
             if (nombreLimpio.includes("generico") || nombreLimpio.includes("genérico")) {
                 nombreLimpio = "sin nombre";
             }
 
-            // 2. FILTRO DE TEXTO (Solo si el usuario escribió algo)
-            // Si term no está vacío, la OT o el Nombre DEBEN incluir el término.
+            // 2. Filtro de Texto Estricto
+            // Si hay término, DEBE estar en OT o Nombre. Si no hay término, pasa todo (true).
             const coincideTexto = term === "" || ot.includes(term) || nombreLimpio.includes(term);
 
-            // 3. FILTRO DE FECHAS (Solo si el usuario seleccionó fechas)
+            // 3. Filtro de Fechas Estricto
             let coincideFecha = true;
-            if (f.fecha) {
-                // Forzamos la fecha a formato YYYY-MM-DD local para comparar correctamente con los inputs
+            if (f.fecha && (fechaDesde || fechaHasta)) {
+                // Convertimos la fecha de la factura a YYYY-MM-DD local para comparar con el input date
                 const d = new Date(f.fecha);
                 const fechaFacturaISO = d.getFullYear() + '-' + 
                                       String(d.getMonth() + 1).padStart(2, '0') + '-' + 
@@ -492,40 +497,42 @@ function configurarBuscador() {
                 if (fechaHasta && fechaFacturaISO > fechaHasta) coincideFecha = false;
             }
 
-            // CONDICIÓN FINAL: Debe cumplir Texto Y Fecha para ser visible
+            // Solo incluimos si cumple AMBOS criterios
             return coincideTexto && coincideFecha;
         });
 
-        console.log(`🎯 Resultados para "${term}": ${filtradas.length}`);
+        console.log(`🎯 Resultados encontrados para "${term}": ${filtradas.length}`);
         renderTable(filtradas);
     };
 
-    // --- 🌍 EXPOSICIÓN GLOBAL (Activa los botones del HTML) ---
+    // --- 🌍 FUNCIONES GLOBALES (Para los onclick del HTML) ---
     window.aplicarFiltros = (e) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
-        console.log("🎯 Filtrado ejecutado (Botón Azul)");
         ejecutarFiltrado();
     };
 
     window.limpiarFiltros = (e) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
-        console.log("🧹 Limpiando filtros (Botón Gris)");
         
-        if (inputBusqueda) inputBusqueda.value = '';
+        const input = document.getElementById('searchInputFacturas');
+        if (input) input.value = '';
+        
         const fDesde = document.getElementById('fechaDesde');
         const fHasta = document.getElementById('fechaHasta');
         if (fDesde) fDesde.value = '';
         if (fHasta) fHasta.value = '';
         
+        console.log("🧹 Filtros reseteados");
         renderTable(todasLasFacturas);
     };
 
-    // --- ESCUCHA EN TIEMPO REAL ---
-    if (inputBusqueda) {
-        inputBusqueda.addEventListener('input', ejecutarFiltrado);
+    // --- EVENTOS ---
+    const inputMain = document.getElementById('searchInputFacturas');
+    if (inputMain) {
+        inputMain.addEventListener('input', ejecutarFiltrado);
     }
 
-    // --- VINCULACIÓN DE BOTONES POR TEXTO (Respaldo) ---
+    // Vinculación manual por si el HTML no tiene los onclick
     const botones = Array.from(document.querySelectorAll('button'));
     const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
     const btnLimpiar = botones.find(b => b.textContent.includes('LIMPIAR'));
