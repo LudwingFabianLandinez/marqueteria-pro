@@ -454,158 +454,154 @@ async function procesarCotizacion() {
         limpiarTextosNoDeseados();
     }
 
-        function mostrarResultado(data) {
-        console.log("DEBUG DATA RECIBIDA:", data); 
-        const divRes = document.getElementById('resultado');
-        
-        // --- BLOQUE DE ANCHO TOTAL ---
-        divRes.style.display = 'block';
-        divRes.style.width = '100%';
-        divRes.style.maxWidth = 'none'; 
-        divRes.style.boxSizing = 'border-box';
+    function mostrarResultado(data) {
+    console.log("DEBUG DATA RECIBIDA:", data); 
+    const divRes = document.getElementById('resultado');
+    
+    // Captura del nombre para el encabezado (se actualizará al escribir abajo)
+    const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
+    // Número de cotización (puede venir de data.ot o mostrarse como pendiente)
+    const numCotizacion = data.ot || "PENDIENTE";
 
-        divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
+    divRes.style.display = 'block';
+    divRes.style.width = '100%';
+    divRes.style.maxWidth = 'none'; 
+    divRes.style.boxSizing = 'border-box';
 
-        const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+    divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
 
-        // --- 🖋️ GENERADOR DE LISTA DE MATERIALES CON REPARACIÓN AGRESIVA ---
-        // Intentamos sacar materiales de 'data' o de la variable global 'materialesSeleccionados'
-        const materialesAProcesar = (data.detalles?.materiales && data.detalles.materiales.length > 0) 
-            ? data.detalles.materiales 
-            : (typeof materialesSeleccionados !== 'undefined' ? materialesSeleccionados : []);
+    const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
-        let sumaSubtotalesReparados = 0;
+    const materialesAProcesar = (data.detalles?.materiales && data.detalles.materiales.length > 0) 
+        ? data.detalles.materiales 
+        : (typeof materialesSeleccionados !== 'undefined' ? materialesSeleccionados : []);
 
-        const itemsHTML = materialesAProcesar.length > 0 
-            ? materialesAProcesar.map(m => {
-                const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
-                const unidadVisual = (m.unidad || "ML").toUpperCase();
-                
-                // 🛡️ RESCATE DE MEDIDA: Prioridad a cantidadUsada, luego areaFinal, luego cálculo manual
-                let medidaExacta = parseFloat(m.cantidadUsada) || 0;
-                if (medidaExacta === 0) {
-                    medidaExacta = (unidadVisual === 'M2') ? (parseFloat(data.areaFinal) || 0) : 0;
-                }
-                
-                // 🚨 REPARACIÓN TOTAL DE VENTA: 
-                // Si subtotalVenta es 0, multiplicamos costo por cantidad y factor
-                let valorVentaItem = parseFloat(m.subtotalVenta) || 0;
-                if (valorVentaItem === 0) {
-                    const costoBase = parseFloat(m.costoUnitario) || 0;
-                    const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
-                    valorVentaItem = Math.round((costoBase * medidaExacta) * factorM);
-                }
-                
-                sumaSubtotalesReparados += valorVentaItem;
-                
-                return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
-                    <span style="display: flex; flex-direction: column;">
-                        <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-check-circle" style="color:#10b981; font-size: 0.9rem;"></i> 
-                            ${nombreVisual}
-                        </span>
-                        <small style="color: #64748b; margin-left: 22px; font-size: 0.75rem; font-weight: 500;">
-                            CANTIDAD: ${medidaExacta} ${unidadVisual}
-                        </small>
+    let sumaSubtotalesReparados = 0;
+
+    const itemsHTML = materialesAProcesar.length > 0 
+        ? materialesAProcesar.map(m => {
+            const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
+            const unidadVisual = (m.unidad || "ML").toUpperCase();
+            
+            let medidaExacta = parseFloat(m.cantidadUsada) || 0;
+            if (medidaExacta === 0) {
+                medidaExacta = (unidadVisual === 'M2') ? (parseFloat(data.areaFinal) || 0) : 0;
+            }
+            
+            let valorVentaItem = parseFloat(m.subtotalVenta) || 0;
+            if (valorVentaItem === 0) {
+                const costoBase = parseFloat(m.costoUnitario) || 0;
+                const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
+                valorVentaItem = Math.round((costoBase * medidaExacta) * factorM);
+            }
+            
+            sumaSubtotalesReparados += valorVentaItem;
+            
+            // Retorno sin el span de precio (se oculta el valor individual)
+            return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
+                <span style="display: flex; flex-direction: column;">
+                    <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-check-circle" style="color:#10b981; font-size: 0.9rem;"></i> 
+                        ${nombreVisual}
                     </span>
-                    <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem; padding-top: 2px;">
-                        ${formatter.format(valorVentaItem)}
-                    </span>
-                </li>`;
-            }).join('')
-            : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
+                    <small style="color: #64748b; margin-left: 22px; font-size: 0.75rem; font-weight: 500;">
+                        CANTIDAD: ${medidaExacta} ${unidadVisual}
+                    </small>
+                </span>
+            </li>`;
+        }).join('')
+        : '<li style="color: #94a3b8;">No se seleccionaron materiales</li>';
 
-        // 🛡️ RECALCULO DEL TOTAL FINAL
-        const manoObra = parseFloat(data.valor_mano_obra) || 0;
-        let totalExhibicion = parseFloat(data.precioSugeridoCliente) || 0;
-        
-        // Si el total sigue en cero después del proceso, forzamos la suma reparada
-        if (totalExhibicion === 0 || isNaN(totalExhibicion)) {
-            totalExhibicion = sumaSubtotalesReparados + manoObra;
-            data.precioSugeridoCliente = totalExhibicion; 
-        }
+    const manoObra = parseFloat(data.valor_mano_obra) || 0;
+    let totalExhibicion = parseFloat(data.precioSugeridoCliente) || 0;
+    
+    if (totalExhibicion === 0 || isNaN(totalExhibicion)) {
+        totalExhibicion = sumaSubtotalesReparados + manoObra;
+        data.precioSugeridoCliente = totalExhibicion; 
+    }
 
-        document.getElementById('detalleObra').innerHTML = `
-            <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
-                    <div>
-                        <h2 style="margin:0; color: #1e3a8a; font-size: 1.5rem;">ORDEN DE TRABAJO</h2>
-                        <small style="color: #64748b;">Marquetería La Chica Morales</small>
-                    </div>
-                    <div style="text-align: right;">
-                        <span style="display:block; font-weight: bold; color: #1e3a8a;">COTIZACIÓN</span>
-                        <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
-                    </div>
+    document.getElementById('detalleObra').innerHTML = `
+        <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
+                <div>
+                    <h2 style="margin:0; color: #1e3a8a; font-size: 1.5rem;">ORDEN DE TRABAJO</h2>
+                    <p style="margin: 5px 0 0 0; font-weight: bold; color: #1e293b; font-size: 1.1rem;">Sr(a). ${nombreClienteRaw.toUpperCase()}</p>
                 </div>
-                
-                <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 6px; border-left: 4px solid #1e3a8a;">
-                    <strong>Medidas Marco:</strong> ${data.detalles?.medidas || (typeof ancho !== 'undefined' ? `${ancho}x${largo} cm` : '--')}
-                </p>
-
-                <h4 style="color: #475569; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
-                    Desglose de Materiales:
-                </h4>
-                
-                <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">
-                    ${itemsHTML}
-                </ul>
-
-                <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
-                        <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(totalExhibicion)}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669;">
-                        <span style="font-weight: 600;">ABONO RECIBIDO:</span>
-                        <span id="montoAbonoRecibo" style="font-weight: 700;">- ${formatter.format(0)}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #cbd5e1;">
-                        <span style="font-weight: 800; color: #1e293b;">SALDO PENDIENTE:</span>
-                        <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(totalExhibicion)}</span>
-                    </div>
+                <div style="text-align: right;">
+                    <span style="display:block; font-weight: bold; color: #1e3a8a;">COTIZACIÓN N° ${numCotizacion}</span>
+                    <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
                 </div>
+            </div>
+            
+            <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 6px; border-left: 4px solid #1e3a8a;">
+                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || (typeof ancho !== 'undefined' ? `${ancho}x${largo} cm` : '--')}
+            </p>
 
-                <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
-                    <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                    <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                    <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+            <h4 style="color: #475569; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                Desglose de Materiales:
+            </h4>
+            
+            <ul style="list-style:none; padding-left:0; margin:10px 0; font-size:0.95rem; color:#334155;">
+                ${itemsHTML}
+            </ul>
+
+            <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
+                    <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(totalExhibicion)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669;">
+                    <span style="font-weight: 600;">ABONO RECIBIDO:</span>
+                    <span id="montoAbonoRecibo" style="font-weight: 700;">- ${formatter.format(0)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #cbd5e1;">
+                    <span style="font-weight: 800; color: #1e293b;">SALDO PENDIENTE:</span>
+                    <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(totalExhibicion)}</span>
                 </div>
             </div>
 
-            <div class="no-print" style="margin-top: 20px; width: 100%; display: flex; gap: 10px;">
-                <button onclick="imprimirResumen()" style="background: #1e3a8a; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: background 0.3s;">
-                    <i class="fas fa-print"></i> IMPRIMIR ORDEN (CLIENTE)
-                </button>
-            </div>`;
-        
-        document.getElementById('containerAcciones').innerHTML = `
-            <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
-                <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
-                    <i class="fas fa-cash-register"></i> REGISTRAR VENTA FINAL
-                </h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="input-group">
-                        <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">NOMBRE DEL CLIENTE</label>
-                        <input type="text" id="nombreCliente" placeholder="Ej: Juan Pérez" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
-                    </div>
-                    <div class="input-group">
-                        <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">WHATSAPP / TEL</label>
-                        <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
-                    </div>
+            <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+            </div>
+        </div>
+
+        <div class="no-print" style="margin-top: 20px; width: 100%; display: flex; gap: 10px;">
+            <button onclick="imprimirResumen()" style="background: #1e3a8a; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: background 0.3s;">
+                <i class="fas fa-print"></i> IMPRIMIR ORDEN (CLIENTE)
+            </button>
+        </div>`;
+    
+    // Contenedor de acciones (Se mantiene igual pero se añade el oninput al nombreCliente)
+    document.getElementById('containerAcciones').innerHTML = `
+        <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
+            <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-cash-register"></i> REGISTRAR VENTA FINAL
+            </h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="input-group">
+                    <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">NOMBRE DEL CLIENTE</label>
+                    <input type="text" id="nombreCliente" oninput="mostrarResultado(datosCotizacionActual)" placeholder="Ej: Juan Pérez" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
                 </div>
-                <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
-                    <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
-                    <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
-                        style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
+                <div class="input-group">
+                    <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">WHATSAPP / TEL</label>
+                    <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
                 </div>
-                <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
-                    <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
-                </button>
-            </div>`;
-        
-        setTimeout(limpiarTextosNoDeseados, 100);
-    }
+            </div>
+            <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
+                <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
+                <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
+                    style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
+            </div>
+            <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
+                <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
+            </button>
+        </div>`;
+    
+    setTimeout(limpiarTextosNoDeseados, 100);
+}
 
     function imprimirResumen() {
         const printArea = document.getElementById('printArea');
