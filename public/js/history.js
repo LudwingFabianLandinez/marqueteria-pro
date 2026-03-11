@@ -275,6 +275,7 @@ function exportarAExcel() {
 }
 
 // 7. RENDERIZADO DE TABLA (CORRECCIÓN DE BOTÓN VERDE)
+// 7. RENDERIZADO DE TABLA (SOLUCIÓN DEFINITIVA DE NOMBRES Y MANTENIMIENTO DE AVANCES)
 function renderTable(facturas) {
     const tableBody = document.getElementById('tablaFacturas');
     if (!tableBody) return console.error("❌ No se encontró 'tablaFacturas'");
@@ -292,13 +293,21 @@ function renderTable(facturas) {
         const saldo = total - pagado;
         const estaPagada = saldo <= 0;
 
+        // --- 🔍 LÓGICA DE NOMBRE LIMPIO (Sin "Genérico") ---
+        let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente && typeof f.cliente === 'object' ? f.cliente.nombre : f.cliente) || "SIN NOMBRE";
+        let nombreFinal = String(nombreRaw).toUpperCase();
+        
+        if (nombreFinal.includes("GENERICO") || nombreFinal.includes("GENÉRICO")) {
+            nombreFinal = "SIN NOMBRE";
+        }
+
         const tr = document.createElement('tr');
         tr.className = 'row-factura';
         tr.onclick = () => toggleDetails(`details-${f._id}`);
         tr.innerHTML = `
             <td>${f.fecha ? new Date(f.fecha).toLocaleDateString() : '---'}</td>
             <td style="font-weight: 700; color: #1e3a8a;">${formatearNumeroOT(f)}</td>
-            <td>${(f.cliente?.nombre || f.clienteNombre || 'Cliente Genérico').toUpperCase()}</td>
+            <td style="font-weight: 600;">${nombreFinal}</td>
             <td style="font-weight: 600;">${formatter.format(total)}</td>
             <td style="color: ${estaPagada ? '#059669' : '#e11d48'}; font-weight: 700;">${formatter.format(saldo)}</td>
             <td><span class="badge-status ${estaPagada ? 'badge-pagado' : 'badge-abonado'}">${estaPagada ? 'PAGADA' : 'CON SALDO'}</span></td>
@@ -332,7 +341,7 @@ function renderTable(facturas) {
                         ${!estaPagada ? 
                             `<button onclick="event.stopPropagation(); abrirModalAbono('${f._id}', ${total}, ${pagado})" 
                                      style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 700;">
-                                <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
+                                 <i class="fas fa-plus-circle"></i> REGISTRAR PAGO
                              </button>` 
                             : '<b style="color: #059669;"><i class="fas fa-check-circle"></i> PAGADA</b>'}
                     </div>
@@ -343,7 +352,6 @@ function renderTable(facturas) {
         tableBody.appendChild(trDetails);
     });
 }
-
 // 8. CONTROL ACORDEÓN (SE MANTIENE IGUAL)
 function toggleDetails(id) {
     const fila = document.getElementById(id);
