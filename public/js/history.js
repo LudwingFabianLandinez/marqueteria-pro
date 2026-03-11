@@ -454,20 +454,22 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (REESCRITO PARA ACTIVAR BOTONES AZUL Y GRIS)
+// 11. BUSCADOR Y FILTROS (ACTIVACIÓN FORZOSA DE BOTONES AZUL Y GRIS)
 function configurarBuscador() {
     const inputBusqueda = document.getElementById('searchInputFacturas');
-    const btnFiltrar = document.querySelector('button.btn-primary'); // El botón azul
-    const btnLimpiar = document.querySelector('button.btn-secondary'); // El botón gris
+    
+    // 🔍 Buscamos los botones por su contenido de texto para asegurar la captura
+    const botones = Array.from(document.querySelectorAll('button'));
+    const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
+    const btnLimpiar = botones.find(b => b.textContent.includes('LIMPIAR'));
 
-    // Función maestra de filtrado
     const ejecutarFiltrado = () => {
         const term = inputBusqueda?.value.toLowerCase().trim() || "";
         const fechaDesde = document.getElementById('fechaDesde')?.value;
         const fechaHasta = document.getElementById('fechaHasta')?.value;
 
         const filtradas = todasLasFacturas.filter(f => {
-            // --- Filtro por Texto (OT o Nombre) ---
+            // Filtro Texto
             const ot = formatearNumeroOT(f).toLowerCase();
             let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
             let nombreLimpio = String(nombreRaw).toLowerCase();
@@ -475,10 +477,10 @@ function configurarBuscador() {
             
             const coincideTexto = ot.includes(term) || nombreLimpio.includes(term);
 
-            // --- Filtro por Fechas ---
+            // Filtro Fechas
             let coincideFecha = true;
             if (f.fecha) {
-                const fechaFactura = new Date(f.fecha).toISOString().split('T')[0];
+                const fechaFactura = f.fecha.split('T')[0];
                 if (fechaDesde && fechaFactura < fechaDesde) coincideFecha = false;
                 if (fechaHasta && fechaFactura > fechaHasta) coincideFecha = false;
             }
@@ -489,25 +491,30 @@ function configurarBuscador() {
         renderTable(filtradas);
     };
 
-    // 1. Evento para escribir (Filtrado en tiempo real)
+    // Escucha en tiempo real
     inputBusqueda?.addEventListener('input', ejecutarFiltrado);
 
-    // 2. ACTIVAR BOTÓN AZUL (FILTRAR)
+    // ✅ ACTIVACIÓN BOTÓN AZUL (FILTRAR)
     if (btnFiltrar) {
+        btnFiltrar.style.border = "2px solid white"; // Marca visual de que se activó
         btnFiltrar.onclick = (e) => {
             e.preventDefault();
+            console.log("🎯 Filtrado ejecutado desde botón azul");
             ejecutarFiltrado();
         };
     }
 
-    // 3. ACTIVAR BOTÓN GRIS (LIMPIAR)
+    // ✅ ACTIVACIÓN BOTÓN GRIS (LIMPIAR)
     if (btnLimpiar) {
         btnLimpiar.onclick = (e) => {
             e.preventDefault();
+            console.log("🧹 Limpiando filtros...");
             if (inputBusqueda) inputBusqueda.value = '';
-            document.getElementById('fechaDesde').value = '';
-            document.getElementById('fechaHasta').value = '';
-            renderTable(todasLasFacturas); // Restaurar tabla completa
+            const fDesde = document.getElementById('fechaDesde');
+            const fHasta = document.getElementById('fechaHasta');
+            if (fDesde) fDesde.value = '';
+            if (fHasta) fHasta.value = '';
+            renderTable(todasLasFacturas);
         };
     }
 }
