@@ -698,21 +698,30 @@ if (formCompra) {
                 m.nombre.trim().toUpperCase() === nombreReal.trim().toUpperCase()
             );
 
-            // --- 📏 LÓGICA DE COSTO ---
+            // --- 📏 LÓGICA DE COSTO (PROTECCIÓN TOTAL v21.6) ---
             let costoFinalAtlas = costoIngresado;
-            const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || categoriaDeterminada === "RESPALDO" || categoriaDeterminada === "VIDRIO");
+
+            // 🚀 AVANCE: Detectamos Foam Board para que se trate como superficie aunque no sea Vidrio
+            const esFoam = nombreUP.includes("FOAM") || nombreUP.includes("PLUMA");
+            
+            // Mantenemos tus categorías (RESPALDO, VIDRIO) y sumamos el nuevo detector
+            const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || esFoam || categoriaDeterminada === "RESPALDO" || categoriaDeterminada === "VIDRIO");
 
             if (esMaterialSuperficie) {
                 const areaM2 = (largoCm * anchoCm) / 10000;
                 if (areaM2 > 0) {
+                    // Si el usuario ingresa $39.900 (precio lámina), 
+                    // aquí se convierte a precio por m2 para Atlas.
                     costoFinalAtlas = Number((costoIngresado / areaM2).toFixed(2));
                 }
             }
 
-            // --- 🛡️ PROTECCIÓN DE DIMENSIONES ---
+            // --- 🛡️ PROTECCIÓN DE DIMENSIONES (v21.7) ---
             const largoReferencia = (largoCm > 0) ? largoCm : 290;
             const factorAnchoEscala = esMoldura ? 100 : anchoCm;
 
+            // 🚀 ESTA ES LA CLAVE: 
+            // Si es Foam Board (no es moldura), entrará por m2 (ej: 0.81) y no por unidad (1.00).
             const VALOR_REAL_INCREMENTO = esMoldura 
                 ? Number((cant * (largoReferencia / 100)).toFixed(2)) 
                 : Number(((largoCm * anchoCm / 10000) * cant).toFixed(2));
@@ -721,7 +730,6 @@ if (formCompra) {
             const esNuevoMaterial = (idMasterAtlas === null || selectMat.value === "NUEVO");
 
             // --- 🚨 SINCRONIZACIÓN DE DESPERDICIO (REGLA DE ORO) 🚨 ---
-            // Capturamos el valor manual. Si es 0 o vacío, heredamos lo que Atlas ya tenía.
             const desperdicioValorManual = inputDesperdicio ? parseFloat(inputDesperdicio.value) : 0;
             const desperdicioEnMaestro = (existente && (existente.desperdicio_total_cm || existente.desperdicio)) 
                 ? parseFloat(existente.desperdicio_total_cm || existente.desperdicio) 
