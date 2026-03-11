@@ -196,10 +196,6 @@
                 <button type="submit" class="btn-save" id="btnGuardarDB">
                     <i class="fas fa-check-circle"></i> GUARDAR EN BASE DE DATOS
                 </button>
-                
-                <button type="button" id="btnConsultarProveedores" class="btn-consult" onclick="abrirModalConsulta()">
-                    <i class="fas fa-search"></i> CONSULTAR PROVEEDORES
-                </button>
 
                 <a href="dashboard.html" class="btn-cancel">
                     Descartar y Salir
@@ -300,7 +296,7 @@
             
             if (saveFunc) {
                 await saveFunc(datos);
-                alert("✅ Proveedor registrado correctamente.");
+                alert("✅ Proveedor Registrado Éxito.");
                 window.location.href = "dashboard.html";
             } else {
                 throw new Error("API no inicializada.");
