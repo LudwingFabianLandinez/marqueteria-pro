@@ -454,15 +454,11 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (ACTIVACIÓN FORZOSA DE BOTONES AZUL Y GRIS)
+// 11. BUSCADOR Y FILTROS (REESCRITO PARA ACTIVACIÓN GLOBAL DE BOTONES AZUL Y GRIS)
 function configurarBuscador() {
     const inputBusqueda = document.getElementById('searchInputFacturas');
-    
-    // 🔍 Buscamos los botones por su contenido de texto para asegurar la captura
-    const botones = Array.from(document.querySelectorAll('button'));
-    const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
-    const btnLimpiar = botones.find(b => b.textContent.includes('LIMPIAR'));
 
+    // --- LÓGICA DE FILTRADO (Mantenida 100% igual) ---
     const ejecutarFiltrado = () => {
         const term = inputBusqueda?.value.toLowerCase().trim() || "";
         const fechaDesde = document.getElementById('fechaDesde')?.value;
@@ -491,32 +487,37 @@ function configurarBuscador() {
         renderTable(filtradas);
     };
 
-    // Escucha en tiempo real
-    inputBusqueda?.addEventListener('input', ejecutarFiltrado);
+    // --- 🌍 EXPOSICIÓN GLOBAL (Esto activa los botones del HTML) ---
+    window.aplicarFiltros = (e) => {
+        if (e) e.preventDefault();
+        console.log("🎯 Filtrado ejecutado (Botón Azul)");
+        ejecutarFiltrado();
+    };
 
-    // ✅ ACTIVACIÓN BOTÓN AZUL (FILTRAR)
-    if (btnFiltrar) {
-        btnFiltrar.style.border = "2px solid white"; // Marca visual de que se activó
-        btnFiltrar.onclick = (e) => {
-            e.preventDefault();
-            console.log("🎯 Filtrado ejecutado desde botón azul");
-            ejecutarFiltrado();
-        };
+    window.limpiarFiltros = (e) => {
+        if (e) e.preventDefault();
+        console.log("🧹 Limpiando filtros (Botón Gris)");
+        if (inputBusqueda) inputBusqueda.value = '';
+        const fDesde = document.getElementById('fechaDesde');
+        const fHasta = document.getElementById('fechaHasta');
+        if (fDesde) fDesde.value = '';
+        if (fHasta) fHasta.value = '';
+        renderTable(todasLasFacturas);
+    };
+
+    // --- ESCUCHA EN TIEMPO REAL ---
+    if (inputBusqueda) {
+        inputBusqueda.addEventListener('input', ejecutarFiltrado);
     }
 
-    // ✅ ACTIVACIÓN BOTÓN GRIS (LIMPIAR)
-    if (btnLimpiar) {
-        btnLimpiar.onclick = (e) => {
-            e.preventDefault();
-            console.log("🧹 Limpiando filtros...");
-            if (inputBusqueda) inputBusqueda.value = '';
-            const fDesde = document.getElementById('fechaDesde');
-            const fHasta = document.getElementById('fechaHasta');
-            if (fDesde) fDesde.value = '';
-            if (fHasta) fHasta.value = '';
-            renderTable(todasLasFacturas);
-        };
-    }
+    // --- COMPATIBILIDAD ADICIONAL ---
+    // Buscamos los botones por texto por si el HTML no tiene el onclick puesto
+    const botones = Array.from(document.querySelectorAll('button'));
+    const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
+    const btnLimpiar = botones.find(b => b.textContent.includes('LIMPIAR'));
+
+    if (btnFiltrar && !btnFiltrar.onclick) btnFiltrar.onclick = window.aplicarFiltros;
+    if (btnLimpiar && !btnLimpiar.onclick) btnLimpiar.onclick = window.limpiarFiltros;
 }
 
 // 12. ELIMINAR (SE MANTIENE IGUAL)
