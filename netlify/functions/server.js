@@ -222,23 +222,22 @@ router.post('/invoices', async (req, res) => {
         let facturaData = req.body;
         console.log("📥 Iniciando proceso de guardado en Atlas...");
 
-        // 👤 1. RESCATE DEL NOMBRE DEL CLIENTE (ACTUALIZADO)
-        let nombreParaTabla = "CLIENTE SIN NOMBRE";
+        // 👤 1. RESCATE DEFINITIVO DEL NOMBRE DEL CLIENTE (ACTUALIZADO)
+        // Usamos "SIN NOMBRE" como respaldo para detectar si realmente no está llegando nada del frontend
+        let nombreParaTabla = "SIN NOMBRE";
         
-        // Prioridad 1: Si viene como clienteNombre
-        if (facturaData.clienteNombre) {
-            nombreParaTabla = facturaData.clienteNombre;
-        } 
-        // Prioridad 2: Si viene como objeto cliente.nombre
-        else if (facturaData.cliente && typeof facturaData.cliente === 'object') {
-            nombreParaTabla = facturaData.cliente.nombre || "CLIENTE SIN NOMBRE";
-        }
-        // Prioridad 3: Si viene como string en cliente
-        else if (typeof facturaData.cliente === 'string' && facturaData.cliente.trim() !== "") {
-            nombreParaTabla = facturaData.cliente;
+        // Buscamos el nombre en todas las posibles rutas que el frontend pueda estar usando
+        const nombreRecibido = facturaData.clienteNombre || 
+                               facturaData.nombreCliente || 
+                               (facturaData.cliente && typeof facturaData.cliente === 'object' ? facturaData.cliente.nombre : null) || 
+                               (typeof facturaData.cliente === 'string' ? facturaData.cliente : null);
+
+        if (nombreRecibido && nombreRecibido.toString().trim() !== "") {
+            nombreParaTabla = nombreRecibido.toString().trim();
         }
 
-        facturaData.clienteNombre = String(nombreParaTabla).toUpperCase();
+        // Forzamos el nombre final en mayúsculas
+        facturaData.clienteNombre = nombreParaTabla.toUpperCase();
 
         // 🔥 2. BLOQUE DE RESCATE DE MATERIALES (MANTENIDO E INTACTO)
         if (facturaData.items && Array.isArray(facturaData.items)) {
