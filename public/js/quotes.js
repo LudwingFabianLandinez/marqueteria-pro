@@ -480,6 +480,9 @@ function mostrarResultado(data) {
     const nombreConTrato = `Sr(a). ${nombreClienteRaw.toUpperCase()}`;
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
+    // Captura del abono actual del input para mostrarlo en tiempo real en el recibo
+    const montoAbonoActual = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
+
     const materialesAProcesar = (data.detalles?.materiales && data.detalles.materiales.length > 0) 
         ? data.detalles.materiales 
         : (typeof materialesSeleccionados !== 'undefined' ? materialesSeleccionados : []);
@@ -524,7 +527,9 @@ function mostrarResultado(data) {
         data.precioSugeridoCliente = totalExhibicion; 
     }
 
-    // 5. Inyectar el área de impresión (Texto estático sin número)
+    const saldoFinalCalculado = totalExhibicion - montoAbonoActual;
+
+    // 5. Inyectar el área de impresión (Abono posicionado y línea extra de observaciones)
     detalleObra.innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
@@ -554,16 +559,21 @@ function mostrarResultado(data) {
             <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
-                    <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(totalExhibicion)}</span>
+                    <span style="font-weight: 700; color: #1e293b; font-size: 1.4rem;">${formatter.format(totalExhibicion)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: #10b981; font-weight: 700;">ABONO RECIBIDO:</span>
+                    <span style="font-weight: 700; color: #10b981; font-size: 1.2rem;">- ${formatter.format(montoAbonoActual)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #cbd5e1;">
                     <span style="font-weight: 800; color: #1e293b;">SALDO PENDIENTE:</span>
-                    <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(totalExhibicion)}</span>
+                    <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(saldoFinalCalculado)}</span>
                 </div>
             </div>
 
             <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
                 <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
             </div>
@@ -594,7 +604,7 @@ function mostrarResultado(data) {
                 </div>
                 <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
                     <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
-                    <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
+                    <input type="number" id="abonoInicial" value="0" oninput="mostrarResultado(datosCotizacionActual)"
                         style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
                 </div>
                 <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
