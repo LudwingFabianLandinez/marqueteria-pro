@@ -222,13 +222,22 @@ router.post('/invoices', async (req, res) => {
         let facturaData = req.body;
         console.log("📥 Iniciando proceso de guardado en Atlas...");
 
-        // 👤 1. RESCATE DEL NOMBRE DEL CLIENTE (MANTENIDO)
-        let nombreParaTabla = "CLIENTE GENÉRICO";
-        if (facturaData.cliente && typeof facturaData.cliente === 'object') {
-            nombreParaTabla = facturaData.cliente.nombre || "CLIENTE GENÉRICO";
-        } else if (typeof facturaData.cliente === 'string') {
+        // 👤 1. RESCATE DEL NOMBRE DEL CLIENTE (ACTUALIZADO)
+        let nombreParaTabla = "CLIENTE SIN NOMBRE";
+        
+        // Prioridad 1: Si viene como clienteNombre
+        if (facturaData.clienteNombre) {
+            nombreParaTabla = facturaData.clienteNombre;
+        } 
+        // Prioridad 2: Si viene como objeto cliente.nombre
+        else if (facturaData.cliente && typeof facturaData.cliente === 'object') {
+            nombreParaTabla = facturaData.cliente.nombre || "CLIENTE SIN NOMBRE";
+        }
+        // Prioridad 3: Si viene como string en cliente
+        else if (typeof facturaData.cliente === 'string' && facturaData.cliente.trim() !== "") {
             nombreParaTabla = facturaData.cliente;
         }
+
         facturaData.clienteNombre = String(nombreParaTabla).toUpperCase();
 
         // 🔥 2. BLOQUE DE RESCATE DE MATERIALES (MANTENIDO E INTACTO)
