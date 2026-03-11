@@ -208,10 +208,11 @@
 
 <div id="modalConsultar" class="modal-overlay" onclick="if(event.target==this) cerrarModal()">
     <div class="modal-view">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
-            <h3 style="margin:0; color: var(--primary-dark);">Proveedores Registrados</h3>
-            <button onclick="cerrarModal()" style="cursor:pointer; border:none; background:#fee2e2; color:#ef4444; padding: 5px 12px; border-radius: 8px; font-size: 1.2rem; font-weight: bold;">&times; Cerrar</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 15px;">
+            <h3 style="margin:0; color: var(--primary-dark);">Directorio de Proveedores</h3>
+            <button onclick="cerrarModal()" style="cursor:pointer; border:none; background:#fee2e2; color:#ef4444; padding: 5px 12px; border-radius: 8px; font-weight: bold;">&times; Cerrar</button>
         </div>
+
         <table>
             <thead>
                 <tr>
@@ -220,8 +221,9 @@
                     <th>Teléfono</th>
                 </tr>
             </thead>
-            <tbody id="listaProveedoresBody"></tbody>
-        </table>
+            <tbody id="listaProveedoresDetalle"></tbody> </table>
+
+        <div id="contenedorAccionesReporte" style="text-align: right; margin-top: 20px;"></div>
     </div>
 </div>
 
@@ -234,15 +236,20 @@
      */
 
     window.abrirModalConsulta = async function() {
-        console.log("Acción: Abriendo agenda de proveedores...");
+        console.log("Acción: Abriendo agenda de proveedores con Escudo Anti-404...");
         const modal = document.getElementById('modalConsultar');
-        const tabla = document.getElementById('listaProveedoresBody');
+        // Usamos el ID sincronizado con el HTML nuevo
+        const tabla = document.getElementById('listaProveedoresDetalle');
+        const contenedorAcciones = document.getElementById('contenedorAccionesReporte');
         
+        if (!modal || !tabla) return console.error("Error: No se encontraron los elementos del modal.");
+
         modal.style.display = 'flex';
         tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Sincronizando con la nube...</td></tr>';
+        if (contenedorAcciones) contenedorAcciones.innerHTML = '';
 
         try {
-            // El Escudo: Busca en window.API las funciones sincronizadas en la consola
+            // El Escudo: Busca las funciones en window.API
             const apiFunc = window.API?.getProviders || window.API?.getSuppliers;
             
             if (apiFunc) {
@@ -250,6 +257,7 @@
                 const lista = response.data || response;
 
                 if (Array.isArray(lista) && lista.length > 0) {
+                    // 1. Renderizar la tabla
                     tabla.innerHTML = lista.map(p => `
                         <tr>
                             <td><strong>${p.nombre || 'Sin nombre'}</strong></td>
@@ -257,16 +265,44 @@
                             <td>${p.telefono || 'Sin teléfono'}</td>
                         </tr>
                     `).join('');
+
+                    // 2. Activar botón de reporte si existe el contenedor
+                    if (contenedorAcciones) {
+                        contenedorAcciones.innerHTML = `
+                            <button type="button" class="btn-consult" style="background:#2563eb; width:auto; padding:10px 20px; border:none; color:white; border-radius:10px; cursor:pointer;" onclick="descargarReporteCSV()">
+                                <i class="fas fa-file-csv"></i> DESCARGAR REPORTE (CSV)
+                            </button>
+                        `;
+                        // Guardamos la lista en memoria para la descarga
+                        window.datosProveedoresCache = lista;
+                    }
                 } else {
-                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores en la base de datos.</td></tr>';
+                    tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay proveedores registrados en la base de datos.</td></tr>';
                 }
             } else {
-                throw new Error("El servicio de consulta no está listo.");
+                throw new Error("El servicio de conexión (API) no está inicializado.");
             }
         } catch (error) {
             console.error("Error en consulta:", error);
-            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">⚠️ Error al conectar con el servidor. Revisa la consola (F12).</td></tr>';
+            tabla.innerHTML = `<tr><td colspan="3" style="text-align:center; color:red; padding:20px;">⚠️ Error: ${error.message}</td></tr>`;
         }
+    };
+
+    // Función complementaria para procesar el archivo CSV
+    window.descargarReporteCSV = function() {
+        const datos = window.datosProveedoresCache;
+        if (!datos || datos.length === 0) return alert("No hay datos para exportar.");
+
+        const encabezados = "Nombre,Categoria,Telefono,NIT,Contacto,Correo\n";
+        const filas = datos.map(p => 
+            `"${p.nombre || ''}","${p.categoria || ''}","${p.telefono || ''}","${p.nit || ''}","${p.contacto || ''}","${p.correo || ''}"`
+        ).join("\n");
+
+        const blob = new Blob([encabezados + filas], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Directorio_Proveedores_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
     };
 
     window.cerrarModal = function() {
