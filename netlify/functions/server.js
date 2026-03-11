@@ -223,8 +223,8 @@ router.post('/invoices', async (req, res) => {
         let facturaData = req.body;
         console.log("📥 Iniciando proceso de guardado en Atlas...");
 
-        // 👤 1. RESCATE DEFINITIVO DEL NOMBRE DEL CLIENTE (REFORZADO)
-        // Usamos "SIN NOMBRE" para identificar rápidamente si el frontend no envió nada
+        // 👤 1. RESCATE DEFINITIVO DEL NOMBRE DEL CLIENTE (ACTUALIZADO)
+    // 👤 1. RESCATE DEFINITIVO Y FORMATEO PARA ATLAS (REFORZADO)
         let nombreParaTabla = "SIN NOMBRE";
         
         // Buscamos el nombre en todas las posibles rutas que el frontend pueda estar usando
@@ -233,15 +233,18 @@ router.post('/invoices', async (req, res) => {
                                (facturaData.cliente && typeof facturaData.cliente === 'object' ? facturaData.cliente.nombre : null) || 
                                (typeof facturaData.cliente === 'string' ? facturaData.cliente : null);
 
-        if (nombreRecibido && String(nombreRecibido).trim() !== "" && String(nombreRecibido).toLowerCase() !== "null") {
-            nombreParaTabla = String(nombreRecibido).trim();
+        if (nombreRecibido && nombreRecibido.toString().trim() !== "" && nombreRecibido.toString().toLowerCase() !== "null") {
+            nombreParaTabla = nombreRecibido.toString().trim().toUpperCase();
         }
 
-        // 🛡️ DOBLE BLINDAJE: Guardamos en ambos campos para que el historial lo encuentre sí o sí
-        const nombreFinalMayusculas = nombreParaTabla.toUpperCase();
-        
-        facturaData.clienteNombre = nombreFinalMayusculas;
-        facturaData.cliente = nombreFinalMayusculas;
+        // --- SOLUCIÓN AL ERROR DE ATLAS ---
+        // Forzamos el nombre en 'clienteNombre' para el historial
+        facturaData.clienteNombre = nombreParaTabla;
+
+        // Creamos el objeto 'cliente' con la propiedad 'nombre' para que la DB no lo rechace
+        facturaData.cliente = {
+            nombre: nombreParaTabla
+        };
 
         // 🔥 2. BLOQUE DE RESCATE DE MATERIALES (MANTENIDO E INTACTO)
         if (facturaData.items && Array.isArray(facturaData.items)) {
