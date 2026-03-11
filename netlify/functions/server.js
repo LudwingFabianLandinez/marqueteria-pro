@@ -156,27 +156,28 @@ router.get('/invoices', async (req, res) => {
         const facturas = await Invoice.find().sort({ createdAt: -1 }).limit(100).lean();
         
         res.json(facturas.map(f => {
-            // Buscamos el nombre en todas las estructuras posibles (Front y DB)
-            let nombreReal = "CLIENTE SIN NOMBRE";
+            // 🔍 1. BÚSQUEDA EXHAUSTIVA DEL NOMBRE (Prioridad absoluta a datos reales)
+            let nombreReal = null;
 
-            if (f.clienteNombre) {
+            if (f.clienteNombre && String(f.clienteNombre).trim() !== "" && f.clienteNombre !== "null") {
                 nombreReal = f.clienteNombre;
-            } else if (f.nombreCliente) {
+            } else if (f.nombreCliente && String(f.nombreCliente).trim() !== "" && f.nombreCliente !== "null") {
                 nombreReal = f.nombreCliente;
             } else if (f.cliente) {
-                // Si 'f.cliente' es un objeto {nombre: '...'} sacamos el nombre
-                // Si es un string directo, lo usamos
-                nombreReal = (typeof f.cliente === 'object') ? (f.cliente.nombre || f.cliente.clienteNombre || "CLIENTE GENÉRICO") : f.cliente;
+                // Si 'f.cliente' es un objeto sacamos el nombre, si es string lo usamos directo
+                nombreReal = (typeof f.cliente === 'object') 
+                    ? (f.cliente.nombre || f.cliente.clienteNombre || null) 
+                    : f.cliente;
             }
 
-            // Limpieza final: si el resultado es nulo o texto "null", volvemos al genérico
-            const nombreLimpio = (nombreReal && nombreReal !== "null" && nombreReal !== "undefined") 
-                ? String(nombreReal).toUpperCase() 
-                : "CLIENTE GENÉRICO";
+            // 🧹 2. LIMPIEZA FINAL (Eliminamos cualquier rastro de "GENÉRICO")
+            const nombreFinal = (nombreReal && String(nombreReal).toLowerCase() !== "null" && String(nombreReal).toLowerCase() !== "undefined" && String(nombreReal).trim() !== "")
+                ? String(nombreReal).toUpperCase()
+                : "SIN NOMBRE"; // Cambiado de "GENÉRICO" a "SIN NOMBRE" para diagnóstico
 
             return {
                 ...f, 
-                cliente: nombreLimpio, 
+                cliente: nombreFinal, // Este es el campo que lee tu tabla de historial
                 total: f.total || f.totalVenta || 0,
                 numeroOrden: f.numeroOrden || f.numeroFactura || "S/N"
             };
@@ -222,8 +223,8 @@ router.post('/invoices', async (req, res) => {
         let facturaData = req.body;
         console.log("📥 Iniciando proceso de guardado en Atlas...");
 
-        // 👤 1. RESCATE DEFINITIVO DEL NOMBRE DEL CLIENTE (ACTUALIZADO)
-        // Usamos "SIN NOMBRE" como respaldo para detectar si realmente no está llegando nada del frontend
+        // 👤 1. RESCATE DEFINITIVO DEL NOMBRE DEL CLIENTE (REFORZADO)
+        // Usamos "SIN NOMBRE" para identificar rápidamente si el frontend no envió nada
         let nombreParaTabla = "SIN NOMBRE";
         
         // Buscamos el nombre en todas las posibles rutas que el frontend pueda estar usando
@@ -232,12 +233,15 @@ router.post('/invoices', async (req, res) => {
                                (facturaData.cliente && typeof facturaData.cliente === 'object' ? facturaData.cliente.nombre : null) || 
                                (typeof facturaData.cliente === 'string' ? facturaData.cliente : null);
 
-        if (nombreRecibido && nombreRecibido.toString().trim() !== "") {
-            nombreParaTabla = nombreRecibido.toString().trim();
+        if (nombreRecibido && String(nombreRecibido).trim() !== "" && String(nombreRecibido).toLowerCase() !== "null") {
+            nombreParaTabla = String(nombreRecibido).trim();
         }
 
-        // Forzamos el nombre final en mayúsculas
-        facturaData.clienteNombre = nombreParaTabla.toUpperCase();
+        // 🛡️ DOBLE BLINDAJE: Guardamos en ambos campos para que el historial lo encuentre sí o sí
+        const nombreFinalMayusculas = nombreParaTabla.toUpperCase();
+        
+        facturaData.clienteNombre = nombreFinalMayusculas;
+        facturaData.cliente = nombreFinalMayusculas;
 
         // 🔥 2. BLOQUE DE RESCATE DE MATERIALES (MANTENIDO E INTACTO)
         if (facturaData.items && Array.isArray(facturaData.items)) {
