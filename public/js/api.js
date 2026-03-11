@@ -7,6 +7,7 @@
  * 3. Preservación absoluta de blindajes de OTs y lógica de rescate local.
  */
 
+console.log("🛡️ CARGANDO API v13.8.5 - ESCUDO ACTIVO");
 const API_BASE = window.API_URL || '/.netlify/functions/server';
 
 window.API = {
