@@ -454,14 +454,16 @@ async function procesarCotizacion() {
         limpiarTextosNoDeseados();
     }
 
-    function mostrarResultado(data) {
+ function mostrarResultado(data) {
     console.log("DEBUG DATA RECIBIDA:", data); 
     const divRes = document.getElementById('resultado');
     
-    // Captura del nombre para el encabezado (se actualizará al escribir abajo)
+    // Captura del nombre con anteposición de Sr(a).
     const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
-    // Número de cotización (puede venir de data.ot o mostrarse como pendiente)
-    const numCotizacion = data.ot || "PENDIENTE";
+    const nombreConTrato = `Sr(a). ${nombreClienteRaw.toUpperCase()}`;
+    
+    // Número de cotización con formato No. 00001
+    const numCotizacion = data.ot || "00001";
 
     divRes.style.display = 'block';
     divRes.style.width = '100%';
@@ -497,7 +499,7 @@ async function procesarCotizacion() {
             
             sumaSubtotalesReparados += valorVentaItem;
             
-            // Retorno sin el span de precio (se oculta el valor individual)
+            // Retorno limpio: Solo nombre y cantidad, sin valores monetarios
             return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
                 <span style="display: flex; flex-direction: column;">
                     <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
@@ -525,10 +527,10 @@ async function procesarCotizacion() {
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
                 <div>
                     <h2 style="margin:0; color: #1e3a8a; font-size: 1.5rem;">ORDEN DE TRABAJO</h2>
-                    <p style="margin: 5px 0 0 0; font-weight: bold; color: #1e293b; font-size: 1.1rem;">Sr(a). ${nombreClienteRaw.toUpperCase()}</p>
+                    <p style="margin: 5px 0 0 0; font-weight: bold; color: #1e293b; font-size: 1.1rem;">${nombreConTrato}</p>
                 </div>
                 <div style="text-align: right;">
-                    <span style="display:block; font-weight: bold; color: #1e3a8a;">COTIZACIÓN N° ${numCotizacion}</span>
+                    <span style="display:block; font-weight: bold; color: #1e3a8a;">COTIZACIÓN No. ${numCotizacion}</span>
                     <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
                 </div>
             </div>
@@ -574,7 +576,6 @@ async function procesarCotizacion() {
             </button>
         </div>`;
     
-    // Contenedor de acciones (Se mantiene igual pero se añade el oninput al nombreCliente)
     document.getElementById('containerAcciones').innerHTML = `
         <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
             <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
