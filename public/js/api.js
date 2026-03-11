@@ -81,7 +81,16 @@ window.API = {
     },
 
     // 3. MÉTODOS DE NEGOCIO
-    getProviders: function() { return window.API._request('/providers'); },
+    getProviders: function() { 
+        return window.API._request('/providers'); 
+    },
+
+    saveProvider: async function(data) {
+        return window.API._request('/providers', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
 
     getInventory: async function() { 
         const res = await window.API._request('/inventory');
