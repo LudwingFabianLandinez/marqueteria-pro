@@ -472,14 +472,29 @@ function mostrarResultado(data) {
     const detalleObra = document.getElementById('detalleObra');
     const containerAcciones = document.getElementById('containerAcciones');
 
-    // 3. Lógica de Consecutivo Ascendente
+    // 3. Lógica de Consecutivo Ascendente MEJORADA
     let numCotizacion = "00001";
     if (data.ot) {
         numCotizacion = data.ot.replace('OT-', '');
     } else {
-        const filasHistorial = document.querySelectorAll('#listaOrdenes tr');
-        if (filasHistorial.length > 0) {
-            numCotizacion = (filasHistorial.length + 1).toString().padStart(5, '0');
+        // Escaneamos todas las celdas de la tabla para encontrar el número de OT más alto
+        const tds = Array.from(document.querySelectorAll('#listaOrdenes td'));
+        const numerosOT = tds
+            .map(td => td.innerText.trim())
+            .filter(texto => texto.startsWith('OT-'))
+            .map(texto => parseInt(texto.replace('OT-', '')))
+            .filter(num => !isNaN(num));
+
+        if (numerosOT.length > 0) {
+            // Tomamos el máximo encontrado y sumamos 1
+            const maxOT = Math.max(...numerosOT);
+            numCotizacion = (maxOT + 1).toString().padStart(5, '0');
+        } else {
+            // Si no hay OTs visibles, usamos el conteo de filas como respaldo
+            const filasHistorial = document.querySelectorAll('#listaOrdenes tr');
+            if (filasHistorial.length > 0) {
+                numCotizacion = (filasHistorial.length + 1).toString().padStart(5, '0');
+            }
         }
     }
 
