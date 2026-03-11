@@ -454,54 +454,67 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (REESCRITO PARA ACTIVACIÓN GLOBAL DE BOTONES AZUL Y GRIS)
+// 11. BUSCADOR Y FILTROS (REESCRITO CON CORRECCIÓN DE COMPARACIÓN DE DATOS)
 function configurarBuscador() {
     const inputBusqueda = document.getElementById('searchInputFacturas');
 
-    // --- LÓGICA DE FILTRADO (Mantenida 100% igual) ---
+    // --- LÓGICA DE FILTRADO (Corregida para precisión de fechas y texto) ---
     const ejecutarFiltrado = () => {
         const term = inputBusqueda?.value.toLowerCase().trim() || "";
-        const fechaDesde = document.getElementById('fechaDesde')?.value;
-        const fechaHasta = document.getElementById('fechaHasta')?.value;
+        const fechaDesde = document.getElementById('fechaDesde')?.value; // Viene como "YYYY-MM-DD"
+        const fechaHasta = document.getElementById('fechaHasta')?.value; // Viene como "YYYY-MM-DD"
 
         const filtradas = todasLasFacturas.filter(f => {
-            // Filtro Texto
+            // 1. Filtro de Texto (Mantenido y Mejorado)
             const ot = formatearNumeroOT(f).toLowerCase();
             let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
             let nombreLimpio = String(nombreRaw).toLowerCase();
-            if (nombreLimpio.includes("generico") || nombreLimpio.includes("genérico")) nombreLimpio = "sin nombre";
+            
+            // Sincronización con "sin nombre" para genéricos
+            if (nombreLimpio.includes("generico") || nombreLimpio.includes("genérico")) {
+                nombreLimpio = "sin nombre";
+            }
             
             const coincideTexto = ot.includes(term) || nombreLimpio.includes(term);
 
-            // Filtro Fechas
+            // 2. Filtro de Fechas (Corregido para comparar Strings ISO)
             let coincideFecha = true;
             if (f.fecha) {
-                const fechaFactura = f.fecha.split('T')[0];
-                if (fechaDesde && fechaFactura < fechaDesde) coincideFecha = false;
-                if (fechaHasta && fechaFactura > fechaHasta) coincideFecha = false;
+                // Aseguramos que la fecha de la factura sea un string YYYY-MM-DD
+                const fechaFacturaBase = new Date(f.fecha);
+                // Si la fecha es inválida, no filtramos por fecha
+                if (!isNaN(fechaFacturaBase)) {
+                    const fechaISO = fechaFacturaBase.toISOString().split('T')[0];
+                    
+                    if (fechaDesde && fechaISO < fechaDesde) coincideFecha = false;
+                    if (fechaHasta && fechaISO > fechaHasta) coincideFecha = false;
+                }
             }
 
             return coincideTexto && coincideFecha;
         });
 
+        console.log(`🎯 Filtrado: ${filtradas.length} resultados encontrados.`);
         renderTable(filtradas);
     };
 
-    // --- 🌍 EXPOSICIÓN GLOBAL (Esto activa los botones del HTML) ---
+    // --- 🌍 EXPOSICIÓN GLOBAL (Activa los botones del HTML) ---
     window.aplicarFiltros = (e) => {
-        if (e) e.preventDefault();
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
         console.log("🎯 Filtrado ejecutado (Botón Azul)");
         ejecutarFiltrado();
     };
 
     window.limpiarFiltros = (e) => {
-        if (e) e.preventDefault();
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
         console.log("🧹 Limpiando filtros (Botón Gris)");
+        
         if (inputBusqueda) inputBusqueda.value = '';
         const fDesde = document.getElementById('fechaDesde');
         const fHasta = document.getElementById('fechaHasta');
         if (fDesde) fDesde.value = '';
         if (fHasta) fHasta.value = '';
+        
         renderTable(todasLasFacturas);
     };
 
@@ -511,13 +524,12 @@ function configurarBuscador() {
     }
 
     // --- COMPATIBILIDAD ADICIONAL ---
-    // Buscamos los botones por texto por si el HTML no tiene el onclick puesto
     const botones = Array.from(document.querySelectorAll('button'));
     const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
     const btnLimpiar = botones.find(b => b.textContent.includes('LIMPIAR'));
 
-    if (btnFiltrar && !btnFiltrar.onclick) btnFiltrar.onclick = window.aplicarFiltros;
-    if (btnLimpiar && !btnLimpiar.onclick) btnLimpiar.onclick = window.limpiarFiltros;
+    if (btnFiltrar) btnFiltrar.onclick = window.aplicarFiltros;
+    if (btnLimpiar) btnLimpiar.onclick = window.limpiarFiltros;
 }
 
 // 12. ELIMINAR (SE MANTIENE IGUAL)
