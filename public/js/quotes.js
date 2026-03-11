@@ -454,16 +454,25 @@ async function procesarCotizacion() {
         limpiarTextosNoDeseados();
     }
 
- function mostrarResultado(data) {
+function mostrarResultado(data) {
     console.log("DEBUG DATA RECIBIDA:", data); 
     const divRes = document.getElementById('resultado');
     
-    // Captura del nombre con anteposición de Sr(a).
+    // 1. Captura del nombre con trato Sr(a).
     const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
     const nombreConTrato = `Sr(a). ${nombreClienteRaw.toUpperCase()}`;
     
-    // Número de cotización con formato No. 00001
-    const numCotizacion = data.ot || "00001";
+    // 2. Lógica de Consecutivo Ascendente (Ej: OT-00003 -> COTIZACIÓN No. 00004)
+    let numCotizacion = "00001";
+    if (data.ot) {
+        numCotizacion = data.ot.replace('OT-', '');
+    } else {
+        // Si no hay OT en data, buscamos en la tabla de historial para seguir el orden
+        const filasHistorial = document.querySelectorAll('#listaOrdenes tr');
+        if (filasHistorial.length > 0) {
+            numCotizacion = (filasHistorial.length + 1).toString().padStart(5, '0');
+        }
+    }
 
     divRes.style.display = 'block';
     divRes.style.width = '100%';
@@ -499,7 +508,7 @@ async function procesarCotizacion() {
             
             sumaSubtotalesReparados += valorVentaItem;
             
-            // Retorno limpio: Solo nombre y cantidad, sin valores monetarios
+            // Retorno sin precios: Solo nombre y cantidad
             return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
                 <span style="display: flex; flex-direction: column;">
                     <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
@@ -527,16 +536,17 @@ async function procesarCotizacion() {
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
                 <div>
                     <h2 style="margin:0; color: #1e3a8a; font-size: 1.5rem;">ORDEN DE TRABAJO</h2>
-                    <p style="margin: 5px 0 0 0; font-weight: bold; color: #1e293b; font-size: 1.1rem;">${nombreConTrato}</p>
+                    <h3 style="margin: 2px 0; color: #475569; font-size: 1rem; font-weight: 600;">MARQUETERÍA LA CHICA MORALES</h3>
+                    <p style="margin: 10px 0 0 0; font-weight: bold; color: #1e293b; font-size: 1.1rem;">${nombreConTrato}</p>
                 </div>
                 <div style="text-align: right;">
-                    <span style="display:block; font-weight: bold; color: #1e3a8a;">COTIZACIÓN No. ${numCotizacion}</span>
+                    <span style="display:block; font-weight: bold; color: #1e3a8a; font-size: 1.2rem;">COTIZACIÓN No. ${numCotizacion}</span>
                     <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
                 </div>
             </div>
             
             <p style="margin: 15px 0; font-size: 1.1rem; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 6px; border-left: 4px solid #1e3a8a;">
-                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || (typeof ancho !== 'undefined' ? `${ancho}x${largo} cm` : '--')}
+                <strong>Medidas Marco:</strong> ${data.detalles?.medidas || '--'}
             </p>
 
             <h4 style="color: #475569; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
@@ -552,10 +562,6 @@ async function procesarCotizacion() {
                     <span style="color: #64748b; font-weight: 600;">VALOR TOTAL:</span>
                     <span style="font-weight: 700; color: #1e293b; font-size: 1.5rem;">${formatter.format(totalExhibicion)}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669;">
-                    <span style="font-weight: 600;">ABONO RECIBIDO:</span>
-                    <span id="montoAbonoRecibo" style="font-weight: 700;">- ${formatter.format(0)}</span>
-                </div>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #cbd5e1;">
                     <span style="font-weight: 800; color: #1e293b;">SALDO PENDIENTE:</span>
                     <span id="montoSaldoRecibo" style="font-size: 1.8rem; font-weight: 900; color: #dc2626;">${formatter.format(totalExhibicion)}</span>
@@ -566,13 +572,12 @@ async function procesarCotizacion() {
                 <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
                 <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
             </div>
         </div>
 
         <div class="no-print" style="margin-top: 20px; width: 100%; display: flex; gap: 10px;">
             <button onclick="imprimirResumen()" style="background: #1e3a8a; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: background 0.3s;">
-                <i class="fas fa-print"></i> IMPRIMIR ORDEN (CLIENTE)
+                <i class="fas fa-print"></i> IMPRIMIR ORDEN
             </button>
         </div>`;
     
@@ -597,7 +602,7 @@ async function procesarCotizacion() {
                     style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
             </div>
             <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
-                <i class="fas fa-save"></i> CONFIRMAR VENTA Y DESCONTAR STOCK
+                <i class="fas fa-save"></i> CONFIRMAR VENTA
             </button>
         </div>`;
     
