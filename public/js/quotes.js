@@ -472,31 +472,8 @@ function mostrarResultado(data) {
     const detalleObra = document.getElementById('detalleObra');
     const containerAcciones = document.getElementById('containerAcciones');
 
-    // 3. Lógica de Consecutivo Ascendente MEJORADA
-    let numCotizacion = "00001";
-    if (data.ot) {
-        numCotizacion = data.ot.replace('OT-', '');
-    } else {
-        // Escaneamos todas las celdas de la tabla para encontrar el número de OT más alto
-        const tds = Array.from(document.querySelectorAll('#listaOrdenes td'));
-        const numerosOT = tds
-            .map(td => td.innerText.trim())
-            .filter(texto => texto.startsWith('OT-'))
-            .map(texto => parseInt(texto.replace('OT-', '')))
-            .filter(num => !isNaN(num));
-
-        if (numerosOT.length > 0) {
-            // Tomamos el máximo encontrado y sumamos 1
-            const maxOT = Math.max(...numerosOT);
-            numCotizacion = (maxOT + 1).toString().padStart(5, '0');
-        } else {
-            // Si no hay OTs visibles, usamos el conteo de filas como respaldo
-            const filasHistorial = document.querySelectorAll('#listaOrdenes tr');
-            if (filasHistorial.length > 0) {
-                numCotizacion = (filasHistorial.length + 1).toString().padStart(5, '0');
-            }
-        }
-    }
+    // 3. Lógica Simplificada: Solo Texto Fijo
+    const textoCotizacion = "COTIZACIÓN";
 
     // 4. Captura de datos para la previsualización
     const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
@@ -547,7 +524,7 @@ function mostrarResultado(data) {
         data.precioSugeridoCliente = totalExhibicion; 
     }
 
-    // 5. Inyectar el área de impresión (Siempre se actualiza)
+    // 5. Inyectar el área de impresión (Texto estático sin número)
     detalleObra.innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
@@ -557,7 +534,7 @@ function mostrarResultado(data) {
                     <p style="margin: 10px 0 0 0; font-weight: bold; color: #1e293b; font-size: 1.1rem;">${nombreConTrato}</p>
                 </div>
                 <div style="text-align: right;">
-                    <span style="display:block; font-weight: bold; color: #1e3a8a; font-size: 1.2rem;">COTIZACIÓN No. ${numCotizacion}</span>
+                    <span style="display:block; font-weight: bold; color: #1e3a8a; font-size: 1.2rem;">${textoCotizacion}</span>
                     <span style="color: #64748b; font-size: 0.9rem;">${new Date().toLocaleDateString()}</span>
                 </div>
             </div>
