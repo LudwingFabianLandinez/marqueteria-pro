@@ -458,29 +458,29 @@ function mostrarResultado(data) {
     console.log("DEBUG DATA RECIBIDA:", data); 
     const divRes = document.getElementById('resultado');
     
-    // 1. Captura del nombre con trato Sr(a).
-    const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
-    const nombreConTrato = `Sr(a). ${nombreClienteRaw.toUpperCase()}`;
-    
-    // 2. Lógica de Consecutivo Ascendente (Ej: OT-00003 -> COTIZACIÓN No. 00004)
+    // 1. Lógica de Consecutivo Ascendente
     let numCotizacion = "00001";
     if (data.ot) {
         numCotizacion = data.ot.replace('OT-', '');
     } else {
-        // Si no hay OT en data, buscamos en la tabla de historial para seguir el orden
         const filasHistorial = document.querySelectorAll('#listaOrdenes tr');
         if (filasHistorial.length > 0) {
             numCotizacion = (filasHistorial.length + 1).toString().padStart(5, '0');
         }
     }
 
-    divRes.style.display = 'block';
-    divRes.style.width = '100%';
-    divRes.style.maxWidth = 'none'; 
-    divRes.style.boxSizing = 'border-box';
+    // Estructura base inicial (solo se crea si no existe)
+    if (!document.getElementById('detalleObra')) {
+        divRes.style.display = 'block';
+        divRes.style.width = '100%';
+        divRes.style.maxWidth = 'none'; 
+        divRes.style.boxSizing = 'border-box';
+        divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
+    }
 
-    divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
-
+    // Captura valores actuales para la previsualización
+    const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
+    const nombreConTrato = `Sr(a). ${nombreClienteRaw.toUpperCase()}`;
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
 
     const materialesAProcesar = (data.detalles?.materiales && data.detalles.materiales.length > 0) 
@@ -493,22 +493,18 @@ function mostrarResultado(data) {
         ? materialesAProcesar.map(m => {
             const nombreVisual = (m.nombre || "MATERIAL").toUpperCase();
             const unidadVisual = (m.unidad || "ML").toUpperCase();
-            
             let medidaExacta = parseFloat(m.cantidadUsada) || 0;
             if (medidaExacta === 0) {
                 medidaExacta = (unidadVisual === 'M2') ? (parseFloat(data.areaFinal) || 0) : 0;
             }
-            
             let valorVentaItem = parseFloat(m.subtotalVenta) || 0;
             if (valorVentaItem === 0) {
                 const costoBase = parseFloat(m.costoUnitario) || 0;
                 const factorM = (unidadVisual === 'ML') ? 2.5 : 3;
                 valorVentaItem = Math.round((costoBase * medidaExacta) * factorM);
             }
-            
             sumaSubtotalesReparados += valorVentaItem;
             
-            // Retorno sin precios: Solo nombre y cantidad
             return `<li style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
                 <span style="display: flex; flex-direction: column;">
                     <span style="font-weight: 600; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
@@ -531,6 +527,7 @@ function mostrarResultado(data) {
         data.precioSugeridoCliente = totalExhibicion; 
     }
 
+    // ACTUALIZACIÓN DEL ÁREA DE IMPRESIÓN (Sin tocar el formulario de abajo)
     document.getElementById('detalleObra').innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
@@ -580,31 +577,34 @@ function mostrarResultado(data) {
                 <i class="fas fa-print"></i> IMPRIMIR ORDEN
             </button>
         </div>`;
-    
-    document.getElementById('containerAcciones').innerHTML = `
-        <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
-            <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
-                <i class="fas fa-cash-register"></i> REGISTRAR VENTA FINAL
-            </h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div class="input-group">
-                    <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">NOMBRE DEL CLIENTE</label>
-                    <input type="text" id="nombreCliente" oninput="mostrarResultado(datosCotizacionActual)" placeholder="Ej: Juan Pérez" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
+
+    // SOLO RENDERIZAMOS EL CONTENEDOR DE ACCIONES SI NO EXISTE
+    if (!document.getElementById('nombreCliente')) {
+        document.getElementById('containerAcciones').innerHTML = `
+            <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
+                <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-cash-register"></i> REGISTRAR VENTA FINAL
+                </h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="input-group">
+                        <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">NOMBRE DEL CLIENTE</label>
+                        <input type="text" id="nombreCliente" oninput="mostrarResultado(datosCotizacionActual)" placeholder="Ej: Juan Pérez" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
+                    </div>
+                    <div class="input-group">
+                        <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">WHATSAPP / TEL</label>
+                        <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
+                    </div>
                 </div>
-                <div class="input-group">
-                    <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">WHATSAPP / TEL</label>
-                    <input type="text" id="telCliente" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing: border-box;">
+                <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
+                    <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
+                    <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
+                        style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
                 </div>
-            </div>
-            <div style="margin-top: 20px; background: #fffbeb; padding: 15px; border-radius: 10px;">
-                <label style="font-size: 0.9rem; font-weight: 800; color: #92400e; display: block; text-align:center;">¿CUÁNTO ABONA EL CLIENTE?</label>
-                <input type="number" id="abonoInicial" value="0" oninput="actualizarSaldoEnRecibo()"
-                    style="border: 2px solid #fbbf24; width:100%; padding:15px; border-radius:8px; font-weight: 900; font-size: 1.8rem; text-align: center; box-sizing: border-box;">
-            </div>
-            <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
-                <i class="fas fa-save"></i> CONFIRMAR VENTA
-            </button>
-        </div>`;
+                <button id="btnFinalizarVenta" class="btn-calc" style="background: #2ecc71; color: white; border: none; width: 100%; margin-top:20px; padding: 20px; font-weight: 800; border-radius: 10px;" onclick="facturarVenta()">
+                    <i class="fas fa-save"></i> CONFIRMAR VENTA
+                </button>
+            </div>`;
+    }
     
     setTimeout(limpiarTextosNoDeseados, 100);
 }
