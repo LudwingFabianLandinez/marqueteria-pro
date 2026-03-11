@@ -454,31 +454,62 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR (REESCRITO CON LÓGICA DE NORMALIZACIÓN)
+// 11. BUSCADOR Y FILTROS (REESCRITO PARA ACTIVAR BOTONES AZUL Y GRIS)
 function configurarBuscador() {
-    const input = document.getElementById('searchInputFacturas');
-    if (input) input.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase().trim();
-        
-        const facturasFiltradas = todasLasFacturas.filter(f => {
-            // 1. Obtener OT para comparar
+    const inputBusqueda = document.getElementById('searchInputFacturas');
+    const btnFiltrar = document.querySelector('button.btn-primary'); // El botón azul
+    const btnLimpiar = document.querySelector('button.btn-secondary'); // El botón gris
+
+    // Función maestra de filtrado
+    const ejecutarFiltrado = () => {
+        const term = inputBusqueda?.value.toLowerCase().trim() || "";
+        const fechaDesde = document.getElementById('fechaDesde')?.value;
+        const fechaHasta = document.getElementById('fechaHasta')?.value;
+
+        const filtradas = todasLasFacturas.filter(f => {
+            // --- Filtro por Texto (OT o Nombre) ---
             const ot = formatearNumeroOT(f).toLowerCase();
+            let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
+            let nombreLimpio = String(nombreRaw).toLowerCase();
+            if (nombreLimpio.includes("generico") || nombreLimpio.includes("genérico")) nombreLimpio = "sin nombre";
             
-            // 2. Obtener Nombre exactamente como se muestra en la tabla
-            let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente && typeof f.cliente === 'object' ? f.cliente.nombre : f.cliente) || "SIN NOMBRE";
-            let nombreProcesado = String(nombreRaw).toLowerCase();
-            
-            // Si el nombre es genérico, lo tratamos como "sin nombre" para que el filtro coincida
-            if (nombreProcesado.includes("generico") || nombreProcesado.includes("genérico")) {
-                nombreProcesado = "sin nombre";
+            const coincideTexto = ot.includes(term) || nombreLimpio.includes(term);
+
+            // --- Filtro por Fechas ---
+            let coincideFecha = true;
+            if (f.fecha) {
+                const fechaFactura = new Date(f.fecha).toISOString().split('T')[0];
+                if (fechaDesde && fechaFactura < fechaDesde) coincideFecha = false;
+                if (fechaHasta && fechaFactura > fechaHasta) coincideFecha = false;
             }
 
-            // 3. Retornar si el término coincide con la OT o con el Nombre Procesado
-            return ot.includes(term) || nombreProcesado.includes(term);
+            return coincideTexto && coincideFecha;
         });
 
-        renderTable(facturasFiltradas);
-    });
+        renderTable(filtradas);
+    };
+
+    // 1. Evento para escribir (Filtrado en tiempo real)
+    inputBusqueda?.addEventListener('input', ejecutarFiltrado);
+
+    // 2. ACTIVAR BOTÓN AZUL (FILTRAR)
+    if (btnFiltrar) {
+        btnFiltrar.onclick = (e) => {
+            e.preventDefault();
+            ejecutarFiltrado();
+        };
+    }
+
+    // 3. ACTIVAR BOTÓN GRIS (LIMPIAR)
+    if (btnLimpiar) {
+        btnLimpiar.onclick = (e) => {
+            e.preventDefault();
+            if (inputBusqueda) inputBusqueda.value = '';
+            document.getElementById('fechaDesde').value = '';
+            document.getElementById('fechaHasta').value = '';
+            renderTable(todasLasFacturas); // Restaurar tabla completa
+        };
+    }
 }
 
 // 12. ELIMINAR (SE MANTIENE IGUAL)
