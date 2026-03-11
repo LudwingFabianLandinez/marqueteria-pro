@@ -454,12 +454,30 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR (SE MANTIENE IGUAL)
+// 11. BUSCADOR (REESCRITO CON LÓGICA DE NORMALIZACIÓN)
 function configurarBuscador() {
     const input = document.getElementById('searchInputFacturas');
     if (input) input.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase().trim();
-        renderTable(todasLasFacturas.filter(f => (f.cliente?.nombre || f.clienteNombre || "").toLowerCase().includes(term) || formatearNumeroOT(f).toLowerCase().includes(term)));
+        
+        const facturasFiltradas = todasLasFacturas.filter(f => {
+            // 1. Obtener OT para comparar
+            const ot = formatearNumeroOT(f).toLowerCase();
+            
+            // 2. Obtener Nombre exactamente como se muestra en la tabla
+            let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente && typeof f.cliente === 'object' ? f.cliente.nombre : f.cliente) || "SIN NOMBRE";
+            let nombreProcesado = String(nombreRaw).toLowerCase();
+            
+            // Si el nombre es genérico, lo tratamos como "sin nombre" para que el filtro coincida
+            if (nombreProcesado.includes("generico") || nombreProcesado.includes("genérico")) {
+                nombreProcesado = "sin nombre";
+            }
+
+            // 3. Retornar si el término coincide con la OT o con el Nombre Procesado
+            return ot.includes(term) || nombreProcesado.includes(term);
+        });
+
+        renderTable(facturasFiltradas);
     });
 }
 
