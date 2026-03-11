@@ -458,7 +458,21 @@ function mostrarResultado(data) {
     console.log("DEBUG DATA RECIBIDA:", data); 
     const divRes = document.getElementById('resultado');
     
-    // 1. Lógica de Consecutivo Ascendente
+    // 1. Asegurar visibilidad del contenedor principal
+    divRes.style.display = 'block';
+    divRes.style.width = '100%';
+    divRes.style.maxWidth = 'none'; 
+    divRes.style.boxSizing = 'border-box';
+
+    // 2. Crear sub-contenedores solo si no existen para no romper el flujo
+    if (!document.getElementById('detalleObra')) {
+        divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
+    }
+
+    const detalleObra = document.getElementById('detalleObra');
+    const containerAcciones = document.getElementById('containerAcciones');
+
+    // 3. Lógica de Consecutivo Ascendente
     let numCotizacion = "00001";
     if (data.ot) {
         numCotizacion = data.ot.replace('OT-', '');
@@ -469,16 +483,7 @@ function mostrarResultado(data) {
         }
     }
 
-    // Estructura base inicial (solo se crea si no existe)
-    if (!document.getElementById('detalleObra')) {
-        divRes.style.display = 'block';
-        divRes.style.width = '100%';
-        divRes.style.maxWidth = 'none'; 
-        divRes.style.boxSizing = 'border-box';
-        divRes.innerHTML = '<div id="detalleObra" style="width:100%;"></div><div id="containerAcciones" style="width:100%;"></div>';
-    }
-
-    // Captura valores actuales para la previsualización
+    // 4. Captura de datos para la previsualización
     const nombreClienteRaw = document.getElementById('nombreCliente')?.value || "CLIENTE";
     const nombreConTrato = `Sr(a). ${nombreClienteRaw.toUpperCase()}`;
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
@@ -527,8 +532,8 @@ function mostrarResultado(data) {
         data.precioSugeridoCliente = totalExhibicion; 
     }
 
-    // ACTUALIZACIÓN DEL ÁREA DE IMPRESIÓN (Sin tocar el formulario de abajo)
-    document.getElementById('detalleObra').innerHTML = `
+    // 5. Inyectar el área de impresión (Siempre se actualiza)
+    detalleObra.innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
                 <div>
@@ -578,9 +583,9 @@ function mostrarResultado(data) {
             </button>
         </div>`;
 
-    // SOLO RENDERIZAMOS EL CONTENEDOR DE ACCIONES SI NO EXISTE
+    // 6. Inyectar el formulario SOLO SI NO ESTÁ (Protege lo escrito)
     if (!document.getElementById('nombreCliente')) {
-        document.getElementById('containerAcciones').innerHTML = `
+        containerAcciones.innerHTML = `
             <div class="confirm-sale-box" style="background: #ffffff; border: 2px solid #3498db; padding: 25px; border-radius: 12px; margin-top: 25px; width: 100%; box-sizing: border-box;">
                 <h4 style="margin:0 0 20px 0; color: #2980b9; display: flex; align-items: center; gap: 10px;">
                     <i class="fas fa-cash-register"></i> REGISTRAR VENTA FINAL
