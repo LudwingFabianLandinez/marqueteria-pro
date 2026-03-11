@@ -454,47 +454,49 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (REESCRITO CON CORRECCIÓN DE COMPARACIÓN DE DATOS)
+// 11. BUSCADOR Y FILTROS (REESCRITO CON LÓGICA DE FILTRADO ESTRICTO)
 function configurarBuscador() {
     const inputBusqueda = document.getElementById('searchInputFacturas');
 
-    // --- LÓGICA DE FILTRADO (Corregida para precisión de fechas y texto) ---
+    // --- LÓGICA DE FILTRADO (ESTRICTA: DEBE CUMPLIR AMBAS CONDICIONES) ---
     const ejecutarFiltrado = () => {
         const term = inputBusqueda?.value.toLowerCase().trim() || "";
-        const fechaDesde = document.getElementById('fechaDesde')?.value; // Viene como "YYYY-MM-DD"
-        const fechaHasta = document.getElementById('fechaHasta')?.value; // Viene como "YYYY-MM-DD"
+        const fechaDesde = document.getElementById('fechaDesde')?.value; 
+        const fechaHasta = document.getElementById('fechaHasta')?.value;
 
         const filtradas = todasLasFacturas.filter(f => {
-            // 1. Filtro de Texto (Mantenido y Mejorado)
+            // 1. PREPARACIÓN DE DATOS (Igual que en la tabla)
             const ot = formatearNumeroOT(f).toLowerCase();
             let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
             let nombreLimpio = String(nombreRaw).toLowerCase();
             
-            // Sincronización con "sin nombre" para genéricos
+            // Normalizar genéricos para que coincidan con "SIN NOMBRE"
             if (nombreLimpio.includes("generico") || nombreLimpio.includes("genérico")) {
                 nombreLimpio = "sin nombre";
             }
-            
-            const coincideTexto = ot.includes(term) || nombreLimpio.includes(term);
 
-            // 2. Filtro de Fechas (Corregido para comparar Strings ISO)
+            // 2. FILTRO DE TEXTO (Solo si el usuario escribió algo)
+            // Si term no está vacío, la OT o el Nombre DEBEN incluir el término.
+            const coincideTexto = term === "" || ot.includes(term) || nombreLimpio.includes(term);
+
+            // 3. FILTRO DE FECHAS (Solo si el usuario seleccionó fechas)
             let coincideFecha = true;
             if (f.fecha) {
-                // Aseguramos que la fecha de la factura sea un string YYYY-MM-DD
-                const fechaFacturaBase = new Date(f.fecha);
-                // Si la fecha es inválida, no filtramos por fecha
-                if (!isNaN(fechaFacturaBase)) {
-                    const fechaISO = fechaFacturaBase.toISOString().split('T')[0];
-                    
-                    if (fechaDesde && fechaISO < fechaDesde) coincideFecha = false;
-                    if (fechaHasta && fechaISO > fechaHasta) coincideFecha = false;
-                }
+                // Forzamos la fecha a formato YYYY-MM-DD local para comparar correctamente con los inputs
+                const d = new Date(f.fecha);
+                const fechaFacturaISO = d.getFullYear() + '-' + 
+                                      String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                                      String(d.getDate()).padStart(2, '0');
+                
+                if (fechaDesde && fechaFacturaISO < fechaDesde) coincideFecha = false;
+                if (fechaHasta && fechaFacturaISO > fechaHasta) coincideFecha = false;
             }
 
+            // CONDICIÓN FINAL: Debe cumplir Texto Y Fecha para ser visible
             return coincideTexto && coincideFecha;
         });
 
-        console.log(`🎯 Filtrado: ${filtradas.length} resultados encontrados.`);
+        console.log(`🎯 Resultados para "${term}": ${filtradas.length}`);
         renderTable(filtradas);
     };
 
@@ -523,7 +525,7 @@ function configurarBuscador() {
         inputBusqueda.addEventListener('input', ejecutarFiltrado);
     }
 
-    // --- COMPATIBILIDAD ADICIONAL ---
+    // --- VINCULACIÓN DE BOTONES POR TEXTO (Respaldo) ---
     const botones = Array.from(document.querySelectorAll('button'));
     const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
     const btnLimpiar = botones.find(b => b.textContent.includes('LIMPIAR'));
