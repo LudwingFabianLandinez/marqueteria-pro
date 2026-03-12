@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="js/auth.js"></script>
     <title>Panel de Control - Marquetería</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -238,8 +239,14 @@
             <a href="quotes.html" class="menu-link"><i class="fas fa-calculator"></i> Nueva Cotización</a>
             <a href="history.html" class="menu-link"><i class="fas fa-history"></i> Historial de Ventas</a>
             <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
-        </nav>
-    </aside>
+
+            <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
+
+            <a href="#" class="menu-link" onclick="logout(); return false;" style="margin-top: 30px; color: #e74c3c; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
+                <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+            </a>
+        </nav> 
+        </aside>
 
     <main class="main-container">
         <div class="content-left">
