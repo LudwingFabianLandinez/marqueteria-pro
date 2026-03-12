@@ -23,6 +23,11 @@
             height: 100vh;
         }
 
+        /* --- ARREGLO DE DISTORSIÓN: OCULTAR HEADER MÓVIL EN PC --- */
+        .mobile-header {
+            display: none !important;
+        }
+
         /* BARRA LATERAL FIJA */
         .sidebar {
             width: 260px;
@@ -34,6 +39,7 @@
             position: fixed;
             height: 100vh;
             z-index: 1000;
+            transition: transform 0.3s ease; /* Para suavidad en móvil */
         }
 
         .logo-area {
@@ -222,8 +228,56 @@
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
         
         #contenedorNombreNuevo { display: none; margin-top: 10px; padding: 10px; background: #ebf8ff; border-radius: 6px; border: 1px dashed #3182ce; }
+
+        /* --- ✨ SOLUCIÓN MÓVIL (SIN DAÑAR LO ANTERIOR) --- */
+        @media (max-width: 768px) {
+            html, body { overflow-y: auto; } /* Permitir scroll en móvil */
+            
+            .mobile-header {
+                display: flex !important;
+                background: #1a2c5b;
+                color: white;
+                padding: 15px 20px;
+                justify-content: space-between;
+                align-items: center;
+                position: sticky;
+                top: 0;
+                z-index: 1100;
+            }
+
+            .dashboard-wrapper { display: block; height: auto; }
+
+            .sidebar {
+                transform: translateX(-100%); /* Escondida */
+                width: 280px;
+                box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+            }
+
+            .sidebar.active {
+                transform: translateX(0); /* Se muestra */
+            }
+
+            .main-container {
+                margin-left: 0;
+                width: 100%;
+                display: block; /* Quita el grid de 2 columnas */
+                height: auto;
+                overflow: visible;
+            }
+
+            .content-left { padding: 15px; height: auto; }
+            .providers-sidebar { 
+                margin: 20px 15px; 
+                height: auto; 
+                border-radius: 15px; 
+                position: static; 
+            }
+            .top-actions { flex-direction: column; }
+            .inventory-card { height: 500px; } /* Altura fija para la tabla en móvil */
+        }
     </style>
 </head>
+
 <body>
 
 <div class="dashboard-wrapper">
@@ -631,22 +685,22 @@ async function ejecutarRegistroMaestro() {
 }
 
 // --- CONTROLADOR DE MENÚ MÓVIL (HAMBURGUESA) ---
+// --- LÓGICA DE MENÚ MÓVIL ---
 document.addEventListener('DOMContentLoaded', () => {
     const btnMenu = document.getElementById('hamburger-menu');
     const sidebar = document.querySelector('.sidebar');
-
+    
     if (btnMenu && sidebar) {
-        btnMenu.addEventListener('click', () => {
+        btnMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
             sidebar.classList.toggle('active');
         });
 
-        // Cerrar al hacer clic en un link (para móviles)
-        document.querySelectorAll('.menu-link').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 768) {
-                    sidebar.classList.remove('active');
-                }
-            });
+        // Cerrar menú si haces clic en el contenido principal (solo en móvil)
+        document.querySelector('.main-container').addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('active');
+            }
         });
     }
 });
