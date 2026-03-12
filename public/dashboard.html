@@ -350,6 +350,8 @@
                 <div class="top-actions">
                     <button class="btn-action btn-purple" onclick="location.href='providers.html'"><i class="fas fa-user-plus"></i> Registrar Proveedor</button>
                     <button class="btn-action btn-green" onclick="window.abrirModalCompra()"><i class="fas fa-shopping-cart"></i> + Nueva Compra</button>
+                    <button onclick="exportarHistorialExcel()" class="btn-action" style="background-color: #107c10; color: white; border: none; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-file-excel"></i> Descargar Kardex en Excel  </button>
                 </div>
             </div>
             
@@ -839,8 +841,6 @@ window.guardarCambiosEdicion = async function() {
         </div>
     </div>
 </div>
-
-
 
 </body>
 </html>

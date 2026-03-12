@@ -1204,6 +1204,47 @@ if (formCompra) {
     }
 };
 
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.0) ---
+// Ubicado en línea 1207 - Justo después de abrirModalEditar
+window.exportarHistorialExcel = function() {
+    // 1. Cabeceras con soporte para tildes (BOM UTF-8)
+    let csvContent = "\uFEFF"; 
+    csvContent += "FECHA;PRODUCTO;TIPO;CANTIDAD;DETALLE\n";
+
+    // 2. Usamos la lista purificada del ESCUDO (materialesFiltrados)
+    // Esto asegura que el reporte coincida con lo que ves en pantalla
+    if (typeof materialesFiltrados === 'undefined') {
+        return alert("⚠️ Error: No se pudo cargar la lista de materiales. Intenta refrescar la página.");
+    }
+
+    materialesFiltrados.forEach(material => {
+        if (material.historial && material.historial.length > 0) {
+            material.historial.forEach(mov => {
+                const fecha = new Date(mov.fecha).toLocaleDateString();
+                const nombre = String(material.nombre).replace(/;/g, ""); 
+                const tipo = String(mov.tipo).toUpperCase();
+                const cantidad = mov.cantidad;
+                const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Sin detalle";
+
+                csvContent += `${fecha};${nombre};${tipo};${cantidad};${nota}\n`;
+            });
+        }
+    });
+
+    // 3. Crear el archivo y descargar
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log("✅ Reporte Excel generado con éxito.");
+};
+
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
 // Colócalo justo debajo de window.abrirModalEditar
 window.guardarCambiosEdicion = async function() {
