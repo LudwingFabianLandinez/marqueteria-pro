@@ -1204,7 +1204,7 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.5 - CAPTURA DE EQUIVALENCIAS) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.6 - CÁLCULO DINÁMICO) ---
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
@@ -1215,39 +1215,49 @@ window.exportarHistorialExcel = function() {
     let csvContent = "\uFEFF"; 
     csvContent += "FECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
-    let filasGeneradas = 0;
-
     datosFinales.forEach(material => {
-        const historial = material.historial || material.movimientos || [];
         const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
         const cat = String(material.categoria || 'GENERAL').toUpperCase();
+        const stockActual = material.stock_actual || 0;
         const unidadMedida = material.unidad_medida || (cat === "MOLDURAS" ? "ML" : "m²");
 
-        // BUSCAMOS LA EQUIVALENCIA VISUAL (La que ves en las tarjetas azules)
-        // Probamos todas las variables donde tu motor guarda el texto formateado
-        const equivVisual = material.stock_visual || material.equivalencia || material.stock_formateado || "-";
+        // 🛠️ FUNCIÓN DE CÁLCULO INTERNO PARA EL EXCEL
+        // Replicamos la lógica de tus tarjetas: Unidades + Retal
+        let equivalenciaCalculada = "-";
+        
+        if (material.dimensiones && (material.dimensiones.largo || material.dimensiones.ancho)) {
+            const largo = material.dimensiones.largo || 0;
+            const ancho = material.dimensiones.ancho || 0;
+            
+            if (cat === "MOLDURAS" && largo > 0) {
+                const uds = Math.floor(stockActual / largo);
+                const rem = (stockActual % largo).toFixed(2);
+                equivalenciaCalculada = `${uds} und + ${rem} ML rem`;
+            } else if (largo > 0 && ancho > 0) {
+                const areaUna = (largo * ancho) / 10000; // de cm2 a m2
+                const uds = Math.floor(stockActual / areaUna);
+                const rem = (stockActual % areaUna).toFixed(2);
+                equivalenciaCalculada = `${uds} und + ${rem} m² rem`;
+            }
+        }
+        
+        // Si ya tenías un stock_visual (por ejemplo en el dashboard), lo usamos de respaldo
+        const equivFinal = (equivalenciaCalculada !== "-") ? equivalenciaCalculada : (material.stock_visual || "-");
+
+        const historial = material.historial || material.movimientos || [];
 
         if (historial.length > 0) {
             historial.forEach(mov => {
                 const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
                 const tipo = String(mov.tipo || 'MOVIMIENTO').toUpperCase();
                 const cant = mov.cantidad || 0;
-                
-                // Si el movimiento es una OT, a veces la equivalencia está en 'mov.detalle_visual'
-                const equivMov = mov.equivalencia_texto || mov.detalle_visual || "-";
-                const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Registro de sistema";
+                const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Registro";
 
-                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${equivMov};${unidadMedida};${nota}\n`;
-                filasGeneradas++;
+                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${equivFinal};${unidadMedida};${nota}\n`;
             });
         } else {
-            // REPORTE DE STOCK ACTUAL
             const fechaHoy = new Date().toLocaleDateString();
-            const stock = material.stock_actual || 0;
-
-            // Aquí usamos la variable que rescatamos arriba para el Excel
-            csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stock};${equivVisual};${unidadMedida};Saldo inicial en sistema\n`;
-            filasGeneradas++;
+            csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stockActual};${equivFinal};${unidadMedida};Saldo inicial\n`;
         }
     });
 
@@ -1255,7 +1265,7 @@ window.exportarHistorialExcel = function() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Kardex_Detallado_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+    link.setAttribute("download", `Kardex_Final_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
