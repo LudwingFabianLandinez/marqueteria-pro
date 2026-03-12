@@ -1422,4 +1422,4 @@ window.guardarCambiosEdicion = async function() {
                     </div>`;
             }
         }
-    };
+    }; 
