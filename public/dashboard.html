@@ -10,23 +10,23 @@
     <style>
         /* --- BLOQUE DE FUERZA PARA RODADO (CONSERVADO) --- */
         html, body {
-            overflow: hidden; 
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-        }
+        overflow: hidden; 
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+    }
 
-        .dashboard-wrapper {
-            display: flex;
-            width: 100vw;
-            height: 100vh;
-        }
+    .dashboard-wrapper {
+        display: flex;
+        width: 100vw;
+        height: 100vh;
+    }
 
-        /* --- ARREGLO DE DISTORSIÓN: OCULTAR HEADER MÓVIL EN PC --- */
-        .mobile-header {
-            display: none !important;
-        }
+    /* 🚨 ESTO QUITA LA DISTORSIÓN DEL PC 🚨 */
+    .mobile-header {
+        display: none !important;
+    }
 
         /* BARRA LATERAL FIJA */
         .sidebar {
@@ -230,11 +230,15 @@
         #contenedorNombreNuevo { display: none; margin-top: 10px; padding: 10px; background: #ebf8ff; border-radius: 6px; border: 1px dashed #3182ce; }
 
         /* --- ✨ SOLUCIÓN MÓVIL (SIN DAÑAR LO ANTERIOR) --- */
+        /* --- ✨ SOLUCIÓN FINAL MÓVIL (SIN DISTORSIÓN) --- */
         @media (max-width: 768px) {
-            html, body { overflow-y: auto; } /* Permitir scroll en móvil */
+            html, body { 
+                overflow-y: auto !important; /* Habilita el scroll vertical en celular */
+                height: auto !important; 
+            }
             
             .mobile-header {
-                display: flex !important;
+                display: flex !important; /* Se activa solo en móviles */
                 background: #1a2c5b;
                 color: white;
                 padding: 15px 20px;
@@ -243,37 +247,67 @@
                 position: sticky;
                 top: 0;
                 z-index: 1100;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             }
 
-            .dashboard-wrapper { display: block; height: auto; }
+            .dashboard-wrapper { 
+                display: block !important; 
+                height: auto !important; 
+            }
 
             .sidebar {
-                transform: translateX(-100%); /* Escondida */
+                transform: translateX(-100%); /* Escondida fuera de pantalla */
+                position: fixed !important;
+                top: 0;
+                left: 0;
                 width: 280px;
-                box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+                height: 100vh !important;
+                z-index: 2000 !important;
+                transition: transform 0.3s ease-in-out;
             }
 
             .sidebar.active {
-                transform: translateX(0); /* Se muestra */
+                transform: translateX(0); /* Desliza hacia adentro */
             }
 
             .main-container {
-                margin-left: 0;
-                width: 100%;
-                display: block; /* Quita el grid de 2 columnas */
-                height: auto;
-                overflow: visible;
+                margin-left: 0 !important;
+                width: 100% !important;
+                display: block !important; /* Cambia el grid por bloque para apilar contenido */
+                height: auto !important;
+                overflow: visible !important;
+                padding-top: 0 !important;
             }
 
-            .content-left { padding: 15px; height: auto; }
-            .providers-sidebar { 
-                margin: 20px 15px; 
-                height: auto; 
-                border-radius: 15px; 
-                position: static; 
+            .content-left { 
+                padding: 15px !important; 
+                height: auto !important; 
+                width: 100% !important;
             }
-            .top-actions { flex-direction: column; }
-            .inventory-card { height: 500px; } /* Altura fija para la tabla en móvil */
+
+            .inventory-card { 
+                height: 500px !important; /* Altura controlada para la tabla en celular */
+                margin-bottom: 20px;
+            }
+
+            .providers-sidebar { 
+                margin: 20px 0 !important; 
+                height: auto !important; 
+                width: 100% !important;
+                border-radius: 12px !important; 
+                position: static !important; 
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+            }
+
+            .top-actions { 
+                flex-direction: column !important; 
+                gap: 10px !important;
+            }
+
+            .btn-action { 
+                width: 100% !important; 
+                justify-content: center;
+            }
         }
     </style>
 </head>
@@ -304,11 +338,11 @@
 
     <main class="main-container">
         <div class="mobile-header">
-            <button id="hamburger-menu" class="hamburger-btn">
-             <i class="fas fa-bars"></i>
-            </button>
-            <span class="mobile-logo">LA CHICA MORALES</span>
-        </div>
+        <button id="hamburger-menu" class="hamburger-btn">
+            <i class="fas fa-bars"></i>
+        </button>
+        <span class="mobile-logo">LA CHICA MORALES</span>
+    </div>
         
         <div class="content-left">
             <div class="page-header-fixed">
