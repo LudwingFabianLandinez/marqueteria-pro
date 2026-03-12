@@ -455,9 +455,9 @@ async function abrirAnalisisCostos(id) {
 }
 
 // 11. BUSCADOR Y FILTROS (VERSIÓN FINAL: FILTRADO INTELIGENTE Y FLEXIBLE)
-// 11. BUSCADOR Y FILTROS (VERSIÓN DEFINITIVA: FILTRADO INDEPENDIENTE Y ROBUSTO)
+// 11. BUSCADOR Y FILTROS (CORREGIDO: SINCRONIZADO CON HISTORY.HTML)
 function configurarBuscador() {
-    // Función de limpieza profunda: quita tildes, mayúsculas y espacios
+    // Función de limpieza: quita tildes, mayúsculas y espacios
     const limpiar = (t) => {
         return String(t || "")
             .normalize("NFD")
@@ -467,8 +467,8 @@ function configurarBuscador() {
     };
 
     const ejecutarFiltrado = () => {
-        // Captura en el momento exacto de la ejecución
-        const inputBusqueda = document.getElementById('searchInputFacturas');
+        // IDs ACTUALIZADOS SEGÚN TU HTML: searchInput, fechaDesde, fechaHasta
+        const inputBusqueda = document.getElementById('searchInput'); 
         const fDesdeInput = document.getElementById('fechaDesde');
         const fHastaInput = document.getElementById('fechaHasta');
 
@@ -476,27 +476,23 @@ function configurarBuscador() {
         const fechaDesde = fDesdeInput?.value || ""; 
         const fechaHasta = fHastaInput?.value || "";
 
-        console.log(`🔍 FILTRANDO AHORA POR: "${term}" | Fechas: ${fechaDesde || 'No'} a ${fechaHasta || 'No'}`);
+        console.log(`🔍 FILTRANDO POR: "${term}" | Rango: ${fechaDesde || 'Inicio'} - ${fechaHasta || 'Fin'}`);
 
         const filtradas = todasLasFacturas.filter(f => {
-            // --- 1. COINCIDENCIA DE TEXTO (Nombre u OT) ---
+            // 1. TEXTO: OT y Nombre
             const ot = limpiar(formatearNumeroOT(f));
             let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
             let nombreLimpio = limpiar(nombreRaw);
             
-            // Sincronización con "sin nombre"
             if (nombreLimpio.includes("generico")) nombreLimpio = "sin nombre";
 
             const coincideTexto = term === "" || ot.includes(term) || nombreLimpio.includes(term);
 
-            // --- 2. COINCIDENCIA DE FECHAS (SÓLO SI EL USUARIO PUSO FECHAS) ---
+            // 2. FECHAS: Solo si el usuario seleccionó alguna
             let coincideFecha = true;
-            
-            // Si el usuario NO ha tocado los inputs de fecha, coincideFecha se queda en TRUE
             if (fechaDesde !== "" || fechaHasta !== "") {
                 if (f.fecha) {
                     const d = new Date(f.fecha);
-                    // Validamos fecha válida antes de procesar
                     if (!isNaN(d.getTime())) {
                         const fechaFactura = d.getFullYear() + '-' + 
                                            String(d.getMonth() + 1).padStart(2, '0') + '-' + 
@@ -506,46 +502,42 @@ function configurarBuscador() {
                         if (fechaHasta && fechaFactura > fechaHasta) coincideFecha = false;
                     }
                 } else {
-                    // Si el usuario puso fechas pero el registro no tiene, se oculta
-                    coincideFecha = false;
+                    coincideFecha = false; 
                 }
             }
 
-            // Para que se vea, DEBE cumplir el texto Y la fecha (si aplica)
             return coincideTexto && coincideFecha;
         });
 
-        console.log(`🎯 Coincidencias finales: ${filtradas.length}`);
+        console.log(`🎯 Coincidencias encontradas: ${filtradas.length}`);
         renderTable(filtradas);
     };
 
-    // --- 🌍 EXPOSICIÓN GLOBAL (Botones Azul y Gris) ---
+    // --- FUNCIONES PARA LOS BOTONES ONCLICK DEL HTML ---
     window.aplicarFiltros = (e) => {
-        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         ejecutarFiltrado();
     };
 
     window.limpiarFiltros = (e) => {
-        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         
-        if (document.getElementById('searchInputFacturas')) document.getElementById('searchInputFacturas').value = '';
-        if (document.getElementById('fechaDesde')) document.getElementById('fechaDesde').value = '';
-        if (document.getElementById('fechaHasta')) document.getElementById('fechaHasta').value = '';
+        const inp = document.getElementById('searchInput');
+        const fd = document.getElementById('fechaDesde');
+        const fh = document.getElementById('fechaHasta');
         
-        console.log("🧹 Vista restaurada");
+        if (inp) inp.value = '';
+        if (fd) fd.value = '';
+        if (fh) fh.value = '';
+        
         renderTable(todasLasFacturas);
     };
 
-    // --- ESCUCHA EN TIEMPO REAL ---
-    const inputMain = document.getElementById('searchInputFacturas');
+    // --- ESCUCHA EN TIEMPO REAL (INPUT) ---
+    const inputMain = document.getElementById('searchInput');
     if (inputMain) {
         inputMain.addEventListener('input', ejecutarFiltrado);
     }
-    
-    // Vinculación manual de seguridad
-    const botones = Array.from(document.querySelectorAll('button'));
-    const btnFiltrar = botones.find(b => b.textContent.includes('FILTRAR'));
-    if (btnFiltrar) btnFiltrar.onclick = window.aplicarFiltros;
 }
 
 // 12. ELIMINAR (SE MANTIENE IGUAL)
