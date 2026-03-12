@@ -426,28 +426,30 @@ body {
     background-color: #475569; /* Un tono más oscuro al pasar el mouse */
 }
 
-.btn-logout-sidebar {
+.btn-logout-small {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-top: 30px;
-    padding: 12px 20px;
+    justify-content: center;
+    gap: 8px;
+    width: 85%; /* No ocupa todo el ancho, dejando aire a los lados */
+    max-width: 180px; /* Tamaño máximo controlado */
+    padding: 8px 15px; /* Más delgado */
     background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
     color: white !important;
     text-decoration: none;
-    border-radius: 10px;
-    font-weight: 700;
+    border-radius: 25px; /* Bordes más redondeados (tipo píldora) */
+    font-weight: 600;
+    font-size: 0.85rem; /* Letra un poco más pequeña */
     transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.btn-logout-sidebar:hover {
+.btn-logout-small:hover {
     background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-    transform: scale(1.02);
-    box-shadow: 0 6px 12px rgba(220, 38, 38, 0.3);
+    transform: translateY(-2px); /* Pequeño salto hacia arriba */
+    box-shadow: 0 6px 12px rgba(220, 38, 38, 0.25);
 }
 
-.btn-logout-sidebar i {
-    font-size: 1.1rem;
+.btn-logout-small i {
+    font-size: 1rem;
 }
