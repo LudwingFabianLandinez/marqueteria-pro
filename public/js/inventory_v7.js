@@ -1204,20 +1204,23 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.0) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.1 - Versión Ultra-Resistente) ---
 // Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
-    // 1. Cabeceras con soporte para tildes (BOM UTF-8)
+    // 1. Verificación de seguridad de los datos (Punto Crítico)
+    // Buscamos primero en la lista filtrada, y si no existe, en la global
+    const datosFinales = (typeof materialesFiltrados !== 'undefined') ? materialesFiltrados : window.todosLosMateriales;
+
+    if (!datosFinales || datosFinales.length === 0) {
+        return alert("⚠️ El sistema aún está sincronizando los datos de Atlas. Espera 2 segundos e intenta de nuevo.");
+    }
+
+    // 2. Cabeceras con soporte para tildes y Ñ (BOM UTF-8)
     let csvContent = "\uFEFF"; 
     csvContent += "FECHA;PRODUCTO;TIPO;CANTIDAD;DETALLE\n";
 
-    // 2. Usamos la lista purificada del ESCUDO (materialesFiltrados)
-    // Esto asegura que el reporte coincida con lo que ves en pantalla
-    if (typeof materialesFiltrados === 'undefined') {
-        return alert("⚠️ Error: No se pudo cargar la lista de materiales. Intenta refrescar la página.");
-    }
-
-    materialesFiltrados.forEach(material => {
+    // 3. Procesar movimientos
+    datosFinales.forEach(material => {
         if (material.historial && material.historial.length > 0) {
             material.historial.forEach(mov => {
                 const fecha = new Date(mov.fecha).toLocaleDateString();
@@ -1231,18 +1234,21 @@ window.exportarHistorialExcel = function() {
         }
     });
 
-    // 3. Crear el archivo y descargar
+    // 4. Crear el archivo y descargar (Soporte PC y Móvil)
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+    
+    // Formato de nombre de archivo: Kardex_Marqueteria_DD-MM-YYYY.csv
+    const nombreArchivo = `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    link.setAttribute("download", nombreArchivo);
     
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    console.log("✅ Reporte Excel generado con éxito.");
+    console.log("✅ Reporte Excel generado con éxito para " + datosFinales.length + " productos.");
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
