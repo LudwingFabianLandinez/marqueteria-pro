@@ -405,3 +405,23 @@ body {
         display: none;
     }
 }
+
+.btn-cancel-modern {
+    background-color: #64748b; /* Color pizarra elegante */
+    color: white !important;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.3s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-cancel-modern:hover {
+    background-color: #475569; /* Un tono más oscuro al pasar el mouse */
+}
