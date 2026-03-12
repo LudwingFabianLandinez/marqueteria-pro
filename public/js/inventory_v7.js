@@ -1204,7 +1204,7 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.7 - EXTRACCIÓN FORZADA) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.8 - VERSIÓN FINAL DE RESCATE) ---
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
@@ -1219,21 +1219,27 @@ window.exportarHistorialExcel = function() {
         const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
         const cat = String(material.categoria || 'GENERAL').toUpperCase();
         const stockActual = parseFloat(material.stock_actual) || 0;
-        
-        // 1. Detección robusta de dimensiones
-        const largo = parseFloat(material.largo || (material.dimensiones && material.dimensiones.largo) || 0);
-        const ancho = parseFloat(material.ancho || (material.dimensiones && material.dimensiones.ancho) || 0);
         const unidadMedida = material.unidad_medida || (cat === "MOLDURAS" ? "ML" : "m²");
 
-        // 2. Cálculo de Equivalencia (Idéntico a tus tarjetas del Dashboard)
+        // 1. RESCATE DE DIMENSIONES (Probamos todas las rutas posibles en Atlas)
+        let L = parseFloat(material.largo) || 0;
+        let A = parseFloat(material.ancho) || 0;
+
+        // Si no están en la raíz, buscamos dentro de objetos anidados
+        if (L === 0 && material.dimensiones) {
+            L = parseFloat(material.dimensiones.largo) || parseFloat(material.dimensiones.L) || 0;
+            A = parseFloat(material.dimensiones.ancho) || parseFloat(material.dimensiones.A) || 0;
+        }
+
+        // 2. CÁLCULO DE EQUIVALENCIA
         let equivCalculada = "-";
         
-        if (cat === "MOLDURAS" && largo > 0) {
-            const uds = Math.floor(stockActual / largo);
-            const rem = (stockActual % largo).toFixed(2);
+        if (cat === "MOLDURAS" && L > 0) {
+            const uds = Math.floor(stockActual / L);
+            const rem = (stockActual % L).toFixed(2);
             equivCalculada = `${uds} und + ${rem} ML rem`;
-        } else if (largo > 0 && ancho > 0) {
-            const areaUna = (largo * ancho) / 10000;
+        } else if (L > 0 && A > 0) {
+            const areaUna = (L * A) / 10000;
             if (areaUna > 0) {
                 const uds = Math.floor(stockActual / areaUna);
                 const rem = (stockActual % areaUna).toFixed(2);
@@ -1241,18 +1247,15 @@ window.exportarHistorialExcel = function() {
             }
         }
 
-        // 3. Procesar Historial o Stock Actual
+        // 3. GENERACIÓN DE FILAS
         const historial = material.historial || material.movimientos || [];
         if (historial.length > 0) {
             historial.forEach(mov => {
                 const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
-                const tipo = String(mov.tipo || 'MOVIMIENTO').toUpperCase();
-                const cant = mov.cantidad || 0;
-                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${equivCalculada};${unidadMedida};${String(mov.notas || "").replace(/;/g, "")}\n`;
+                csvContent += `${fecha};${nombre};${cat};${String(mov.tipo || 'MOV').toUpperCase()};${mov.cantidad || 0};${equivCalculada};${unidadMedida};${String(mov.notas || "").replace(/;/g, "")}\n`;
             });
         } else {
-            const fechaHoy = new Date().toLocaleDateString();
-            csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stockActual};${equivCalculada};${unidadMedida};Saldo inicial\n`;
+            csvContent += `${new Date().toLocaleDateString()};${nombre};${cat};STOCK ACTUAL;${stockActual};${equivCalculada};${unidadMedida};Saldo inicial\n`;
         }
     });
 
@@ -1260,7 +1263,7 @@ window.exportarHistorialExcel = function() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+    link.setAttribute("download", `Kardex_Final_Marqueteria.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
