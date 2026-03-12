@@ -1204,14 +1204,14 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v22.1 - SINCRONIZACIÓN LARGOREF FINAL) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v22.2 - RECONCILIACIÓN TOTAL DE MEDIDAS) ---
 // Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) return alert("⚠️ No hay datos para exportar.");
 
-    // BOM UTF-8 para soporte de tildes y estructura de columnas
+    // BOM UTF-8 para soporte de tildes y Ñ
     let csvContent = "\uFEFFFECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
     datosFinales.forEach(m => {
@@ -1219,26 +1219,24 @@ window.exportarHistorialExcel = function() {
         const catNom = String(m.categoria || '').toUpperCase();
         const esMoldura = catNom.includes("MOLDURA");
         
-        // 🎯 CAPTURA MULTI-RUTA (Sincronizado con image_0318d3.png)
-        // Buscamos largoRef/anchoRef que es como lo tienes en el motor de stock
-        const largoRef = parseFloat(m.largoRef || m.largo || (m.dimensiones && m.dimensiones.largo) || 0);
-        const anchoRef = parseFloat(m.anchoRef || m.ancho || (m.dimensiones && m.dimensiones.ancho) || 0);
+        // 🎯 BÚSQUEDA EXHAUSTIVA DE MEDIDAS (Sincronizado con todas las posibles rutas de Atlas)
+        const largoRef = parseFloat(m.largoRef || m.largo || (m.dimensiones && m.dimensiones.largo) || (m.medidas && m.medidas.largo) || 0);
+        const anchoRef = parseFloat(m.anchoRef || m.ancho || (m.dimensiones && m.dimensiones.ancho) || (m.medidas && m.medidas.ancho) || 0);
         
         let equivTexto = "-";
 
-        // --- ⚙️ RÉPLICA EXACTA DEL MOTOR DE STOCK (image_0318d3.png) ---
+        // --- ⚙️ RÉPLICA DEL MOTOR DE STOCK (image_0318d3.png) ---
         if (esMoldura) {
-            // Si es moldura, convertimos largoRef (cm) a metros, default 2.8m
+            // Lógica para Molduras (Varillas)
             const factorLargo = (largoRef / 100) || 2.8; 
             const varillas = (stockTotalM2 / factorLargo).toFixed(1);
             equivTexto = `Equiv. a ${varillas} Varillas`;
-        } else {
-            // Si es lámina/vidrio, calculamos Unidades + m² remanente
+        } else if (largoRef > 0 && anchoRef > 0) {
+            // Lógica para Láminas, Vidrios y Passepartout (Unidades + m² rem)
             const areaReferencia = (largoRef * anchoRef) / 10000;
             if (areaReferencia > 0) {
                 const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
                 let remanenteM2 = stockTotalM2 - (numUnidades * areaReferencia);
-                // Limpieza de decimales ínfimos
                 if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
                 equivTexto = `${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem`;
             }
@@ -1258,7 +1256,6 @@ window.exportarHistorialExcel = function() {
                 csvContent += `${f};${nombre};${catNom};${tipo};${mov.cantidad};${equivTexto};${unidad};${notas}\n`;
             });
         } else {
-            // Fila de saldo actual si no hay historial
             const fHoy = new Date().toLocaleDateString();
             csvContent += `${fHoy};${nombre};${catNom};STOCK ACTUAL;${stockTotalM2};${equivTexto};${unidad};Saldo inicial en sistema\n`;
         }
@@ -1274,7 +1271,7 @@ window.exportarHistorialExcel = function() {
     link.click();
     document.body.removeChild(link);
     
-    console.log("✅ Reporte Excel v22.1 generado con éxito.");
+    console.log("✅ Reporte Excel v22.2 (Reconciliación de Láminas) generado.");
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
