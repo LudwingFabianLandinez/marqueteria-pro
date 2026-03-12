@@ -454,52 +454,54 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (VERSIÓN FINAL: FILTRADO INTELIGENTE Y FLEXIBLE)
-// 11. BUSCADOR Y FILTROS (CORREGIDO: SINCRONIZADO CON HISTORY.HTML)
+// 11. BUSCADOR Y FILTROS (VERSIÓN DEFINITIVA: ROMPIENDO EL CÍRCULO VICIOSO)
 function configurarBuscador() {
-    // Función de limpieza: quita tildes, mayúsculas y espacios
-    const limpiar = (t) => {
+    // Función de limpieza extrema: quita tildes, espacios y caracteres especiales
+    const limpiarParaBusqueda = (t) => {
         return String(t || "")
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[\u0300-\u036f]/g, "") // Quita tildes
             .toLowerCase()
+            .replace(/[^a-z0-9]/g, "") // Deja solo letras y números para comparar
             .trim();
     };
 
     const ejecutarFiltrado = () => {
-        // IDs ACTUALIZADOS SEGÚN TU HTML: searchInput, fechaDesde, fechaHasta
-        const inputBusqueda = document.getElementById('searchInput'); 
+        // Captura de elementos según IDs de history.html
+        const inputBusqueda = document.getElementById('searchInput');
         const fDesdeInput = document.getElementById('fechaDesde');
         const fHastaInput = document.getElementById('fechaHasta');
 
-        const term = limpiar(inputBusqueda?.value);
+        // Término de búsqueda limpio (si pones "sa ", lo busca como "sa")
+        const term = limpiarParaBusqueda(inputBusqueda?.value);
         const fechaDesde = fDesdeInput?.value || ""; 
         const fechaHasta = fHastaInput?.value || "";
 
-        console.log(`🔍 FILTRANDO POR: "${term}" | Rango: ${fechaDesde || 'Inicio'} - ${fechaHasta || 'Fin'}`);
+        console.log(`🔍 FILTRANDO AHORA POR: "${term}"`);
 
         const filtradas = todasLasFacturas.filter(f => {
-            // 1. TEXTO: OT y Nombre
-            const ot = limpiar(formatearNumeroOT(f));
-            let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente?.nombre) || "SIN NOMBRE";
-            let nombreLimpio = limpiar(nombreRaw);
+            // --- 1. LÓGICA DE TEXTO (Nombre u OT) ---
+            const ot = limpiarParaBusqueda(formatearNumeroOT(f));
             
-            if (nombreLimpio.includes("generico")) nombreLimpio = "sin nombre";
+            // Buscamos el nombre en todas las propiedades posibles del objeto
+            let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente && f.cliente.nombre) || "sin nombre";
+            let nombreLimpio = limpiarParaBusqueda(nombreRaw);
+            
+            // Si el término está vacío, pasa. Si no, debe estar en el nombre o la OT
+            const coincideTexto = term === "" || nombreLimpio.includes(term) || ot.includes(term);
 
-            const coincideTexto = term === "" || ot.includes(term) || nombreLimpio.includes(term);
-
-            // 2. FECHAS: Solo si el usuario seleccionó alguna
+            // --- 2. LÓGICA DE FECHAS (SÓLO SI HAY FECHAS SELECCIONADAS) ---
             let coincideFecha = true;
             if (fechaDesde !== "" || fechaHasta !== "") {
                 if (f.fecha) {
                     const d = new Date(f.fecha);
                     if (!isNaN(d.getTime())) {
-                        const fechaFactura = d.getFullYear() + '-' + 
-                                           String(d.getMonth() + 1).padStart(2, '0') + '-' + 
-                                           String(d.getDate()).padStart(2, '0');
+                        const fechaFacturaISO = d.getFullYear() + '-' + 
+                                              String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                                              String(d.getDate()).padStart(2, '0');
                         
-                        if (fechaDesde && fechaFactura < fechaDesde) coincideFecha = false;
-                        if (fechaHasta && fechaFactura > fechaHasta) coincideFecha = false;
+                        if (fechaDesde && fechaFacturaISO < fechaDesde) coincideFecha = false;
+                        if (fechaHasta && fechaFacturaISO > fechaHasta) coincideFecha = false;
                     }
                 } else {
                     coincideFecha = false; 
@@ -509,11 +511,20 @@ function configurarBuscador() {
             return coincideTexto && coincideFecha;
         });
 
-        console.log(`🎯 Coincidencias encontradas: ${filtradas.length}`);
+        console.log(`🎯 Coincidencias finales encontradas: ${filtradas.length}`);
+        
+        // Si el filtro no encuentra nada, mostramos el aviso visual
+        const noDataEl = document.getElementById('noData');
+        if (filtradas.length === 0) {
+            if (noDataEl) noDataEl.style.display = 'block';
+        } else {
+            if (noDataEl) noDataEl.style.display = 'none';
+        }
+
         renderTable(filtradas);
     };
 
-    // --- FUNCIONES PARA LOS BOTONES ONCLICK DEL HTML ---
+    // --- FUNCIONES GLOBALES PARA EL HTML ---
     window.aplicarFiltros = (e) => {
         if (e && e.preventDefault) e.preventDefault();
         ejecutarFiltrado();
@@ -530,10 +541,13 @@ function configurarBuscador() {
         if (fd) fd.value = '';
         if (fh) fh.value = '';
         
+        const noDataEl = document.getElementById('noData');
+        if (noDataEl) noDataEl.style.display = 'none';
+
         renderTable(todasLasFacturas);
     };
 
-    // --- ESCUCHA EN TIEMPO REAL (INPUT) ---
+    // --- ESCUCHA EN TIEMPO REAL ---
     const inputMain = document.getElementById('searchInput');
     if (inputMain) {
         inputMain.addEventListener('input', ejecutarFiltrado);
