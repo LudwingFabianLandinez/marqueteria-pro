@@ -1204,58 +1204,77 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v22.0 - MOTOR DINÁMICO INTEGRADO) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v22.1 - SINCRONIZACIÓN LARGOREF FINAL) ---
+// Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) return alert("⚠️ No hay datos para exportar.");
 
+    // BOM UTF-8 para soporte de tildes y estructura de columnas
     let csvContent = "\uFEFFFECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
     datosFinales.forEach(m => {
         const stockTotalM2 = parseFloat(m.stock_actual || 0);
-        const esMoldura = String(m.categoria).toUpperCase().includes("MOLDURA");
-        const largoRef = parseFloat(m.largo || (m.dimensiones && m.dimensiones.largo) || 0);
-        const anchoRef = parseFloat(m.ancho || (m.dimensiones && m.dimensiones.ancho) || 0);
+        const catNom = String(m.categoria || '').toUpperCase();
+        const esMoldura = catNom.includes("MOLDURA");
+        
+        // 🎯 CAPTURA MULTI-RUTA (Sincronizado con image_0318d3.png)
+        // Buscamos largoRef/anchoRef que es como lo tienes en el motor de stock
+        const largoRef = parseFloat(m.largoRef || m.largo || (m.dimensiones && m.dimensiones.largo) || 0);
+        const anchoRef = parseFloat(m.anchoRef || m.ancho || (m.dimensiones && m.dimensiones.ancho) || 0);
         
         let equivTexto = "-";
 
-        // --- ⚙️ RÉPLICA DEL MOTOR DE STOCK (Línea 600+) ---
+        // --- ⚙️ RÉPLICA EXACTA DEL MOTOR DE STOCK (image_0318d3.png) ---
         if (esMoldura) {
-            const largoMetros = largoRef / 100 || 2.8; // Usa 2.8 como respaldo si no hay largo
-            const varillas = (stockTotalM2 / largoMetros).toFixed(1);
+            // Si es moldura, convertimos largoRef (cm) a metros, default 2.8m
+            const factorLargo = (largoRef / 100) || 2.8; 
+            const varillas = (stockTotalM2 / factorLargo).toFixed(1);
             equivTexto = `Equiv. a ${varillas} Varillas`;
         } else {
+            // Si es lámina/vidrio, calculamos Unidades + m² remanente
             const areaReferencia = (largoRef * anchoRef) / 10000;
             if (areaReferencia > 0) {
                 const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
                 let remanenteM2 = stockTotalM2 - (numUnidades * areaReferencia);
+                // Limpieza de decimales ínfimos
                 if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
                 equivTexto = `${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem`;
             }
         }
 
-        // --- 📝 GENERACIÓN DE FILA ---
+        // --- 📝 CONSTRUCCIÓN DE FILAS ---
         const nombre = String(m.nombre || 'S/N').replace(/;/g, "");
-        const cat = String(m.categoria || 'Gral').toUpperCase();
         const unidad = esMoldura ? "ML" : "m²";
         const historial = m.historial || m.movimientos || [];
 
         if (historial.length > 0) {
             historial.forEach(mov => {
                 const f = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
-                csvContent += `${f};${nombre};${cat};${String(mov.tipo || 'MOV').toUpperCase()};${mov.cantidad};${equivTexto};${unidad};${String(mov.notas || "").replace(/;/g, "")}\n`;
+                const tipo = String(mov.tipo || 'MOV').toUpperCase();
+                const notas = String(mov.notas || "").replace(/;/g, "").replace(/\n/g, " ");
+                
+                csvContent += `${f};${nombre};${catNom};${tipo};${mov.cantidad};${equivTexto};${unidad};${notas}\n`;
             });
         } else {
-            csvContent += `${new Date().toLocaleDateString()};${nombre};${cat};STOCK ACTUAL;${stockTotalM2};${equivTexto};${unidad};Saldo inicial\n`;
+            // Fila de saldo actual si no hay historial
+            const fHoy = new Date().toLocaleDateString();
+            csvContent += `${fHoy};${nombre};${catNom};STOCK ACTUAL;${stockTotalM2};${equivTexto};${unidad};Saldo inicial en sistema\n`;
         }
     });
 
+    // Crear y descargar el archivo
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Kardex_Profesional_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    link.href = url;
+    link.download = `Kardex_Final_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    
+    console.log("✅ Reporte Excel v22.1 generado con éxito.");
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
