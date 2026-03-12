@@ -1204,17 +1204,15 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.4 - Detalle de Unidades) ---
-// Ubicado en línea 1207 - Justo después de abrirModalEditar
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.5 - CAPTURA DE EQUIVALENCIAS) ---
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) {
-        return alert("⚠️ Sincronizando datos... intenta de nuevo en un segundo.");
+        return alert("⚠️ Sincronizando datos... intenta de nuevo.");
     }
 
     let csvContent = "\uFEFF"; 
-    // Nueva estructura de cabeceras solicitada
     csvContent += "FECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
     let filasGeneradas = 0;
@@ -1223,9 +1221,11 @@ window.exportarHistorialExcel = function() {
         const historial = material.historial || material.movimientos || [];
         const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
         const cat = String(material.categoria || 'GENERAL').toUpperCase();
-        
-        // Extraemos la unidad de medida (m², ML, etc.)
         const unidadMedida = material.unidad_medida || (cat === "MOLDURAS" ? "ML" : "m²");
+
+        // BUSCAMOS LA EQUIVALENCIA VISUAL (La que ves en las tarjetas azules)
+        // Probamos todas las variables donde tu motor guarda el texto formateado
+        const equivVisual = material.stock_visual || material.equivalencia || material.stock_formateado || "-";
 
         if (historial.length > 0) {
             historial.forEach(mov => {
@@ -1233,22 +1233,19 @@ window.exportarHistorialExcel = function() {
                 const tipo = String(mov.tipo || 'MOVIMIENTO').toUpperCase();
                 const cant = mov.cantidad || 0;
                 
-                // Si el movimiento tiene su propia equivalencia guardada, la usamos
-                const equiv = mov.equivalencia_texto || "-";
+                // Si el movimiento es una OT, a veces la equivalencia está en 'mov.detalle_visual'
+                const equivMov = mov.equivalencia_texto || mov.detalle_visual || "-";
                 const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Registro de sistema";
 
-                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${equiv};${unidadMedida};${nota}\n`;
+                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${equivMov};${unidadMedida};${nota}\n`;
                 filasGeneradas++;
             });
         } else {
-            // EXPORTACIÓN DE STOCK ACTUAL CON DETALLE VISUAL
+            // REPORTE DE STOCK ACTUAL
             const fechaHoy = new Date().toLocaleDateString();
             const stock = material.stock_actual || 0;
-            
-            // Aquí capturamos el texto exacto que ves en las tarjetas del dashboard
-            // Ejemplo: "3 und + 0.59 m² rem"
-            const equivVisual = material.stock_visual || "-";
 
+            // Aquí usamos la variable que rescatamos arriba para el Excel
             csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stock};${equivVisual};${unidadMedida};Saldo inicial en sistema\n`;
             filasGeneradas++;
         }
@@ -1262,8 +1259,6 @@ window.exportarHistorialExcel = function() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    console.log(`✅ Excel detallado generado: ${filasGeneradas} filas procesadas.`);
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
