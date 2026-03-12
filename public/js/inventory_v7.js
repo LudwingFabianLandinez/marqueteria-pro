@@ -1204,36 +1204,33 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v22.4 - SINCRONIZACIÓN ATLAS FINAL) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v22.5 - ORDEN DE COLUMNAS OPTIMIZADO) ---
 // Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) return alert("⚠️ No hay datos para exportar.");
 
-    let csvContent = "\uFEFFFECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
+    // BOM UTF-8 y Cabeceras con el nuevo orden: UNIDAD antes que EQUIVALENCIA
+    let csvContent = "\uFEFFFECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;UNIDAD;EQUIVALENCIA;DETALLE\n";
 
     datosFinales.forEach(m => {
         const stockTotalM2 = parseFloat(m.stock_actual || 0);
         const catNom = String(m.categoria || '').toUpperCase();
         const esMoldura = catNom.includes("MOLDURA");
         
-        // 🎯 MAPEO EXACTO SEGÚN TU BASE DE DATOS (image_02afd5.png)
-        // Para láminas usamos: ancho_lamina_cm y largo_lamina_cm
-        // Para molduras y otros usamos: largoRef, anchoRef o largo/ancho
+        // 🎯 MAPEO EXACTO SEGÚN TU BASE DE DATOS (Sincronizado con Atlas)
         const largoRef = parseFloat(m.largo_lamina_cm || m.largoRef || m.largo || (m.dimensiones && m.dimensiones.largo) || 0);
         const anchoRef = parseFloat(m.ancho_lamina_cm || m.anchoRef || m.ancho || (m.dimensiones && m.dimensiones.ancho) || 0);
         
         let equivTexto = "-";
 
-        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO ---
+        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO (image_0318d3.png) ---
         if (esMoldura) {
-            // Lógica Molduras (Sincronizada con image_0318d3.png)
             const factorLargo = (largoRef / 100) || 2.8; 
             const varillas = (stockTotalM2 / factorLargo).toFixed(1);
             equivTexto = `Equiv. a ${varillas} Varillas`;
         } else if (largoRef > 0 && anchoRef > 0) {
-            // Lógica Láminas/Vidrios usando los nuevos campos de Atlas
             const areaReferencia = (largoRef * anchoRef) / 10000;
             if (areaReferencia > 0) {
                 const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
@@ -1243,7 +1240,7 @@ window.exportarHistorialExcel = function() {
             }
         }
 
-        // --- 📝 CONSTRUCCIÓN DE FILAS ---
+        // --- 📝 CONSTRUCCIÓN DE FILAS CON NUEVO ORDEN ---
         const nombre = String(m.nombre || 'S/N').replace(/;/g, "");
         const unidad = esMoldura ? "ML" : "m²";
         const historial = m.historial || m.movimientos || [];
@@ -1253,21 +1250,26 @@ window.exportarHistorialExcel = function() {
                 const f = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
                 const tipo = String(mov.tipo || 'MOV').toUpperCase();
                 const notas = String(mov.notas || "").replace(/;/g, "").replace(/\n/g, " ");
-                csvContent += `${f};${nombre};${catNom};${tipo};${mov.cantidad};${equivTexto};${unidad};${notas}\n`;
+                
+                // ORDEN: ...;CANTIDAD;UNIDAD;EQUIVALENCIA;DETALLE
+                csvContent += `${f};${nombre};${catNom};${tipo};${mov.cantidad};${unidad};${equivTexto};${notas}\n`;
             });
         } else {
             const fHoy = new Date().toLocaleDateString();
-            csvContent += `${fHoy};${nombre};${catNom};STOCK ACTUAL;${stockTotalM2};${equivTexto};${unidad};Saldo inicial en sistema\n`;
+            // ORDEN: ...;CANTIDAD;UNIDAD;EQUIVALENCIA;DETALLE
+            csvContent += `${fHoy};${nombre};${catNom};STOCK ACTUAL;${stockTotalM2};${unidad};${equivTexto};Saldo inicial en sistema\n`;
         }
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Kardex_Atlas_Sincronizado_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    link.download = `Kardex_Estructurado_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     
-    console.log("✅ Reporte Excel v22.4 (Sincronizado con Atlas) generado.");
+    console.log("✅ Reporte Excel v22.5 (Orden optimizado) generado.");
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
