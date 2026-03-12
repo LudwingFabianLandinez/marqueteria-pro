@@ -1225,20 +1225,27 @@ window.exportarHistorialExcel = function() {
         
         let equivTexto = "-";
 
-        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO (image_0318d3.png) ---
-        if (esMoldura) {
-            const factorLargo = (largoRef / 100) || 2.8; 
-            const varillas = (stockTotalM2 / factorLargo).toFixed(1);
-            equivTexto = `Equiv. a ${varillas} Varillas`;
-        } else if (largoRef > 0 && anchoRef > 0) {
-            const areaReferencia = (largoRef * anchoRef) / 10000;
-            if (areaReferencia > 0) {
-                const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
-                let remanenteM2 = stockTotalM2 - (numUnidades * areaReferencia);
-                if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
-                equivTexto = `${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem`;
-            }
-        }
+        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO (v22.7 - SINCRONIZADO) ---
+if (esMoldura) {
+    // 🎯 Lógica para Molduras: Varas enteras + remanente ML
+    const factorLargo = (largoRef / 100) || 2.8; 
+    const numVaras = Math.floor((stockTotalM2 / factorLargo) + 0.001);
+    let remanenteML = stockTotalM2 - (numVaras * factorLargo);
+    
+    if (Math.abs(remanenteML) < 0.01) remanenteML = 0;
+    
+    // Cambiamos "Varillas" por "Varas" y añadimos el remanente
+    equivTexto = `${numVaras} Varas + ${remanenteML.toFixed(2)} ML rem`;
+} else if (largoRef > 0 && anchoRef > 0) {
+    // Lógica para Láminas (Se mantiene igual que en image_02467a.png)
+    const areaReferencia = (largoRef * anchoRef) / 10000;
+    if (areaReferencia > 0) {
+        const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
+        let remanenteM2 = stockTotalM2 - (numUnidades * areaReferencia);
+        if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+        equivTexto = `${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem`;
+    }
+}
 
         // --- 📝 CONSTRUCCIÓN DE FILAS CON NUEVO ORDEN ---
         const nombre = String(m.nombre || 'S/N').replace(/;/g, "");
