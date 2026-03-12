@@ -315,3 +315,93 @@ body {
     cursor: pointer;
     font-weight: 700;
 }
+
+/* ============================================ */
+/* 📱 AJUSTES RESPONSIVOS (CELULARES Y TABLETS) */
+/* ============================================ */
+
+@media (max-width: 1024px) {
+    /* En tablets, quitamos el grid de dos columnas para que no se apriete */
+    .main-content {
+        grid-template-columns: 1fr;
+        padding: 20px;
+    }
+    
+    .providers-sidebar {
+        position: relative;
+        top: 0;
+        height: auto;
+        margin-top: 30px;
+        border-radius: 15px; /* Ya no está pegado al borde derecho */
+    }
+}
+
+@media (max-width: 768px) {
+    /* 1. Reset del Body para móvil */
+    body {
+        display: block; /* Quitamos el flex para que el header fluya arriba */
+    }
+
+    /* 2. HEADER MÓVIL (Las 3 rayitas) */
+    .mobile-header {
+        display: flex !important; /* Forzamos que aparezca */
+        background: var(--primary);
+        color: white;
+        padding: 15px 20px;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 1100;
+        box-shadow: var(--shadow-md);
+    }
+
+    /* 3. SIDEBAR (Se vuelve un menú deslizante) */
+    .sidebar {
+        left: -100%; /* Escondido a la izquierda */
+        width: 280px;
+        transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 10px 0 20px rgba(0,0,0,0.4);
+    }
+
+    .sidebar.active {
+        left: 0; /* Entra al presionar el botón */
+    }
+
+    /* 4. CONTENIDO PRINCIPAL */
+    .main-content {
+        margin-left: 0 !important; /* Ocupa todo el ancho */
+        padding: 15px !important;
+        display: block;
+    }
+
+    .container-fluid {
+        padding-right: 0;
+    }
+
+    /* 5. TABLAS RESPONSIVAS (Para que no rompan el diseño) */
+    .table-container {
+        overflow-x: auto; /* Permite deslizar la tabla de lado */
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .inventory-table {
+        min-width: 600px; /* Asegura que los datos no se encimen */
+    }
+
+    /* 6. AJUSTE DE BOTONES */
+    .top-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .btn-action {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Ocultar el logo de la sidebar en móvil si ya está en el header */
+    .sidebar .logo {
+        display: none;
+    }
+}

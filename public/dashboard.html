@@ -249,6 +249,13 @@
         </aside>
 
     <main class="main-container">
+        <div class="mobile-header">
+            <button id="hamburger-menu" class="hamburger-btn">
+             <i class="fas fa-bars"></i>
+            </button>
+            <span class="mobile-logo">LA CHICA MORALES</span>
+        </div>
+        
         <div class="content-left">
             <div class="page-header-fixed">
                 <h1 class="page-title">Control de Existencias</h1>
@@ -623,6 +630,27 @@ async function ejecutarRegistroMaestro() {
     }
 }
 
+// --- CONTROLADOR DE MENÚ MÓVIL (HAMBURGUESA) ---
+document.addEventListener('DOMContentLoaded', () => {
+    const btnMenu = document.getElementById('hamburger-menu');
+    const sidebar = document.querySelector('.sidebar');
+
+    if (btnMenu && sidebar) {
+        btnMenu.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+        });
+
+        // Cerrar al hacer clic en un link (para móviles)
+        document.querySelectorAll('.menu-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('active');
+                }
+            });
+        });
+    }
+});
+
 // --- 3. INICIALIZADOR AL CARGAR EL SITIO ---
 // Asegúrate de que esto esté fuera de la función anterior
 document.addEventListener('DOMContentLoaded', () => {
@@ -723,6 +751,8 @@ window.guardarCambiosEdicion = async function() {
         </div>
     </div>
 </div>
+
+
 
 </body>
 </html>
