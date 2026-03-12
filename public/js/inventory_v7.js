@@ -1225,19 +1225,23 @@ window.exportarHistorialExcel = function() {
         
         let equivTexto = "-";
 
-        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO (v22.7 - SINCRONIZADO) ---
+        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO (v22.8 - FIX DASHBOARD & EXCEL) ---
 if (esMoldura) {
-    // 🎯 Lógica para Molduras: Varas enteras + remanente ML
+    // 🎯 Lógica para Varas enteras + ML sobrantes
     const factorLargo = (largoRef / 100) || 2.8; 
-    const numVaras = Math.floor((stockTotalM2 / factorLargo) + 0.001);
-    let remanenteML = stockTotalM2 - (numVaras * factorLargo);
     
+    // Calculamos varas enteras con Math.floor para quitar decimales
+    const numVaras = Math.floor((stockTotalM2 / factorLargo) + 0.001);
+    
+    // Calculamos el sobrante exacto en ML
+    let remanenteML = stockTotalM2 - (numVaras * factorLargo);
     if (Math.abs(remanenteML) < 0.01) remanenteML = 0;
     
-    // Cambiamos "Varillas" por "Varas" y añadimos el remanente
+    // RESULTADO: "4 Varas + 0.56 ML rem"
     equivTexto = `${numVaras} Varas + ${remanenteML.toFixed(2)} ML rem`;
+
 } else if (largoRef > 0 && anchoRef > 0) {
-    // Lógica para Láminas (Se mantiene igual que en image_02467a.png)
+    // Lógica para Láminas (se mantiene igual para no dañar los m²)
     const areaReferencia = (largoRef * anchoRef) / 10000;
     if (areaReferencia > 0) {
         const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
