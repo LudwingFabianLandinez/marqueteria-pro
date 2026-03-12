@@ -1204,63 +1204,60 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.2 - Sincronización Total) ---
-// Ubicado en línea 1207 - Justo después de abrirModalEditar
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.3 - ESCÁNER PROFUNDO) ---
 window.exportarHistorialExcel = function() {
-    // 1. RASTREO MULTI-VARIABLE: Buscamos donde estén los datos realmente (filtrados o globales)
-    const datosFinales = (typeof materialesFiltrados !== 'undefined' && materialesFiltrados.length > 0) 
-        ? materialesFiltrados 
-        : (window.todosLosMateriales || window.inventario || []);
+    // 1. RASTREO DE DATOS: Buscamos en todas las fuentes posibles
+    const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) {
-        return alert("⚠️ Los datos aún se están sincronizando con Atlas. Por favor, espera a que la tabla cargue en pantalla e intenta de nuevo.");
+        return alert("⚠️ El sistema aún está cargando datos de Atlas. Espera un momento.");
     }
 
-    // 2. Cabeceras con soporte para tildes y Ñ (BOM UTF-8)
     let csvContent = "\uFEFF"; 
-    csvContent += "FECHA;PRODUCTO;TIPO;CANTIDAD;DETALLE\n";
+    csvContent += "FECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;DETALLE\n";
 
-    let movimientosEncontrados = 0;
+    let filasGeneradas = 0;
 
-    // 3. Procesar movimientos
     datosFinales.forEach(material => {
-        // Buscamos el rastro de movimientos, ya sea en 'historial' o 'movimientos'
-        const historial = material.historial || material.movimientos || [];
+        // Buscamos movimientos en cualquier variante de nombre que use Atlas
+        const historial = material.historial || material.movimientos || material.transacciones || [];
         
         if (historial.length > 0) {
+            // SI HAY HISTORIAL: Exportamos cada movimiento detallado
             historial.forEach(mov => {
-                // Formateo de fecha seguro
-                const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'S/F';
-                const nombre = String(material.nombre || 'Sin Nombre').replace(/;/g, ""); 
-                const tipo = String(mov.tipo || 'AJUSTE').toUpperCase();
-                const cantidad = mov.cantidad || 0;
-                const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Sin detalle";
+                const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
+                const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
+                const cat = String(material.categoria || 'GENERAL').toUpperCase();
+                const tipo = String(mov.tipo || 'MOVIMIENTO').toUpperCase();
+                const cant = mov.cantidad || 0;
+                const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Registro de sistema";
 
-                csvContent += `${fecha};${nombre};${tipo};${cantidad};${nota}\n`;
-                movimientosEncontrados++;
+                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${nota}\n`;
+                filasGeneradas++;
             });
+        } else {
+            // SI NO HAY HISTORIAL: Al menos exportamos la existencia actual para que el Excel sirva
+            const fechaHoy = new Date().toLocaleDateString();
+            const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
+            const cat = String(material.categoria || 'GENERAL').toUpperCase();
+            const stock = material.stock_actual || 0;
+
+            csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stock};Saldo inicial en sistema\n`;
+            filasGeneradas++;
         }
     });
 
-    // 4. Verificación final antes de descargar para evitar archivos vacíos
-    if (movimientosEncontrados === 0) {
-        return alert("✅ El inventario está cargado, pero no se encontraron movimientos registrados (Compras u OTs) en estos productos.");
-    }
-
-    // 5. Crear el archivo y descargar (Soporte PC y Móvil)
+    // 2. Descarga del archivo
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    
-    const nombreArchivo = `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-    link.setAttribute("download", nombreArchivo);
-    
+    link.setAttribute("download", `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    console.log(`✅ Excel generado con éxito: ${movimientosEncontrados} movimientos procesados.`);
+    console.log(`✅ Excel generado con ${filasGeneradas} filas.`);
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
