@@ -454,19 +454,18 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (REESCRITURA FINAL: BALANCEADA Y SINCRONIZADA)
+// 11. BUSCADOR Y FILTROS (SOLUCIÓN FINAL: INSPECCIÓN UNIVERSAL DE OBJETO)
 function configurarBuscador() {
-    // Función de limpieza: normaliza tildes y pasa a minúsculas (mantiene espacios)
+    // Función de limpieza: normaliza tildes y pasa a minúsculas
     const limpiar = (t) => {
         return String(t || "")
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Quita tildes
+            .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase()
             .trim();
     };
 
     const ejecutarFiltrado = () => {
-        // IDs exactos de tu history.html
         const inputBusqueda = document.getElementById('searchInput');
         const fDesdeInput = document.getElementById('fechaDesde');
         const fHastaInput = document.getElementById('fechaHasta');
@@ -475,20 +474,16 @@ function configurarBuscador() {
         const fechaDesde = fDesdeInput?.value || ""; 
         const fechaHasta = fHastaInput?.value || "";
 
-        console.log(`🔍 FILTRANDO POR: "${term}"`);
+        console.log(`🔍 BUSCANDO: "${term}" en todo el registro...`);
 
         const filtradas = todasLasFacturas.filter(f => {
-            // --- 1. LÓGICA DE TEXTO ---
-            const ot = limpiar(formatearNumeroOT(f));
-            
-            // Recopilamos el nombre de cualquier propiedad posible
-            let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente && f.cliente.nombre) || "sin nombre";
-            let nombreLimpio = limpiar(nombreRaw);
-            
-            // El filtro pasa si el término está vacío o si está contenido en nombre/OT
-            const coincideTexto = term === "" || nombreLimpio.includes(term) || ot.includes(term);
+            // --- 1. LÓGICA DE TEXTO (BÚSQUEDA UNIVERSAL) ---
+            // Convertimos el objeto completo a string para buscar el término en cualquier campo
+            // Esto evita fallos si la propiedad se llama clienteNombre, nombre o cliente.nombre
+            const registroCompletoTexto = limpiar(JSON.stringify(f));
+            const coincideTexto = term === "" || registroCompletoTexto.includes(term);
 
-            // --- 2. LÓGICA DE FECHAS (SÓLO SI SE INGRESARON) ---
+            // --- 2. LÓGICA DE FECHAS ---
             let coincideFecha = true;
             if (fechaDesde !== "" || fechaHasta !== "") {
                 if (f.fecha) {
@@ -511,7 +506,7 @@ function configurarBuscador() {
 
         console.log(`🎯 Coincidencias encontradas: ${filtradas.length}`);
         
-        // Manejo visual del aviso "No se encontraron órdenes"
+        // Manejo visual del mensaje "No se encontraron órdenes"
         const noDataEl = document.getElementById('noData');
         if (noDataEl) {
             noDataEl.style.display = filtradas.length === 0 ? 'block' : 'none';
@@ -546,7 +541,6 @@ function configurarBuscador() {
     // --- ESCUCHA EN TIEMPO REAL ---
     const inputMain = document.getElementById('searchInput');
     if (inputMain) {
-        // Escuchamos el evento 'input' para que filtre mientras escribes
         inputMain.addEventListener('input', ejecutarFiltrado);
     }
 }
