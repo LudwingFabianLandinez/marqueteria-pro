@@ -454,7 +454,7 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (VERSIÓN FINAL: NORMALIZACIÓN DE TEXTO Y CAPTURA DINÁMICA)
+// 11. BUSCADOR Y FILTROS (VERSIÓN FINAL: FILTRADO INTELIGENTE Y FLEXIBLE)
 function configurarBuscador() {
     // Función interna para limpiar texto (quita tildes, espacios y pasa a minúsculas)
     const normalizar = (texto) => {
@@ -472,8 +472,8 @@ function configurarBuscador() {
         const fHastaInput = document.getElementById('fechaHasta');
 
         const term = normalizar(inputBusqueda?.value);
-        const fechaDesde = fDesdeInput?.value || "";
-        const fechaHasta = fHastaInput?.value || "";
+        const fechaDesde = fDesdeInput?.value || ""; // "YYYY-MM-DD" o vacío
+        const fechaHasta = fHastaInput?.value || ""; // "YYYY-MM-DD" o vacío
 
         console.log(`🔍 FILTRANDO AHORA POR: "${term}"`);
 
@@ -488,19 +488,24 @@ function configurarBuscador() {
                 nombreLimpio = "sin nombre";
             }
 
-            // 2. FILTRO ESTRICTO DE TEXTO
+            // --- LÓGICA DE TEXTO ---
             const coincideTexto = term === "" || ot.includes(term) || nombreLimpio.includes(term);
 
-            // 3. FILTRO ESTRICTO DE FECHAS
+            // --- LÓGICA DE FECHAS (INTELIGENTE) ---
             let coincideFecha = true;
-            if (f.fecha && (fechaDesde || fechaHasta)) {
+            
+            // Solo filtramos por fecha si el usuario REALMENTE puso una fecha en los inputs
+            if (f.fecha && (fechaDesde !== "" || fechaHasta !== "")) {
                 const d = new Date(f.fecha);
-                const fechaFacturaISO = d.getFullYear() + '-' + 
-                                      String(d.getMonth() + 1).padStart(2, '0') + '-' + 
-                                      String(d.getDate()).padStart(2, '0');
-                
-                if (fechaDesde && fechaFacturaISO < fechaDesde) coincideFecha = false;
-                if (fechaHasta && fechaFacturaISO > fechaHasta) coincideFecha = false;
+                // Validamos que la fecha de la factura sea válida antes de comparar
+                if (!isNaN(d.getTime())) {
+                    const fechaFacturaISO = d.getFullYear() + '-' + 
+                                          String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                                          String(d.getDate()).padStart(2, '0');
+                    
+                    if (fechaDesde && fechaFacturaISO < fechaDesde) coincideFecha = false;
+                    if (fechaHasta && fechaFacturaISO > fechaHasta) coincideFecha = false;
+                }
             }
 
             return coincideTexto && coincideFecha;
@@ -518,7 +523,12 @@ function configurarBuscador() {
 
     window.limpiarFiltros = (e) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
-        document.querySelectorAll('input').forEach(i => i.value = '');
+        
+        // Limpiar inputs de texto y fecha
+        if (document.getElementById('searchInputFacturas')) document.getElementById('searchInputFacturas').value = '';
+        if (document.getElementById('fechaDesde')) document.getElementById('fechaDesde').value = '';
+        if (document.getElementById('fechaHasta')) document.getElementById('fechaHasta').value = '';
+        
         console.log("🧹 Vista restaurada");
         renderTable(todasLasFacturas);
     };
