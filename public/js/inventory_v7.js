@@ -1204,43 +1204,55 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.1 - Versión Ultra-Resistente) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.2 - Sincronización Total) ---
 // Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
-    // 1. Verificación de seguridad de los datos (Punto Crítico)
-    // Buscamos primero en la lista filtrada, y si no existe, en la global
-    const datosFinales = (typeof materialesFiltrados !== 'undefined') ? materialesFiltrados : window.todosLosMateriales;
+    // 1. RASTREO MULTI-VARIABLE: Buscamos donde estén los datos realmente (filtrados o globales)
+    const datosFinales = (typeof materialesFiltrados !== 'undefined' && materialesFiltrados.length > 0) 
+        ? materialesFiltrados 
+        : (window.todosLosMateriales || window.inventario || []);
 
-    if (!datosFinales || datosFinales.length === 0) {
-        return alert("⚠️ El sistema aún está sincronizando los datos de Atlas. Espera 2 segundos e intenta de nuevo.");
+    if (datosFinales.length === 0) {
+        return alert("⚠️ Los datos aún se están sincronizando con Atlas. Por favor, espera a que la tabla cargue en pantalla e intenta de nuevo.");
     }
 
     // 2. Cabeceras con soporte para tildes y Ñ (BOM UTF-8)
     let csvContent = "\uFEFF"; 
     csvContent += "FECHA;PRODUCTO;TIPO;CANTIDAD;DETALLE\n";
 
+    let movimientosEncontrados = 0;
+
     // 3. Procesar movimientos
     datosFinales.forEach(material => {
-        if (material.historial && material.historial.length > 0) {
-            material.historial.forEach(mov => {
-                const fecha = new Date(mov.fecha).toLocaleDateString();
-                const nombre = String(material.nombre).replace(/;/g, ""); 
-                const tipo = String(mov.tipo).toUpperCase();
-                const cantidad = mov.cantidad;
+        // Buscamos el rastro de movimientos, ya sea en 'historial' o 'movimientos'
+        const historial = material.historial || material.movimientos || [];
+        
+        if (historial.length > 0) {
+            historial.forEach(mov => {
+                // Formateo de fecha seguro
+                const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'S/F';
+                const nombre = String(material.nombre || 'Sin Nombre').replace(/;/g, ""); 
+                const tipo = String(mov.tipo || 'AJUSTE').toUpperCase();
+                const cantidad = mov.cantidad || 0;
                 const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Sin detalle";
 
                 csvContent += `${fecha};${nombre};${tipo};${cantidad};${nota}\n`;
+                movimientosEncontrados++;
             });
         }
     });
 
-    // 4. Crear el archivo y descargar (Soporte PC y Móvil)
+    // 4. Verificación final antes de descargar para evitar archivos vacíos
+    if (movimientosEncontrados === 0) {
+        return alert("✅ El inventario está cargado, pero no se encontraron movimientos registrados (Compras u OTs) en estos productos.");
+    }
+
+    // 5. Crear el archivo y descargar (Soporte PC y Móvil)
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
     
-    // Formato de nombre de archivo: Kardex_Marqueteria_DD-MM-YYYY.csv
     const nombreArchivo = `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
     link.setAttribute("download", nombreArchivo);
     
@@ -1248,7 +1260,7 @@ window.exportarHistorialExcel = function() {
     link.click();
     document.body.removeChild(link);
     
-    console.log("✅ Reporte Excel generado con éxito para " + datosFinales.length + " productos.");
+    console.log(`✅ Excel generado con éxito: ${movimientosEncontrados} movimientos procesados.`);
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
