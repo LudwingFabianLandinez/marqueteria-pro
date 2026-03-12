@@ -316,28 +316,34 @@
 
     <div class="dashboard-wrapper">
         <aside class="sidebar">
-            <div class="logo-area">MARQUETERÍA<br>LA CHICA<br>MORALES</div>
-            <nav class="menu-nav">
-                <a href="dashboard.html" class="menu-link active"><i class="fas fa-home"></i> Inicio / Inventario</a>
-                
-                <a href="#" class="menu-link btn-maestro" onclick="document.getElementById('modalCatalogoMaestro').style.display='block'">
-                    <i class="fas fa-star"></i> Crear Material Maestro
-                </a>
-
-                <a href="quotes.html" class="menu-link"><i class="fas fa-calculator"></i> Nueva Cotización</a>
-                <a href="history.html" class="menu-link"><i class="fas fa-history"></i> Historial de Ventas</a>
-                <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
-
-                <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
-
-                <div style="display: flex; justify-content: center; width: 100%; margin-top: 40px; padding-bottom: 20px;">
-        <a href="#" class="btn-logout-small" onclick="logout(); return false;">
-            <i class="fas fa-sign-out-alt"></i> 
-            <span>Cerrar Sesión</span>
-        </a>
+    <div class="logo-container-modern">
+        <div class="logo-title">MARQUETERÍA</div>
+        <div class="logo-subtitle">LA CHICA MORALES</div>
     </div>
-        </nav> 
-        </aside>
+
+    <nav class="menu-nav">
+        <a href="dashboard.html" class="menu-link active">
+            <i class="fas fa-th-large"></i> <span>Inicio / Inventario</span>
+        </a>
+        
+        <a href="#" class="btn-special-maestro" onclick="document.getElementById('modalCatalogoMaestro').style.display='block'">
+            <div class="icon-circle"><i class="fas fa-star"></i></div>
+            <span>Crear Material Maestro</span>
+        </a>
+
+        <div class="menu-divider">MÓDULOS</div>
+
+        <a href="quotes.html" class="menu-link"><i class="fas fa-calculator"></i> Nueva Cotización</a>
+        <a href="history.html" class="menu-link"><i class="fas fa-history"></i> Historial de Ventas</a>
+        <a href="purchases.html" class="menu-link"><i class="fas fa-box-open"></i> Historial de Compras</a>
+
+        <div class="logout-container">
+            <a href="#" class="btn-logout-small" onclick="logout(); return false;">
+                <i class="fas fa-sign-out-alt"></i> <span>Cerrar Sesión</span>
+            </a>
+        </div>
+    </nav>
+</aside>
 
     <main class="main-container">
         <div class="mobile-header">
