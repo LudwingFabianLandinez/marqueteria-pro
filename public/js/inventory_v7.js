@@ -1204,14 +1204,13 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v22.2 - RECONCILIACIÓN TOTAL DE MEDIDAS) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v22.4 - SINCRONIZACIÓN ATLAS FINAL) ---
 // Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) return alert("⚠️ No hay datos para exportar.");
 
-    // BOM UTF-8 para soporte de tildes y Ñ
     let csvContent = "\uFEFFFECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
     datosFinales.forEach(m => {
@@ -1219,20 +1218,22 @@ window.exportarHistorialExcel = function() {
         const catNom = String(m.categoria || '').toUpperCase();
         const esMoldura = catNom.includes("MOLDURA");
         
-        // 🎯 BÚSQUEDA EXHAUSTIVA DE MEDIDAS (Sincronizado con todas las posibles rutas de Atlas)
-        const largoRef = parseFloat(m.largoRef || m.largo || (m.dimensiones && m.dimensiones.largo) || (m.medidas && m.medidas.largo) || 0);
-        const anchoRef = parseFloat(m.anchoRef || m.ancho || (m.dimensiones && m.dimensiones.ancho) || (m.medidas && m.medidas.ancho) || 0);
+        // 🎯 MAPEO EXACTO SEGÚN TU BASE DE DATOS (image_02afd5.png)
+        // Para láminas usamos: ancho_lamina_cm y largo_lamina_cm
+        // Para molduras y otros usamos: largoRef, anchoRef o largo/ancho
+        const largoRef = parseFloat(m.largo_lamina_cm || m.largoRef || m.largo || (m.dimensiones && m.dimensiones.largo) || 0);
+        const anchoRef = parseFloat(m.ancho_lamina_cm || m.anchoRef || m.ancho || (m.dimensiones && m.dimensiones.ancho) || 0);
         
         let equivTexto = "-";
 
-        // --- ⚙️ RÉPLICA DEL MOTOR DE STOCK (image_0318d3.png) ---
+        // --- ⚙️ MOTOR DE CÁLCULO REFORZADO ---
         if (esMoldura) {
-            // Lógica para Molduras (Varillas)
+            // Lógica Molduras (Sincronizada con image_0318d3.png)
             const factorLargo = (largoRef / 100) || 2.8; 
             const varillas = (stockTotalM2 / factorLargo).toFixed(1);
             equivTexto = `Equiv. a ${varillas} Varillas`;
         } else if (largoRef > 0 && anchoRef > 0) {
-            // Lógica para Láminas, Vidrios y Passepartout (Unidades + m² rem)
+            // Lógica Láminas/Vidrios usando los nuevos campos de Atlas
             const areaReferencia = (largoRef * anchoRef) / 10000;
             if (areaReferencia > 0) {
                 const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
@@ -1252,7 +1253,6 @@ window.exportarHistorialExcel = function() {
                 const f = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
                 const tipo = String(mov.tipo || 'MOV').toUpperCase();
                 const notas = String(mov.notas || "").replace(/;/g, "").replace(/\n/g, " ");
-                
                 csvContent += `${f};${nombre};${catNom};${tipo};${mov.cantidad};${equivTexto};${unidad};${notas}\n`;
             });
         } else {
@@ -1261,17 +1261,13 @@ window.exportarHistorialExcel = function() {
         }
     });
 
-    // Crear y descargar el archivo
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url;
-    link.download = `Kardex_Final_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `Kardex_Atlas_Sincronizado_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
     link.click();
-    document.body.removeChild(link);
     
-    console.log("✅ Reporte Excel v22.2 (Reconciliación de Láminas) generado.");
+    console.log("✅ Reporte Excel v22.4 (Sincronizado con Atlas) generado.");
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
