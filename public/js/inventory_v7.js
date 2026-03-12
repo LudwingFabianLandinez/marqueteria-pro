@@ -432,29 +432,38 @@ async function fetchInventory() {
         }
         precioFinalVisual = Math.round(precioFinalVisual);
 
-        // --- 📦 MOTOR DE STOCK DINÁMICO (ML vs M2) ---
-        const stockTotalM2 = m.stock_acumulado;
-        let textoStock = "";
+        // --- 📦 MOTOR DE STOCK DINÁMICO (ML vs M2) - v22.9 ACTUALIZADO ---
+const stockTotalM2 = m.stock_acumulado;
+let textoStock = "";
 
-        if (esMoldura) {
-            textoStock = `
-                <div style="font-weight: 800; font-size: 1rem;">${stockTotalM2.toFixed(2)} ML</div>
-                <div style="font-size: 0.65rem; color: #64748b; font-weight: bold; text-transform: uppercase;">
-                    Equiv. a ${(stockTotalM2 / (largoRef/100 || 2.8)).toFixed(1)} Varillas
-                </div>
-            `;
-        } else {
-            const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
-            let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
-            if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+if (esMoldura) {
+    // 🎯 NUEVA LÓGICA: Varas enteras + ML remanente
+    const factorLargoVara = (largoRef / 100) || 2.8; 
+    const numVaras = Math.floor((stockTotalM2 / factorLargoVara) + 0.001);
+    let remanenteML = stockTotalM2 - (numVaras * factorLargoVara);
+    
+    // Limpieza de decimales ínfimos
+    if (Math.abs(remanenteML) < 0.01) remanenteML = 0;
 
-            textoStock = `
-                <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} m²</div>
-                <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
-                    ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
-                </div>
-            `;
-        }
+    textoStock = `
+        <div style="font-weight: 800; font-size: 1rem;">${stockTotalM2.toFixed(2)} ML</div>
+        <div style="font-size: 0.65rem; color: #64748b; font-weight: bold; text-transform: uppercase;">
+            ${numVaras} Varas + ${remanenteML.toFixed(2)} ML rem
+        </div>
+    `;
+} else {
+    // 🛡️ LÓGICA DE M2 (SE MANTIENE INTACTA, NO SE TOCÓ NADA AQUÍ)
+    const numUnidades = areaReferencia > 0 ? Math.floor((stockTotalM2 / areaReferencia) + 0.001) : 0;
+    let remanenteM2 = areaReferencia > 0 ? (stockTotalM2 - (numUnidades * areaReferencia)) : stockTotalM2;
+    if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+
+    textoStock = `
+        <div style="font-weight: 700; font-size: 0.95rem;">${stockTotalM2.toFixed(2)} m²</div>
+        <div style="font-size: 0.7rem; color: #475569; font-weight: 600;">
+            ${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem
+        </div>
+    `;
+}
 
         // --- 🚥 ALERTAS DE STOCK ---
         const sMin = parseFloat(m.stock_minimo) || 2;
