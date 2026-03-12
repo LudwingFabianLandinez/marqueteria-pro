@@ -1204,69 +1204,58 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.8 - VERSIÓN FINAL DE RESCATE) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v22.0 - MOTOR DINÁMICO INTEGRADO) ---
 window.exportarHistorialExcel = function() {
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
-    if (datosFinales.length === 0) {
-        return alert("⚠️ Sincronizando datos... intenta de nuevo.");
-    }
+    if (datosFinales.length === 0) return alert("⚠️ No hay datos para exportar.");
 
-    let csvContent = "\uFEFF"; 
-    csvContent += "FECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
+    let csvContent = "\uFEFFFECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
-    datosFinales.forEach(material => {
-        const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
-        const cat = String(material.categoria || 'GENERAL').toUpperCase();
-        const stockActual = parseFloat(material.stock_actual) || 0;
-        const unidadMedida = material.unidad_medida || (cat === "MOLDURAS" ? "ML" : "m²");
-
-        // 1. RESCATE DE DIMENSIONES (Probamos todas las rutas posibles en Atlas)
-        let L = parseFloat(material.largo) || 0;
-        let A = parseFloat(material.ancho) || 0;
-
-        // Si no están en la raíz, buscamos dentro de objetos anidados
-        if (L === 0 && material.dimensiones) {
-            L = parseFloat(material.dimensiones.largo) || parseFloat(material.dimensiones.L) || 0;
-            A = parseFloat(material.dimensiones.ancho) || parseFloat(material.dimensiones.A) || 0;
-        }
-
-        // 2. CÁLCULO DE EQUIVALENCIA
-        let equivCalculada = "-";
+    datosFinales.forEach(m => {
+        const stockTotalM2 = parseFloat(m.stock_actual || 0);
+        const esMoldura = String(m.categoria).toUpperCase().includes("MOLDURA");
+        const largoRef = parseFloat(m.largo || (m.dimensiones && m.dimensiones.largo) || 0);
+        const anchoRef = parseFloat(m.ancho || (m.dimensiones && m.dimensiones.ancho) || 0);
         
-        if (cat === "MOLDURAS" && L > 0) {
-            const uds = Math.floor(stockActual / L);
-            const rem = (stockActual % L).toFixed(2);
-            equivCalculada = `${uds} und + ${rem} ML rem`;
-        } else if (L > 0 && A > 0) {
-            const areaUna = (L * A) / 10000;
-            if (areaUna > 0) {
-                const uds = Math.floor(stockActual / areaUna);
-                const rem = (stockActual % areaUna).toFixed(2);
-                equivCalculada = `${uds} und + ${rem} m² rem`;
+        let equivTexto = "-";
+
+        // --- ⚙️ RÉPLICA DEL MOTOR DE STOCK (Línea 600+) ---
+        if (esMoldura) {
+            const largoMetros = largoRef / 100 || 2.8; // Usa 2.8 como respaldo si no hay largo
+            const varillas = (stockTotalM2 / largoMetros).toFixed(1);
+            equivTexto = `Equiv. a ${varillas} Varillas`;
+        } else {
+            const areaReferencia = (largoRef * anchoRef) / 10000;
+            if (areaReferencia > 0) {
+                const numUnidades = Math.floor((stockTotalM2 / areaReferencia) + 0.001);
+                let remanenteM2 = stockTotalM2 - (numUnidades * areaReferencia);
+                if (Math.abs(remanenteM2) < 0.01) remanenteM2 = 0;
+                equivTexto = `${numUnidades} und + ${remanenteM2.toFixed(2)} m² rem`;
             }
         }
 
-        // 3. GENERACIÓN DE FILAS
-        const historial = material.historial || material.movimientos || [];
+        // --- 📝 GENERACIÓN DE FILA ---
+        const nombre = String(m.nombre || 'S/N').replace(/;/g, "");
+        const cat = String(m.categoria || 'Gral').toUpperCase();
+        const unidad = esMoldura ? "ML" : "m²";
+        const historial = m.historial || m.movimientos || [];
+
         if (historial.length > 0) {
             historial.forEach(mov => {
-                const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
-                csvContent += `${fecha};${nombre};${cat};${String(mov.tipo || 'MOV').toUpperCase()};${mov.cantidad || 0};${equivCalculada};${unidadMedida};${String(mov.notas || "").replace(/;/g, "")}\n`;
+                const f = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
+                csvContent += `${f};${nombre};${cat};${String(mov.tipo || 'MOV').toUpperCase()};${mov.cantidad};${equivTexto};${unidad};${String(mov.notas || "").replace(/;/g, "")}\n`;
             });
         } else {
-            csvContent += `${new Date().toLocaleDateString()};${nombre};${cat};STOCK ACTUAL;${stockActual};${equivCalculada};${unidadMedida};Saldo inicial\n`;
+            csvContent += `${new Date().toLocaleDateString()};${nombre};${cat};STOCK ACTUAL;${stockTotalM2};${equivTexto};${unidad};Saldo inicial\n`;
         }
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Kardex_Final_Marqueteria.csv`);
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `Kardex_Profesional_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
     link.click();
-    document.body.removeChild(link);
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
