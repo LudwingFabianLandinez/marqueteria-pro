@@ -1204,60 +1204,66 @@ if (formCompra) {
     }
 };
 
-// --- 📊 GENERADOR DE KARDEX EXCEL (v21.3 - ESCÁNER PROFUNDO) ---
+// --- 📊 GENERADOR DE KARDEX EXCEL (v21.4 - Detalle de Unidades) ---
+// Ubicado en línea 1207 - Justo después de abrirModalEditar
 window.exportarHistorialExcel = function() {
-    // 1. RASTREO DE DATOS: Buscamos en todas las fuentes posibles
     const datosFinales = window.materialesFiltrados || window.todosLosMateriales || window.inventario || [];
 
     if (datosFinales.length === 0) {
-        return alert("⚠️ El sistema aún está cargando datos de Atlas. Espera un momento.");
+        return alert("⚠️ Sincronizando datos... intenta de nuevo en un segundo.");
     }
 
     let csvContent = "\uFEFF"; 
-    csvContent += "FECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;DETALLE\n";
+    // Nueva estructura de cabeceras solicitada
+    csvContent += "FECHA;PRODUCTO;CATEGORIA;TIPO/MOV;CANTIDAD;EQUIVALENCIA;UNIDAD;DETALLE\n";
 
     let filasGeneradas = 0;
 
     datosFinales.forEach(material => {
-        // Buscamos movimientos en cualquier variante de nombre que use Atlas
-        const historial = material.historial || material.movimientos || material.transacciones || [];
+        const historial = material.historial || material.movimientos || [];
+        const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
+        const cat = String(material.categoria || 'GENERAL').toUpperCase();
         
+        // Extraemos la unidad de medida (m², ML, etc.)
+        const unidadMedida = material.unidad_medida || (cat === "MOLDURAS" ? "ML" : "m²");
+
         if (historial.length > 0) {
-            // SI HAY HISTORIAL: Exportamos cada movimiento detallado
             historial.forEach(mov => {
                 const fecha = mov.fecha ? new Date(mov.fecha).toLocaleDateString() : 'N/A';
-                const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
-                const cat = String(material.categoria || 'GENERAL').toUpperCase();
                 const tipo = String(mov.tipo || 'MOVIMIENTO').toUpperCase();
                 const cant = mov.cantidad || 0;
+                
+                // Si el movimiento tiene su propia equivalencia guardada, la usamos
+                const equiv = mov.equivalencia_texto || "-";
                 const nota = mov.notas ? String(mov.notas).replace(/;/g, "").replace(/\n/g, " ") : "Registro de sistema";
 
-                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${nota}\n`;
+                csvContent += `${fecha};${nombre};${cat};${tipo};${cant};${equiv};${unidadMedida};${nota}\n`;
                 filasGeneradas++;
             });
         } else {
-            // SI NO HAY HISTORIAL: Al menos exportamos la existencia actual para que el Excel sirva
+            // EXPORTACIÓN DE STOCK ACTUAL CON DETALLE VISUAL
             const fechaHoy = new Date().toLocaleDateString();
-            const nombre = String(material.nombre || 'Sin nombre').replace(/;/g, "");
-            const cat = String(material.categoria || 'GENERAL').toUpperCase();
             const stock = material.stock_actual || 0;
+            
+            // Aquí capturamos el texto exacto que ves en las tarjetas del dashboard
+            // Ejemplo: "3 und + 0.59 m² rem"
+            const equivVisual = material.stock_visual || "-";
 
-            csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stock};Saldo inicial en sistema\n`;
+            csvContent += `${fechaHoy};${nombre};${cat};STOCK ACTUAL;${stock};${equivVisual};${unidadMedida};Saldo inicial en sistema\n`;
             filasGeneradas++;
         }
     });
 
-    // 2. Descarga del archivo
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Kardex_Marqueteria_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+    link.setAttribute("download", `Kardex_Detallado_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    console.log(`✅ Excel generado con ${filasGeneradas} filas.`);
+    console.log(`✅ Excel detallado generado: ${filasGeneradas} filas procesadas.`);
 };
 
     // --- 🛡️ MOTOR DE GUARDADO DE EDICIÓN (v20.2 BLINDADO) ---
