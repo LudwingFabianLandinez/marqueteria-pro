@@ -425,3 +425,29 @@ body {
 .btn-cancel-modern:hover {
     background-color: #475569; /* Un tono más oscuro al pasar el mouse */
 }
+
+.btn-logout-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 30px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+    color: white !important;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-logout-sidebar:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    transform: scale(1.02);
+    box-shadow: 0 6px 12px rgba(220, 38, 38, 0.3);
+}
+
+.btn-logout-sidebar i {
+    font-size: 1.1rem;
+}
