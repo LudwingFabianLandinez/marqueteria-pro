@@ -454,43 +454,41 @@ async function abrirAnalisisCostos(id) {
     });
 }
 
-// 11. BUSCADOR Y FILTROS (VERSIÓN DEFINITIVA: ROMPIENDO EL CÍRCULO VICIOSO)
+// 11. BUSCADOR Y FILTROS (REESCRITURA FINAL: BALANCEADA Y SINCRONIZADA)
 function configurarBuscador() {
-    // Función de limpieza extrema: quita tildes, espacios y caracteres especiales
-    const limpiarParaBusqueda = (t) => {
+    // Función de limpieza: normaliza tildes y pasa a minúsculas (mantiene espacios)
+    const limpiar = (t) => {
         return String(t || "")
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "") // Quita tildes
             .toLowerCase()
-            .replace(/[^a-z0-9]/g, "") // Deja solo letras y números para comparar
             .trim();
     };
 
     const ejecutarFiltrado = () => {
-        // Captura de elementos según IDs de history.html
+        // IDs exactos de tu history.html
         const inputBusqueda = document.getElementById('searchInput');
         const fDesdeInput = document.getElementById('fechaDesde');
         const fHastaInput = document.getElementById('fechaHasta');
 
-        // Término de búsqueda limpio (si pones "sa ", lo busca como "sa")
-        const term = limpiarParaBusqueda(inputBusqueda?.value);
+        const term = limpiar(inputBusqueda?.value);
         const fechaDesde = fDesdeInput?.value || ""; 
         const fechaHasta = fHastaInput?.value || "";
 
-        console.log(`🔍 FILTRANDO AHORA POR: "${term}"`);
+        console.log(`🔍 FILTRANDO POR: "${term}"`);
 
         const filtradas = todasLasFacturas.filter(f => {
-            // --- 1. LÓGICA DE TEXTO (Nombre u OT) ---
-            const ot = limpiarParaBusqueda(formatearNumeroOT(f));
+            // --- 1. LÓGICA DE TEXTO ---
+            const ot = limpiar(formatearNumeroOT(f));
             
-            // Buscamos el nombre en todas las propiedades posibles del objeto
+            // Recopilamos el nombre de cualquier propiedad posible
             let nombreRaw = f.clienteNombre || f.nombreCliente || (f.cliente && f.cliente.nombre) || "sin nombre";
-            let nombreLimpio = limpiarParaBusqueda(nombreRaw);
+            let nombreLimpio = limpiar(nombreRaw);
             
-            // Si el término está vacío, pasa. Si no, debe estar en el nombre o la OT
+            // El filtro pasa si el término está vacío o si está contenido en nombre/OT
             const coincideTexto = term === "" || nombreLimpio.includes(term) || ot.includes(term);
 
-            // --- 2. LÓGICA DE FECHAS (SÓLO SI HAY FECHAS SELECCIONADAS) ---
+            // --- 2. LÓGICA DE FECHAS (SÓLO SI SE INGRESARON) ---
             let coincideFecha = true;
             if (fechaDesde !== "" || fechaHasta !== "") {
                 if (f.fecha) {
@@ -511,20 +509,18 @@ function configurarBuscador() {
             return coincideTexto && coincideFecha;
         });
 
-        console.log(`🎯 Coincidencias finales encontradas: ${filtradas.length}`);
+        console.log(`🎯 Coincidencias encontradas: ${filtradas.length}`);
         
-        // Si el filtro no encuentra nada, mostramos el aviso visual
+        // Manejo visual del aviso "No se encontraron órdenes"
         const noDataEl = document.getElementById('noData');
-        if (filtradas.length === 0) {
-            if (noDataEl) noDataEl.style.display = 'block';
-        } else {
-            if (noDataEl) noDataEl.style.display = 'none';
+        if (noDataEl) {
+            noDataEl.style.display = filtradas.length === 0 ? 'block' : 'none';
         }
 
         renderTable(filtradas);
     };
 
-    // --- FUNCIONES GLOBALES PARA EL HTML ---
+    // --- FUNCIONES GLOBALES (PARA ONCLICK EN HTML) ---
     window.aplicarFiltros = (e) => {
         if (e && e.preventDefault) e.preventDefault();
         ejecutarFiltrado();
@@ -550,6 +546,7 @@ function configurarBuscador() {
     // --- ESCUCHA EN TIEMPO REAL ---
     const inputMain = document.getElementById('searchInput');
     if (inputMain) {
+        // Escuchamos el evento 'input' para que filtre mientras escribes
         inputMain.addEventListener('input', ejecutarFiltrado);
     }
 }
