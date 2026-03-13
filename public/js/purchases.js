@@ -63,20 +63,29 @@ function renderPurchasesTable(compras) {
             : '--/--/----';
 
         // --- 🎯 GANCHO DE COMPATIBILIDAD DE NOMBRE (SINCRO REAL V12.1.9) ---
-        // Buscamos el nombre del material respetando la lógica de objetos
-        const nombreMaterial = (c.materialId && typeof c.materialId === 'object') 
-            ? c.materialId.nombre 
-            : (c.nombreMaterial || c.materialNombre || c.motivo || 'Material');
         
-        /**
-         * 🚀 MEJORA DE PROVEEDOR:
-         * Intentamos leer desde 'c.proveedor' (nuevo estándar) o 'c.proveedorId' (anterior).
-         * Si es un objeto poblado, extraemos 'nombre' o 'nombre_comercial'.
-         */
-        const datosProveedor = c.proveedor || c.proveedorId;
-        const nombreProveedor = (datosProveedor && typeof datosProveedor === 'object') 
-            ? (datosProveedor.nombre || datosProveedor.nombre_comercial) 
-            : 'Proveedor General';
+        // 1. BÚSQUEDA DE MATERIAL (Blindada)
+        // Buscamos en materialId (objeto), luego en nombres directos enviados por el server
+        const nombreMaterial = (c.materialId && typeof c.materialId === 'object') 
+            ? (c.materialId.nombre || c.materialId.descripcion || "Material") 
+            : (c.nombreMaterial || c.materialNombre || c.material || c.motivo || 'Material');
+        
+        // 2. BÚSQUEDA DE PROVEEDOR (Ultra-Compatible)
+        // Intentamos todas las combinaciones: c.proveedor, c.proveedorId, o el objeto directo
+        const datosProveedor = c.proveedor || c.proveedorId || c.provider;
+        let nombreProveedor = 'Proveedor General';
+
+        if (datosProveedor && typeof datosProveedor === 'object') {
+            // Buscamos cualquier campo que pueda contener el nombre según Atlas
+            nombreProveedor = datosProveedor.nombre || 
+                              datosProveedor.nombre_comercial || 
+                              datosProveedor.contacto || 
+                              'S/N';
+        } else if (typeof datosProveedor === 'string' && datosProveedor.length > 5) {
+            // Si llega un ID pero no se convirtió en objeto, mostramos un aviso en consola para depurar
+            console.warn("⚠️ Mongoose no pobló el proveedor para la compra:", c._id);
+            nombreProveedor = "ID: " + datosProveedor.substring(0,6) + "...";
+        }
 
         // --- GANCHO DE UNIDADES Y COSTO (M2 vs ML) ---
         // Buscamos el valor en cantidad_m2 o totalM2 (para el 2.8)
