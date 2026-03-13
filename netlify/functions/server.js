@@ -342,6 +342,38 @@ router.post('/invoices', async (req, res) => {
     }
 });
 
+// --- RUTA DE BORRADO DEFINITIVO EN ATLAS (SINCRO V15.0) ---
+router.delete('/inventory/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`📡 Orden de borrado físico recibida para ID: ${id}`);
+
+        // Ejecución directa en la colección de Materiales
+        const resultado = await Material.findByIdAndDelete(id);
+
+        if (!resultado) {
+            console.warn(`⚠️ El material ${id} no existe en Atlas.`);
+            return res.status(404).json({ 
+                success: false, 
+                message: "Material no encontrado en la nube." 
+            });
+        }
+
+        console.log(`✅ ¡ÉXITO! Material ${id} eliminado de Atlas permanentemente.`);
+        res.json({ 
+            success: true, 
+            message: "Eliminado de Atlas permanentemente." 
+        });
+
+    } catch (error) {
+        console.error("🚨 Error crítico en el endpoint de borrado:", error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
 // --- PROVEEDORES (LECTURA Y GUARDADO INTACTO) ---
 router.get('/providers', async (req, res) => {
     try {
