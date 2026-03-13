@@ -259,7 +259,22 @@ module.exports = {
         res.json({ success: true });
     },
     deleteMaterial: async (req, res) => {
-        await Material.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
+        try {
+            const id = req.params.id;
+            console.log(`📡 Iniciando borrado físico en Atlas para ID: ${id}`);
+            
+            const resultado = await Material.findByIdAndDelete(id);
+            
+            if (!resultado) {
+                console.warn(`⚠️ No se encontró el material ${id} en Atlas (Quizás ya fue borrado).`);
+                return res.status(404).json({ success: false, message: "Material no encontrado en la nube." });
+            }
+
+            console.log(`✅ Material ${id} eliminado exitosamente de Atlas.`);
+            res.status(200).json({ success: true, message: "Eliminado de Atlas permanentemente." });
+        } catch (error) {
+            console.error("🚨 Error en deleteMaterial Controller:", error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
-};
+}
