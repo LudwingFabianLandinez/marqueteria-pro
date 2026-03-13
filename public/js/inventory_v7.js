@@ -1094,25 +1094,35 @@ if (formCompra) {
                     localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
                 }
 
-                // 4. 📡 COMUNICACIÓN DIRECTA CON ATLAS (Reemplaza tu punto 4 con esto)
-if (!esIdTemporal) {
-    console.log("📡 Enviando orden de ejecución a Atlas para ID:", idParaBorrarEnAtlas);
-    
-    fetch(`/api/inventory/${idParaBorrarEnAtlas}`, { // Ajusta esta URL a tu ruta de borrado
-        method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => {
-        if (!response.ok) throw new Error("Error en servidor");
-        console.log("✅ Atlas confirmó borrado definitivo.");
-    })
-    .catch(err => {
-        console.error("🚨 Error real al borrar en Atlas:", err);
-        // Opcional: Avisar al usuario que solo se borró localmente
-    });
-}
+// 4. 📡 COMUNICACIÓN DIRECTA CON ATLAS (SINCRO DINÁMICA V14.2)
+                if (!esIdTemporal) {
+                    // Construimos la URL dinámica para evitar el error 404 en Netlify
+                    const urlBorrado = `${window.location.origin}/api/inventory/${idParaBorrarEnAtlas}`;
+                    
+                    console.log("📡 Enviando orden de ejecución a Atlas:", urlBorrado);
+                    
+                    fetch(urlBorrado, { 
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(async response => {
+                        // Si el servidor responde con HTML (error de ruta), lanzamos error específico
+                        const contentType = response.headers.get("content-type");
+                        if (contentType && contentType.includes("text/html")) {
+                            throw new Error("Ruta no encontrada en el servidor (404). Verifica el mapeo de Netlify.");
+                        }
+                        
+                        if (!response.ok) throw new Error(`Error en servidor: ${response.status}`);
+                        
+                        console.log("✅ Atlas confirmó borrado definitivo.");
+                    })
+                    .catch(err => {
+                        console.error("🚨 Error real al borrar en Atlas:", err.message);
+                        // No alertamos aquí para no molestar al usuario, ya que el local ya se limpió
+                    });
+                }
 
                 // 5. REFRESCAR INTERFAZ
                 if (typeof renderTable === 'function') {
