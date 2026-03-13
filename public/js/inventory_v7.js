@@ -469,7 +469,7 @@ if (esMoldura) {
         const sMin = parseFloat(m.stock_minimo) || 2;
         let colorS = stockTotalM2 <= 0 ? '#ef4444' : (stockTotalM2 <= sMin ? '#f59e0b' : '#059669');
 
-        const idParaAcciones = m.id_referencia;
+        const idParaAcciones = m._id || m.id_referencia || m.id;
 
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
@@ -1056,90 +1056,89 @@ if (formCompra) {
     };
 
     window.eliminarMaterial = async function(id) {
-        if (confirm("⚠️ ¿ELIMINAR PERMANENTEMENTE?\nEsta acción limpia el inventario de Atlas y de este dispositivo de forma definitiva.")) {
-            try {
-                // 1. IDENTIFICACIÓN INMEDIATA
-                const materialEnMemoria = window.todosLosMateriales.find(m => 
-                    String(m.id) === String(id) || String(m._id) === String(id)
-                );
+    if (confirm("⚠️ ¿ELIMINAR PERMANENTEMENTE?\nEsta acción limpia el inventario de Atlas y de este dispositivo de forma definitiva.")) {
+        try {
+            // 1. IDENTIFICACIÓN INMEDIATA (Búsqueda exhaustiva en memoria)
+            const materialEnMemoria = window.todosLosMateriales.find(m => 
+                String(m.id) === String(id) || String(m._id) === String(id)
+            );
 
-                if (!materialEnMemoria) {
-                    console.error("❌ El material no está en memoria.");
-                    return;
-                }
-
-                const idParaBorrarEnAtlas = materialEnMemoria._id || id;
-                const nombreParaBorradoEstricto = materialEnMemoria.nombre;
-                const esIdTemporal = String(id).startsWith('TEMP-') || String(id).startsWith('MAT-');
-
-                // 2. 🧹 LIMPIEZA PREVENTIVA (Antes de la red para evitar bloqueos)
-                // Filtramos window.todosLosMateriales INMEDIATAMENTE
-                window.todosLosMateriales = window.todosLosMateriales.filter(m => {
-                    const coincideID = String(m.id) === String(id) || String(m._id) === String(idParaBorrarEnAtlas);
-                    const coincideNombre = m.nombre.trim().toUpperCase() === nombreParaBorradoEstricto.trim().toUpperCase();
-                    return !(coincideID || coincideNombre); 
-                });
-
-                // GUARDADO FORZADO: Esto mata la resurrección en el siguiente Refresh
-                localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
-                
-                let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
-                pendientes = pendientes.filter(p => p.nombre.trim().toUpperCase() !== nombreParaBorradoEstricto.trim().toUpperCase());
-                localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
-
-                // 3. 🛡️ LISTA NEGRA ACTIVA (Filtro de seguridad para fetchInventory)
-                let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
-                if (!eliminados.includes(String(idParaBorrarEnAtlas))) {
-                    eliminados.push(String(idParaBorrarEnAtlas));
-                    localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
-                }
-
-// 4. 📡 COMUNICACIÓN DIRECTA CON ATLAS (SINCRO DINÁMICA V14.2)
-                if (!esIdTemporal) {
-                    // Construimos la URL dinámica para evitar el error 404 en Netlify
-                    const urlBorrado = `${window.location.origin}/api/inventory/${idParaBorrarEnAtlas}`;
-                    
-                    console.log("📡 Enviando orden de ejecución a Atlas:", urlBorrado);
-                    
-                    fetch(urlBorrado, { 
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(async response => {
-                        // Si el servidor responde con HTML (error de ruta), lanzamos error específico
-                        const contentType = response.headers.get("content-type");
-                        if (contentType && contentType.includes("text/html")) {
-                            throw new Error("Ruta no encontrada en el servidor (404). Verifica el mapeo de Netlify.");
-                        }
-                        
-                        if (!response.ok) throw new Error(`Error en servidor: ${response.status}`);
-                        
-                        console.log("✅ Atlas confirmó borrado definitivo.");
-                    })
-                    .catch(err => {
-                        console.error("🚨 Error real al borrar en Atlas:", err.message);
-                        // No alertamos aquí para no molestar al usuario, ya que el local ya se limpió
-                    });
-                }
-
-                // 5. REFRESCAR INTERFAZ
-                if (typeof renderTable === 'function') {
-                    renderTable(window.todosLosMateriales);
-                }
-                
-                const modal = document.getElementById('modalNuevoMaterial');
-                if(modal) modal.style.display = 'none';
-
-                alert(`✅ ¡LOGRADO!\n${nombreParaBorradoEstricto} eliminado (Cambio persistente).`);
-
-            } catch (error) {
-                console.error("❌ Error Crítico:", error);
-                alert("⚠️ Error al procesar la eliminación.");
+            if (!materialEnMemoria) {
+                console.error("❌ El material no está en memoria.");
+                return;
             }
+
+            // --- REFORZAMIENTO DE ID ATLAS ---
+            const idParaBorrarEnAtlas = materialEnMemoria._id || id;
+            const nombreParaBorradoEstricto = materialEnMemoria.nombre;
+            // Un ID temporal NO debe ir a Atlas (ej. TEMP-123 o MAT-123)
+            const esIdTemporal = String(idParaBorrarEnAtlas).startsWith('TEMP-') || 
+                                 String(idParaBorrarEnAtlas).startsWith('MAT-') || 
+                                 idParaBorrarEnAtlas.length < 10;
+
+            console.log(`🗑️ Preparando eliminación. Nombre: ${nombreParaBorradoEstricto} | ID Atlas: ${idParaBorrarEnAtlas}`);
+
+            // 2. 🧹 LIMPIEZA PREVENTIVA (Mantenemos tu lógica intacta)
+            window.todosLosMateriales = window.todosLosMateriales.filter(m => {
+                const coincideID = String(m.id) === String(id) || String(m._id) === String(idParaBorrarEnAtlas);
+                const coincideNombre = m.nombre.trim().toUpperCase() === nombreParaBorradoEstricto.trim().toUpperCase();
+                return !(coincideID || coincideNombre); 
+            });
+
+            // Guardado en LocalStorage para evitar "resurrecciones" locales
+            localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
+            
+            let pendientes = JSON.parse(localStorage.getItem('molduras_pendientes') || '[]');
+            pendientes = pendientes.filter(p => p.nombre.trim().toUpperCase() !== nombreParaBorradoEstricto.trim().toUpperCase());
+            localStorage.setItem('molduras_pendientes', JSON.stringify(pendientes));
+
+            // 3. 🛡️ LISTA NEGRA ACTIVA
+            let eliminados = JSON.parse(localStorage.getItem('ids_eliminados') || '[]');
+            if (!eliminados.includes(String(idParaBorrarEnAtlas))) {
+                eliminados.push(String(idParaBorrarEnAtlas));
+                localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
+            }
+
+            // 4. 📡 COMUNICACIÓN DIRECTA CON ATLAS (SINCRO DINÁMICA V15.0)
+            if (!esIdTemporal) {
+                const urlBorrado = `${window.location.origin}/api/inventory/${idParaBorrarEnAtlas}`;
+                
+                console.log("📡 Enviando orden de ejecución a Atlas:", urlBorrado);
+                
+                fetch(urlBorrado, { 
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(async response => {
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("text/html")) {
+                        throw new Error("Ruta no encontrada (404). Verifica el servidor.");
+                    }
+                    if (!response.ok) throw new Error(`Error en servidor: ${response.status}`);
+                    
+                    console.log("✅ Atlas confirmó borrado definitivo.");
+                })
+                .catch(err => {
+                    console.error("🚨 Error real al borrar en Atlas:", err.message);
+                });
+            }
+
+            // 5. REFRESCAR INTERFAZ (Mantenemos tus cierres de modal y alertas)
+            if (typeof renderTable === 'function') {
+                renderTable(window.todosLosMateriales);
+            }
+            
+            const modal = document.getElementById('modalNuevoMaterial');
+            if(modal) modal.style.display = 'none';
+
+            alert(`✅ ¡LOGRADO!\n${nombreParaBorradoEstricto} eliminado (Cambio persistente).`);
+
+        } catch (error) {
+            console.error("❌ Error Crítico:", error);
+            alert("⚠️ Error al procesar la eliminación.");
         }
-    };
+    }
+};
 
     window.prepararAjuste = function(id, nombre, stockActual, stockMinimo) {
         if(document.getElementById('adjustId')) document.getElementById('adjustId').value = id;
