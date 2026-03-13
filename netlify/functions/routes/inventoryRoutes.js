@@ -131,22 +131,34 @@ router.get('/history/:id', (req, res, next) => {
  * 🗑️ GESTIÓN DE ELIMINACIÓN (GANCHOS CONSOLIDADOS)
  * Aquí sumamos la lógica para eliminar tanto Materiales como Facturas (OT)
  */
-router.delete('/:id', (req, res, next) => {
-    // 1. Intentamos primero con el controlador de Facturas (Para solucionar OT-00015)
-    const fnInvoice = invoiceController.deleteInvoice || invoiceController.eliminarFactura;
-    
-    // 2. Usamos tu código original de inventario como respaldo
-    const fnInv = inventoryController.deleteMaterial || inventoryController.removeMaterial;
+/**
+ * 🗑️ GESTIÓN DE ELIMINACIÓN BLINDADA (V12.2.6)
+ */
+router.delete('/:id', async (req, res, next) => {
+    const id = req.params.id;
+    console.log(`🗑️ Petición de borrado recibida para ID: ${id}`);
 
-    // Si la ruta viene del historial de ventas, el controlador de facturas debería tener prioridad
-    if (typeof fnInvoice === 'function') {
-        // Ejecutamos la función y manejamos si no encuentra la factura para pasar al inventario
-        return fnInvoice(req, res, next);
-    } else if (typeof fnInv === 'function') {
-        return fnInv(req, res, next);
+    try {
+        // 1. Prioridad: Si el ID es de un material (usualmente empieza por el ID de MongoDB de 24 caracteres)
+        // Intentamos borrar primero en Inventario para asegurar el stock
+        if (inventoryController.deleteMaterial || inventoryController.removeMaterial) {
+            const fnInv = inventoryController.deleteMaterial || inventoryController.removeMaterial;
+            console.log("📦 Intentando borrar como Material de Inventario...");
+            return fnInv(req, res, next);
+        } 
+
+        // 2. Si fallara lo anterior, intentamos con Facturas
+        const fnInvoice = invoiceController.deleteInvoice || invoiceController.eliminarFactura;
+        if (typeof fnInvoice === 'function') {
+            console.log("📄 Intentando borrar como Factura/OT...");
+            return fnInvoice(req, res, next);
+        }
+
+        res.status(500).json({ success: false, error: "No se encontró controlador de eliminación" });
+    } catch (err) {
+        console.error("🚨 Error en cascada de eliminación:", err);
+        res.status(500).json({ success: false, error: err.message });
     }
-    
-    res.status(500).json({ success: false, error: "Función de eliminación no definida en controladores" });
 });
 
 module.exports = router;

@@ -1094,14 +1094,25 @@ if (formCompra) {
                     localStorage.setItem('ids_eliminados', JSON.stringify(eliminados));
                 }
 
-                // 4. 📡 COMUNICACIÓN CON ATLAS (En segundo plano)
-                // Intentamos borrar en la nube, pero si falla (404), la limpieza local ya está hecha y guardada
-                if (!esIdTemporal && window.API && window.API.deleteMaterial) {
-                    console.log("📡 Intentando borrar en Atlas:", idParaBorrarEnAtlas);
-                    window.API.deleteMaterial(idParaBorrarEnAtlas)
-                        .then(() => console.log("✅ Atlas confirmó borrado remoto."))
-                        .catch(err => console.warn("⚠️ Atlas no pudo borrar (posible 404), pero el local ya está limpio."));
-                }
+                // 4. 📡 COMUNICACIÓN DIRECTA CON ATLAS (Reemplaza tu punto 4 con esto)
+if (!esIdTemporal) {
+    console.log("📡 Enviando orden de ejecución a Atlas para ID:", idParaBorrarEnAtlas);
+    
+    fetch(`/api/inventory/${idParaBorrarEnAtlas}`, { // Ajusta esta URL a tu ruta de borrado
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Error en servidor");
+        console.log("✅ Atlas confirmó borrado definitivo.");
+    })
+    .catch(err => {
+        console.error("🚨 Error real al borrar en Atlas:", err);
+        // Opcional: Avisar al usuario que solo se borró localmente
+    });
+}
 
                 // 5. REFRESCAR INTERFAZ
                 if (typeof renderTable === 'function') {
