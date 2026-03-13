@@ -62,13 +62,20 @@ function renderPurchasesTable(compras) {
             ? new Date(c.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
             : '--/--/----';
 
-        // --- GANCHO DE COMPATIBILIDAD DE NOMBRE ---
+        // --- 🎯 GANCHO DE COMPATIBILIDAD DE NOMBRE (SINCRO REAL V12.1.9) ---
+        // Buscamos el nombre del material respetando la lógica de objetos
         const nombreMaterial = (c.materialId && typeof c.materialId === 'object') 
             ? c.materialId.nombre 
             : (c.nombreMaterial || c.materialNombre || c.motivo || 'Material');
         
-        const nombreProveedor = (c.proveedorId && typeof c.proveedorId === 'object') 
-            ? c.proveedorId.nombre 
+        /**
+         * 🚀 MEJORA DE PROVEEDOR:
+         * Intentamos leer desde 'c.proveedor' (nuevo estándar) o 'c.proveedorId' (anterior).
+         * Si es un objeto poblado, extraemos 'nombre' o 'nombre_comercial'.
+         */
+        const datosProveedor = c.proveedor || c.proveedorId;
+        const nombreProveedor = (datosProveedor && typeof datosProveedor === 'object') 
+            ? (datosProveedor.nombre || datosProveedor.nombre_comercial) 
             : 'Proveedor General';
 
         // --- GANCHO DE UNIDADES Y COSTO (M2 vs ML) ---
@@ -80,21 +87,28 @@ function renderPurchasesTable(compras) {
         const costoFinal = c.costo_total || c.costo || c.precio_total || 0;
 
         return `
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 15px; color: #64748b;">${fechaFormateada}</td>
-                <td style="padding: 15px; font-weight: 600; color: #1e3a8a;">
-                    ${nombreProveedor}
+            <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                <td style="padding: 15px; color: #64748b; font-size: 0.85rem;">
+                    <i class="far fa-calendar-alt" style="margin-right: 5px; opacity: 0.5;"></i> ${fechaFormateada}
                 </td>
                 <td style="padding: 15px;">
-                    <span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 500;">
+                    <span style="background: #f1f5f9; color: #1e293b; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ${nombreProveedor}
+                    </span>
+                </td>
+                <td style="padding: 15px;">
+                    <span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
                         ${nombreMaterial}
                     </span>
                 </td>
                 <td style="padding: 15px; text-align: center; font-weight: 700; color: #334155;">
-                    ${cantidadValor.toFixed(2)} ${unidadTexto}
+                    <span style="font-size: 0.95rem;">${cantidadValor.toFixed(2)}</span> 
+                    <small style="color: #64748b; font-weight: 500;">${unidadTexto}</small>
                 </td>
-                <td style="padding: 15px; text-align: right; font-weight: 800; color: #059669;">
-                    ${formatter.format(costoFinal)}
+                <td style="padding: 15px; text-align: right;">
+                    <span style="font-weight: 800; color: #059669; font-size: 1.05rem; background: rgba(5, 150, 105, 0.1); padding: 4px 8px; border-radius: 6px;">
+                        ${formatter.format(costoFinal)}
+                    </span>
                 </td>
             </tr>
         `;

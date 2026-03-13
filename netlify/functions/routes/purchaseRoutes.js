@@ -17,7 +17,13 @@ router.get('/', async (req, res) => {
         }
 
         const purchases = await Purchase.find()
-            .populate('proveedor', 'nombre') // Ajustado a 'proveedor' según el nuevo estándar
+            /**
+             * 🛠️ CORRECCIÓN DE POPULATE:
+             * 1. Traemos del 'proveedor' los campos 'nombre' y 'contacto' detectados en DB (image_f259f9.png).
+             * 2. Si el Schema de Purchase tiene 'materialId', lo populamos para traer su nombre.
+             */
+            .populate('proveedor', 'nombre contacto') 
+            .populate('materialId', 'nombre categoria')
             .sort({ fecha: -1 })
             .lean(); 
 
