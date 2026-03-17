@@ -599,29 +599,32 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
-    // --- MEJORA: BUSCADOR INTELIGENTE ---
-    const inputBusqueda = document.getElementById('compraMaterial');
-    inputBusqueda?.addEventListener('input', (e) => {
-        const nombreEscrito = e.target.value;
-        const inputCosto = document.getElementById('compraCosto'); 
-        const hiddenIdInput = document.getElementById('compraMaterialId');
+    // --- 🔍 AJUSTE EN EL BUSCADOR INTELIGENTE ---
+inputBusqueda?.addEventListener('input', (e) => {
+    const nombreEscrito = e.target.value;
+    const inputCosto = document.getElementById('compraCosto'); 
+    const hiddenIdInput = document.getElementById('compraMaterialId');
 
-        if (nombreEscrito && window.todosLos_Materiales) {
-            const matEncontrado = window.todosLosMateriales.find(m => 
-                m.nombre.trim().toUpperCase() === nombreEscrito.trim().toUpperCase()
-            );
+    if (nombreEscrito && window.todosLosMateriales) {
+        const matEncontrado = window.todosLosMateriales.find(m => 
+            m.nombre.trim().toUpperCase() === nombreEscrito.trim().toUpperCase()
+        );
 
-            if (matEncontrado) {
-                if (hiddenIdInput) hiddenIdInput.value = matEncontrado._id || matEncontrado.id;
-                if (inputCosto) {
-                    // Priorizamos mostrar el valor de la unidad si existe, sino el de la lámina
-                    inputCosto.value = matEncontrado.precio_unidad_comprada || matEncontrado.precio_total_lamina || 0;
-                }
-            } else {
-                if (hiddenIdInput) hiddenIdInput.value = "";
+        if (matEncontrado) {
+            if (hiddenIdInput) hiddenIdInput.value = matEncontrado._id || matEncontrado.id;
+            if (inputCosto) {
+                // MODIFICACIÓN AQUÍ: Priorizamos el precio de la unidad física
+                // Si existe 'precio_unidad_comprada' lo pone, si no, usa el otro como respaldo.
+                const valorSugerido = matEncontrado.precio_unidad_comprada || matEncontrado.precio_total_lamina || 0;
+                inputCosto.value = valorSugerido;
+                
+                console.log(`💰 Precio de lámina/unidad cargado: ${valorSugerido}`);
             }
+        } else {
+            if (hiddenIdInput) hiddenIdInput.value = ""; 
         }
-    });
+    }
+});
 
     // --- FORMULARIO DE AJUSTE DE STOCK ---
     document.getElementById('formAjusteStock')?.addEventListener('submit', async (e) => {
