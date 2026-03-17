@@ -660,32 +660,45 @@ if (formCompra) {
         }
 
         try {
-            // --- 🛠️ NUEVA CAPTURA DESDE BUSCADOR ---
-            const inputMaterialBuscador = document.getElementById('compraMaterial'); // El input de texto
-            const inputMaterialIdHidden = document.getElementById('compraMaterialId'); // El ID oculto
-            
+            // 1. CAPTURA DE ELEMENTOS DEL DOM
+            const inputMaterialBuscador = document.getElementById('compraMaterial'); 
+            const inputMaterialIdHidden = document.getElementById('compraMaterialId'); 
             const inputCant = document.getElementById('compraCantidad');
             const inputCosto = document.getElementById('compraCosto');
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
             const inputDesperdicio = document.getElementById('desperdicio');
+            const selectProv = document.getElementById('compraProveedor');
 
-            // Validamos que se haya seleccionado algo real
-            if (!inputMaterialIdHidden.value) {
+            // --- 🛡️ PASO A: EL PARACAÍDAS (Evita el error de "undefined") ---
+            const idMasterAtlas = inputMaterialIdHidden?.value;
+            if (!idMasterAtlas) {
                 throw new Error("Debes seleccionar un material válido de la lista para continuar.");
             }
 
             const nombreUP = inputMaterialBuscador.value.trim().toUpperCase();
             
-            // --- 🛡️ DETECCIÓN MEJORADA DE MOLDURA ---
-            const esMoldura = nombreUP.includes("MOLDURAS") || nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
+            // --- 🛡️ PASO B: BÚSQUEDA SEGURA DE EXISTENTE ---
+            if (!window.todosLosMateriales) {
+                window.todosLosMateriales = JSON.parse(localStorage.getItem('inventory') || '[]');
+            }
             
+            let existente = window.todosLosMateriales.find(m => 
+                String(m._id || m.id) === String(idMasterAtlas)
+            );
+
+            // --- 🛡️ PASO C: CAPTURA REAL DEL PROVEEDOR (Adiós al "Proveedor General") ---
+            const nombreProveedorReal = (selectProv && selectProv.selectedIndex !== -1) 
+                ? selectProv.options[selectProv.selectedIndex].text.trim().toUpperCase() 
+                : "PROVEEDOR NO DEFINIDO";
+
+            // --- LÓGICA DE NEGOCIO (Mantenemos tus avances anteriores) ---
+            const esMoldura = nombreUP.includes("MOLDURAS") || nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
             const cant = parseFloat(inputCant.value) || 0;
             const costoIngresado = parseFloat(inputCosto.value) || 0;
             const largoCm = parseFloat(inputLargo?.value) || 0;
             const anchoCm = parseFloat(inputAncho?.value) || 0;
             
-            // --- 🚀 CLASIFICACIÓN DE CATEGORÍA ---
             let categoriaDeterminada;
             const esVidrio = nombreUP.includes("VIDRIO") || nombreUP.includes("CRISTAL") || nombreUP.includes("ESPEJO");
             const esAcabado = nombreUP.includes("CHAPILLA") || nombreUP.includes("AFRICANA") || nombreUP.includes("PASSEPARTOUT") || nombreUP.includes("LONA") || nombreUP.includes("TELA");
@@ -702,14 +715,6 @@ if (formCompra) {
                 categoriaDeterminada = "GENERAL";
             }
 
-            // --- 🛡️ BÚSQUEDA DE EXISTENTE ---
-            if (!window.todosLosMateriales) window.todosLosMateriales = JSON.parse(localStorage.getItem('inventory') || '[]');
-            
-            let existente = window.todosLosMateriales.find(m => 
-                String(m._id || m.id) === String(inputMaterialIdHidden.value)
-            );
-
-            // --- 📏 LÓGICA DE COSTO (PROTECCIÓN TOTAL v21.6) ---
             let costoFinalAtlas = costoIngresado;
             const esFoam = nombreUP.includes("FOAM") || nombreUP.includes("PLUMA");
             const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || esFoam || categoriaDeterminada === "RESPALDO" || categoriaDeterminada === "VIDRIO");
@@ -721,7 +726,6 @@ if (formCompra) {
                 }
             }
 
-            // --- 🛡️ PROTECCIÓN DE DIMENSIONES (v21.7) ---
             const largoReferencia = (largoCm > 0) ? largoCm : 290;
             const factorAnchoEscala = esMoldura ? 100 : anchoCm;
 
@@ -729,9 +733,6 @@ if (formCompra) {
                 ? Number((cant * (largoReferencia / 100)).toFixed(2)) 
                 : Number(((largoCm * anchoCm / 10000) * cant).toFixed(2));
 
-            const idMasterAtlas = inputMaterialIdHidden.value;
-
-            // --- 🚨 SINCRONIZACIÓN DE DESPERDICIO ---
             const desperdicioValorManual = inputDesperdicio ? parseFloat(inputDesperdicio.value) : 0;
             const desperdicioEnMaestro = (existente && (existente.desperdicio_total_cm || existente.desperdicio)) 
                 ? parseFloat(existente.desperdicio_total_cm || existente.desperdicio) 
@@ -740,30 +741,31 @@ if (formCompra) {
             const desperdicioFinalSincronizado = (desperdicioValorManual > 0) ? desperdicioValorManual : desperdicioEnMaestro;
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-            // --- 📦 OBJETO PARA ATLAS (ACTUALIZADO CON PROVEEDOR Y COSTO REAL) ---
-const selectProv = document.getElementById('compraProveedor');
-const nombreProveedor = selectProv ? selectProv.options[selectProv.selectedIndex].text : "S/N";
+            // --- 📦 OBJETO PARA ATLAS (CORREGIDO: PROVEEDOR Y COSTO TOTAL FACTURA) ---
+            const datosParaAtlas = {
+                materialId: idMasterAtlas, 
+                nombre: nombreUP,
+                proveedor: nombreProveedorReal, // ✅ Ahora envía el nombre que seleccionaste
+                esNuevo: false,
+                categoria: categoriaDeterminada,
+                cantidad_laminas: cant,
+                precio_total_lamina: costoFinalAtlas, // Costo unitario procesado
+                desperdicio: desperdicioFinalSincronizado,
+                desperdicio_total_cm: desperdicioFinalSincronizado,
+                ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
+                largo_lamina_cm: largoReferencia,
+                precio_m2_costo: costoFinalAtlas, 
+                precio_venta_sugerido: precioVentaSugerido,
+                tipo_material: esMoldura ? 'ml' : 'm2',
+                
+                // 💰 COSTO TOTAL DE LA COMPRA (Para el Historial y Kardex)
+                // Esto asegura que si compras 10 láminas a $50, el reporte diga $500
+                costo_total: Number((costoIngresado * cant).toFixed(2)), 
+                
+                timestamp: new Date().toISOString()
+            };
 
-const datosParaAtlas = {
-    materialId: idMasterAtlas, 
-    nombre: nombreUP,
-    proveedor: nombreProveedor, // <--- AHORA SÍ CAPTURA EL NOMBRE REAL
-    esNuevo: false,
-    categoria: categoriaDeterminada,
-    cantidad_laminas: cant,
-    precio_total_lamina: costoFinalAtlas, 
-    desperdicio: desperdicioFinalSincronizado,
-    desperdicio_total_cm: desperdicioFinalSincronizado,
-    ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
-    largo_lamina_cm: largoReferencia,
-    precio_m2_costo: costoFinalAtlas, 
-    precio_venta_sugerido: precioVentaSugerido,
-    tipo_material: esMoldura ? 'ml' : 'm2',
-    // EL COSTO TOTAL: Lo que pagaste en total por todas las unidades/láminas
-    costo_total: Number((costoIngresado * cant).toFixed(2)), 
-    timestamp: new Date().toISOString()
-};
-
+            // --- 📡 ENVÍO A ATLAS ---
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -782,11 +784,11 @@ const datosParaAtlas = {
                 localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             }
 
-            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
+            alert(`✅ ¡LOGRADO!\nProveedor: ${nombreProveedorReal}\nCosto Total: $${datosParaAtlas.costo_total}\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
             location.reload();
 
         } catch (error) {
-            console.error("❌ Error:", error);
+            console.error("❌ Error Crítico:", error);
             alert("⚠️ FALLO DE ATLAS:\n" + error.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
