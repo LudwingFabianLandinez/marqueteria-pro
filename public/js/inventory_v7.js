@@ -599,10 +599,10 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
-    // --- 🔍 BUSCADOR: NOMBRE E ID (COSTO SIEMPRE MANUAL) ---
+    // --- 🔍 BUSCADOR: NOMBRE E ID (LIMPIEZA FORZADA DE COSTO) ---
 inputBusqueda?.addEventListener('input', (e) => {
     const nombreEscrito = e.target.value;
-    const inputCosto = document.getElementById('compraCosto'); // El campo de Valor Unitario
+    const inputCosto = document.getElementById('compraCosto'); 
     const hiddenIdInput = document.getElementById('compraMaterialId');
 
     if (nombreEscrito && window.todosLosMateriales) {
@@ -611,12 +611,14 @@ inputBusqueda?.addEventListener('input', (e) => {
         );
 
         if (matEncontrado) {
-            // Solo vinculamos el ID para que Atlas sepa qué material es
             if (hiddenIdInput) hiddenIdInput.value = matEncontrado._id || matEncontrado.id;
             
-            // 🛑 BLOQUE DE AUTOPULADO ELIMINADO:
-            // Ya no tocamos inputCosto.value para que NO traiga nada automáticamente.
-            console.log("Material reconocido. Ingrese el costo manualmente.");
+            // --- 🧹 LIMPIEZA FORZADA ---
+            // Esto asegura que aunque el navegador quiera poner algo, el código lo borre.
+            if (inputCosto) {
+                inputCosto.value = ""; 
+                inputCosto.placeholder = "Digita el valor manual...";
+            }
         } else {
             if (hiddenIdInput) hiddenIdInput.value = ""; 
         }
