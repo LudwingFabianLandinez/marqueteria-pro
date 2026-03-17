@@ -474,8 +474,8 @@
                     <input type="number" id="compraCantidad" name="cantidad" required oninput="calcularConversionM2()">
                 </div>
                 <div class="form-group">
-                    <label>Valor Unitario ($)</label>
-                    <input type="number" id="compraCosto" name="valorUnitario" required>
+                    <label>Costo del Material ($)</label>
+                    <input type="number" id="compraCosto" name="valorUnitario" required autocomplete="off">
                 </div>
             </div>
 
@@ -627,7 +627,7 @@ window.actualizarCalculoInmediato = function() {
                 if (opt.value === val) {
                     // AUTOCOMPLETADO AUTOMÁTICO DE ID Y COSTO
                     idHidden.value = opt.getAttribute('data-id');
-                    costoInput.value = opt.getAttribute('data-costo');
+                    
                     encontrado = true;
                 }
             });
