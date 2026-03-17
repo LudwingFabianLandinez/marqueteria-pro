@@ -619,6 +619,7 @@ window.abrirModalCompra = () => {
 };
 
 // 3. 🚀 DETECTOR DE SELECCIÓN: LLENA COSTO, ID Y CALCULA ML/M2
+// 3. 🚀 DETECTOR DE SELECCIÓN: VINCULA ID, ALERTA Y COSTO MANUAL
 document.addEventListener('input', function(e) {
     if (e.target && e.target.id === 'compraMaterial') {
         const nombreSeleccionado = e.target.value.toUpperCase();
@@ -628,21 +629,26 @@ document.addEventListener('input', function(e) {
 
         opciones.forEach(opt => {
             if (opt.value === nombreSeleccionado) {
-                const costo = opt.getAttribute('data-costo');
                 const id = opt.getAttribute('data-id');
 
-                if (id) document.getElementById('compraMaterialId').value = id;
+                // 🆔 VINCULAMOS EL ID PARA QUE SUME AL STOCK
+                if (id) {
+                    document.getElementById('compraMaterialId').value = id;
+                    
+                    // 🔔 RECUADRO DE ALERTA (CONFIRMACIÓN)
+                    alert("✅ MATERIAL RECONOCIDO: " + nombreSeleccionado + "\nEscriba el valor de la lámina manualmente.");
+                    console.log("ID vinculado correctamente:", id);
+                }
                 
                 encontrado = true;
             }
         });
 
-        // Si no está en la lista (material nuevo), limpiamos el ID oculto
         if (!encontrado) {
             document.getElementById('compraMaterialId').value = "";
         }
         
-        // Ejecutamos el cálculo visual de ML/M2
+        // Ejecutamos el cálculo de M2/ML
         calcularConversionM2();
     }
 });
