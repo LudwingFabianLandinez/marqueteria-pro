@@ -460,37 +460,21 @@ router.get('/inventory/all-purchases', async (req, res) => {
         const compras = await Transaction.find({ 
             $or: [{ tipo: 'IN' }, { cantidad: { $gt: 0 } }, { cantidad_m2: { $gt: 0 } }]
         }).sort({ fecha: -1 }).limit(100).lean();
-        const dataMapeada = compras.map(c => {
-            // 1. LÓGICA DE PROVEEDOR (Prioriza el nombre real guardado)
-            // Si c.proveedorNombre existe, lo usamos. Si no, buscamos en c.proveedor.
-            // Solo si ambos fallan, ponemos "S/N".
-            const nombreProv = c.proveedorNombre || c.proveedor || "S/N";
-
-            // 2. LÓGICA DE COSTO TOTAL
-            // Aseguramos que tome el valor de la compra completa (cantidad * precio)
-            const valorFactura = parseFloat(c.costo_total || c.total || 0);
-
-            return {
-                fecha: c.fecha || new Date(),
-                // Mantenemos la estructura de objeto que espera tu tabla (.nombre)
-                materialId: { 
-                    nombre: (c.materialNombre || "INGRESO DE MATERIAL").toUpperCase() 
-                },
-                proveedorId: { 
-                    nombre: String(nombreProv).toUpperCase() 
-                },
-                cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
-                costo_total: valorFactura,
-                motivo: (c.materialNombre || "INGRESO").toUpperCase()
-            };
-        });
+        const dataMapeada = compras.map(c => ({
+            fecha: c.fecha || new Date(),
+            materialId: { nombre: c.materialNombre || "Ingreso de Material" },
+            proveedorId: { nombre: c.proveedorNombre || "Proveedor General" },
+            cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
+            costo_total: parseFloat(c.costo_total || c.total || 0),
+            motivo: c.materialNombre || "Ingreso"
+        }));
         res.json({ success: true, count: dataMapeada.length, data: dataMapeada });
     } catch (error) {
         res.json({ success: true, data: [] });
     }
 });
 
-// --- REGISTRO DE COMPRA (CORREGIDO PARA ATLAS - v19.0.0) ---
+// --- REGISTRO DE COMPRA (CORREGIDO PARA ATLAS) ---
 router.post('/inventory/purchase', async (req, res) => {
     try {
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
@@ -517,20 +501,29 @@ router.post('/inventory/purchase', async (req, res) => {
                 const nuevoMat = new Material({
                     nombre: nombreNormalizado,
                     categoria: req.body.categoria,
+                    // BLOQUEO DE PRECIO: Asignamos el valor neto. 
+                    // Si el inventario muestra 10345 es porque algo le suma el 20%. 
+                    // Al usar el mismo valor en ambos campos, neutralizamos recargos automáticos.
                     costo_base: costoDirecto,
                     precio_m2_costo: costoDirecto, 
+                    
+                    // BLOQUEO DE STOCK: Forzamos 0 independientemente de lo que llegue en el body.
                     stock_actual: 0,
+                    
                     ancho_lamina_cm: parseFloat(req.body.ancho_lamina_cm || 0),
                     largo_lamina_cm: parseFloat(req.body.largo_lamina_cm || 0),
                     unidad: esMoldura ? "ML" : "M2",
                     estado: 'Activo'
                 });
 
+                // ESTA LÍNEA ES CRUCIAL: Evita que middlewares de cálculo se activen para el stock inicial
                 nuevoMat.isNew = true;
+
                 const guardado = await nuevoMat.save();
                 
                 console.log(`✅ BLOQUEO EXITOSO: ${nombreNormalizado} guardado con $${costoDirecto} y Stock 0`);
 
+                // IMPORTANTE: El return aquí impide que el código siga hacia la lógica de compra.
                 return res.status(200).json({ 
                     success: true, 
                     message: "Material creado en cero. Proceda a registrar compra.", 
@@ -541,46 +534,51 @@ router.post('/inventory/purchase', async (req, res) => {
 
         // --- FIN LÓGICA DE CREACIÓN ---
 
+        // Validaciones de seguridad para compras (se mantienen intactas)
         if (!materialId || materialId === 'null' || materialId === 'undefined') {
             console.error("🚨 Intento de compra sin materialId válido");
             return res.status(400).json({ 
                 success: false, 
-                error: "ID de material no proporcionado o inválido." 
+                error: "ID de material no proporcionado o inválido. La actualización de stock fue abortada." 
             });
         }
 
-        // 2. Variables de flujo
+        // 2. Mantenemos tus nombres de variables y lógica de fallback (Frontend compatible)
         const cantidad = parseFloat(req.body.cantidad_laminas || req.body.cantidad || 0);
         const largo = parseFloat(req.body.largo_lamina_cm || req.body.largo || 0);
         const ancho = parseFloat(req.body.ancho_lamina_cm || req.body.ancho || 0);
         const valorUnitario = parseFloat(req.body.precio_total_lamina || req.body.valorUnitario || 0);
         const proveedorId = req.body.proveedorId;
+        const proveedorNombre = req.body.proveedorNombre;
 
         // --- 3. CÁLCULOS DIFERENCIADOS (ML vs M2) ---
         const categoriaMat = (req.body.categoria || "").toUpperCase();
         const nombreMat = (req.body.nombre || "").toUpperCase();
         
         let areaTotalIngreso;
-        let precioInventarioActualizado = valorUnitario;
+        let precioInventarioActualizado = valorUnitario; // Por defecto para M2 que ya está bien
         
+        // Verificamos si es moldura
         if (categoriaMat.includes("MOLDURA") || categoriaMat.includes("ML") || nombreMat.includes("MOLDURA")) {
             areaTotalIngreso = cantidad * 2.8;
+            // CORRECCIÓN: Para que el inventario no suba a 10mil, guardamos el precio por metro (8618 / 2.8)
             precioInventarioActualizado = valorUnitario / 2.8;
+            console.log(`📏 LÓGICA ML APLICADA: ${cantidad} tiras * 2.8 = ${areaTotalIngreso} ML`);
         } else {
             areaTotalIngreso = (largo * ancho / 10000) * cantidad;
+            console.log(`🔳 LÓGICA M2 APLICADA: Area calculada = ${areaTotalIngreso} M2`);
         }
 
-        // Valor de respaldo si el frontend no envía el total calculado
         const valorTotalCalculado = valorUnitario * cantidad;
 
-        // 4. Actualización del Material Maestro
+        // 4. Actualización del Material
         const matAct = await Material.findByIdAndUpdate(materialId, { 
             $inc: { stock_actual: areaTotalIngreso },
             $set: { 
                 ancho_lamina_cm: ancho,
                 largo_lamina_cm: largo,
                 precio_total_lamina: valorUnitario,
-                precio_m2_costo: precioInventarioActualizado,
+                precio_m2_costo: precioInventarioActualizado, // Se actualiza solo si es ML, M2 sigue su curso
                 ultimo_costo: valorUnitario,
                 fecha_ultima_compra: new Date(), 
                 proveedor_principal: proveedorId 
@@ -588,37 +586,26 @@ router.post('/inventory/purchase', async (req, res) => {
         }, { new: true });
 
         if (!matAct) {
-            return res.status(404).json({ success: false, error: "Material no encontrado." });
+            return res.status(404).json({ 
+                success: false, 
+                error: `El material con ID ${materialId} no fue encontrado en la base de datos.` 
+            });
         }
 
-        // 🔍 Búsqueda de nombre de proveedor en DB por si no viene en el body
         const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
-        // 🚀 5. REGISTRO DE TRANSACCIÓN (VERSIÓN FINAL ULTRA-COMPATIBLE)
+        // 5. Registro de Transacción
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
-            materialNombre: matAct.nombre,
+            materialNombre: matAct ? matAct.nombre : "Material",
             proveedorId: proveedorId,
-            
-            // 🛡️ BUSQUEDA EN CASCADA TOTAL:
-            // El servidor ahora aceptará el nombre desde cualquiera de estas 4 opciones
-            proveedorNombre: (
-                req.body.proveedorNombre || 
-                req.body.nombreProveedor || 
-                req.body.proveedor || 
-                (provAct ? provAct.nombre : "S/N")
-            ).toString().toUpperCase(),
-            
+            proveedorNombre: proveedorNombre || (provAct ? provAct.nombre : "Proveedor General"), 
             cantidad: areaTotalIngreso,     
             cantidad_m2: areaTotalIngreso,  
             costo_unitario: precioInventarioActualizado,
-            
-            // 💰 PRIORIDAD AL COSTO TOTAL DE FACTURA (Cantidad * Precio)
-            // Si el frontend envía 'costo_total', 'total' o 'valorTotal', el servidor lo captura
-            total: parseFloat(req.body.costo_total || req.body.total || req.body.valorTotal || valorTotalCalculado),           
-            costo_total: parseFloat(req.body.costo_total || req.body.total || req.body.valorTotal || valorTotalCalculado), 
-            
+            total: valorTotalCalculado,           
+            costo_total: valorTotalCalculado, 
             fecha: new Date()
         });
 
@@ -626,7 +613,7 @@ router.post('/inventory/purchase', async (req, res) => {
 
         return res.status(200).json({ 
             success: true, 
-            nuevoStock: matAct.stock_actual,
+            nuevoStock: matAct ? matAct.stock_actual : 0,
             data: matAct 
         });
 

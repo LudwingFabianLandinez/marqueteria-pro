@@ -660,45 +660,32 @@ if (formCompra) {
         }
 
         try {
-            // 1. CAPTURA DE ELEMENTOS DEL DOM
-            const inputMaterialBuscador = document.getElementById('compraMaterial'); 
-            const inputMaterialIdHidden = document.getElementById('compraMaterialId'); 
+            // --- 🛠️ NUEVA CAPTURA DESDE BUSCADOR ---
+            const inputMaterialBuscador = document.getElementById('compraMaterial'); // El input de texto
+            const inputMaterialIdHidden = document.getElementById('compraMaterialId'); // El ID oculto
+            
             const inputCant = document.getElementById('compraCantidad');
             const inputCosto = document.getElementById('compraCosto');
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
             const inputDesperdicio = document.getElementById('desperdicio');
-            const selectProv = document.getElementById('compraProveedor');
 
-            // --- 🛡️ PASO A: EL PARACAÍDAS (Evita el error de "undefined") ---
-            const idMasterAtlas = inputMaterialIdHidden?.value;
-            if (!idMasterAtlas) {
+            // Validamos que se haya seleccionado algo real
+            if (!inputMaterialIdHidden.value) {
                 throw new Error("Debes seleccionar un material válido de la lista para continuar.");
             }
 
             const nombreUP = inputMaterialBuscador.value.trim().toUpperCase();
             
-            // --- 🛡️ PASO B: BÚSQUEDA SEGURA DE EXISTENTE ---
-            if (!window.todosLosMateriales) {
-                window.todosLosMateriales = JSON.parse(localStorage.getItem('inventory') || '[]');
-            }
-            
-            let existente = window.todosLosMateriales.find(m => 
-                String(m._id || m.id) === String(idMasterAtlas)
-            );
-
-            // --- 🛡️ PASO C: CAPTURA REAL DEL PROVEEDOR (Adiós al "Proveedor General") ---
-            const nombreProveedorReal = (selectProv && selectProv.selectedIndex !== -1) 
-                ? selectProv.options[selectProv.selectedIndex].text.trim().toUpperCase() 
-                : "PROVEEDOR NO DEFINIDO";
-
-            // --- LÓGICA DE NEGOCIO (Mantenemos tus avances anteriores) ---
+            // --- 🛡️ DETECCIÓN MEJORADA DE MOLDURA ---
             const esMoldura = nombreUP.includes("MOLDURAS") || nombreUP.startsWith("K ") || nombreUP.includes("MOLDURA");
+            
             const cant = parseFloat(inputCant.value) || 0;
             const costoIngresado = parseFloat(inputCosto.value) || 0;
             const largoCm = parseFloat(inputLargo?.value) || 0;
             const anchoCm = parseFloat(inputAncho?.value) || 0;
             
+            // --- 🚀 CLASIFICACIÓN DE CATEGORÍA ---
             let categoriaDeterminada;
             const esVidrio = nombreUP.includes("VIDRIO") || nombreUP.includes("CRISTAL") || nombreUP.includes("ESPEJO");
             const esAcabado = nombreUP.includes("CHAPILLA") || nombreUP.includes("AFRICANA") || nombreUP.includes("PASSEPARTOUT") || nombreUP.includes("LONA") || nombreUP.includes("TELA");
@@ -715,6 +702,14 @@ if (formCompra) {
                 categoriaDeterminada = "GENERAL";
             }
 
+            // --- 🛡️ BÚSQUEDA DE EXISTENTE ---
+            if (!window.todosLosMateriales) window.todosLosMateriales = JSON.parse(localStorage.getItem('inventory') || '[]');
+            
+            let existente = window.todosLosMateriales.find(m => 
+                String(m._id || m.id) === String(inputMaterialIdHidden.value)
+            );
+
+            // --- 📏 LÓGICA DE COSTO (PROTECCIÓN TOTAL v21.6) ---
             let costoFinalAtlas = costoIngresado;
             const esFoam = nombreUP.includes("FOAM") || nombreUP.includes("PLUMA");
             const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || esFoam || categoriaDeterminada === "RESPALDO" || categoriaDeterminada === "VIDRIO");
@@ -726,6 +721,7 @@ if (formCompra) {
                 }
             }
 
+            // --- 🛡️ PROTECCIÓN DE DIMENSIONES (v21.7) ---
             const largoReferencia = (largoCm > 0) ? largoCm : 290;
             const factorAnchoEscala = esMoldura ? 100 : anchoCm;
 
@@ -733,6 +729,9 @@ if (formCompra) {
                 ? Number((cant * (largoReferencia / 100)).toFixed(2)) 
                 : Number(((largoCm * anchoCm / 10000) * cant).toFixed(2));
 
+            const idMasterAtlas = inputMaterialIdHidden.value;
+
+            // --- 🚨 SINCRONIZACIÓN DE DESPERDICIO ---
             const desperdicioValorManual = inputDesperdicio ? parseFloat(inputDesperdicio.value) : 0;
             const desperdicioEnMaestro = (existente && (existente.desperdicio_total_cm || existente.desperdicio)) 
                 ? parseFloat(existente.desperdicio_total_cm || existente.desperdicio) 
@@ -741,32 +740,25 @@ if (formCompra) {
             const desperdicioFinalSincronizado = (desperdicioValorManual > 0) ? desperdicioValorManual : desperdicioEnMaestro;
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-           // --- 📦 OBJETO PARA ATLAS (CORREGIDO Y SINCRONIZADO) ---
+            // --- 📦 OBJETO PARA ATLAS (BLINDAJE DE EMERGENCIA) ---
             const datosParaAtlas = {
                 materialId: idMasterAtlas, 
                 nombre: nombreUP,
-                
-                // ✅ ENVIAMOS EL NOMBRE EXPLÍCITO PARA QUE EL SERVER NO PONGA "S/N"
-                proveedor: nombreProveedorReal, 
-                proveedorNombre: nombreProveedorReal, 
-                
-                esNuevo: false,
+                esNuevo: false, // Ahora siempre usamos existentes del buscador
                 categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas, 
-                
-                // 💰 ENVIAMOS EL COSTO TOTAL REAL (Cantidad * Precio Unitario)
-                costo_total: Number((costoIngresado * cant).toFixed(2)), 
-                total: Number((costoIngresado * cant).toFixed(2)), 
-                
+                desperdicio: desperdicioFinalSincronizado,
+                desperdicio_total_cm: desperdicioFinalSincronizado,
                 ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
                 largo_lamina_cm: largoReferencia,
                 precio_m2_costo: costoFinalAtlas, 
+                precio_venta_sugerido: precioVentaSugerido,
                 tipo_material: esMoldura ? 'ml' : 'm2',
+                costo_total: costoIngresado * cant,
                 timestamp: new Date().toISOString()
             };
 
-            // --- 📡 ENVÍO A ATLAS ---
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -785,11 +777,11 @@ if (formCompra) {
                 localStorage.setItem('inventory', JSON.stringify(window.todosLosMateriales));
             }
 
-            alert(`✅ ¡LOGRADO!\nProveedor: ${nombreProveedorReal}\nCosto Total: $${datosParaAtlas.costo_total}\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
+            alert(`✅ ¡LOGRADO!\nSe sumaron: ${VALOR_REAL_INCREMENTO.toFixed(2)} ${esMoldura ? 'ML' : 'M2'}`);
             location.reload();
 
         } catch (error) {
-            console.error("❌ Error Crítico:", error);
+            console.error("❌ Error:", error);
             alert("⚠️ FALLO DE ATLAS:\n" + error.message);
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = 'Guardar Compra'; }
