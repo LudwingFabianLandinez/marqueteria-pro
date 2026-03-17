@@ -631,8 +631,6 @@ document.addEventListener('input', function(e) {
                 const costo = opt.getAttribute('data-costo');
                 const id = opt.getAttribute('data-id');
 
-                // Llenamos los campos automáticamente
-                if (costo) document.getElementById('compraCosto').value = costo;
                 if (id) document.getElementById('compraMaterialId').value = id;
                 
                 encontrado = true;
