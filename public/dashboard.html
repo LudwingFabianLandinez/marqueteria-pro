@@ -448,13 +448,16 @@
                 <select id="compraProveedor" name="providerId" required></select>
             </div>
             <div class="form-group">
-                <label>Material</label>
-                <select id="compraMaterial" name="materialId" required onchange="manejarCambioMaterial()"></select>
-                <div id="contenedorNombreNuevo" style="display:none; margin-top:10px;">
-                    <label style="color: #2b6cb0;">Nombre del Material Nuevo</label>
-                    <input type="text" id="nombreNuevoMaterial" name="nombreNuevo" placeholder="Escribe el nombre aquí...">
-                </div>
-            </div>
+    <label>Material</label>
+    <input type="text" id="compraMaterial" list="listaSincronizadaAtlas" placeholder="Escriba material para buscar..." autocomplete="off">
+    <datalist id="listaSincronizadaAtlas"></datalist>
+    
+    <input type="hidden" id="compraMaterialId" name="materialId">
+    
+    <div id="contenedorNombreNuevo" style="display:none;">
+        <input type="hidden" id="nombreNuevoMaterial">
+    </div>
+</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
                     <label>Largo (cm)</label>
@@ -580,67 +583,62 @@ window.actualizarCalculoInmediato = function() {
     }
 
     window.abrirModalCompra = () => {
-        const modal = document.getElementById('modalCompra');
-        if(!modal) return;
-        modal.style.display = 'block';
-        
-        const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
-        const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
-        
-        const provSelect = document.getElementById('compraProveedor');
-        if(provSelect) {
-            provSelect.innerHTML = proveedores.map(p => 
-                `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`
-            ).join('');
-        }
-        
-        // --- INICIO DE BLOQUE CORREGIDO ---
-        const matInput = document.getElementById('compraMaterial');
-        const datalist = document.getElementById('listaSincronizadaAtlas');
-
-        if (datalist && inventario) {
-            // Llenamos el buscador con los materiales de Atlas
-            datalist.innerHTML = inventario.map(m => {
-                const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || 0;
-                const id = m._id || m.id;
-                const nombre = (m.nombre || 'SIN NOMBRE').toUpperCase();
-                return `<option value="${nombre}" data-id="${id}" data-costo="${costo}"></option>`;
-            }).join('');
-        }
-
-        if (matInput) {
-            // Vinculamos el buscador y limpiamos el evento anterior para no duplicar
-            matInput.setAttribute('list', 'listaSincronizadaAtlas');
-            
-            matInput.oninput = function(e) {
-                const val = e.target.value.toUpperCase();
-                const opciones = datalist ? datalist.querySelectorAll('option') : [];
-                let encontrado = false;
-
-                opciones.forEach(opt => {
-                    if (opt.value === val) {
-                        const idVinculado = opt.getAttribute('data-id');
-                        const costoVinculado = opt.getAttribute('data-costo');
-                        
-                        // Llenamos los campos para que Atlas reconozca la compra
-                        document.getElementById('compraMaterialId').value = idVinculado;
-                        document.getElementById('compraCosto').value = costoVinculado;
-                        
-                        encontrado = true;
-                    }
-                });
-
-                if (!encontrado) {
-                    document.getElementById('compraMaterialId').value = "";
-                }
-
-                // Ejecutamos tus cálculos de M2/ML
-                if (typeof calcularConversionM2 === 'function') {
-                    calcularConversionM2();
-                }
-            };
-        }
+    const modal = document.getElementById('modalCompra');
+    if(!modal) return;
+    modal.style.display = 'block';
+    
+    const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
+    const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
+    
+    // 1. Llenar Proveedores (Normal)
+    const provSelect = document.getElementById('compraProveedor');
+    if(provSelect) {
+        provSelect.innerHTML = proveedores.map(p => 
+            `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`
+        ).join('');
     }
+    
+    // 2. Llenar el Buscador de Materiales (SIN EL "+ AGREGAR")
+    const matInput = document.getElementById('compraMaterial');
+    const datalist = document.getElementById('listaSincronizadaAtlas');
+    const idHidden = document.getElementById('compraMaterialId');
+    const costoInput = document.getElementById('compraCosto');
+
+    if (datalist && inventario) {
+        // Limpiamos y llenamos la lista solo con nombres reales
+        datalist.innerHTML = inventario.map(m => {
+            const costo = m.costo_base || m.precio_m2_costo || 0;
+            const id = m._id || m.id;
+            return `<option value="${m.nombre.toUpperCase()}" data-id="${id}" data-costo="${costo}"></option>`;
+        }).join('');
+    }
+
+    if (matInput) {
+        // Limpiamos valores previos
+        matInput.value = "";
+        idHidden.value = "";
+        
+        matInput.oninput = function(e) {
+            const val = e.target.value.toUpperCase();
+            const opciones = datalist ? datalist.querySelectorAll('option') : [];
+            let encontrado = false;
+
+            opciones.forEach(opt => {
+                if (opt.value === val) {
+                    // AUTOCOMPLETADO AUTOMÁTICO DE ID Y COSTO
+                    idHidden.value = opt.getAttribute('data-id');
+                    costoInput.value = opt.getAttribute('data-costo');
+                    encontrado = true;
+                }
+            });
+
+            if (!encontrado) idHidden.value = "";
+
+            // Ejecuta tus cálculos de conversión (M2/ML)
+            if (typeof calcularConversionM2 === 'function') calcularConversionM2();
+        };
+    }
+};
         // --- FIN DEL BLOQUE ---
     function calcularConversionM2() {
         const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
@@ -653,7 +651,8 @@ window.actualizarCalculoInmediato = function() {
 
         if (esMoldura) {
             const mlTotal = (largo / 100) * cant;
-            if(label) label.textContent = `Total a ingresar: ${mlTotal.toFixed(2)} ML (Moldura)`;
+            if(label) label.textContent = `Total 
+            a ingresar: ${mlTotal.toFixed(2)} ML (Moldura)`;
             label.style.color = "#805ad5"; 
         } else {
             const m2Total = ((largo * ancho) / 10000) * cant;
