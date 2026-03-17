@@ -740,24 +740,29 @@ if (formCompra) {
             const desperdicioFinalSincronizado = (desperdicioValorManual > 0) ? desperdicioValorManual : desperdicioEnMaestro;
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-            // --- 📦 OBJETO PARA ATLAS (BLINDAJE DE EMERGENCIA) ---
-            const datosParaAtlas = {
-                materialId: idMasterAtlas, 
-                nombre: nombreUP,
-                esNuevo: false, // Ahora siempre usamos existentes del buscador
-                categoria: categoriaDeterminada,
-                cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas, 
-                desperdicio: desperdicioFinalSincronizado,
-                desperdicio_total_cm: desperdicioFinalSincronizado,
-                ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
-                largo_lamina_cm: largoReferencia,
-                precio_m2_costo: costoFinalAtlas, 
-                precio_venta_sugerido: precioVentaSugerido,
-                tipo_material: esMoldura ? 'ml' : 'm2',
-                costo_total: costoIngresado * cant,
-                timestamp: new Date().toISOString()
-            };
+            // --- 📦 OBJETO PARA ATLAS (ACTUALIZADO CON PROVEEDOR Y COSTO REAL) ---
+const selectProv = document.getElementById('compraProveedor');
+const nombreProveedor = selectProv ? selectProv.options[selectProv.selectedIndex].text : "S/N";
+
+const datosParaAtlas = {
+    materialId: idMasterAtlas, 
+    nombre: nombreUP,
+    proveedor: nombreProveedor, // <--- AHORA SÍ CAPTURA EL NOMBRE REAL
+    esNuevo: false,
+    categoria: categoriaDeterminada,
+    cantidad_laminas: cant,
+    precio_total_lamina: costoFinalAtlas, 
+    desperdicio: desperdicioFinalSincronizado,
+    desperdicio_total_cm: desperdicioFinalSincronizado,
+    ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
+    largo_lamina_cm: largoReferencia,
+    precio_m2_costo: costoFinalAtlas, 
+    precio_venta_sugerido: precioVentaSugerido,
+    tipo_material: esMoldura ? 'ml' : 'm2',
+    // EL COSTO TOTAL: Lo que pagaste en total por todas las unidades/láminas
+    costo_total: Number((costoIngresado * cant).toFixed(2)), 
+    timestamp: new Date().toISOString()
+};
 
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
                 method: 'POST',
