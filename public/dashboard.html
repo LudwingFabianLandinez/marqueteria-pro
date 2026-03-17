@@ -594,54 +594,52 @@ window.actualizarCalculoInmediato = function() {
             ).join('');
         }
         
-        // --- SOLUCIÓN INTEGRAL: BUSCADOR + AUTOCOMPLETADO ---
-const matInput = document.getElementById('compraMaterial');
-const datalist = document.getElementById('listaSincronizadaAtlas');
+        // --- INICIO DE BLOQUE CORREGIDO ---
+        const matInput = document.getElementById('compraMaterial');
+        const datalist = document.getElementById('listaSincronizadaAtlas');
 
-if (datalist && inventario) {
-    // 1. Limpiamos y llenamos el datalist (Asegura que salgan los materiales)
-    datalist.innerHTML = inventario.map(m => {
-        const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || 0;
-        return `<option value="${m.nombre.toUpperCase()}" data-id="${m._id || m.id}" data-costo="${costo}"></option>`;
-    }).join('');
-    console.log("✅ Lista de materiales sincronizada en el buscador");
-}
-
-if (matInput) {
-    // 2. Aseguramos que el input sepa que debe usar esa lista
-    matInput.setAttribute('list', 'listaSincronizadaAtlas');
-    matInput.placeholder = "Escriba para buscar material...";
-
-    // 3. Motor de autocompletado al escribir o seleccionar
-    matInput.addEventListener('input', function(e) {
-        const val = e.target.value.toUpperCase();
-        const opciones = datalist ? datalist.querySelectorAll('option') : [];
-        let encontrado = false;
-
-        opciones.forEach(opt => {
-            if (opt.value === val) {
-                // Vinculamos ID y Precio
-                const idVinculado = opt.getAttribute('data-id');
-                const costoVinculado = opt.getAttribute('data-costo');
-                
-                document.getElementById('compraMaterialId').value = idVinculado;
-                document.getElementById('compraCosto').value = costoVinculado;
-                
-                encontrado = true;
-                console.log("🎯 Material detectado:", val, "ID:", idVinculado);
-            }
-        });
-
-        if (!encontrado) {
-            document.getElementById('compraMaterialId').value = "";
+        if (datalist && inventario) {
+            // Llenamos el buscador con los materiales de Atlas
+            datalist.innerHTML = inventario.map(m => {
+                const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || 0;
+                const id = m._id || m.id;
+                const nombre = (m.nombre || 'SIN NOMBRE').toUpperCase();
+                return `<option value="${nombre}" data-id="${id}" data-costo="${costo}"></option>`;
+            }).join('');
         }
-        
-        // Mantenemos tus cálculos de ML/M2 (Molduras vs Láminas)
-        if (typeof calcularConversionM2 === 'function') {
-            calcularConversionM2();
+
+        if (matInput) {
+            // Vinculamos el buscador y limpiamos el evento anterior para no duplicar
+            matInput.setAttribute('list', 'listaSincronizadaAtlas');
+            
+            matInput.oninput = function(e) {
+                const val = e.target.value.toUpperCase();
+                const opciones = datalist ? datalist.querySelectorAll('option') : [];
+                let encontrado = false;
+
+                opciones.forEach(opt => {
+                    if (opt.value === val) {
+                        const idVinculado = opt.getAttribute('data-id');
+                        const costoVinculado = opt.getAttribute('data-costo');
+                        
+                        // Llenamos los campos para que Atlas reconozca la compra
+                        document.getElementById('compraMaterialId').value = idVinculado;
+                        document.getElementById('compraCosto').value = costoVinculado;
+                        
+                        encontrado = true;
+                    }
+                });
+
+                if (!encontrado) {
+                    document.getElementById('compraMaterialId').value = "";
+                }
+
+                // Ejecutamos tus cálculos de M2/ML
+                if (typeof calcularConversionM2 === 'function') {
+                    calcularConversionM2();
+                }
+            };
         }
-    });
-}
     }
         // --- FIN DEL BLOQUE ---
     function calcularConversionM2() {
