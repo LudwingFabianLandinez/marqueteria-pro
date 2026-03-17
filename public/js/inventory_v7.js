@@ -647,8 +647,7 @@ function configurarEventos() {
         } catch (err) { alert("❌ Error al ajustar stock"); }
     });
 
-    // === LÓGICA DE COMPRA (BLINDADA v16.1.0) ===
-const formCompra = document.getElementById('formNuevaCompra');
+ const formCompra = document.getElementById('formNuevaCompra');
 if (formCompra) {
     formCompra.onsubmit = async function(e) {
         e.preventDefault();
