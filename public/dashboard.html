@@ -641,25 +641,26 @@ window.actualizarCalculoInmediato = function() {
 };
         // --- FIN DEL BLOQUE ---
     function calcularConversionM2() {
-        const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
-        const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
-        const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const nombreInput = document.getElementById('nombreNuevoMaterial').value.toLowerCase();
-        const label = document.getElementById('labelConversion');
+    const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
+    const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
+    const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+    const costoUnitario = parseFloat(document.getElementById('compraCosto').value) || 0; // El precio que pagas hoy
+    const label = document.getElementById('labelConversion');
 
-        const esMoldura = nombreInput.includes('moldura') || (ancho > 0 && ancho < 10);
+    const totalFactura = costoUnitario * cant; // Lo que vas a pagar al proveedor
 
-        if (esMoldura) {
-            const mlTotal = (largo / 100) * cant;
-            if(label) label.textContent = `Total 
-            a ingresar: ${mlTotal.toFixed(2)} ML (Moldura)`;
-            label.style.color = "#805ad5"; 
-        } else {
-            const m2Total = ((largo * ancho) / 10000) * cant;
-            if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m² (Lámina)`;
-            label.style.color = "#2f855a"; 
-        }
+    // ... (tu lógica de moldura vs lámina)
+    
+    if (esMoldura) {
+        const mlTotal = (largo / 100) * cant;
+        label.innerHTML = `Total a ingresar: <strong>${mlTotal.toFixed(2)} ML</strong><br>` +
+                          `Inversión Total: <strong style="color: #2b6cb0;">$${totalFactura.toLocaleString()}</strong>`;
+    } else {
+        const m2Total = ((largo * ancho) / 10000) * cant;
+        label.innerHTML = `Total a ingresar: <strong>${m2Total.toFixed(2)} m²</strong><br>` +
+                          `Inversión Total: <strong style="color: #2b6cb0;">$${totalFactura.toLocaleString()}</strong>`;
     }
+}
     
 // --- 2. FUNCIÓN REGISTRO MAESTRO (INTEGRIDAD TOTAL CON ATLAS) ---
 async function ejecutarRegistroMaestro() {
@@ -669,6 +670,16 @@ async function ejecutarRegistroMaestro() {
         const categoriaInput = document.getElementById('cat-categoria-maestro');
         const precioInput = document.getElementById('cat-precio-maestro');
         const desperdicioInput = document.getElementById('cat-desperdicio-maestro');
+        
+        // --- 🛡️ UNIFICACIÓN DE PROVEEDOR (EVITA DUPLICIDAD Y ERRORES) ---
+        const elProveedor = document.getElementById('compraProveedor');
+        let proveedorId = null;
+        let proveedorNombreFinal = "PROVEEDOR GENERAL";
+
+        if (elProveedor && elProveedor.selectedIndex !== -1) {
+            proveedorId = elProveedor.value;
+            proveedorNombreFinal = elProveedor.options[elProveedor.selectedIndex].text;
+        }
 
         if (!nombreInput || !precioInput) {
             throw new Error("No se encontraron los campos del formulario");
@@ -698,7 +709,6 @@ async function ejecutarRegistroMaestro() {
         const esMolduraReal = categoria === "MOLDURAS" || nombre.includes("MOLDURA") || nombre.startsWith("K ");
 
         if (esMolduraReal) {
-            // Si tiene medida en el nombre (ej: 4cm X 300cm) usa largoLocal, si no usa 2.8m (280cm)
             const metros = largoLocal > 0 ? (largoLocal / 100) : 2.8;
             costoUnitarioFinal = Math.round(precioCompra / metros);
         } else {
@@ -717,18 +727,18 @@ async function ejecutarRegistroMaestro() {
             costo_base: costoUnitarioFinal, 
             precio_m2_costo: costoUnitarioFinal, 
             
-            // 1. REFUERZO DE DATOS (Múltiples campos para que Atlas no ignore el desperdicio)
+            // --- 📦 VINCULACIÓN DE PROVEEDOR (LIMPIO) ---
+            providerId: proveedorId,
+            proveedor_nombre: proveedorNombreFinal, 
+
+            // 1. REFUERZO DE DATOS
             precio_total_lamina: precioCompra, 
             desperdicio_total_cm: desperdicio,
             desperdicio: desperdicio,
             merma: desperdicio,
 
             // 2. 🚀 EL TÚNEL (SOLUCIÓN DEFINITIVA PARA MOLDURAS)
-            // Si es moldura, inyectamos el desperdicio (ej: 15) en 'ancho_lamina_cm'.
-            // Esto es lo que garantiza el 2.95 en el cotizador aunque Atlas resetee los otros campos.
             ancho_lamina_cm: esMolduraReal ? (parseFloat(desperdicio) || 0) : (anchoLocal || 100), 
-            
-            // Si es moldura usamos el largo del nombre o 280 (estándar), si no 100.
             largo_lamina_cm: esMolduraReal ? (largoLocal || 280) : (largoLocal || 100), 
             
             stock_actual: 0,
@@ -737,7 +747,7 @@ async function ejecutarRegistroMaestro() {
             estado: 'Activo'
         };
 
-        console.log("📡 Registrando Material Maestro con Blindaje:", nuevoMaterial);
+        console.log("📡 Registrando Material Maestro con Proveedor y Blindaje:", nuevoMaterial);
         
         const URL_REGISTRO = `${window.API_URL || '/.netlify/functions/server'}/inventory/purchase`;
 
@@ -750,7 +760,7 @@ async function ejecutarRegistroMaestro() {
         const res = await response.json();
 
         if (res.success || response.ok) {
-            alert(`✅ REGISTRO CORRECTO\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio Protegido: ${desperdicio} cm`);
+            alert(`✅ REGISTRO CORRECTO\nProveedor: ${proveedorNombreFinal}\nCosto Unitario: $${costoUnitarioFinal}\nDesperdicio: ${desperdicio} cm`);
             localStorage.removeItem('inventory'); 
             location.reload();
         } else {
