@@ -599,10 +599,10 @@ function configurarEventos() {
     const btnFacturar = document.getElementById('btnFinalizarVenta');
     if(btnFacturar) btnFacturar.onclick = facturarVenta;
 
-    // --- 🔍 AJUSTE EN EL BUSCADOR INTELIGENTE ---
+    // --- 🔍 BUSCADOR: SOLO PARA NOMBRE E ID (COSTO MANUAL) ---
 inputBusqueda?.addEventListener('input', (e) => {
     const nombreEscrito = e.target.value;
-    const inputCosto = document.getElementById('compraCosto'); 
+    const inputCosto = document.getElementById('compraCosto'); // El campo de Valor Unitario
     const hiddenIdInput = document.getElementById('compraMaterialId');
 
     if (nombreEscrito && window.todosLosMateriales) {
@@ -611,15 +611,12 @@ inputBusqueda?.addEventListener('input', (e) => {
         );
 
         if (matEncontrado) {
+            // Sincronizamos el ID para que Atlas sepa cuál es...
             if (hiddenIdInput) hiddenIdInput.value = matEncontrado._id || matEncontrado.id;
-            if (inputCosto) {
-                // MODIFICACIÓN AQUÍ: Priorizamos el precio de la unidad física
-                // Si existe 'precio_unidad_comprada' lo pone, si no, usa el otro como respaldo.
-                const valorSugerido = matEncontrado.precio_unidad_comprada || matEncontrado.precio_total_lamina || 0;
-                inputCosto.value = valorSugerido;
-                
-                console.log(`💰 Precio de lámina/unidad cargado: ${valorSugerido}`);
-            }
+            
+            // --- 🛑 LÍNEA ELIMINADA: Ya no cargamos matEncontrado.precio ---
+            // Dejamos que el usuario escriba el precio que quiera.
+            console.log(`✅ Material detectado: ${matEncontrado.nombre}. Digite el costo manualmente.`);
         } else {
             if (hiddenIdInput) hiddenIdInput.value = ""; 
         }
