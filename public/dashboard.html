@@ -594,40 +594,54 @@ window.actualizarCalculoInmediato = function() {
             ).join('');
         }
         
-        // --- BLOQUE ACTUALIZADO: BUSCADOR LIMPIO Y AUTOCOMPLETADO ---
-        const matSelect = document.getElementById('compraMaterial');
-        const datalist = document.getElementById('listaSincronizadaAtlas');
+        // --- SOLUCIÓN INTEGRAL: BUSCADOR + AUTOCOMPLETADO ---
+const matInput = document.getElementById('compraMaterial');
+const datalist = document.getElementById('listaSincronizadaAtlas');
 
-        if (datalist) {
-            // 1. Llenamos solo con materiales (Se elimina la opción NUEVO)
-            datalist.innerHTML = inventario.map(m => {
-                const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || 0;
-                return `<option value="${m.nombre.toUpperCase()}" data-id="${m._id || m.id}" data-costo="${costo}"></option>`;
-            }).join('');
-        }
+if (datalist && inventario) {
+    // 1. Limpiamos y llenamos el datalist (Asegura que salgan los materiales)
+    datalist.innerHTML = inventario.map(m => {
+        const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || 0;
+        return `<option value="${m.nombre.toUpperCase()}" data-id="${m._id || m.id}" data-costo="${costo}"></option>`;
+    }).join('');
+    console.log("✅ Lista de materiales sincronizada en el buscador");
+}
 
-        // 2. Activamos el motor de reconocimiento para el autocompletado
-        if (matSelect) {
-            matSelect.addEventListener('input', function(e) {
-                const val = e.target.value.toUpperCase();
-                const opciones = datalist ? datalist.querySelectorAll('option') : [];
-                let encontrado = false;
+if (matInput) {
+    // 2. Aseguramos que el input sepa que debe usar esa lista
+    matInput.setAttribute('list', 'listaSincronizadaAtlas');
+    matInput.placeholder = "Escriba para buscar material...";
 
-                opciones.forEach(opt => {
-                    if (opt.value === val) {
-                        // Vinculamos ID (para stock) y Precio automáticamente
-                        document.getElementById('compraMaterialId').value = opt.getAttribute('data-id');
-                        document.getElementById('compraCosto').value = opt.getAttribute('data-costo');
-                        encontrado = true;
-                    }
-                });
+    // 3. Motor de autocompletado al escribir o seleccionar
+    matInput.addEventListener('input', function(e) {
+        const val = e.target.value.toUpperCase();
+        const opciones = datalist ? datalist.querySelectorAll('option') : [];
+        let encontrado = false;
 
-                if (!encontrado) document.getElementById('compraMaterialId').value = "";
+        opciones.forEach(opt => {
+            if (opt.value === val) {
+                // Vinculamos ID y Precio
+                const idVinculado = opt.getAttribute('data-id');
+                const costoVinculado = opt.getAttribute('data-costo');
                 
-                // Mantenemos tus cálculos de ML/M2 funcionando
-                if (typeof calcularConversionM2 === 'function') calcularConversionM2();
-            });
+                document.getElementById('compraMaterialId').value = idVinculado;
+                document.getElementById('compraCosto').value = costoVinculado;
+                
+                encontrado = true;
+                console.log("🎯 Material detectado:", val, "ID:", idVinculado);
+            }
+        });
+
+        if (!encontrado) {
+            document.getElementById('compraMaterialId').value = "";
         }
+        
+        // Mantenemos tus cálculos de ML/M2 (Molduras vs Láminas)
+        if (typeof calcularConversionM2 === 'function') {
+            calcularConversionM2();
+        }
+    });
+}
     }
         // --- FIN DEL BLOQUE ---
     function calcularConversionM2() {
