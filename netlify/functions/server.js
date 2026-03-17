@@ -594,29 +594,34 @@ router.post('/inventory/purchase', async (req, res) => {
         // 🔍 Búsqueda de nombre de proveedor en DB por si no viene en el body
         const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
-        // 🚀 5. REGISTRO DE TRANSACCIÓN 
+        // 🚀 5. REGISTRO DE TRANSACCIÓN (BLINDAJE MULTIVARIABLE v20.0.0)
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
             materialNombre: matAct.nombre,
             proveedorId: proveedorId,
             
-            // PRIORIDAD 1: req.body.proveedor (Nombre directo del select)
-            // PRIORIDAD 2: provAct.nombre (Nombre desde la DB)
-            // FALLBACK: "S/N"
-            proveedorNombre: (req.body.proveedor || (provAct ? provAct.nombre : "S/N")).toUpperCase(),
+            // 🛡️ BÚSQUEDA EN CASCADA PARA NOMBRE DE PROVEEDOR:
+            // Intenta capturar el nombre desde cualquier variante posible que envíe el frontend
+            proveedorNombre: (
+                req.body.proveedorNombre || 
+                req.body.nombreProveedor || 
+                req.body.proveedor || 
+                (provAct ? provAct.nombre : "S/N")
+            ).toString().toUpperCase(),
             
             cantidad: areaTotalIngreso,     
             cantidad_m2: areaTotalIngreso,  
             costo_unitario: precioInventarioActualizado,
             
-            // SINCRONIZACIÓN FINANCIERA: Usamos el costo total real de la compra
-            total: parseFloat(req.body.costo_total) || valorTotalCalculado,           
-            costo_total: parseFloat(req.body.costo_total) || valorTotalCalculado, 
+            // 💰 SINCRONIZACIÓN FINANCIERA TOTAL:
+            // Prioriza el costo total calculado por el frontend para evitar que se guarde el unitario
+            total: parseFloat(req.body.costo_total || req.body.total || valorTotalCalculado),           
+            costo_total: parseFloat(req.body.costo_total || req.body.total || valorTotalCalculado), 
             
             fecha: new Date()
         });
-
+        
         await registro.save({ validateBeforeSave: false });
 
         return res.status(200).json({ 

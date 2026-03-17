@@ -741,11 +741,17 @@ if (formCompra) {
             const desperdicioFinalSincronizado = (desperdicioValorManual > 0) ? desperdicioValorManual : desperdicioEnMaestro;
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-            // --- 📦 OBJETO PARA ATLAS (CORREGIDO: PROVEEDOR Y COSTO TOTAL FACTURA) ---
+           // --- 📦 OBJETO PARA ATLAS (CORREGIDO: BLINDAJE PROVEEDOR Y COSTO TOTAL) ---
             const datosParaAtlas = {
                 materialId: idMasterAtlas, 
                 nombre: nombreUP,
-                proveedor: nombreProveedorReal, // ✅ Ahora envía el nombre que seleccionaste
+                
+                // 🛡️ DOBLE MAPEO DE PROVEEDOR:
+                // Enviamos el nombre en varias etiquetas para que el servidor lo atrape sí o sí
+                proveedor: nombreProveedorReal, 
+                proveedorNombre: nombreProveedorReal, 
+                proveedorId: document.getElementById('proveedorId')?.value || "", 
+
                 esNuevo: false,
                 categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
@@ -758,9 +764,10 @@ if (formCompra) {
                 precio_venta_sugerido: precioVentaSugerido,
                 tipo_material: esMoldura ? 'ml' : 'm2',
                 
-                // 💰 COSTO TOTAL DE LA COMPRA (Para el Historial y Kardex)
-                // Esto asegura que si compras 10 láminas a $50, el reporte diga $500
+                // 💰 SINCRONIZACIÓN FINANCIERA (Costo de la factura completa)
+                // Usamos 'costo_total' y 'total' para que el servidor lo reconozca
                 costo_total: Number((costoIngresado * cant).toFixed(2)), 
+                total: Number((costoIngresado * cant).toFixed(2)), 
                 
                 timestamp: new Date().toISOString()
             };
