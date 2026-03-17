@@ -448,13 +448,22 @@
                 <select id="compraProveedor" name="providerId" required></select>
             </div>
             <div class="form-group">
-                <label>Material</label>
-                <select id="compraMaterial" name="materialId" required onchange="manejarCambioMaterial()"></select>
-                <div id="contenedorNombreNuevo" style="display:none; margin-top:10px;">
-                    <label style="color: #2b6cb0;">Nombre del Material Nuevo</label>
-                    <input type="text" id="nombreNuevoMaterial" name="nombreNuevo" placeholder="Escribe el nombre aquí...">
-                </div>
-            </div>
+    <label>Material</label>
+    <input 
+        type="text" 
+        id="compraMaterial" 
+        name="materialNombre" 
+        class="form-control" 
+        list="listaSincronizadaAtlas" 
+        placeholder="Escriba código o nombre (ej: 1005)..." 
+        autocomplete="off"
+        required
+    >
+    <datalist id="listaSincronizadaAtlas">
+        </datalist>
+    
+    <input type="hidden" id="compraMaterialId" name="materialId">
+</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
                     <label>Largo (cm)</label>
