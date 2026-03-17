@@ -588,51 +588,102 @@ window.actualizarCalculoInmediato = function() {
         calcularConversionM2();
     }
 
-    window.abrirModalCompra = () => {
-        const modal = document.getElementById('modalCompra');
-        if(!modal) return;
-        modal.style.display = 'block';
-        
-        const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
-        const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
-        
-        const provSelect = document.getElementById('compraProveedor');
-        if(provSelect) {
-            provSelect.innerHTML = proveedores.map(p => 
-                `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`
-            ).join('');
+    // --- 🛠️ BLOQUE DEFINITIVO: BUSCADOR + COSTO AUTOMÁTICO + ML/M2 ---
+
+window.abrirModalCompra = () => {
+    const modal = document.getElementById('modalCompra');
+    if(!modal) return;
+    modal.style.display = 'block';
+    
+    const proveedores = JSON.parse(localStorage.getItem('providers') || '[]');
+    const inventario = JSON.parse(localStorage.getItem('inventory') || '[]');
+    
+    // 1. Cargar Proveedores
+    const provSelect = document.getElementById('compraProveedor');
+    if(provSelect) {
+        provSelect.innerHTML = proveedores.map(p => 
+            `<option value="${p._id || p.id}">${String(p.nombre || 'S/N').toUpperCase()}</option>`
+        ).join('');
+    }
+    
+    // 2. Sincronizar Buscador (Datalist) con Atlas incluyendo Costos
+    const datalist = document.getElementById('listaSincronizadaAtlas');
+    if(datalist) {
+        datalist.innerHTML = inventario.map(m => {
+            // Buscamos el costo en cualquier campo donde Atlas pueda guardarlo
+            const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || m.costoUnitario || 0;
+            return `<option value="${m.nombre.toUpperCase()}" data-id="${m._id || m.id}" data-costo="${costo}"></option>`;
+        }).join('');
+        console.log("📡 Buscador y Costos sincronizados con Atlas");
+    }
+};
+
+// 3. 🚀 DETECTOR DE SELECCIÓN: LLENA COSTO, ID Y CALCULA ML/M2
+document.addEventListener('input', function(e) {
+    if (e.target && e.target.id === 'compraMaterial') {
+        const nombreSeleccionado = e.target.value.toUpperCase();
+        const datalist = document.getElementById('listaSincronizadaAtlas');
+        const opciones = datalist ? datalist.querySelectorAll('option') : [];
+        let encontrado = false;
+
+        opciones.forEach(opt => {
+            if (opt.value === nombreSeleccionado) {
+                const costo = opt.getAttribute('data-costo');
+                const id = opt.getAttribute('data-id');
+
+                // Llenamos los campos automáticamente
+                if (costo) document.getElementById('compraCosto').value = costo;
+                if (id) document.getElementById('compraMaterialId').value = id;
+                
+                encontrado = true;
+            }
+        });
+
+        // Si no está en la lista (material nuevo), limpiamos el ID oculto
+        if (!encontrado) {
+            document.getElementById('compraMaterialId').value = "";
         }
         
-        const matSelect = document.getElementById('compraMaterial');
-        if(matSelect) {
-            let opciones = '<option value="">-- Seleccione Material --</option>';
-            opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
-            opciones += inventario.map(m => {
-                const costo = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
-                return `<option value="${m._id || m.id}" data-costo="${costo}">${m.nombre.toUpperCase()}</option>`;
-            }).join('');
-            matSelect.innerHTML = opciones;
-        }
-    };
+        // Ejecutamos el cálculo visual de ML/M2
+        calcularConversionM2();
+    }
+});
 
-    function calcularConversionM2() {
-        const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
-        const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
-        const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
-        const nombreInput = document.getElementById('nombreNuevoMaterial').value.toLowerCase();
-        const label = document.getElementById('labelConversion');
+function calcularConversionM2() {
+    const inputMaterial = document.getElementById('compraMaterial');
+    const nombreMaterial = inputMaterial ? inputMaterial.value.toUpperCase() : "";
+    const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
+    const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
+    const cant = parseFloat(document.getElementById('compraCantidad').value) || 0;
+    const label = document.getElementById('labelConversion');
 
-        const esMoldura = nombreInput.includes('moldura') || (ancho > 0 && ancho < 10);
+    if (!label) return;
 
-        if (esMoldura) {
-            const mlTotal = (largo / 100) * cant;
-            if(label) label.textContent = `Total a ingresar: ${mlTotal.toFixed(2)} ML (Moldura)`;
-            label.style.color = "#805ad5"; 
-        } else {
-            const m2Total = ((largo * ancho) / 10000) * cant;
-            if(label) label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m² (Lámina)`;
-            label.style.color = "#2f855a"; 
-        }
+    // IDENTIFICADOR DE MOLDURAS (Prioriza ML si el nombre contiene MOLDURA, K o el ancho es mínimo)
+    const esMoldura = nombreMaterial.includes('MOLDURA') || 
+                     nombreMaterial.startsWith('K ') || 
+                     (ancho > 0 && ancho < 10);
+
+    if (esMoldura) {
+        // Lógica para Metros Lineales
+        const mlTotal = (largo / 100) * cant;
+        label.textContent = `Total a ingresar: ${mlTotal.toFixed(2)} ML (Modo Moldura)`;
+        label.style.color = "#805ad5"; // Púrpura para identificar ML
+        label.style.background = "#faf5ff";
+        label.style.borderLeft = "4px solid #805ad5";
+    } else {
+        // Lógica para Metros Cuadrados
+        const m2Total = ((largo * ancho) / 10000) * cant;
+        label.textContent = `Total a ingresar: ${m2Total.toFixed(2)} m² (Modo Lámina/Vidrio)`;
+        label.style.color = "#2f855a"; // Verde para identificar M2
+        label.style.background = "#f0fff4";
+        label.style.borderLeft = "4px solid #2f855a";
+    }
+}
+
+    // Eliminamos la función manejarCambioMaterial vieja para evitar errores de referencia
+    function manejarCambioMaterial() { 
+        calcularConversionM2(); 
     }
     
 // --- 2. FUNCIÓN REGISTRO MAESTRO (INTEGRIDAD TOTAL CON ATLAS) ---
