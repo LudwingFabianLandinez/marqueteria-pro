@@ -594,18 +594,42 @@ window.actualizarCalculoInmediato = function() {
             ).join('');
         }
         
+        // --- BLOQUE ACTUALIZADO: BUSCADOR LIMPIO Y AUTOCOMPLETADO ---
         const matSelect = document.getElementById('compraMaterial');
-        if(matSelect) {
-            let opciones = '<option value="">-- Seleccione Material --</option>';
-            opciones += '<option value="NUEVO" style="color: #3182ce; font-weight: bold;">+ AGREGAR NUEVO MATERIAL</option>';
-            opciones += inventario.map(m => {
-                const costo = m.costo_m2 || m.precio_m2_costo || m.costoUnitario || 0;
-                return `<option value="${m._id || m.id}" data-costo="${costo}">${m.nombre.toUpperCase()}</option>`;
-            }).join('');
-            matSelect.innerHTML = opciones;
-        }
-    };
+        const datalist = document.getElementById('listaSincronizadaAtlas');
 
+        if (datalist) {
+            // 1. Llenamos solo con materiales (Se elimina la opción NUEVO)
+            datalist.innerHTML = inventario.map(m => {
+                const costo = m.costo_base || m.precio_m2_costo || m.costo_m2 || 0;
+                return `<option value="${m.nombre.toUpperCase()}" data-id="${m._id || m.id}" data-costo="${costo}"></option>`;
+            }).join('');
+        }
+
+        // 2. Activamos el motor de reconocimiento para el autocompletado
+        if (matSelect) {
+            matSelect.addEventListener('input', function(e) {
+                const val = e.target.value.toUpperCase();
+                const opciones = datalist ? datalist.querySelectorAll('option') : [];
+                let encontrado = false;
+
+                opciones.forEach(opt => {
+                    if (opt.value === val) {
+                        // Vinculamos ID (para stock) y Precio automáticamente
+                        document.getElementById('compraMaterialId').value = opt.getAttribute('data-id');
+                        document.getElementById('compraCosto').value = opt.getAttribute('data-costo');
+                        encontrado = true;
+                    }
+                });
+
+                if (!encontrado) document.getElementById('compraMaterialId').value = "";
+                
+                // Mantenemos tus cálculos de ML/M2 funcionando
+                if (typeof calcularConversionM2 === 'function') calcularConversionM2();
+            });
+        }
+    }
+        // --- FIN DEL BLOQUE ---
     function calcularConversionM2() {
         const largo = parseFloat(document.getElementById('compraLargo').value) || 0;
         const ancho = parseFloat(document.getElementById('compraAncho').value) || 0;
