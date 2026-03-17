@@ -473,11 +473,11 @@ if (esMoldura) {
 
         fila.innerHTML = `
             <td style="text-align: left; padding: 10px 15px;">
-    <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
-    <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
-        ${m.categoria} | ${m.proveedor_nombre || m.proveedorNombre || 'SIN PROVEEDOR'}
-    </div>
-</td>
+                <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
+                <div style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase;">
+                    ${m.categoria} | ${m.proveedorNombre || 'SIN PROVEEDOR'}
+                </div>
+            </td>
             <td style="text-align: center; font-weight: 700; color: #1e293b;">
                 ${formateador.format(precioFinalVisual)} <span style="font-size:0.6rem; font-weight:400;">/${unidadFinal}</span>
             </td>
