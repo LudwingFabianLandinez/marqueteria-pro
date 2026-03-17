@@ -594,7 +594,7 @@ router.post('/inventory/purchase', async (req, res) => {
         // 🔍 Búsqueda de nombre de proveedor en DB por si no viene en el body
         const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
-        // 🚀 5. REGISTRO DE TRANSACCIÓN (PUNTO CRÍTICO CORREGIDO)
+        // 🚀 5. REGISTRO DE TRANSACCIÓN 
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
