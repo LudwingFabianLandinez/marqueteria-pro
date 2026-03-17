@@ -741,34 +741,28 @@ if (formCompra) {
             const desperdicioFinalSincronizado = (desperdicioValorManual > 0) ? desperdicioValorManual : desperdicioEnMaestro;
             const precioVentaSugerido = Number((costoFinalAtlas * 1.5).toFixed(2));
 
-           // --- 📦 OBJETO PARA ATLAS (CORREGIDO: BLINDAJE PROVEEDOR Y COSTO TOTAL) ---
+           // --- 📦 OBJETO PARA ATLAS (CORREGIDO Y SINCRONIZADO) ---
             const datosParaAtlas = {
                 materialId: idMasterAtlas, 
                 nombre: nombreUP,
                 
-                // 🛡️ DOBLE MAPEO DE PROVEEDOR:
-                // Enviamos el nombre en varias etiquetas para que el servidor lo atrape sí o sí
+                // ✅ ENVIAMOS EL NOMBRE EXPLÍCITO PARA QUE EL SERVER NO PONGA "S/N"
                 proveedor: nombreProveedorReal, 
                 proveedorNombre: nombreProveedorReal, 
-                proveedorId: document.getElementById('proveedorId')?.value || "", 
-
+                
                 esNuevo: false,
                 categoria: categoriaDeterminada,
                 cantidad_laminas: cant,
-                precio_total_lamina: costoFinalAtlas, // Costo unitario procesado
-                desperdicio: desperdicioFinalSincronizado,
-                desperdicio_total_cm: desperdicioFinalSincronizado,
-                ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
-                largo_lamina_cm: largoReferencia,
-                precio_m2_costo: costoFinalAtlas, 
-                precio_venta_sugerido: precioVentaSugerido,
-                tipo_material: esMoldura ? 'ml' : 'm2',
+                precio_total_lamina: costoFinalAtlas, 
                 
-                // 💰 SINCRONIZACIÓN FINANCIERA (Costo de la factura completa)
-                // Usamos 'costo_total' y 'total' para que el servidor lo reconozca
+                // 💰 ENVIAMOS EL COSTO TOTAL REAL (Cantidad * Precio Unitario)
                 costo_total: Number((costoIngresado * cant).toFixed(2)), 
                 total: Number((costoIngresado * cant).toFixed(2)), 
                 
+                ancho_lamina_cm: esMoldura ? desperdicioFinalSincronizado : factorAnchoEscala,
+                largo_lamina_cm: largoReferencia,
+                precio_m2_costo: costoFinalAtlas, 
+                tipo_material: esMoldura ? 'ml' : 'm2',
                 timestamp: new Date().toISOString()
             };
 

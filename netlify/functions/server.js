@@ -594,15 +594,15 @@ router.post('/inventory/purchase', async (req, res) => {
         // 🔍 Búsqueda de nombre de proveedor en DB por si no viene en el body
         const provAct = await Provider.findById(proveedorId).select('nombre').lean();
 
-        // 🚀 5. REGISTRO DE TRANSACCIÓN (BLINDAJE MULTIVARIABLE v20.0.0)
+        // 🚀 5. REGISTRO DE TRANSACCIÓN (VERSIÓN FINAL ULTRA-COMPATIBLE)
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
             materialNombre: matAct.nombre,
             proveedorId: proveedorId,
             
-            // 🛡️ BÚSQUEDA EN CASCADA PARA NOMBRE DE PROVEEDOR:
-            // Intenta capturar el nombre desde cualquier variante posible que envíe el frontend
+            // 🛡️ BUSQUEDA EN CASCADA TOTAL:
+            // El servidor ahora aceptará el nombre desde cualquiera de estas 4 opciones
             proveedorNombre: (
                 req.body.proveedorNombre || 
                 req.body.nombreProveedor || 
@@ -614,14 +614,14 @@ router.post('/inventory/purchase', async (req, res) => {
             cantidad_m2: areaTotalIngreso,  
             costo_unitario: precioInventarioActualizado,
             
-            // 💰 SINCRONIZACIÓN FINANCIERA TOTAL:
-            // Prioriza el costo total calculado por el frontend para evitar que se guarde el unitario
-            total: parseFloat(req.body.costo_total || req.body.total || valorTotalCalculado),           
-            costo_total: parseFloat(req.body.costo_total || req.body.total || valorTotalCalculado), 
+            // 💰 PRIORIDAD AL COSTO TOTAL DE FACTURA (Cantidad * Precio)
+            // Si el frontend envía 'costo_total', 'total' o 'valorTotal', el servidor lo captura
+            total: parseFloat(req.body.costo_total || req.body.total || req.body.valorTotal || valorTotalCalculado),           
+            costo_total: parseFloat(req.body.costo_total || req.body.total || req.body.valorTotal || valorTotalCalculado), 
             
             fecha: new Date()
         });
-        
+
         await registro.save({ validateBeforeSave: false });
 
         return res.status(200).json({ 
