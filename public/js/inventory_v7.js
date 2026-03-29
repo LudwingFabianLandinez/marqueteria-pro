@@ -8,10 +8,10 @@
      * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
      */
 
-    // --- CONFIGURACIÓN DE CONEXIÓN GLOBAL (Arreglo Punto 1 - Virginia) ---
-    window.API_URL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000/.netlify/functions/server' 
-        : 'https://marqueteria-la-chica-morales.netlify.app/.netlify/functions/server';
+    // --- CONFIGURACIÓN DE CONEXIÓN GLOBAL ---
+    // Usamos ruta relativa para apuntar siempre al backend del entorno actual
+    // (local, preview o producción) y evitar pegarle a un servidor viejo.
+    window.API_URL = '/.netlify/functions/server';
 
     // Puente de compatibilidad para window.API
     window.API = {
@@ -669,6 +669,7 @@ if (formCompra) {
             const inputLargo = document.getElementById('compraLargo');
             const inputAncho = document.getElementById('compraAncho');
             const inputDesperdicio = document.getElementById('desperdicio');
+            const inputProveedor = document.getElementById('compraProveedor');
 
             // Validamos que se haya seleccionado algo real
             if (!inputMaterialIdHidden.value) {
@@ -684,6 +685,19 @@ if (formCompra) {
             const costoIngresado = parseFloat(inputCosto.value) || 0;
             const largoCm = parseFloat(inputLargo?.value) || 0;
             const anchoCm = parseFloat(inputAncho?.value) || 0;
+            const proveedorSeleccionadoIdRaw = (inputProveedor?.value || '').trim();
+            const proveedorSeleccionadoId = (proveedorSeleccionadoIdRaw && proveedorSeleccionadoIdRaw !== 'undefined' && proveedorSeleccionadoIdRaw !== 'null')
+                ? proveedorSeleccionadoIdRaw
+                : '';
+            const proveedorSeleccionado = (window.todosLosProveedores || []).find(p =>
+                String(p._id || p.id) === String(proveedorSeleccionadoId)
+            );
+            const proveedorNombreDesdeSelect = inputProveedor && inputProveedor.selectedOptions && inputProveedor.selectedOptions[0]
+                ? String(inputProveedor.selectedOptions[0].textContent || '').trim()
+                : '';
+            const proveedorSeleccionadoNombre = proveedorSeleccionado
+                ? String(proveedorSeleccionado.nombre || '').trim()
+                : proveedorNombreDesdeSelect;
             
             // --- 🚀 CLASIFICACIÓN DE CATEGORÍA ---
             let categoriaDeterminada;
@@ -746,6 +760,9 @@ if (formCompra) {
                 nombre: nombreUP,
                 esNuevo: false, // Ahora siempre usamos existentes del buscador
                 categoria: categoriaDeterminada,
+                proveedorId: proveedorSeleccionadoId || undefined,
+                proveedor: proveedorSeleccionadoId || undefined,
+                proveedorNombre: proveedorSeleccionadoNombre || undefined,
                 cantidad_laminas: cant,
                 precio_total_lamina: costoFinalAtlas, 
                 desperdicio: desperdicioFinalSincronizado,
@@ -755,9 +772,16 @@ if (formCompra) {
                 precio_m2_costo: costoFinalAtlas, 
                 precio_venta_sugerido: precioVentaSugerido,
                 tipo_material: esMoldura ? 'ml' : 'm2',
+                // Total real pagado en caja/factura (sin convertir por m2)
                 costo_total: costoIngresado * cant,
+                costoPagado: costoIngresado * cant,
+                costo_pagado: costoIngresado * cant,
+                total_pagado: costoIngresado * cant,
                 timestamp: new Date().toISOString()
             };
+
+            // DEBUG: show payload before sending
+            try { console.log('DEBUG payload (purchase):', JSON.parse(JSON.stringify(datosParaAtlas))); } catch(e){}
 
             const response = await fetch(`${window.API_URL}/inventory/purchase`, {
                 method: 'POST',
@@ -765,7 +789,11 @@ if (formCompra) {
                 body: JSON.stringify(datosParaAtlas)
             });
 
-            if (!response.ok) throw new Error("Atlas rechazó la conexión.");
+            // DEBUG: log response body
+            let responseJson = null;
+            try { responseJson = await response.clone().json(); console.log('DEBUG response (purchase):', responseJson); } catch(e) { console.warn('DEBUG: no JSON body in response'); }
+
+            if (!response.ok) throw new Error(responseJson && responseJson.error ? responseJson.error : "Atlas rechazó la conexión.");
             
             // --- ⚓ ACTUALIZACIÓN LOCAL ---
             if (existente) {

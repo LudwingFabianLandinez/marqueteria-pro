@@ -72,7 +72,7 @@ function renderPurchasesTable(compras) {
         
         // 2. BÚSQUEDA DE PROVEEDOR (Ultra-Compatible)
         // Intentamos todas las combinaciones: c.proveedor, c.proveedorId, o el objeto directo
-        const datosProveedor = c.proveedor || c.proveedorId || c.provider;
+        const datosProveedor = c.proveedor || c.proveedorId || c.provider || c.proveedorNombre;
         let nombreProveedor = 'Proveedor General';
 
         if (datosProveedor && typeof datosProveedor === 'object') {
@@ -81,6 +81,9 @@ function renderPurchasesTable(compras) {
                               datosProveedor.nombre_comercial || 
                               datosProveedor.contacto || 
                               'S/N';
+        } else if (typeof datosProveedor === 'string' && datosProveedor.trim().length > 0 && datosProveedor.length <= 40) {
+            // Si el backend envía nombre directo como string, lo usamos sin mostrar IDs
+            nombreProveedor = datosProveedor.trim();
         } else if (typeof datosProveedor === 'string' && datosProveedor.length > 5) {
             // Si llega un ID pero no se convirtió en objeto, mostramos un aviso en consola para depurar
             console.warn("⚠️ Mongoose no pobló el proveedor para la compra:", c._id);
@@ -93,7 +96,7 @@ function renderPurchasesTable(compras) {
         const unidadTexto = c.unidad || (c.tipo === 'ml' ? 'ml' : 'm²');
         
         // Buscamos el costo en costo_total o costo o precio_total
-        const costoFinal = c.costo_total || c.costo || c.precio_total || 0;
+        const costoFinal = Number(c.costo_total ?? c.total ?? c.costo ?? c.precio_total ?? 0) || 0;
 
         return `
             <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
@@ -128,7 +131,7 @@ function renderPurchasesTable(compras) {
  * Actualiza los cuadros de texto superiores
  */
 function actualizarResumen(compras) {
-    const totalInversion = compras.reduce((sum, c) => sum + (c.costo_total || c.costo || c.precio_total || 0), 0);
+    const totalInversion = compras.reduce((sum, c) => sum + (Number(c.costo_total ?? c.total ?? c.costo ?? c.precio_total ?? 0) || 0), 0);
     const totalMaterial = compras.reduce((sum, c) => sum + (parseFloat(c.cantidad_m2 || c.totalM2 || 0)), 0);
     
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });

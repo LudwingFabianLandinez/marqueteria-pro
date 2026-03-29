@@ -10,6 +10,8 @@ const cors = require('cors');
 const serverless = require('serverless-http'); 
 const mongoose = require('mongoose');
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
 const connectDB = require('./config/db');
 
@@ -459,13 +461,70 @@ router.get('/inventory/all-purchases', async (req, res) => {
     try {
         const compras = await Transaction.find({ 
             $or: [{ tipo: 'IN' }, { cantidad: { $gt: 0 } }, { cantidad_m2: { $gt: 0 } }]
-        }).sort({ fecha: -1 }).limit(100).lean();
+        })
+        .populate('materialId', 'nombre')
+        .populate('proveedor', 'nombre contacto')
+        .sort({ fecha: -1 })
+        .limit(100)
+        .lean();
+
+        // Compatibilidad con históricos: algunas compras viejas guardaron proveedorId en vez de proveedor.
+        const idsProveedor = [...new Set(
+            compras
+                .map(c => {
+                    if (c.proveedor && typeof c.proveedor === 'string' && c.proveedor.length === 24) return c.proveedor;
+                    if (c.proveedorId && typeof c.proveedorId === 'string' && c.proveedorId.length === 24) return c.proveedorId;
+                    if (c.proveedorId && typeof c.proveedorId === 'object' && c.proveedorId._id) return String(c.proveedorId._id);
+                    return null;
+                })
+                .filter(Boolean)
+        )];
+
+        const proveedoresLookup = idsProveedor.length > 0
+            ? await Provider.find({ _id: { $in: idsProveedor } }).select('nombre contacto').lean()
+            : [];
+
+        const mapaProveedores = new Map(
+            proveedoresLookup.map(p => [String(p._id), p.nombre || p.contacto || 'Proveedor General'])
+        );
+
+        const resolverNombreProveedor = (c) => {
+            if (c.proveedor && typeof c.proveedor === 'object') {
+                return c.proveedor.nombre || c.proveedor.contacto || 'Proveedor General';
+            }
+
+            if (c.proveedorNombre || c.providerName || c.nombreProveedor) {
+                return c.proveedorNombre || c.providerName || c.nombreProveedor;
+            }
+
+            const idCandidato =
+                (typeof c.proveedor === 'string' ? c.proveedor : null) ||
+                (typeof c.proveedorId === 'string' ? c.proveedorId : null) ||
+                (c.proveedorId && c.proveedorId._id ? String(c.proveedorId._id) : null);
+
+            if (idCandidato && idCandidato.length === 24 && mapaProveedores.has(idCandidato)) {
+                return mapaProveedores.get(idCandidato);
+            }
+
+            // Si viene texto libre no-ObjectId, lo tratamos como nombre directo
+            if (idCandidato && idCandidato.length !== 24) {
+                return idCandidato;
+            }
+
+            return 'Proveedor General';
+        };
+
         const dataMapeada = compras.map(c => ({
             fecha: c.fecha || new Date(),
-            materialId: { nombre: c.materialNombre || "Ingreso de Material" },
-            proveedorId: { nombre: c.proveedorNombre || "Proveedor General" },
-            cantidad_m2: parseFloat(c.cantidad || c.cantidad_m2 || 0).toFixed(2),
-            costo_total: parseFloat(c.costo_total || c.total || 0),
+            materialId: { 
+                nombre: (c.materialId && c.materialId.nombre) || c.materialNombre || "Ingreso de Material" 
+            },
+            proveedorId: { 
+                nombre: resolverNombreProveedor(c)
+            },
+            proveedor: c.proveedor || null,
+            cantidad_m2: Number.parseFloat(c.cantidad_m2 ?? c.cantidad ?? c.totalM2 ?? 0).toFixed(2),
+            costo_total: Number.parseFloat(c.costo_total ?? c.total ?? c.costo ?? c.precio_total ?? c.costo_pagado ?? c.total_pagado ?? 0) || 0,
             motivo: c.materialNombre || "Ingreso"
         }));
         res.json({ success: true, count: dataMapeada.length, data: dataMapeada });
@@ -477,6 +536,18 @@ router.get('/inventory/all-purchases', async (req, res) => {
 // --- REGISTRO DE COMPRA (CORREGIDO PARA ATLAS) ---
 router.post('/inventory/purchase', async (req, res) => {
     try {
+        // DEBUG: log incoming purchase payload (truncated)
+        try { console.log('DEBUG /inventory/purchase body:', JSON.stringify(req.body).slice(0,2000)); } catch(e){}
+        // -- ADICIONAL: Guardar copia en archivo local para facilitar debug en entorno local
+        try {
+            const debugDir = path.join(process.cwd(), 'debug');
+            if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+            const file = path.join(debugDir, 'purchases.log');
+            const logEntry = { ts: new Date().toISOString(), path: (req.originalUrl||req.url), body: req.body };
+            fs.appendFileSync(file, JSON.stringify(logEntry) + '\n');
+        } catch (fileErr) {
+            console.warn('WARN: no se pudo escribir debug/purchases.log:', fileErr && fileErr.message);
+        }
         // 1. Captura de ID y detección de flujo (Creación vs Compra)
         let materialId = req.body.materialId || req.body.id;
 
@@ -548,8 +619,20 @@ router.post('/inventory/purchase', async (req, res) => {
         const largo = parseFloat(req.body.largo_lamina_cm || req.body.largo || 0);
         const ancho = parseFloat(req.body.ancho_lamina_cm || req.body.ancho || 0);
         const valorUnitario = parseFloat(req.body.precio_total_lamina || req.body.valorUnitario || 0);
-        const proveedorId = req.body.proveedorId;
-        const proveedorNombre = req.body.proveedorNombre;
+        const proveedorId = req.body.proveedorId || req.body.proveedor || req.body.providerId;
+        const proveedorNombreRaw = req.body.proveedorNombre || req.body.providerName || req.body.nombreProveedor;
+        const proveedorNombre = (proveedorNombreRaw && String(proveedorNombreRaw).trim())
+            ? String(proveedorNombreRaw).trim()
+            : ((proveedorId && String(proveedorId).length !== 24) ? String(proveedorId).trim() : "");
+        const costoTotalRecibido = parseFloat(
+            req.body.costo_total ||
+            req.body.total ||
+            req.body.costoPagado ||
+            req.body.costo_pagado ||
+            req.body.total_pagado ||
+            req.body.valorTotal ||
+            0
+        );
 
         // --- 3. CÁLCULOS DIFERENCIADOS (ML vs M2) ---
         const categoriaMat = (req.body.categoria || "").toUpperCase();
@@ -569,7 +652,8 @@ router.post('/inventory/purchase', async (req, res) => {
             console.log(`🔳 LÓGICA M2 APLICADA: Area calculada = ${areaTotalIngreso} M2`);
         }
 
-        const valorTotalCalculado = valorUnitario * cantidad;
+        // Si el frontend envía costo total de la compra, lo respetamos; si no, usamos el cálculo tradicional
+        const valorTotalCalculado = costoTotalRecibido > 0 ? costoTotalRecibido : (valorUnitario * cantidad);
 
         // 4. Actualización del Material
         const matAct = await Material.findByIdAndUpdate(materialId, { 
@@ -592,22 +676,31 @@ router.post('/inventory/purchase', async (req, res) => {
             });
         }
 
-        const provAct = await Provider.findById(proveedorId).select('nombre').lean();
+        const provAct = (proveedorId && String(proveedorId).length === 24)
+            ? await Provider.findById(proveedorId).select('nombre contacto').lean()
+            : null;
 
         // 5. Registro de Transacción
         const registro = new Transaction({
             tipo: 'IN',
             materialId: materialId,
             materialNombre: matAct ? matAct.nombre : "Material",
+            proveedor: proveedorId,
             proveedorId: proveedorId,
-            proveedorNombre: proveedorNombre || (provAct ? provAct.nombre : "Proveedor General"), 
+            proveedorNombre: proveedorNombre || (provAct ? (provAct.nombre || provAct.contacto) : "Proveedor General"), 
             cantidad: areaTotalIngreso,     
             cantidad_m2: areaTotalIngreso,  
             costo_unitario: precioInventarioActualizado,
             total: valorTotalCalculado,           
             costo_total: valorTotalCalculado, 
+            costo_pagado: valorTotalCalculado,
             fecha: new Date()
         });
+
+        // DEBUG: what we will save for key fields
+        try {
+            console.log('DEBUG registro to save ->', JSON.stringify({ proveedorId: registro.proveedorId, proveedorNombre: registro.proveedorNombre, costo_total: registro.costo_total, total: registro.total }).slice(0,2000));
+        } catch(e){}
 
         await registro.save({ validateBeforeSave: false });
 
@@ -645,6 +738,16 @@ router.post('/fix-material-data/:id', async (req, res) => {
         };
         const materialActualizado = await Material.findByIdAndUpdate(id, { $set: update }, { new: true });
         res.json({ success: true, data: materialActualizado });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// --- RUTA DEBUG: Listar transacciones crudas (solo para debug local) ---
+router.get('/debug/raw-purchases', async (req, res) => {
+    try {
+        const data = await Transaction.find().sort({ fecha: -1 }).limit(10).lean();
+        res.json({ success: true, count: data.length, data });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
