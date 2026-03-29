@@ -71,32 +71,36 @@ function renderPurchasesTable(compras) {
             : (c.nombreMaterial || c.materialNombre || c.material || c.motivo || 'Material');
         
         // 2. BÚSQUEDA DE PROVEEDOR (Ultra-Compatible)
-        // Intentamos todas las combinaciones: c.proveedor, c.proveedorId, o el objeto directo
-        const datosProveedor = c.proveedor || c.proveedorId || c.provider || c.proveedorNombre;
-        let nombreProveedor = 'Proveedor General';
+        // Resolvemos nombre del proveedor desde cualquier forma: objeto, id, o campo directo
+        function resolverNombreProveedorRegistro(reg) {
+            if (!reg) return null;
+            // 1) Si el backend pobló un objeto 'proveedor' o 'proveedorId', usar su nombre
+            const provObj = reg.proveedor || reg.proveedorId || reg.provider || reg.proveedorId || null;
+            if (provObj && typeof provObj === 'object') {
+                return provObj.nombre || provObj.nombre_comercial || provObj.contacto || provObj.name || null;
+            }
 
-        if (datosProveedor && typeof datosProveedor === 'object') {
-            // Buscamos cualquier campo que pueda contener el nombre según Atlas
-            nombreProveedor = datosProveedor.nombre || 
-                              datosProveedor.nombre_comercial || 
-                              datosProveedor.contacto || 
-                              'S/N';
-        } else if (typeof datosProveedor === 'string' && datosProveedor.trim().length > 0 && datosProveedor.length <= 40) {
-            // Si el backend envía nombre directo como string, lo usamos sin mostrar IDs
-            nombreProveedor = datosProveedor.trim();
-        } else if (typeof datosProveedor === 'string' && datosProveedor.length > 5) {
-            // Si llega un ID pero no se convirtió en objeto, mostramos un aviso en consola para depurar
-            console.warn("⚠️ Mongoose no pobló el proveedor para la compra:", c._id);
-            nombreProveedor = "ID: " + datosProveedor.substring(0,6) + "...";
+            // 2) Si viene un string directamente en alguno de estos campos, úsalo
+            const posibleString = reg.proveedor || reg.proveedorId || reg.provider || reg.proveedorNombre || reg.providerName || reg.nombreProveedor;
+            if (typeof posibleString === 'string' && posibleString.trim().length > 0) {
+                // Si parece un ObjectId corto o largo, igual lo devolvemos (se muestra como ID)
+                return posibleString.trim();
+            }
+
+            return null;
         }
+
+        let nombreProveedor = resolverNombreProveedorRegistro(c) || 'Proveedor General';
 
         // --- GANCHO DE UNIDADES Y COSTO (M2 vs ML) ---
         // Buscamos el valor en cantidad_m2 o totalM2 (para el 2.8)
         const cantidadValor = parseFloat(c.cantidad_m2 || c.totalM2 || 0);
         const unidadTexto = c.unidad || (c.tipo === 'ml' ? 'ml' : 'm²');
         
-        // Buscamos el costo en costo_total o costo o precio_total
-        const costoFinal = Number(c.costo_total ?? c.total ?? c.costo ?? c.precio_total ?? 0) || 0;
+        // Buscamos el costo en múltiples alias y priorizamos el total pagado
+        const costoFinal = Number(
+            c.costo_total ?? c.costo_pagado ?? c.costoPagado ?? c.total_pagado ?? c.totalPagado ?? c.total ?? c.costo ?? c.precio_total ?? 0
+        ) || 0;
 
         return `
             <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
@@ -131,7 +135,9 @@ function renderPurchasesTable(compras) {
  * Actualiza los cuadros de texto superiores
  */
 function actualizarResumen(compras) {
-    const totalInversion = compras.reduce((sum, c) => sum + (Number(c.costo_total ?? c.total ?? c.costo ?? c.precio_total ?? 0) || 0), 0);
+    const totalInversion = compras.reduce((sum, c) => sum + (Number(
+        c.costo_total ?? c.costo_pagado ?? c.costoPagado ?? c.total_pagado ?? c.totalPagado ?? c.total ?? c.costo ?? c.precio_total ?? 0
+    ) || 0), 0);
     const totalMaterial = compras.reduce((sum, c) => sum + (parseFloat(c.cantidad_m2 || c.totalM2 || 0)), 0);
     
     const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
