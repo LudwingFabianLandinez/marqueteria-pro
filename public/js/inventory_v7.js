@@ -21,7 +21,27 @@
         saveInvoice: (data) => fetch(`${window.API_URL}/invoices`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
         saveMaterial: (data) => fetch(`${window.API_URL}/inventory`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
         updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-        getHistory: (id) => fetch(`${window.API_URL}/materials/${id}/history`).then(r => r.json()),
+        getHistory: async (id) => {
+            try {
+                const resp = await fetch('/api/inventory/all-purchases?t=' + Date.now());
+                if (!resp.ok) return { success: false, data: [] };
+                const json = await resp.json();
+                const all = json && json.data ? json.data : (Array.isArray(json) ? json : []);
+                const idStr = String(id || '').trim();
+                const filtered = all.filter(item => {
+                    try {
+                        const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
+                        if (mid && String(mid).trim() === idStr) return true;
+                        const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
+                        if (mname && String(mname).toUpperCase().includes(String(item.materialNombre || '').toUpperCase())) return true;
+                    } catch (e) {}
+                    return false;
+                });
+                return { success: true, data: filtered };
+            } catch (err) {
+                return { success: false, data: [] };
+            }
+        },
         deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
     };
 
@@ -987,54 +1007,57 @@ if (formCompra) {
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedor = document.getElementById('listaHistorialPrecios');
         const titulo = document.getElementById('historialMaterialNombre');
-        
+
         if (modal) modal.style.display = 'flex';
-        if (titulo) titulo.innerText = nombre || "Historial";
-        if (contenedor) contenedor.innerHTML = '<div style="color:#1e293b; padding:20px; text-align:center;">🔄 Consultando movimientos en Atlas...</div>';
+        if (titulo) titulo.innerText = nombre || 'Historial';
+        if (contenedor) contenedor.innerHTML = '<div style="color:#1e293b; padding:20px; text-align:center;">🔄 Consultando movimientos...</div>';
 
         try {
-            // Buscamos el material en memoria para asegurar que enviamos el _id de Atlas
-            const material = window.todosLosMateriales.find(m => String(m.id) === String(idRecibido) || String(m._id) === String(idRecibido));
-            const idConsulta = (material && material._id) ? material._id : idRecibido;
+            const allResp = await fetch('/api/inventory/all-purchases?t=' + Date.now());
+            if (!allResp.ok) throw new Error('No se pudo obtener movimientos (status ' + allResp.status + ')');
+            const allJson = await allResp.json();
+            const all = allJson && allJson.data ? allJson.data : (Array.isArray(allJson) ? allJson : []);
 
-            const respuesta = await fetch(`${window.API_URL}/materials/${idConsulta}/history?t=${Date.now()}`);
-            const resultado = await respuesta.json();
-            
-            const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
+            const idStr = String(idRecibido || '').trim();
+            const nombreUpper = String(nombre || '').toUpperCase();
 
-            if (!datos || datos.length === 0) {
-                contenedor.innerHTML = `
-                    <div style="color:#dc2626; padding:20px; text-align:center; font-weight:bold;">
-                        ⚠️ Sin movimientos recientes.<br>
-                        <span style="font-size:0.75rem; font-weight:normal; color:#64748b;">
-                            Si acabas de hacer una compra, recarga para ver los cambios sincronizados.
-                        </span>
-                    </div>`;
+            const filtrados = all.filter(item => {
+                try {
+                    const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
+                    if (mid && String(mid).trim() === idStr) return true;
+                    const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
+                    if (mname && String(mname).toUpperCase().includes(nombreUpper)) return true;
+                } catch (e) {}
+                return false;
+            });
+
+            if (!filtrados || filtrados.length === 0) {
+                contenedor.innerHTML = '<div style="color:#64748b; padding:30px; text-align:center;">No se encontraron movimientos.</div>';
                 return;
             }
 
-            // Renderizado limpio y profesional (Color Negro Puro para legibilidad)
-            contenedor.innerHTML = datos.map(h => {
-                const esEntrada = h.cantidad > 0;
+            contenedor.innerHTML = filtrados.map(h => {
+                const fecha = h.fecha ? new Date(h.fecha).toLocaleString() : '';
+                const cantidad = parseFloat(h.cantidad_m2 || h.cantidad || h.totalM2 || 0) || 0;
+                const tipo = h.motivo || h.tipo || 'Movimiento';
+                const esEntrada = cantidad > 0;
                 return `
-                <div style="border-bottom:1px solid #e2e8f0; padding:12px; color: #000; background: #fff; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight:800; font-size:13px; text-transform:uppercase;">${h.tipo || 'MOVIMIENTO'}</div>
-                        <div style="font-size:11px; color:#64748b;">${new Date(h.fecha || h.createdAt).toLocaleString()}</div>
+                    <div style="border-bottom:1px solid #e2e8f0; padding:12px; background:#fff; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; text-transform: uppercase;">${tipo}</div>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${fecha}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">${esEntrada ? '+' : ''}${cantidad.toFixed(2)}</div>
+                            <div style="font-size:0.6rem; color:#64748b; font-weight: bold; text-transform: uppercase;">${(h.unidad || 'm²')}</div>
+                        </div>
                     </div>
-                    <div style="text-align:right;">
-        <div style="font-size:16px; font-weight:900; color:${esEntrada ? '#059669' : '#dc2626'};">
-            /* CAMBIADO DE 4 A 2 */
-            ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)} <span style="font-size:10px;">u/m²</span>
-        </div>
-    </div>
-                    </div>
-                </div>
-            `}).join('');
+                `;
+            }).join('');
 
         } catch (error) {
-            console.error("Error historial:", error);
-            contenedor.innerHTML = `<div style="color:#dc2626; padding:20px; text-align:center;">❌ Error de conexión con Atlas</div>`;
+            console.error('❌ Error al cargar historial (all-purchases):', error);
+            if (contenedor) contenedor.innerHTML = `<div style="color:#dc2626; padding:20px; text-align:center;">❌ Error: ${error.message}</div>`;
         }
     };
 
@@ -1397,79 +1420,56 @@ window.guardarCambiosEdicion = async function() {
         const modal = document.getElementById('modalHistorialPrecios');
         const contenedor = document.getElementById('listaHistorialPrecios');
         const tituloNombre = document.getElementById('historialMaterialNombre');
-        
-        // 1. Abrimos el modal de inmediato para dar respuesta visual
+
         if (modal) modal.style.display = 'flex';
-        if (tituloNombre) tituloNombre.innerText = nombre;
-        if (contenedor) contenedor.innerHTML = '<div style="color:black; padding:20px; text-align:center;">🔄 Buscando movimientos en Atlas...</div>';
+        if (tituloNombre) tituloNombre.innerText = nombre || 'Historial';
+        if (contenedor) contenedor.innerHTML = '<div style="color:#1e293b; padding:20px; text-align:center;">🔄 Consultando movimientos...</div>';
 
         try {
-            // 2. BUSQUEDA DE IDENTIDAD MAESTRA
-            // Buscamos en el array global para asegurarnos de tener el _id de Atlas
-            const m = window.todosLosMateriales.find(mat => 
-                String(mat.id) === String(idRecibido) || String(mat._id) === String(idRecibido)
-            );
-            
-            // Si el material tiene _id (de Atlas), usamos ese. Si no, usamos el recibido.
-            const idParaConsulta = (m && m._id) ? m._id : idRecibido;
+            const allResp = await fetch('/api/inventory/all-purchases?t=' + Date.now());
+            if (!allResp.ok) throw new Error('No se pudo obtener movimientos (status ' + allResp.status + ')');
+            const allJson = await allResp.json();
+            const all = allJson && allJson.data ? allJson.data : (Array.isArray(allJson) ? allJson : []);
 
-            console.log(`📜 Consultando historial para: ${nombre} (ID: ${idParaConsulta})`);
+            const idStr = String(idRecibido || '').trim();
+            const nombreUpper = String(nombre || '').toUpperCase();
 
-            // 3. LLAMADA AL SERVIDOR
-            const respuesta = await fetch(`${window.API_URL}/materials/${idParaConsulta}/history?t=${Date.now()}`);
-            
-            if (!respuesta.ok) throw new Error("Error al conectar con el servidor de historial");
+            const filtrados = all.filter(item => {
+                try {
+                    const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
+                    if (mid && String(mid).trim() === idStr) return true;
+                    const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
+                    if (mname && String(mname).toUpperCase().includes(nombreUpper)) return true;
+                } catch (e) {}
+                return false;
+            });
 
-            const resultado = await respuesta.json();
-            const datos = resultado.success ? resultado.data : (Array.isArray(resultado) ? resultado : []);
-
-            // 4. VALIDACIÓN DE DATOS
-            if (!datos || datos.length === 0) {
-                contenedor.innerHTML = `
-                    <div style="color:#64748b; padding:30px; text-align:center; font-family: sans-serif;">
-                        <i class="fas fa-info-circle" style="font-size: 2rem; display:block; margin-bottom:10px; color: #cbd5e1;"></i>
-                        No se encontraron movimientos previos para este material.
-                    </div>`;
+            if (!filtrados || filtrados.length === 0) {
+                contenedor.innerHTML = '<div style="color:#64748b; padding:30px; text-align:center;">No se encontraron movimientos.</div>';
                 return;
             }
 
-            // 5. RENDERIZADO (Pintamos los datos con el diseño limpio que te gusta)
-            contenedor.innerHTML = datos.map(h => {
-                const fecha = new Date(h.fecha || h.createdAt).toLocaleString();
-                const esEntrada = h.cantidad >= 0;
-                
+            contenedor.innerHTML = filtrados.map(h => {
+                const fecha = h.fecha ? new Date(h.fecha).toLocaleString() : '';
+                const cantidad = parseFloat(h.cantidad_m2 || h.cantidad || h.totalM2 || 0) || 0;
+                const tipo = h.motivo || h.tipo || 'Movimiento';
+                const esEntrada = cantidad > 0;
                 return `
-                    <div style="border-bottom:1px solid #e2e8f0; padding:12px; background: #fff; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="border-bottom:1px solid #e2e8f0; padding:12px; background:#fff; display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; text-transform: uppercase;">
-                                ${h.tipo || 'Movimiento'}
-                            </div>
+                            <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; text-transform: uppercase;">${tipo}</div>
                             <div style="font-size:0.7rem; color:#94a3b8;">${fecha}</div>
                         </div>
                         <div style="text-align:right;">
-    // --- 🛡️ CORRECCIÓN PUNTO 2: VARIABLE DE HISTORIAL (BLINDADO v18.6) ---
-    <div style="text-align:right;">
-        <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">
-            ${esEntrada ? '+' : ''}${parseFloat(h.cantidad).toFixed(2)}
-        </div>
-        <div style="font-size:0.6rem; color:#64748b; font-weight: bold; text-transform: uppercase;">
-            ${ (h.nombre || nombre).toUpperCase().includes("MOLDURA") || (h.nombre || nombre).toUpperCase().startsWith("K ") ? 'ML' : 'M2' }
-        </div>
-    </div>
-        <div style="font-size:0.6rem; color:#64748b; font-weight: bold;">UNID / M2</div>
-    </div>
+                            <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">${esEntrada ? '+' : ''}${cantidad.toFixed(2)}</div>
+                            <div style="font-size:0.6rem; color:#64748b; font-weight: bold; text-transform: uppercase;">${(h.unidad || 'm²')}</div>
+                        </div>
                     </div>
                 `;
             }).join('');
 
         } catch (error) {
-            console.error("❌ Error Crítico en Historial:", error);
-            if (contenedor) {
-                contenedor.innerHTML = `
-                    <div style="color:#dc2626; padding:20px; text-align:center; font-weight:bold;">
-                        ⚠️ FALLO DE CONEXIÓN<br>
-                        <span style="font-size:0.7rem; font-weight:normal;">${error.message}</span>
-                    </div>`;
-            }
+            console.error('❌ Error al cargar historial (all-purchases):', error);
+            if (contenedor) contenedor.innerHTML = `<div style="color:#dc2626; padding:20px; text-align:center;">❌ Error: ${error.message}</div>`;
         }
-    }; 
+    };
