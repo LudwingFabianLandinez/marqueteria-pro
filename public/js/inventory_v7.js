@@ -98,15 +98,51 @@ window.abrirAjusteDesdeFila = function(id) {
                 try {
                     const idVal = document.getElementById('adjustId').value;
                     const nuevaCantidad = parseFloat(document.getElementById('adjustCantidad').value) || 0;
-                    const payload = { stock_actual: nuevaCantidad };
-                    if (window.API && typeof window.API.updateStock === 'function') {
-                        await window.API.updateStock(idVal, payload);
-                        modal.style.display = 'none';
-                        if (typeof fetchInventory === 'function') fetchInventory();
-                        alert('Ajuste guardado.');
-                    } else {
-                        alert('No hay una función disponible para guardar el ajuste.');
+
+                    // Intento 1: PUT a /materials/:id (ruta existente en servidor)
+                    const urlMaterials = `${window.API_URL}/materials/${idVal}`;
+                    try {
+                        const resp = await fetch(urlMaterials, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ stock_actual: nuevaCantidad })
+                        });
+                        if (resp.ok) {
+                            try { await resp.json(); } catch(e) { /* ignore parse errors */ }
+                            modal.style.display = 'none';
+                            if (typeof fetchInventory === 'function') fetchInventory();
+                            alert('Ajuste guardado.');
+                            return;
+                        }
+                        // si no ok seguimos al siguiente intento
+                    } catch (e) {
+                        console.warn('PUT /materials fallo:', e && e.message);
                     }
+
+                    // Intento 2: upsert vía POST /inventory/save (ruta existente)
+                    const urlSave = `${window.API_URL}/inventory/save`;
+                    try {
+                        const resp2 = await fetch(urlSave, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: idVal, stock_actual: nuevaCantidad })
+                        });
+                        if (resp2.ok) {
+                            try { await resp2.json(); } catch(e) { /* ignore */ }
+                            modal.style.display = 'none';
+                            if (typeof fetchInventory === 'function') fetchInventory();
+                            alert('Ajuste guardado.');
+                            return;
+                        }
+                        // Si falla, muestra info del cuerpo para debugging
+                        const text = await resp2.text().catch(()=>'');
+                        console.error('Error response /inventory/save:', resp2.status, text);
+                        alert('Error al guardar ajuste. Revisa la consola.');
+                    } catch (e2) {
+                        console.error('Error al llamar /inventory/save:', e2);
+                        alert('Error al guardar ajuste. Revisa la consola.');
+                    }
+
                 } catch (err) {
                     console.error('Error al guardar ajuste (fallback):', err);
                     alert('Error al guardar ajuste. Revisa la consola.');
