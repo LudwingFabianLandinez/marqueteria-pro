@@ -41,35 +41,35 @@
             } catch (err) {
                 return { success: false, data: [] };
             }
-
-        // Wrapper to open the existing Ajuste modal safely from a row button
-        window.abrirAjusteDesdeFila = function(id) {
-            try {
-                const idStr = String(id || '').trim();
-                const m = (window.todosLosMateriales || []).find(mat => String(mat._id || mat.id || mat.id_referencia) === idStr || String(mat.id) === idStr);
-                if (!m) {
-                    console.warn('abrirAjusteDesdeFila: material no encontrado en memoria:', id);
-                    alert('Material no cargado en memoria. Recarga la lista e intenta de nuevo.');
-                    return;
-                }
-
-                const stockActual = parseFloat(m.stock_actual_m2 || m.stock_total_m2 || m.stock || m.cantidad_m2 || 0) || 0;
-                const stockMinimo = parseFloat(m.stock_minimo || m.minimo || 0) || 0;
-
-                if (typeof window.prepararAjuste === 'function') {
-                    window.prepararAjuste(m._id || m.id || idStr, m.nombre || '', stockActual, stockMinimo);
-                } else {
-                    console.warn('abrirAjusteDesdeFila: prepararAjuste no está definida');
-                    alert('Función de ajuste no disponible en esta página.');
-                }
-            } catch (err) {
-                console.error('Error en abrirAjusteDesdeFila:', err);
-                alert('Error al abrir ajuste. Revisa la consola.');
-            }
-        };
         },
         deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
     };
+
+// Wrapper to open the existing Ajuste modal safely from a row button
+window.abrirAjusteDesdeFila = function(id) {
+    try {
+        const idStr = String(id || '').trim();
+        const m = (window.todosLosMateriales || []).find(mat => String(mat._id || mat.id || mat.id_referencia) === idStr || String(mat.id) === idStr);
+        if (!m) {
+            console.warn('abrirAjusteDesdeFila: material no encontrado en memoria:', id);
+            alert('Material no cargado en memoria. Recarga la lista e intenta de nuevo.');
+            return;
+        }
+
+        const stockActual = parseFloat(m.stock_actual_m2 || m.stock_total_m2 || m.stock || m.cantidad_m2 || 0) || 0;
+        const stockMinimo = parseFloat(m.stock_minimo || m.minimo || 0) || 0;
+
+        if (typeof window.prepararAjuste === 'function') {
+            window.prepararAjuste(m._id || m.id || idStr, m.nombre || '', stockActual, stockMinimo);
+        } else {
+            console.warn('abrirAjusteDesdeFila: prepararAjuste no está definida');
+            alert('Función de ajuste no disponible en esta página.');
+        }
+    } catch (err) {
+        console.error('Error en abrirAjusteDesdeFila:', err);
+        alert('Error al abrir ajuste. Revisa la consola.');
+    }
+};
 
     // 1. VARIABLES GLOBALES
     window.todosLosMateriales = [];
