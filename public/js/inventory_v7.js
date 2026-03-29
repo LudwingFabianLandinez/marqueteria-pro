@@ -1036,20 +1036,28 @@ if (formCompra) {
                 return;
             }
 
+            const money = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
             contenedor.innerHTML = filtrados.map(h => {
                 const fecha = h.fecha ? new Date(h.fecha).toLocaleString() : '';
                 const cantidad = parseFloat(h.cantidad_m2 || h.cantidad || h.totalM2 || 0) || 0;
                 const tipo = h.motivo || h.tipo || 'Movimiento';
                 const esEntrada = cantidad > 0;
+
+                // Resolver proveedor y total pagado (varios alias compatibles)
+                const proveedor = (h.proveedorNombre || h.proveedor?.nombre || h.proveedor || h.providerName || h.provider?.name || h.proveedorNombre) || '';
+                const totalPagado = parseFloat(h.costo_total || h.costoPagado || h.costo_pagado || h.total_pagado || h.totalPago || h.totalPagado || h.total_pago || 0) || 0;
+
                 return `
                     <div style="border-bottom:1px solid #e2e8f0; padding:12px; background:#fff; display:flex; justify-content:space-between; align-items:center;">
                         <div>
                             <div style="font-weight:bold; color:#1e293b; font-size:0.85rem; text-transform: uppercase;">${tipo}</div>
                             <div style="font-size:0.7rem; color:#94a3b8;">${fecha}</div>
+                            ${proveedor ? `<div style="font-size:0.75rem; color:#475569; margin-top:6px;">Proveedor: ${proveedor}</div>` : ''}
                         </div>
-                        <div style="text-align:right;">
+                        <div style="text-align:right; min-width:120px;">
                             <div style="font-size:1rem; font-weight:800; color:${esEntrada ? '#059669' : '#dc2626'};">${esEntrada ? '+' : ''}${cantidad.toFixed(2)}</div>
                             <div style="font-size:0.6rem; color:#64748b; font-weight: bold; text-transform: uppercase;">${(h.unidad || 'm²')}</div>
+                            ${totalPagado > 0 ? `<div style="font-size:0.85rem; color:#0f172a; font-weight:700; margin-top:6px;">${money.format(totalPagado)}</div>` : ''}
                         </div>
                     </div>
                 `;
