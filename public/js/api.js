@@ -7,8 +7,22 @@
  * 3. Preservación absoluta de blindajes de OTs y lógica de rescate local.
  */
 
-console.log("🛡️ CARGANDO API v13.8.5 - ESCUDO ACTIVO");
-const API_BASE = window.API_URL || '/.netlify/functions/server';
+console.log("🛡️ CARGANDO API v13.8.6 - ESCUDO ACTIVO");
+
+function resolveApiBase() {
+    const fallbackPath = '/.netlify/functions/server';
+    const configuredBase = typeof window.API_URL === 'string' ? window.API_URL.trim() : '';
+    const basePath = configuredBase || fallbackPath;
+
+    if (/^https?:\/\//i.test(basePath)) {
+        return basePath.replace(/\/+$/, '');
+    }
+
+    const normalizedPath = basePath.startsWith('/') ? basePath : `/${basePath}`;
+    return `${window.location.origin}${normalizedPath}`.replace(/\/+$/, '');
+}
+
+const API_BASE = resolveApiBase();
 
 window.API = {
     // 1. MOTOR DE PROCESAMIENTO SEGURO
@@ -47,7 +61,8 @@ window.API = {
 
     // 2. PETICIÓN MAESTRA
     async _request(path, options = {}) {
-        const url = `${API_BASE}${path}`.replace(/\/+/g, '/');
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        const url = `${API_BASE}${normalizedPath}`;
         
         try {
             console.log(`🚀 Conectando v13.7.0 - VEREDICTO FINAL: ${url}`);
