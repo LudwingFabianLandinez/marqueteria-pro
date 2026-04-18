@@ -6,6 +6,11 @@
 
 let datosCotizacionActual = null;
 let materialesOriginales = []; 
+const QUOTES_API_BASE = typeof window.resolveApiBase === 'function'
+    ? window.resolveApiBase()
+    : ((['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+        ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+        : `${window.location.origin}/.netlify/functions/server`);
 
 document.addEventListener('DOMContentLoaded', async () => {
     const selects = {
@@ -23,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         Object.values(selects).forEach(s => { if(s) s.innerHTML = '<option>Cargando materiales...</option>'; });
 
-        const response = await fetch('/.netlify/functions/server/quotes/materials');
+        const response = await fetch(`${QUOTES_API_BASE}/quotes/materials`);
         const result = await response.json();
         
         console.log("📡 DATOS LLEGANDO DEL SERVIDOR:", result);
@@ -744,7 +749,7 @@ if (itemsProcesados.length === 0) {
                 btnVenta.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO VENTA REAL...';
             }
 
-            const response = await fetch('/.netlify/functions/server/invoices', {
+            const response = await fetch(`${QUOTES_API_BASE}/invoices`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(facturaData)

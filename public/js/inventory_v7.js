@@ -9,9 +9,21 @@
      */
 
     // --- CONFIGURACIÓN DE CONEXIÓN GLOBAL ---
-    // Usamos ruta relativa para apuntar siempre al backend del entorno actual
-    // (local, preview o producción) y evitar pegarle a un servidor viejo.
-    window.API_URL = '/.netlify/functions/server';
+    // Si el panel corre en Netlify usa rutas locales; si corre en un servidor estático
+    // simple, usa el backend publicado para evitar 404 en /.netlify/functions/server.
+    const resolveInventoryApiBase = () => {
+        if (typeof window.resolveApiBase === 'function') {
+            return window.resolveApiBase();
+        }
+        const isPlainLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        const isFileProtocol = window.location.protocol === 'file:';
+        if (isPlainLocalHost || isFileProtocol) {
+            return 'https://marqueterialachica.netlify.app/.netlify/functions/server';
+        }
+        return `${window.location.origin}/.netlify/functions/server`;
+    };
+
+    window.API_URL = resolveInventoryApiBase();
 
     // Puente de compatibilidad para window.API
     window.API = {

@@ -11,8 +11,12 @@
  */
 
 // 1. CONFIGURACIÓN DE CONEXIÓN
-// --- CONFIGURACIÓN AUTOMÁTICA (Resuelve error de CORS de las fotos) ---
-const BASE_URL_API = window.location.origin + '/.netlify/functions/server';
+// --- CONFIGURACIÓN AUTOMÁTICA (Soporta Netlify y servidor local simple) ---
+const BASE_URL_API = typeof window.resolveApiBase === 'function'
+    ? window.resolveApiBase()
+    : ((['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+        ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+        : `${window.location.origin}/.netlify/functions/server`);
 
 window.API_URL = BASE_URL_API;
 

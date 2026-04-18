@@ -23,6 +23,10 @@
     </div>
 
     <script>
+        const REPORTES_API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+            ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+            : `${window.location.origin}/.netlify/functions/server`;
+
         async function cargarReporte() {
             const params = new URLSearchParams(window.location.search);
             const id = params.get('id');
@@ -37,7 +41,7 @@
 
             try {
                 // LLAMADA A TU SERVIDOR EN NETLIFY
-                const res = await fetch(`/.netlify/functions/server/invoices/${id}`);
+                const res = await fetch(`${REPORTES_API_BASE}/invoices/${id}`);
                 
                 if (!res.ok) throw new Error("No se pudo obtener la información");
                 

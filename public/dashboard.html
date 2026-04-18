@@ -50,7 +50,7 @@
             letter-spacing: 1px;
         }
 
-        .menu-nav { display: flex; flex-direction: column; }
+        .menu-nav { display: flex; flex-direction: column; flex: 1; }
         .menu-link {
             padding: 15px 25px;
             color: #a0aec0;
@@ -343,6 +343,10 @@
             </a>
         </div>
     </nav>
+
+    <div class="sidebar-footer">
+        <p>&copy; 2026 Ludwing Landinez.<br>Todos los derechos reservados.</p>
+    </div>
 </aside>
 
     <main class="main-container">
@@ -550,7 +554,11 @@
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js?v=20260329.1"></script>
 <script>
-    window.API_URL = "/.netlify/functions/server";
+    window.API_URL = typeof window.resolveApiBase === 'function'
+        ? window.resolveApiBase()
+        : (['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:'
+            ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+            : `${window.location.origin}/.netlify/functions/server`);
 </script>
 <script>
     // --- 🛠️ FIX DE EMERGENCIA: FUNCIÓN PARA ELIMINAR EL ERROR DE CONSOLA ---

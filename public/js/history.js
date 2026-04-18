@@ -4,6 +4,11 @@
  */
 
 let todasLasFacturas = [];
+const HISTORY_API_BASE = typeof window.resolveApiBase === 'function'
+    ? window.resolveApiBase()
+    : ((['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+        ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+        : `${window.location.origin}/.netlify/functions/server`);
 
 // --- 0. VARIABLE GLOBAL (ESTO ARREGLA EL ERROR DE LA IMAGEN) ---
 const formatter = new Intl.NumberFormat('es-CO', {
@@ -47,7 +52,7 @@ function vincularBotones() {
 // 3. FETCH INVOICES (SE MANTIENE IGUAL)
 async function fetchInvoices() {
     try {
-        const response = await fetch('/.netlify/functions/server/invoices');
+        const response = await fetch(`${HISTORY_API_BASE}/invoices`);
         if (!response.ok) throw new Error(`Error: ${response.status}`);
         todasLasFacturas = await response.json();
         
@@ -404,7 +409,7 @@ async function abrirModalAbono(id, valorTotal, abonoPrevio) {
         try {
             // ÚNICA CORRECCIÓN: Se usa la ruta absoluta para evitar el error 405 en Netlify
             // Esta ruta coincide con la estructura de la función eliminar que ya te funciona.
-            const res = await fetch(`/.netlify/functions/server/invoices/${id}`, {
+            const res = await fetch(`${HISTORY_API_BASE}/invoices/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ totalPagado: nuevoTotalPagado })
@@ -548,7 +553,7 @@ function configurarBuscador() {
 // 12. ELIMINAR (SE MANTIENE IGUAL)
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Eliminar Orden ${numero}?`)) {
-        const res = await fetch(`/.netlify/functions/server/invoices/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${HISTORY_API_BASE}/invoices/${id}`, { method: 'DELETE' });
         if (res.ok) { alert("Orden eliminada"); fetchInvoices(); }
     }
 }

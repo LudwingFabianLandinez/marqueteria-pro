@@ -11,8 +11,11 @@ console.log("🛡️ CARGANDO API v13.8.6 - ESCUDO ACTIVO");
 
 function resolveApiBase() {
     const fallbackPath = '/.netlify/functions/server';
+    const remoteProductionBase = 'https://marqueterialachica.netlify.app/.netlify/functions/server';
     const configuredBase = typeof window.API_URL === 'string' ? window.API_URL.trim() : '';
-    const basePath = configuredBase || fallbackPath;
+    const isPlainLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const isFileProtocol = window.location.protocol === 'file:';
+    const basePath = configuredBase || ((isPlainLocalHost || isFileProtocol) ? remoteProductionBase : fallbackPath);
 
     if (/^https?:\/\//i.test(basePath)) {
         return basePath.replace(/\/+$/, '');
@@ -23,6 +26,8 @@ function resolveApiBase() {
 }
 
 const API_BASE = resolveApiBase();
+window.resolveApiBase = resolveApiBase;
+window.API_URL = API_BASE;
 
 window.API = {
     // 1. MOTOR DE PROCESAMIENTO SEGURO
