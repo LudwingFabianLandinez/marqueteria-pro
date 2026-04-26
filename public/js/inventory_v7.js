@@ -877,7 +877,7 @@ if (formCompra) {
 
             // --- 📏 LÓGICA DE COSTO (PROTECCIÓN TOTAL v21.6) ---
             let costoFinalAtlas = costoIngresado;
-            const esFoam = nombreUP.includes("FOAM") || nombreUP.includes("PLUMA");
+            const esFoam = nombreUP.includes("FOAM") || nombreUP.includes("PLUMA") || nombreUP.includes("ESPONJA") || nombreUP.includes("ICOPOR");
             const esMaterialSuperficie = !esMoldura && (esVidrio || esAcabado || esFoam || categoriaDeterminada === "RESPALDO" || categoriaDeterminada === "VIDRIO");
 
             if (esMaterialSuperficie) {

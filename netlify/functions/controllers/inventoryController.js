@@ -64,19 +64,7 @@ const registerPurchase = async (req, res) => {
             let ancho = parseFloat(material.ancho_lamina_cm) || 0;
             let largo = parseFloat(material.largo_lamina_cm) || 0;
 
-            // 2. FALLBACK: Si la BD tiene 0, usamos las dimensiones que el formulario envió
-            const reqAncho = parseFloat(req.body.ancho_lamina_cm) || 0;
-            const reqLargo = parseFloat(req.body.largo_lamina_cm) || 0;
-            if ((ancho === 0 || largo === 0) && reqAncho > 0 && reqLargo > 0) {
-                ancho = reqAncho;
-                largo = reqLargo;
-                // Persistimos las dimensiones para que próximas compras las tengan disponibles
-                material.ancho_lamina_cm = ancho;
-                material.largo_lamina_cm = largo;
-                console.log(`📐 Dimensiones actualizadas desde formulario: ${ancho}x${largo} cm`);
-            }
-
-            // 3. Si siguen en 0, buscamos dimensiones en el nombre (ej: "200 X 100")
+            // 2. Si están en 0, buscamos dimensiones en el nombre (ej: "200 X 100")
             if (ancho === 0 || largo === 0) {
                 const dimensiones = n.match(/(\d+)\s*[X*]\s*(\d+)/);
                 if (dimensiones) {
@@ -85,12 +73,15 @@ const registerPurchase = async (req, res) => {
                 }
             }
 
-            // 4. 🔥 CASO ESPECIAL PASSEPARTOUT
+            // 3. 🔥 CASO ESPECIAL PASSEPARTOUT
             if ((ancho === 0 || largo === 0) && n.includes('PASSEPARTOUT')) {
                 ancho = 81;
                 largo = 101;
                 console.log("⚠️ Medida rescatada: Aplicando estándar 81x101 para Passepartout.");
             }
+            // NOTA: Para materiales sin dimensiones en BD (FOAM, ESPONJA, ICOPOR),
+            // el frontend ya envía el costo pre-dividido por m². Si area=0, se guarda
+            // directamente ese valor como costo/m² (comportamiento correcto).
 
             const areaM2PorLamina = (ancho * largo) / 10000;
             incrementoStock = areaM2PorLamina * cant;
