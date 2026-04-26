@@ -31,7 +31,7 @@ const getQuotationMaterials = async (req, res) => {
                  (m.categoria && m.categoria.toLowerCase() === 'moldura')) && 
                 !m.nombre.toLowerCase().includes('chapilla')
             ),
-            foam: filtrar(['foam', 'icopor'], 'Foam'),
+            foam: filtrar(['foam', 'icopor', 'esponja'], 'Foam'),
             tela: filtrar(['tela', 'lona', 'lienzo'], 'Tela'),
             chapilla: filtrar(['chapilla'], 'Otros')
         };

@@ -45,6 +45,9 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// SERVIR ARCHIVOS ESTÁTICOS (LOCAL DEV)
+app.use(express.static(path.join(__dirname, '../../public')));
+
 // 3. NORMALIZACIÓN DE URL (MANTENIDA)
 app.use((req, res, next) => {
     const basePrefixes = ['/.netlify/functions/server', '/.netlify/functions', '/api'];
@@ -757,6 +760,13 @@ router.get('/debug/raw-purchases', async (req, res) => {
 app.use('/', router);
 
 const handler = serverless(app);
+
+// SERVIDOR LOCAL (Solo se activa al correr con node directamente)
+if (require.main === module) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => console.log(`🚀 Servidor local en http://localhost:${PORT}`));
+    connectDB().catch(err => console.warn('⚠️ BD no disponible:', err.message));
+}
 
 module.exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;

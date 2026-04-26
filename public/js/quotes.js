@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         Paspartu: document.getElementById('materialExtraId'),
         Marco: document.getElementById('materialOtroId'),
         Foam: document.getElementById('materialFoamId'),
+        Lamina: document.getElementById('materialLaminaId'),
         Tela: document.getElementById('materialTelaId'),
         Chapilla: document.getElementById('materialChapillaId')
     };
@@ -219,6 +220,11 @@ if (esML && datalist && esParaBuscador) {
             
             llenar(selects.Foam, m => (m.nombre || "").toUpperCase().includes("FOAM"));
             
+            llenar(selects.Lamina, m => {
+                const n = (m.nombre || "").toUpperCase();
+                return n.includes("ICOPOR") || n.includes("ESPONJA");
+            });
+            
             llenar(selects.Tela, m => {
                 const n = (m.nombre || "").toUpperCase();
                 return n.includes("TELA") || n.includes("LONA") || n.includes("CANVAS");
@@ -265,7 +271,7 @@ async function procesarCotizacion() {
     // 1. Recolección de materiales estándar (Vidrio, Respaldo, etc.)
     const selectsIds = [
         'materialId', 'materialRespaldoId', 'materialExtraId', 
-        'materialOtroId', 'materialFoamId', 'materialTelaId', 'materialChapillaId'
+        'materialOtroId', 'materialFoamId', 'materialLaminaId', 'materialTelaId', 'materialChapillaId'
     ];
 
     let materialesSeleccionados = selectsIds
