@@ -541,6 +541,11 @@ function mostrarResultado(data) {
     const saldoFinalCalculado = totalExhibicion - montoAbonoActual;
 
     // 5. Inyectar el área de impresión (Abono posicionado y línea extra de observaciones)
+    // Preservar observaciones si el usuario ya escribió algo en la página (3 líneas)
+    const prevObs1 = document.getElementById('obsLinea1')?.value || '';
+    const prevObs2 = document.getElementById('obsLinea2')?.value || '';
+    const prevObs3 = document.getElementById('obsLinea3')?.value || '';
+
     detalleObra.innerHTML = `
         <div id="printArea" style="background: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; width: 100%; box-sizing: border-box; margin: 0 auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px;">
@@ -582,11 +587,15 @@ function mostrarResultado(data) {
                 </div>
             </div>
 
-            <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase;">Observaciones de Taller:</h4>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
-                <div style="border-bottom: 1px solid #cbd5e1; height: 28px;"></div>
+            <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase; display:flex; align-items:center; gap:6px;">
+                    <i class="fas fa-pencil-alt" style="font-size:0.75rem; color:#3498db;"></i> Observaciones de Taller:
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <textarea id="obsLinea1" rows="1" placeholder="✏️  Escribe aquí la observación 1..." oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" style="width:100%; overflow:hidden; resize:none; border:1.5px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.93rem; color:#1e293b; background:#f8fafc; font-family:inherit; box-sizing:border-box; outline:none; cursor:text; transition:border-color 0.2s, background 0.2s;" onfocus="this.style.borderColor='#3498db';this.style.background='#eff6ff';" onblur="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc';">${prevObs1}</textarea>
+                    <textarea id="obsLinea2" rows="1" placeholder="✏️  Escribe aquí la observación 2..." oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" style="width:100%; overflow:hidden; resize:none; border:1.5px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.93rem; color:#1e293b; background:#f8fafc; font-family:inherit; box-sizing:border-box; outline:none; cursor:text; transition:border-color 0.2s, background 0.2s;" onfocus="this.style.borderColor='#3498db';this.style.background='#eff6ff';" onblur="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc';">${prevObs2}</textarea>
+                    <textarea id="obsLinea3" rows="1" placeholder="✏️  Escribe aquí la observación 3..." oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" style="width:100%; overflow:hidden; resize:none; border:1.5px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.93rem; color:#1e293b; background:#f8fafc; font-family:inherit; box-sizing:border-box; outline:none; cursor:text; transition:border-color 0.2s, background 0.2s;" onfocus="this.style.borderColor='#3498db';this.style.background='#eff6ff';" onblur="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc';">${prevObs3}</textarea>
+                </div>
             </div>
         </div>
 
@@ -629,9 +638,23 @@ function mostrarResultado(data) {
 
     function imprimirResumen() {
         const printArea = document.getElementById('printArea');
+        // Clonar el nodo para no modificar el DOM original
+        const clone = printArea.cloneNode(true);
+        // Transferir los valores escritos en los textareas al clon (innerHTML no los incluye)
+        ['obsLinea1','obsLinea2','obsLinea3'].forEach(id => {
+            const orig = document.getElementById(id);
+            const dest = clone.querySelector('#' + id);
+            if (orig && dest) {
+                // Reemplazar el textarea por un div estilizado con el texto, para que se imprima bien
+                const p = document.createElement('p');
+                p.textContent = orig.value;
+                p.style.cssText = 'margin:0; padding:6px 4px; font-size:0.95rem; color:#334155; border-bottom:1.5px solid #94a3b8; min-height:22px;';
+                dest.parentNode.replaceChild(p, dest);
+            }
+        });
         const ventana = window.open('', '', 'height=750,width=950');
         ventana.document.write('<html><head><title>Cotización</title><style>body{font-family:sans-serif;padding:40px;}</style></head><body>');
-        ventana.document.write(printArea.innerHTML);
+        ventana.document.write(clone.innerHTML);
         ventana.document.write('</body></html>');
         ventana.document.close();
         setTimeout(() => { ventana.print(); ventana.close(); }, 500);
