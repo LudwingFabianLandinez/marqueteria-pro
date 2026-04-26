@@ -589,7 +589,7 @@ function mostrarResultado(data) {
 
             <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
                 <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #475569; font-weight: bold; text-transform: uppercase; display:flex; align-items:center; gap:6px;">
-                    <i class="fas fa-pencil-alt" style="font-size:0.75rem; color:#3498db;"></i> Observaciones de Taller:
+                    <i class="fas fa-pencil-alt" style="font-size:0.75rem; color:#3498db;"></i> Observaciones:
                 </h4>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <textarea id="obsLinea1" rows="1" placeholder="✏️  Escribe aquí la observación 1..." oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" style="width:100%; overflow:hidden; resize:none; border:1.5px solid #cbd5e1; border-radius:6px; padding:8px 10px; font-size:0.93rem; color:#1e293b; background:#f8fafc; font-family:inherit; box-sizing:border-box; outline:none; cursor:text; transition:border-color 0.2s, background 0.2s;" onfocus="this.style.borderColor='#3498db';this.style.background='#eff6ff';" onblur="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc';">${prevObs1}</textarea>
@@ -648,7 +648,7 @@ function mostrarResultado(data) {
                 // Reemplazar el textarea por un div estilizado con el texto, para que se imprima bien
                 const p = document.createElement('p');
                 p.textContent = orig.value;
-                p.style.cssText = 'margin:0; padding:6px 4px; font-size:0.95rem; color:#334155; border-bottom:1.5px solid #94a3b8; min-height:22px;';
+                p.style.cssText = 'margin:0; padding:6px 4px; font-size:0.95rem; color:#334155; border-bottom:1.5px solid #94a3b8; box-sizing:border-box; width:100%; overflow-wrap:anywhere; word-break:break-all; white-space:pre-wrap;';
                 dest.parentNode.replaceChild(p, dest);
             }
         });
