@@ -60,11 +60,23 @@ const registerPurchase = async (req, res) => {
             incrementoStock = cant * 2.80;
             costoCalculadoUnidad = precioPagado / 2.80;
         } else {
-            // 1. Intentamos obtener medidas desde los campos numéricos
+            // 1. Intentamos obtener medidas desde los campos numéricos del material en BD
             let ancho = parseFloat(material.ancho_lamina_cm) || 0;
             let largo = parseFloat(material.largo_lamina_cm) || 0;
 
-            // 2. Si están en 0, buscamos dimensiones en el nombre (ej: "200 X 100")
+            // 2. FALLBACK: Si la BD tiene 0, usamos las dimensiones que el formulario envió
+            const reqAncho = parseFloat(req.body.ancho_lamina_cm) || 0;
+            const reqLargo = parseFloat(req.body.largo_lamina_cm) || 0;
+            if ((ancho === 0 || largo === 0) && reqAncho > 0 && reqLargo > 0) {
+                ancho = reqAncho;
+                largo = reqLargo;
+                // Persistimos las dimensiones para que próximas compras las tengan disponibles
+                material.ancho_lamina_cm = ancho;
+                material.largo_lamina_cm = largo;
+                console.log(`📐 Dimensiones actualizadas desde formulario: ${ancho}x${largo} cm`);
+            }
+
+            // 3. Si siguen en 0, buscamos dimensiones en el nombre (ej: "200 X 100")
             if (ancho === 0 || largo === 0) {
                 const dimensiones = n.match(/(\d+)\s*[X*]\s*(\d+)/);
                 if (dimensiones) {
@@ -73,7 +85,7 @@ const registerPurchase = async (req, res) => {
                 }
             }
 
-            // 3. 🔥 CASO ESPECIAL PASSEPARTOUT: Si sigue en 0, aplicamos la medida estándar de fábrica (81x101)
+            // 4. 🔥 CASO ESPECIAL PASSEPARTOUT
             if ((ancho === 0 || largo === 0) && n.includes('PASSEPARTOUT')) {
                 ancho = 81;
                 largo = 101;
@@ -91,7 +103,10 @@ const registerPurchase = async (req, res) => {
         material.stock_actual = (material.stock_actual || 0) + incrementoStock;
         if (precioPagado > 0) material.precio_total_lamina = precioPagado;
 
-        // 🔥 SINCRONIZACIÓN: Actualizamos ambos campos para que el Cotizador lea el valor de m2 (ej: $14.990)
+        // 🔥 SINCRONIZACIÓN EXPLÍCITA: Guardamos el costo/m² calculado en los campos del schema
+        // para que el Cotizador lo lea directamente (sin depender solo del pre-save hook).
+        material.precio_m2_costo = Math.round(costoCalculadoUnidad);
+        material.costo_m2 = Math.round(costoCalculadoUnidad);
         material.costo_base = costoCalculadoUnidad;
         material.costo_unitario = costoCalculadoUnidad; 
 
