@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPurchases();
     setupSearch();
     setupPrintButton();
+    setupChartButton();
 });
 
 /**
@@ -32,6 +33,8 @@ async function fetchPurchases() {
         console.log("🔍 Respuesta del servidor:", result);
 
         if (result.success && result.data && result.data.length > 0) {
+            // store raw data for charting
+            window._comprasCache = result.data;
             renderPurchasesTable(result.data);
             actualizarResumen(result.data);
         } else {
@@ -54,6 +57,94 @@ async function fetchPurchases() {
                 </td>
             </tr>`;
     }
+}
+    const btn = document.getElementById('chartReportBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        // Ensure we have purchases cached
+        if (!window._comprasCache || window._comprasCache.length === 0) {
+            await fetchPurchases();
+        }
+        renderPurchasesChart(window._comprasCache || []);
+        showChartModal();
+    });
+
+    const closeBtn = document.getElementById('closeChartModal');
+    if (closeBtn) closeBtn.addEventListener('click', hideChartModal);
+}
+
+function showChartModal() {
+    const m = document.getElementById('purchasesChartModal');
+    if (m) m.style.display = 'flex';
+}
+
+function hideChartModal() {
+    const m = document.getElementById('purchasesChartModal');
+    if (m) m.style.display = 'none';
+}
+
+let __purchasesChart = null;
+function renderPurchasesChart(compras) {
+    const canvas = document.getElementById('purchasesChart');
+    if (!canvas) return;
+
+    // Aggregate by YYYY-MM (month)
+    const sums = {};
+    compras.forEach(c => {
+        const date = c.fecha ? new Date(c.fecha) : null;
+        if (!date) return;
+        const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+        const value = Number(parseFloat(c.costo_total || c.costo || c.total || 0) || 0);
+        sums[key] = (sums[key] || 0) + value;
+    });
+
+    const labels = Object.keys(sums).sort();
+    const data = labels.map(k => sums[k]);
+
+    // Format labels as 'MMM YYYY' in Spanish
+    const labelFmt = labels.map(l => {
+        const [y,m] = l.split('-');
+        const d = new Date(Number(y), Number(m)-1, 1);
+        return d.toLocaleString('es-ES', { month: 'short', year: 'numeric' });
+    });
+
+    if (__purchasesChart) {
+        __purchasesChart.destroy();
+        __purchasesChart = null;
+    }
+
+    __purchasesChart = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labelFmt,
+            datasets: [{
+                label: 'Compras (COP)',
+                data,
+                backgroundColor: 'rgba(3,169,244,0.75)'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const v = context.raw || 0;
+                            return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val)
+                    }
+                }
+            }
+        }
+    });
 }
 
 /**

@@ -133,8 +133,8 @@
                     <input type="text" id="purchaseSearch" class="search-input" placeholder="Buscar por proveedor, material o fecha...">
                 </div>
                 <div class="actions">
-                    <button class="btn-regresar" style="background: #059669;" onclick="window.print()">
-                        <i class="fas fa-print"></i> Imprimir Reporte
+                    <button id="chartReportBtn" class="btn-regresar" style="background: #059669;" title="Ver gráfico mensual de compras">
+                        <i class="fas fa-chart-bar"></i> Gráfico
                     </button>
                 </div>
             </div>
@@ -161,9 +161,18 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Modal para gráfico de compras -->
+            <div id="purchasesChartModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,0.6); align-items:center; justify-content:center; z-index:1200;">
+                <div style="width:90%; max-width:1000px; background:white; border-radius:12px; padding:18px; box-shadow:0 20px 40px rgba(2,6,23,0.4); position:relative;">
+                    <button id="closeChartModal" style="position:absolute; right:14px; top:14px; border:none; background:#ef4444; color:#fff; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700;">Cerrar</button>
+                    <h3 style="margin:0 0 12px 0; color:#0f172a;">Compras mensuales (en $)</h3>
+                    <canvas id="purchasesChart" width="800" height="360"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/purchases.js"></script>
 </body>
 </html>
