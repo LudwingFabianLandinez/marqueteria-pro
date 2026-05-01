@@ -37,7 +37,7 @@ async function fetchPurchases() {
         } else {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="5" style="text-align: center; padding: 60px; color: #94a3b8;">
+                    <td colspan="6" style="text-align: center; padding: 60px; color: #94a3b8;">
                         <i class="fas fa-box-open fa-3x" style="margin-bottom: 15px; opacity: 0.5;"></i><br>
                         No hay registros de compras en el sistema.
                     </td>
@@ -48,7 +48,7 @@ async function fetchPurchases() {
         console.error("❌ Error al cargar compras:", error);
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; padding: 60px; color: #ef4444;">
+                <td colspan="6" style="text-align: center; padding: 60px; color: #ef4444;">
                     <i class="fas fa-exclamation-triangle fa-3x" style="margin-bottom: 15px;"></i><br>
                     Error de conexión con el servidor. Por favor, recarga la página.
                 </td>
@@ -132,9 +132,50 @@ function renderPurchasesTable(compras) {
                         ${formatter.format(costoFinal)}
                     </span>
                 </td>
+                <td style="padding: 15px; text-align: center; width: 120px;">
+                    <button class="btn-delete-purchase" data-id="${c._id}" style="background: #ef4444; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700;">Eliminar</button>
+                </td>
             </tr>
         `;
     }).join('');
+
+    // Attach delete handlers after rendering
+    setupDeleteButtons();
+}
+
+function setupDeleteButtons() {
+    const buttons = document.querySelectorAll('.btn-delete-purchase');
+    if (!buttons) return;
+    buttons.forEach(b => {
+        b.removeEventListener('click', onDeleteClick);
+        b.addEventListener('click', onDeleteClick);
+    });
+
+    async function onDeleteClick(e) {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (!id) return;
+        if (!confirm('¿Confirmas eliminar esta compra? Esto disminuirá el stock del material.')) return;
+
+        try {
+            const base = (typeof window.resolveApiBase === 'function')
+                ? window.resolveApiBase()
+                : ((['localhost','127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+                    ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+                    : `${window.location.origin}/.netlify/functions/server`);
+
+            const res = await fetch(base + '/inventory/purchase/' + id, { method: 'DELETE' });
+            const json = await res.json();
+            if (json && json.success) {
+                alert('Compra eliminada correctamente. Inventario actualizado.');
+                fetchPurchases();
+            } else {
+                alert('Error al eliminar la compra: ' + (json && json.message ? json.message : 'Respuesta inesperada'));
+            }
+        } catch (err) {
+            console.error('Error eliminando compra:', err);
+            alert('Error de conexión eliminando la compra. Revisa la consola.');
+        }
+    }
 }
 
 /**
