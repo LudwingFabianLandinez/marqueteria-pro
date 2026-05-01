@@ -35,7 +35,7 @@
         updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
         getHistory: async (id) => {
             try {
-                const resp = await fetch('/api/inventory/all-purchases?t=' + Date.now());
+                const resp = await fetch(`${window.API_URL}/inventory/all-purchases?t=` + Date.now());
                 if (!resp.ok) return { success: false, data: [] };
                 const json = await resp.json();
                 const all = json && json.data ? json.data : (Array.isArray(json) ? json : []);
@@ -1145,7 +1145,7 @@ if (formCompra) {
         if (contenedor) contenedor.innerHTML = '<div style="color:#1e293b; padding:20px; text-align:center;">🔄 Consultando movimientos...</div>';
 
         try {
-            const allResp = await fetch('/api/inventory/all-purchases?t=' + Date.now());
+            const allResp = await fetch(window.API_URL + '/inventory/all-purchases?t=' + Date.now());
             if (!allResp.ok) throw new Error('No se pudo obtener movimientos (status ' + allResp.status + ')');
             const allJson = await allResp.json();
             const all = allJson && allJson.data ? allJson.data : (Array.isArray(allJson) ? allJson : []);
