@@ -218,6 +218,26 @@
                         invoices = await res.json();
                     } catch(e){ console.error('Error cargando facturas para gráfico', e); invoices = []; }
                 }
+                // Aplicar filtros de fecha si el usuario los puso en la UI
+                try {
+                    const desdeVal = document.getElementById('fechaDesde')?.value || '';
+                    const hastaVal = document.getElementById('fechaHasta')?.value || '';
+                    let desde = null;
+                    let hasta = null;
+                    if (desdeVal) { desde = new Date(desdeVal); desde.setHours(0,0,0,0); }
+                    if (hastaVal) { hasta = new Date(hastaVal); hasta.setHours(23,59,59,999); }
+                    if (desde || hasta) {
+                        invoices = invoices.filter(inv => {
+                            const raw = inv.fecha || inv.date || inv.createdAt;
+                            const d = raw ? new Date(raw) : null;
+                            if (!d || isNaN(d)) return false;
+                            if (desde && d < desde) return false;
+                            if (hasta && d > hasta) return false;
+                            return true;
+                        });
+                    }
+                } catch (e) { console.warn('Error aplicando filtros de fecha para gráfico', e); }
+
                 const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
                 const ctx = document.getElementById('ordersChart').getContext('2d');
                 ordersChartInstance = new Chart(ctx, {
