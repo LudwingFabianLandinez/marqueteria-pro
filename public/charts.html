@@ -160,19 +160,42 @@
       const ctx = canvas.getContext('2d');
       let chartInstance = null;
 
+      // Plugin: draw value labels above bars
+      const valueLabelPlugin = {
+        id: 'valueLabelPlugin',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          ctx.save();
+          chart.data.datasets.forEach((dataset, datasetIndex) => {
+            const meta = chart.getDatasetMeta(datasetIndex);
+            meta.data.forEach((element, index) => {
+              const value = dataset.data[index];
+              if (value == null) return;
+              const label = formatCurrency(value);
+              const position = element.tooltipPosition();
+              ctx.fillStyle = '#0f172a';
+              ctx.font = '600 12px Inter, Roboto, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText(label, position.x, position.y - 8);
+            });
+          });
+          ctx.restore();
+        }
+      };
+
       // aggregated sumsByDate is already computed above
       function renderAggregated(){
         const totalSum = Object.values(sumsByDate).reduce((acc, v) => acc + (v.ventas||0), 0);
         const saldoSum = Object.values(sumsByDate).reduce((acc, v) => acc + (v.pendiente||0), 0);
         const data = { labels: ['Ventas','Pendiente'], datasets: [{ data: [Math.round(totalSum), Math.round(saldoSum)], backgroundColor: ['#16a34a', '#dc2626'] }] };
         if (chartInstance) chartInstance.destroy();
-        chartInstance = new Chart(ctx, { type:'bar', data, options:{ responsive:true, plugins:{ tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${formatCurrency(ctx.parsed.y)}` } } }, scales:{ y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } } } } });
+        chartInstance = new Chart(ctx, { type:'bar', data, options:{ responsive:true, plugins:{ tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${formatCurrency(ctx.parsed.y)}` } } }, scales:{ y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } } } }, plugins: [valueLabelPlugin] });
       }
 
       function renderByDate(){
         const data = chartData;
         if (chartInstance) chartInstance.destroy();
-        chartInstance = new Chart(ctx, { type:'bar', data, options:{ responsive:true, plugins:{ tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } } }, scales:{ x:{ stacked:false }, y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } } } } });
+        chartInstance = new Chart(ctx, { type:'bar', data, options:{ responsive:true, plugins:{ tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } } }, scales:{ x:{ stacked:false }, y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } } } }, plugins: [valueLabelPlugin] });
       }
 
       // initial render: if multiple dates show by-date, otherwise aggregated
