@@ -384,9 +384,6 @@ function renderTable(facturas) {
             <td><span class="badge ${estaPagada ? 'badge-pagado' : 'badge-abonado'}">${estaPagada ? 'PAGADA' : 'CON SALDO'}</span></td>
             <td style="text-align: right;">
                 <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                    <button class="btn-summary" onclick="event.stopPropagation(); toggleDetails('details-${f._id}')">
-                        <i class="fas fa-list-alt" style="margin-right:8px;color:var(--primary-blue);"></i> RESUMEN FINANCIERO
-                    </button>
                     <button class="btn-delete-ot" onclick="event.stopPropagation(); eliminarFactura('${f._id}', '${formatearNumeroOT(f)}')">
                         <i class="fas fa-trash"></i> ELIMINAR OT
                     </button>
