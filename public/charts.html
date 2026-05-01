@@ -113,13 +113,27 @@
       });
 
       const chartData = {
-        labels: ['Total Venta','Saldo Pendiente'],
-        datasets: [{ label: 'Comparativo', data: [Math.round(totalSum), Math.round(saldoSum)], backgroundColor: ['#1e3a8a','#dc2626'] }]
+        labels: ['Ventas','Pendiente'],
+        datasets: [{ data: [Math.round(totalSum), Math.round(saldoSum)], backgroundColor: ['#16a34a', '#dc2626'] }]
       };
 
+      const formatCurrency = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
       const canvas = document.getElementById('ordersChart');
       const ctx = canvas.getContext('2d');
-      const cfg = new Chart(ctx, { type:'bar', data: chartData, options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } } });
+      const cfg = new Chart(ctx, {
+        type:'bar',
+        data: chartData,
+        options:{
+          responsive:true,
+          plugins:{
+            legend:{ display:false },
+            tooltip: { callbacks: { label: (ctx) => formatCurrency(ctx.parsed.y) } }
+          },
+          scales:{
+            y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } }
+          }
+        }
+      });
 
       document.getElementById('btnExportPNG').addEventListener('click', function(){
         try{ const url = cfg.toBase64Image(); const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove(); }
