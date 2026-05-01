@@ -121,9 +121,32 @@ function renderPurchasesChart(compras) {
             datasets: [{
                 label: 'Compras (COP)',
                 data,
-                backgroundColor: 'rgba(3,169,244,0.75)'
+                backgroundColor: 'rgba(3,169,244,0.75)',
+                maxBarThickness: 40
             }]
         },
+        plugins: [{
+            id: 'valueLabelPlugin',
+            afterDatasetsDraw: function(chart) {
+                const ctx = chart.ctx;
+                chart.data.datasets.forEach((dataset, dsIndex) => {
+                    const meta = chart.getDatasetMeta(dsIndex);
+                    meta.data.forEach((bar, index) => {
+                        const val = dataset.data[index] || 0;
+                        const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+                        const x = bar.x;
+                        const y = bar.y;
+                        ctx.save();
+                        ctx.fillStyle = '#0f172a';
+                        ctx.font = '600 12px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(formatted, x, y - 6);
+                        ctx.restore();
+                    });
+                });
+            }
+        }],
         options: {
             responsive: true,
             plugins: {
