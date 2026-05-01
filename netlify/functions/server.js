@@ -519,6 +519,7 @@ router.get('/inventory/all-purchases', async (req, res) => {
         };
 
         const dataMapeada = compras.map(c => ({
+            _id: c._id,
             fecha: c.fecha || new Date(),
             materialId: { 
                 nombre: (c.materialId && c.materialId.nombre) || c.materialNombre || "Ingreso de Material" 
