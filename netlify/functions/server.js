@@ -720,6 +720,30 @@ router.post('/inventory/purchase', async (req, res) => {
     }
 });
 
+// --- ELIMINAR COMPRA Y RESTAURAR INVENTARIO ---
+router.delete('/inventory/purchase/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`🗑️ Pedido de eliminación de compra recibido: ${id}`);
+
+        const trx = await Transaction.findById(id).lean();
+        if (!trx) return res.status(404).json({ success: false, message: 'Compra no encontrada' });
+        if (trx.tipo !== 'COMPRA') return res.status(400).json({ success: false, message: 'El registro no corresponde a una compra' });
+
+        const mId = trx.materialId;
+        const resta = Number(trx.cantidad_m2 || trx.cantidad || 0);
+        if (mId && resta) {
+            await Material.updateOne({ _id: mId }, { $inc: { stock_actual: -(resta) } });
+        }
+
+        await Transaction.findByIdAndDelete(id);
+        res.json({ success: true, message: 'Compra eliminada y stock actualizado' });
+    } catch (error) {
+        console.error('🚨 Error eliminando compra:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // --- ELIMINACIÓN DE OT CON RESTAURACIÓN DE STOCK ---
 router.delete('/invoices/:id', async (req, res) => {
     try {
