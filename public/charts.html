@@ -17,16 +17,15 @@
 </head>
 <body>
   <div style="width:100%;max-width:100%;margin:0; padding:18px 24px; box-sizing:border-box;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <h2 style="margin:0;color:#1e3a8a;font-size:2rem">Ventas — Gráfico</h2>
-      <div class="muted" id="rangeLabel">Cargando rango...</div>
+      <div class="muted" id="rangeLabel" style="font-size:1.05rem;font-weight:700">Cargando rango...</div>
     </div>
 
     <div class="card">
       <div class="actions" style="padding:12px 6px;margin-bottom:8px">
         <div style="display:flex;gap:8px;align-items:center">
           <button id="btnViewByDate" class="btn btn-ghost">Por fecha</button>
-          <button id="btnViewTotal" class="btn btn-ghost">Total (2 barras)</button>
         </div>
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
           <button id="btnExportPNG" class="btn btn-primary">Exportar PNG</button>
@@ -272,7 +271,6 @@
 
       // View toggle handlers
       document.getElementById('btnViewByDate').addEventListener('click', function(){ renderByDate(); });
-      document.getElementById('btnViewTotal').addEventListener('click', function(){ renderAggregated(); });
 
       document.getElementById('btnExportPNG').addEventListener('click', function(){
         try{ const url = chartInstance.toBase64Image(); const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove(); }
