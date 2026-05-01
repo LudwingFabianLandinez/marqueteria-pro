@@ -8,36 +8,32 @@
      * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
      */
     // Puente de compatibilidad para window.API
-    window.API = {
-        getInvoices: () => fetch(`${window.API_URL}/invoices`).then(r => r.json()),
-        getInventory: () => fetch(`${window.API_URL}/inventory`).then(r => r.json()),
-        getProviders: (query = "") => fetch(`${window.API_URL}/providers${query}`).then(r => r.json()),
-        saveInvoice: (data) => fetch(`${window.API_URL}/invoices`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-        saveMaterial: (data) => fetch(`${window.API_URL}/inventory`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-        updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
-        getHistory: async (id) => {
-            try {
-                const resp = await fetch(`${window.API_URL}/inventory/all-purchases?t=${Date.now()}`);
-                if (!resp.ok) return { success: false, data: [] };
-                const json = await resp.json();
-                const all = json && json.data ? json.data : (Array.isArray(json) ? json : []);
-                const idStr = String(id || '').trim();
-                const filtered = all.filter(item => {
-                    try {
-                        const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
-                        if (mid && String(mid).trim() === idStr) return true;
-                        const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
-                        if (mname && String(mname).toUpperCase().includes(idStr.toUpperCase())) return true;
-                    } catch (e) {}
-                    return false;
-                });
-                return { success: true, data: filtered };
-            } catch (err) {
-                return { success: false, data: [] };
-            }
-        },
-        deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
-    };
+    window.API_URL = window.API_URL || resolveInventoryApiBase();
+
+    // No reemplazamos el API central si ya existe (api.js lo define con fallback local/Atlas).
+    // Solo garantizamos que las referencias que usa este módulo existan.
+    window.API = window.API || {};
+    window.API.getHistory = window.API.getHistory || (async (id) => {
+        try {
+            const resp = await fetch(`${window.API_URL}/inventory/all-purchases?t=${Date.now()}`);
+            if (!resp.ok) return { success: false, data: [] };
+            const json = await resp.json();
+            const all = json && json.data ? json.data : (Array.isArray(json) ? json : []);
+            const idStr = String(id || '').trim();
+            const filtered = all.filter(item => {
+                try {
+                    const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
+                    if (mid && String(mid).trim() === idStr) return true;
+                    const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
+                    if (mname && String(mname).toUpperCase().includes(idStr.toUpperCase())) return true;
+                } catch (e) {}
+                return false;
+            });
+            return { success: true, data: filtered };
+        } catch (err) {
+            return { success: false, data: [] };
+        }
+    });
                 } catch (err) {
                     console.error('Error al guardar ajuste (fallback):', err);
                     alert('Error al guardar ajuste. Revisa la consola.');
