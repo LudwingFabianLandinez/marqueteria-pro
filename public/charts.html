@@ -31,7 +31,7 @@
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
           <button id="btnExportPNG" class="btn btn-primary">Exportar PNG</button>
           <button id="btnExportCSV" class="btn btn-ghost">Exportar CSV</button>
-          <a href="history.html" class="btn" style="background:#eef2ff;color:#1e3a8a;font-weight:800;border:1px solid #c7d2fe;text-decoration:none;padding:10px 14px;border-radius:10px">Volver</a>
+          <button id="btnBack" class="btn" style="background:#eef2ff;color:#1e3a8a;font-weight:800;border:1px solid #c7d2fe;padding:10px 14px;border-radius:10px;">Volver</button>
         </div>
       </div>
       <div style="width:100%;">
@@ -279,6 +279,24 @@
           URL.revokeObjectURL(url);
         }catch(e){ console.error(e); alert('Error exportando CSV') }
       });
+      // Back button: if opened from history page, close this tab and focus opener; otherwise navigate to history.html
+      const backBtn = document.getElementById('btnBack');
+      if (backBtn) {
+        backBtn.addEventListener('click', function(){
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.focus();
+              // Close the current window (allowed because it was opened via script)
+              window.close();
+              return;
+            }
+          } catch (e) {
+            console.warn('No opener available or error focusing opener', e);
+          }
+          // Fallback: navigate back to history page
+          window.location.href = 'history.html';
+        });
+      }
     }
   })();
   </script>
