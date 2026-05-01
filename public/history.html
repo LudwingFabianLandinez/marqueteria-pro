@@ -17,6 +17,11 @@
             --bg-light: #f8fafc;
             --border-color: #e2e8f0;
         }
+        /* Header action buttons (restore previous aesthetics) */
+        .header-actions > div { display:flex; gap:10px; align-items:center; }
+        .btn-report { background: #4f46e5; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; }
+        .btn-excel, #btn-graph { background: #107c41; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .btn-report:hover { background: #4338ca; transform: translateY(-2px); }
         .date-filters { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; }
         .date-filters input { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); color: #475569; }
 
