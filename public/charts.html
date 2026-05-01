@@ -42,11 +42,15 @@
     const rangeLabel = document.getElementById('rangeLabel');
     rangeLabel.textContent = (desdeParam || hastaParam) ? `Rango: ${desdeParam||'--'} → ${hastaParam||'--'}` : 'Rango: Todas las OT';
 
-    // Fetch invoices
+    // Fetch invoices (use same base resolution as history.js)
     let invoices = [];
     let fetchError = false;
     try{
-      const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
+      const base = (typeof window.resolveApiBase === 'function')
+        ? window.resolveApiBase()
+        : ((['localhost','127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+            ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+            : `${window.location.origin}/.netlify/functions/server`);
       const res = await fetch(base + '/invoices');
       if (!res.ok) { console.warn('Fetch invoices status', res.status); fetchError = true; }
       invoices = await res.json();
