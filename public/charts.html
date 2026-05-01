@@ -39,8 +39,10 @@
     function getParam(name){ const u = new URLSearchParams(location.search); return u.get(name) || '' }
     const desdeParam = getParam('desde');
     const hastaParam = getParam('hasta');
+    const clienteParam = getParam('cliente');
     const rangeLabel = document.getElementById('rangeLabel');
     rangeLabel.textContent = (desdeParam || hastaParam) ? `Rango: ${desdeParam||'--'} → ${hastaParam||'--'}` : 'Rango: Todas las OT';
+    if (clienteParam) rangeLabel.textContent += ` — Cliente: ${clienteParam}`;
 
     // Fetch invoices (use same base resolution as history.js)
     let invoices = [];
@@ -85,7 +87,16 @@
       document.getElementById('btnExportPNG').style.display = 'none';
       document.getElementById('btnExportCSV').style.display = 'none';
     } else {
-      // Aggregate totals across filtered invoices and draw a 2-bar chart: Total Venta vs Saldo Pendiente
+      // If cliente param is present, filter invoices by cliente.nombre (case-insensitive substring)
+      if (clienteParam) {
+        const q = clienteParam.trim().toLowerCase();
+        invoices = invoices.filter(f => {
+          const name = (f.cliente && f.cliente.nombre) ? String(f.cliente.nombre) : (f.cliente || f.nombre || '');
+          return String(name).toLowerCase().includes(q);
+        });
+      }
+
+      // Helper to parse numeric strings
       function parseNumberValueSimple(v){
         if (v == null) return 0;
         if (typeof v === 'number') return v;
@@ -99,22 +110,43 @@
         return isNaN(n) ? 0 : n;
       }
 
-      let totalSum = 0;
-      let saldoSum = 0;
+      // Group by date (YYYY-MM-DD) and sum totalFactura and saldoPendiente per day
+      const sumsByDate = {};
       invoices.forEach(f => {
-        const totalVal = parseNumberValueSimple(f.totalFactura || f.total || 0);
-        let saldoVal = parseNumberValueSimple(f.saldo || f.saldoPendiente || f.saldo_pendiente || 0);
+        const raw = f.fecha || f.date || f.createdAt;
+        const d = raw ? new Date(raw) : null;
+        if (!d || isNaN(d)) return;
+        const key = d.toISOString().slice(0,10);
+        const totalVal = parseNumberValueSimple(f.totalFactura || f.total || f.totalFactura || 0);
+        let saldoVal = parseNumberValueSimple(f.saldoPendiente || f.saldo || f.saldo_pendiente || 0);
         if (!saldoVal) {
           const pagado = parseNumberValueSimple(f.totalPagado || f.abono || f.total_pagado || 0);
           saldoVal = totalVal - pagado;
         }
-        totalSum += totalVal;
-        saldoSum += saldoVal;
+        if (!sumsByDate[key]) sumsByDate[key] = { ventas: 0, pendiente: 0 };
+        sumsByDate[key].ventas += totalVal;
+        sumsByDate[key].pendiente += saldoVal;
       });
 
+      const sortedDates = Object.keys(sumsByDate).sort();
+      if (sortedDates.length === 0) {
+        noDataEl.textContent = 'No hay datos para el cliente/rango seleccionado.';
+        document.querySelector('.card').appendChild(noDataEl);
+        document.getElementById('btnExportPNG').style.display = 'none';
+        document.getElementById('btnExportCSV').style.display = 'none';
+        return;
+      }
+
+      const labels = sortedDates.map(d => d);
+      const ventasData = sortedDates.map(d => Math.round(sumsByDate[d].ventas || 0));
+      const pendienteData = sortedDates.map(d => Math.round(sumsByDate[d].pendiente || 0));
+
       const chartData = {
-        labels: ['Ventas','Pendiente'],
-        datasets: [{ data: [Math.round(totalSum), Math.round(saldoSum)], backgroundColor: ['#16a34a', '#dc2626'] }]
+        labels,
+        datasets: [
+          { label: 'Ventas', data: ventasData, backgroundColor: '#16a34a', borderColor: '#16a34a' },
+          { label: 'Pendiente', data: pendienteData, backgroundColor: '#dc2626', borderColor: '#dc2626' }
+        ]
       };
 
       const formatCurrency = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -126,10 +158,10 @@
         options:{
           responsive:true,
           plugins:{
-            legend:{ display:false },
-            tooltip: { callbacks: { label: (ctx) => formatCurrency(ctx.parsed.y) } }
+            tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } }
           },
           scales:{
+            x: { stacked: false },
             y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } }
           }
         }

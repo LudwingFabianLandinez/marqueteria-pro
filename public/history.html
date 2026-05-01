@@ -219,9 +219,11 @@
         window.showOrdersChart = function(){
             const desde = document.getElementById('fechaDesde')?.value || '';
             const hasta = document.getElementById('fechaHasta')?.value || '';
+            const cliente = document.getElementById('searchInput')?.value.trim() || '';
             const params = new URLSearchParams();
             if (desde) params.set('desde', desde);
             if (hasta) params.set('hasta', hasta);
+            if (cliente) params.set('cliente', cliente);
             // use a relative path so it resolves to "public/charts.html" when serving /public/*
             const url = 'charts.html' + (params.toString() ? ('?' + params.toString()) : '');
             window.open(url, '_blank');
