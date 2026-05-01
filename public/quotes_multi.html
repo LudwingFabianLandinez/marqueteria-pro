@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizador - Marquetería</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        /* ── Reset del grid global que define styles.css ── */
+        .main-content {
+            margin-left: 280px !important;
+            display: block !important;
+            grid-template-columns: none !important;
+            padding: 30px 40px 60px !important;
+            min-height: 100vh;
+            background: #f4f7f6;
+            width: calc(100% - 280px);
+            box-sizing: border-box;
+        }
+
+        /* ── Encabezado de página ── */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .page-header h2 { margin: 0; color: #1e3a8a; font-size: 1.5rem; }
+
+        /* ── Cuadro formulario ── */
+        .cuadro-form {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 22px 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            transition: box-shadow 0.2s;
+        }
+        .cuadro-form:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.1); }
+
+        .cuadro-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #e0f2fe;
+            padding-bottom: 10px;
+        }
+        .cuadro-numero { font-weight: 800; color: #1e3a8a; font-size: 1.05rem; }
+
+        .btn-eliminar-cuadro {
+            background: #fee2e2;
+            border: none;
+            color: #dc2626;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .btn-eliminar-cuadro:hover { background: #dc2626; color: white; }
+
+        /* ── Fila de descripción + medidas ── */
+        .cuadro-descripcion-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Grid de materiales (igual que el original) ── */
+        .materiales-grid-multi {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            background: #f0f7ff;
+            padding: 18px;
+            border-radius: 12px;
+            border: 1px solid #3498db;
+            margin-bottom: 16px;
+        }
+
+        .input-group { margin-bottom: 0; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #34495e; }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        /* ── Footer del cuadro (mano de obra + botón) ── */
+        .cuadro-footer-row {
+            display: flex;
+            gap: 14px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .btn-calcular-cuadro {
+            flex: 2;
+            padding: 12px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            font-weight: 700;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        .btn-calcular-cuadro:hover { background: #2175a8; transform: translateY(-1px); }
+
+        /* ── Mini resultado de cuadro ── */
+        .resultado-cuadro { margin-top: 14px; }
+        .mini-resultado {
+            background: #ecfdf5;
+            border: 1px solid #6ee7b7;
+            border-radius: 10px;
+            padding: 14px 18px;
+        }
+        .mini-resultado-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            color: #065f46;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .mini-total {
+            background: #059669;
+            color: white;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 1rem;
+        }
+        .mini-materiales {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 6px 0;
+            font-size: 0.88rem;
+            color: #334155;
+        }
+        .mini-materiales li { margin-bottom: 5px; }
+        .mini-mo { font-size: 0.83rem; color: #64748b; text-align: right; }
+
+        /* ── Botón agregar cuadro ── */
+        .btn-agregar-cuadro {
+            width: 100%;
+            padding: 16px;
+            background: white;
+            color: #1e3a8a;
+            border: 2px dashed #3498db;
+            border-radius: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: 700;
+            transition: 0.2s;
+            margin-bottom: 24px;
+        }
+        .btn-agregar-cuadro:hover { background: #eff6ff; border-style: solid; }
+
+        /* ── Panel de datos del cliente ── */
+        .panel-cliente {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .panel-cliente h3 { margin: 0 0 16px 0; color: #1e3a8a; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+        .cliente-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; flex-wrap: wrap; }
+
+        /* ── Botón principal de cotización ── */
+        .btn-cotizar-todo {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #1e3a8a, #3498db);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            font-weight: 800;
+            transition: 0.3s;
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+        }
+        .btn-cotizar-todo:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30,58,138,0.4); }
+        .btn-cotizar-todo:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── Barra total global (sticky) ── */
+        #barra-total-global {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #1e3a8a;
+            color: white;
+            padding: 10px 24px;
+            border-radius: 10px;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(30,58,138,0.3);
+        }
+        #barra-total-global .barra-info { font-size: 0.9rem; opacity: 0.85; }
+        #barra-total-global .barra-monto { font-size: 1.3rem; font-weight: 900; }
+
+        /* ── Área de impresión ── */
+        #area-impresion { margin-top: 10px; }
+
+        /* ── Print ── */
+        @media print {
+            .sidebar, .main-content > *:not(#area-impresion), .no-print { display: none !important; }
+            .main-content { margin: 0; padding: 0; }
+            #area-impresion { display: block !important; }
+            #printAreaMulti { box-shadow: none; border: none; padding: 10px; }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .materiales-grid-multi { grid-template-columns: 1fr; }
+            .cliente-grid { grid-template-columns: 1fr; }
+            .cuadro-descripcion-row { flex-direction: column; }
+            .cuadro-footer-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="logo"><h1>MARQUETERÍA</h1></div>
+        <nav class="menu">
+            <a href="index.html" class="menu-item">🏠 Inicio</a>
+            <a href="dashboard.html" class="menu-item">📦 Inventario</a>
+            <a href="quotes_multi.html" class="menu-item active">📋 Nueva Cotización</a>
+            <a href="history.html" class="menu-item">📜 Historial de Ventas</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+
+        <!-- ENCABEZADO -->
+        <div class="page-header">
+            <h2><i class="fas fa-layer-group"></i> Cotización</h2>
+            <span style="color:#64748b; font-size:0.9rem;">Agrega todos los cuadros y genera una sola cotización</span>
+        </div>
+
+        <!-- BARRA TOTAL GLOBAL (sticky) -->
+        <div id="barra-total-global">
+            <span class="barra-info">
+                <i class="fas fa-layer-group"></i>
+                &nbsp;<span id="global-num-cuadros">0</span> cuadro(s) calculado(s)
+            </span>
+            <span style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                <span class="barra-monto" id="global-total">$ 0</span>
+                <span id="global-saldo" style="font-size:0.8rem; opacity:0.8; font-weight:600;"></span>
+            </span>
+        </div>
+
+        <!-- LISTA DE CUADROS (se renderizan aquí dinámicamente) -->
+        <div id="lista-cuadros"></div>
+
+        <!-- BOTÓN AGREGAR CUADRO -->
+        <button class="btn-agregar-cuadro" onclick="agregarCuadro()">
+            <i class="fas fa-plus-circle"></i> &nbsp; Agregar otro cuadro
+        </button>
+
+        <!-- PANEL DATOS CLIENTE -->
+        <div class="panel-cliente">
+            <h3><i class="fas fa-user"></i> Datos del Cliente</h3>
+            <div class="cliente-grid" style="grid-template-columns:1fr 1fr;">
+                <div class="input-group">
+                    <label>Nombre del Cliente</label>
+                    <input type="text" id="nombre-cliente-multi" placeholder="Ej: María López">
+                </div>
+                <div class="input-group">
+                    <label>WhatsApp / Teléfono</label>
+                    <input type="text" id="tel-cliente-multi" placeholder="Ej: 300 123 4567">
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTÓN GENERAR COTIZACIÓN COMPLETA -->
+        <button id="btn-cotizar-todo" class="btn-cotizar-todo" onclick="generarCotizacionCompleta()" disabled>
+            <i class="fas fa-file-invoice-dollar"></i> &nbsp; GENERAR COTIZACIÓN COMPLETA
+        </button>
+
+        <!-- ÁREA DE IMPRESIÓN / RESULTADO FINAL -->
+        <div id="area-impresion"></div>
+
+    </main>
+
+    <script src="js/api.js"></script>
+    <script src="js/quotes_multi.js"></script>
+</body>
+</html>

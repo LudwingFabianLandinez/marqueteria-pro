@@ -23,6 +23,10 @@ const InvoiceSchema = new mongoose.Schema({
         type: String,
         default: "N/A"
     },
+    observacionResumen: {
+        type: String,
+        default: ""
+    },
     items: [{
         productoId: { 
             type: mongoose.Schema.Types.ObjectId, 
@@ -36,6 +40,8 @@ const InvoiceSchema = new mongoose.Schema({
         ancho: { type: Number, default: 0 },
         largo: { type: Number, default: 0 },
         area_m2: { type: Number, default: 0 }, 
+        area_m2_base: { type: Number, default: 0 },
+        cantidadUsadaBase: { type: Number, default: 0 },
         costo_base_unitario: { 
             type: Number, 
             default: 0 

@@ -116,9 +116,44 @@ async function generarReporteDiario() {
             let sumaVentaMateriales = 0; 
             const manoObra = Number(f.manoObra || f.mano_obra_total || 0);
             const totalCobrado = Number(f.totalFactura || f.total || 0);
+            const observacionResumen = (f.observacionResumen || '').toString().trim();
 
             let nombreCliente = (f.cliente?.nombre || f.clienteNombre || f.cliente || "CLIENTE GENERAL").toString().toUpperCase();
             const fechaLimpia = f.fecha ? f.fecha.split('T')[0] : '---';
+            const itemsFactura = Array.isArray(f.items) ? f.items : [];
+
+            const observacionReporte = (() => {
+                const lineas = [];
+                const grupos = new Map();
+
+                itemsFactura.forEach(item => {
+                    const nombreCompleto = (item.materialNombre || item.nombre || item.descripcion || 'MATERIAL').toString().toUpperCase();
+                    const nombreCuadro = nombreCompleto.split(' - ')[0].trim();
+                    if (!grupos.has(nombreCuadro)) grupos.set(nombreCuadro, []);
+                    grupos.get(nombreCuadro).push(item);
+                });
+
+                grupos.forEach((grupoItems, nombreCuadro) => {
+                    const itemBase = grupoItems[0] || {};
+                    const ancho = Number(itemBase.ancho || 0);
+                    const largo = Number(itemBase.largo || 0);
+                    const totalArea = Number(itemBase.area_m2 || itemBase.cantidadUsada || 0);
+                    const areaUnidad = (ancho > 0 && largo > 0)
+                        ? Number(((ancho * largo) / 10000).toFixed(3))
+                        : Number(itemBase.area_m2_base || itemBase.cantidadUsadaBase || 0);
+                    const cantidadCuadros = areaUnidad > 0
+                        ? Math.max(1, Math.round(totalArea / areaUnidad))
+                        : 1;
+
+                    if (ancho > 0 && largo > 0) {
+                        lineas.push(`${nombreCuadro} - ${cantidadCuadros} CUADRO(S) DE ${ancho} CM X ${largo} CM.`);
+                    }
+                });
+
+                return lineas.length > 0
+                    ? lineas.join('<br>')
+                    : observacionResumen.replace(/ \| /g, '<br>');
+            })();
 
             htmlContenido += `<div class="ot-card">
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom:10px;">
@@ -126,6 +161,10 @@ async function generarReporteDiario() {
                     <span style="color:#64748b">CLIENTE:</span> <strong>${nombreCliente}</strong></div>
                     <div style="text-align:right; color:#64748b"><strong>FECHA OT:</strong> ${fechaLimpia}</div>
                 </div>
+                ${observacionReporte ? `<div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:0.9rem; color:#1e293b; white-space:pre-line;">
+                    <strong style="color:#1e3a8a;">OBSERVACIONES:</strong><br>
+                    ${observacionReporte}
+                </div>` : ''}
                 <table>
                     <thead>
                         <tr>
@@ -172,6 +211,33 @@ async function generarReporteDiario() {
                 // Forzamos el uso de 'costo_unitario' que es el valor real de Atlas por ML
                 const costoUnitario = Number(item.costo_unitario || item.costo_base_unitario || item.costoUnitario || 0);
                 const costoFila = Math.round(costoUnitario * cantidadFinal);
+                const medidaTotal = Number(item.area_m2 || item.cantidadUsada || 0);
+                // Base: para M2, recalcular desde ancho×largo (siempre guardado en schema).
+                // Para ML, usar el valor guardado.
+                let medidaBase;
+                if (!esMoldura) {
+                    const singleArea = Number(item.ancho || 0) * Number(item.largo || 0) / 10000;
+                    medidaBase = (singleArea > 0 && singleArea <= medidaTotal + 0.001)
+                        ? singleArea
+                        : medidaTotal;
+                } else {
+                    // para molduras (ML) calcular perímetro + desperdicio en ML por unidad
+                    const anchoNum = Number(item.ancho || 0);
+                    const largoNum = Number(item.largo || 0);
+                    const desperdicio = Number(item.desperdicioAplicado || item.desperdicio || 0);
+                    if (anchoNum > 0 && largoNum > 0) {
+                        const perimetroCM = (anchoNum + largoNum) * 2;
+                        medidaBase = Number(((perimetroCM + desperdicio) / 100).toFixed(3));
+                    } else {
+                        // fallback: intentar usar area_m2_base o dividir total entre unidades
+                        medidaBase = Number(item.area_m2_base || item.cantidadUsadaBase || 0);
+                        if (!medidaBase) {
+                            const unidades = Number(item.unidadesCuadro || 0);
+                            if (unidades > 0) medidaBase = medidaTotal / unidades;
+                            else medidaBase = medidaTotal;
+                        }
+                    }
+                }
                 
                 // --- 🚨 REPARACIÓN MAESTRA DE VENTA (Búsqueda en Cascada + Cálculo Fallback) ---
                 // 1. Prioridad: Campos guardados en Atlas
@@ -194,7 +260,7 @@ async function generarReporteDiario() {
                 sumaVentaMateriales += ventaFila;
 
                 const unidadMedida = esMoldura ? "ML" : "m²";
-                const medidaTextoFila = `${cantidadFinal.toFixed(3)} ${unidadMedida}`;
+                const medidaTextoFila = `${medidaBase.toFixed(3)} ${unidadMedida} / ${medidaTotal.toFixed(3)} ${unidadMedida}`;
 
                 htmlContenido += `<tr>
                     <td style="text-align:left; font-weight:600;">${nombreMayus}</td>
