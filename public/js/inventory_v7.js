@@ -7,24 +7,6 @@
      * 3. MANTENIMIENTO: Se preserva al 100% la estructura visual y lógica de m2/ml.
      * 4. SINCRONIZACIÓN: Limpieza de bitácora local tras confirmación del servidor para evitar duplicidad.
      */
-
-    // --- CONFIGURACIÓN DE CONEXIÓN GLOBAL ---
-    // Si el panel corre en Netlify usa rutas locales; si corre en un servidor estático
-    // simple, usa el backend publicado para evitar 404 en /.netlify/functions/server.
-    const resolveInventoryApiBase = () => {
-        if (typeof window.resolveApiBase === 'function') {
-            return window.resolveApiBase();
-        }
-        const isPlainLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-        const isFileProtocol = window.location.protocol === 'file:';
-        if (isPlainLocalHost || isFileProtocol) {
-            return 'https://marqueterialachica.netlify.app/.netlify/functions/server';
-        }
-        return `${window.location.origin}/.netlify/functions/server`;
-    };
-
-    window.API_URL = resolveInventoryApiBase();
-
     // Puente de compatibilidad para window.API
     window.API = {
         getInvoices: () => fetch(`${window.API_URL}/invoices`).then(r => r.json()),
@@ -35,7 +17,7 @@
         updateStock: (id, data) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
         getHistory: async (id) => {
             try {
-                const resp = await fetch(`${window.API_URL}/inventory/all-purchases?t=` + Date.now());
+                const resp = await fetch(`${window.API_URL}/inventory/all-purchases?t=${Date.now()}`);
                 if (!resp.ok) return { success: false, data: [] };
                 const json = await resp.json();
                 const all = json && json.data ? json.data : (Array.isArray(json) ? json : []);
@@ -53,88 +35,9 @@
             } catch (err) {
                 return { success: false, data: [] };
             }
-        if (!document.getElementById('modalAjuste')) {
-            const modal = document.createElement('div');
-            modal.id = 'modalAjuste';
-            modal.className = 'modal';
-            modal.style.position = 'fixed';
-            modal.style.left = '0';
-            modal.style.top = '0';
-            modal.style.right = '0';
-            modal.style.bottom = '0';
-            modal.style.display = 'flex';
-            modal.style.alignItems = 'center';
-            modal.style.justifyContent = 'center';
-            modal.style.background = 'rgba(2,6,23,0.6)';
-            modal.innerHTML = `
-                <div style="background:#fff; padding:18px; border-radius:10px; width:360px; max-width:90%; box-shadow:0 10px 30px rgba(2,6,23,0.3);">
-                    <h3 id="adjustMaterialNombre" style="margin:0 0 8px 0; font-size:1rem; color:#0f172a;"></h3>
-                    <input id="adjustId" type="hidden">
-                    <label style="font-size:0.85rem; color:#64748b;">Cantidad (m²)</label>
-                    <input id="adjustCantidad" type="number" step="0.01" style="width:100%; padding:8px; margin:6px 0 10px 0;" />
-                    <label style="font-size:0.85rem; color:#64748b;">Stock mínimo</label>
-                    <input id="adjustReorden" type="number" step="0.01" style="width:100%; padding:8px; margin:6px 0 12px 0;" />
-                    <div style="display:flex; justify-content:flex-end; gap:8px;">
-                        <button id="cancelAjusteBtn" style="background:#e5e7eb; border:none; padding:8px 12px; border-radius:6px; cursor:pointer;">Cancelar</button>
-                        <button id="applyAjusteBtn" style="background:#06b6d4; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer;">Guardar</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            document.getElementById('cancelAjusteBtn').addEventListener('click', () => { modal.style.display = 'none'; });
-
-            // Guardar: intentando reutilizar la API existente `updateStock` si está disponible;
-            // esto evita tocar la lógica de ajuste original y es un fallback seguro.
-            document.getElementById('applyAjusteBtn').addEventListener('click', async () => {
-                try {
-                    const idVal = document.getElementById('adjustId').value;
-                    const nuevaCantidad = parseFloat(document.getElementById('adjustCantidad').value) || 0;
-
-                    // Intento 1: PUT a /materials/:id (ruta existente en servidor)
-                    const urlMaterials = `${window.API_URL}/materials/${idVal}`;
-                    try {
-                        const resp = await fetch(urlMaterials, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ stock_actual: nuevaCantidad })
-                        });
-                        if (resp.ok) {
-                            try { await resp.json(); } catch(e) { /* ignore parse errors */ }
-                            modal.style.display = 'none';
-                            if (typeof fetchInventory === 'function') fetchInventory();
-                            alert('Ajuste guardado.');
-                            return;
-                        }
-                        // si no ok seguimos al siguiente intento
-                    } catch (e) {
-                        console.warn('PUT /materials fallo:', e && e.message);
-                    }
-
-                    // Intento 2: upsert vía POST /inventory/save (ruta existente)
-                    const urlSave = `${window.API_URL}/inventory/save`;
-                    try {
-                        const resp2 = await fetch(urlSave, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: idVal, stock_actual: nuevaCantidad })
-                        });
-                        if (resp2.ok) {
-                            try { await resp2.json(); } catch(e) { /* ignore */ }
-                            modal.style.display = 'none';
-                            if (typeof fetchInventory === 'function') fetchInventory();
-                            alert('Ajuste guardado.');
-                            return;
-                        }
-                        // Si falla, muestra info del cuerpo para debugging
-                        const text = await resp2.text().catch(()=>'');
-                        console.error('Error response /inventory/save:', resp2.status, text);
-                        alert('Error al guardar ajuste. Revisa la consola.');
-                    } catch (e2) {
-                        console.error('Error al llamar /inventory/save:', e2);
-                        alert('Error al guardar ajuste. Revisa la consola.');
-                    }
-
+        },
+        deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
+    };
                 } catch (err) {
                     console.error('Error al guardar ajuste (fallback):', err);
                     alert('Error al guardar ajuste. Revisa la consola.');
