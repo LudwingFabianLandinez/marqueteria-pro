@@ -177,7 +177,16 @@
       });
 
       const monthKeys = Object.keys(sumsByMonth).sort();
-      const monthLabels = monthKeys.map(m => m);
+      const monthLabels = monthKeys.map(m => {
+        try {
+          const d = new Date(m + '-01');
+          let fmt = new Intl.DateTimeFormat('es-CO', { month: 'short', year: 'numeric' }).format(d);
+          fmt = fmt.replace('.', '');
+          return fmt.charAt(0).toUpperCase() + fmt.slice(1);
+        } catch (e) {
+          return m;
+        }
+      });
       const ventasMonth = monthKeys.map(m => Math.round(sumsByMonth[m].ventas || 0));
       const pendienteMonth = monthKeys.map(m => Math.round(sumsByMonth[m].pendiente || 0));
 
