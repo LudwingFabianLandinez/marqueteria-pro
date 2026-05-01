@@ -384,9 +384,12 @@ function renderTable(facturas) {
             <td><span class="badge-status ${estaPagada ? 'badge-pagado' : 'badge-abonado'}">${estaPagada ? 'PAGADA' : 'CON SALDO'}</span></td>
             <td style="text-align: right;">
                 <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                    <button class="btn-info" onclick="event.stopPropagation(); toggleDetails('details-${f._id}')">INFO</button>
-                    <button onclick="event.stopPropagation(); abrirAnalisisCostos('${f._id}')" style="background:#fce7f3; color:#9d174d; border:1px solid #fbcfe8; padding:8px; border-radius:6px; cursor:pointer;"><i class="fas fa-eye"></i></button>
-                    <button onclick="event.stopPropagation(); eliminarFactura('${f._id}', '${formatearNumeroOT(f)}')" style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca; padding:8px; border-radius:6px; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    <button class="btn-summary" onclick="event.stopPropagation(); toggleDetails('details-${f._id}')">
+                        <i class="fas fa-list-alt" style="margin-right:8px;color:var(--primary-blue);"></i> RESUMEN
+                    </button>
+                    <button class="btn-delete-ot" onclick="event.stopPropagation(); eliminarFactura('${f._id}', '${formatearNumeroOT(f)}')">
+                        <i class="fas fa-trash"></i> ELIMINAR OT
+                    </button>
                 </div>
             </td>`;
 
