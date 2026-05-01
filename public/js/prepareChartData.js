@@ -20,6 +20,27 @@
       return y + '-' + m + '-' + day;
     };
 
+    function parseNumberValue(v) {
+      if (v == null) return 0;
+      if (typeof v === 'number') return v;
+      let s = String(v).trim();
+      // remove currency symbols and spaces
+      s = s.replace(/[^0-9.,-]/g, '');
+      if (!s) return 0;
+      // If both dot and comma exist, assume dot thousands and comma decimal (es-CO)
+      if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+        s = s.replace(/\./g, '').replace(/,/g, '.');
+      } else if (s.indexOf('.') !== -1 && s.indexOf(',') === -1) {
+        // only dots present, assume they are thousand separators
+        s = s.replace(/\./g, '');
+      } else if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) {
+        // only comma present, assume decimal
+        s = s.replace(/,/g, '.');
+      }
+      const n = Number(s);
+      return isNaN(n) ? 0 : n;
+    }
+
     (orders || []).forEach(o => {
       if (excludeStates && excludeStates.includes(String(o.estado || '').trim())) return;
       const raw = o[dateField];
@@ -27,8 +48,8 @@
       if (isNaN(dt)) return;
       const key = toKey(dt);
       const existing = map.get(key);
-      const totalVal = Number(o[totalField] || 0) || 0;
-      const saldoVal = Number(o[saldoField] || 0) || 0;
+      const totalVal = parseNumberValue(o[totalField] || o.totalFactura || 0);
+      const saldoVal = parseNumberValue(o[saldoField] || o.saldo || o.total - (o.totalPagado || o.abono || 0) || 0);
       if (existing) {
         existing.total += totalVal;
         existing.saldo += saldoVal;
