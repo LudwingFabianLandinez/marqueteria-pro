@@ -92,15 +92,7 @@
                     </button>
                 </div>
             </div>
-            <!-- Chart section (hidden until user requests it) -->
-            <div id="chartSection" style="display:none; margin-top:18px;">
-                <div style="background:#ffffff; padding:18px; border-radius:12px; border:1px solid var(--border-color);">
-                    <h3 style="margin:0 0 12px 0; color:var(--primary-blue); font-size:1.05rem;">Ventas vs Saldo pendiente (por día)</h3>
-                    <div style="width:100%;">
-                        <canvas id="ordersChart" height="120"></canvas>
-                    </div>
-                </div>
-            </div>
+            <!-- Chart is shown in separate page (charts.html) -->
             
             <div class="search-container">
                 <div class="search-box">
@@ -223,12 +215,15 @@
             });
         }
 
-        window.showOrdersChart = async function(){
-            const section = document.getElementById('chartSection');
-            if (!section) return;
-            if (section.style.display === 'none' || section.style.display === '') section.style.display = 'block';
-            await ensureAndDrawChart();
-            section.scrollIntoView({ behavior:'smooth' });
+        // showOrdersChart now opens the separate charts.html page; keep a fallback
+        window.showOrdersChart = function(){
+            const desde = document.getElementById('fechaDesde')?.value || '';
+            const hasta = document.getElementById('fechaHasta')?.value || '';
+            const params = new URLSearchParams();
+            if (desde) params.set('desde', desde);
+            if (hasta) params.set('hasta', hasta);
+            const url = '/charts.html' + (params.toString() ? ('?' + params.toString()) : '');
+            window.open(url, '_blank');
         };
     })();
     </script>
