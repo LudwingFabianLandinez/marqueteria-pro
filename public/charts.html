@@ -24,9 +24,15 @@
 
     <div class="card">
       <div class="actions">
-        <button id="btnExportPNG" class="btn btn-primary">Exportar PNG</button>
-        <button id="btnExportCSV" class="btn btn-ghost">Exportar CSV</button>
-        <a href="history.html" class="btn" style="background:#eef2ff;color:#1e3a8a;font-weight:800;border:1px solid #c7d2fe;text-decoration:none;padding:10px 14px;border-radius:10px">Volver</a>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="btnViewByDate" class="btn btn-ghost">Por fecha</button>
+          <button id="btnViewTotal" class="btn btn-ghost">Total (2 barras)</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+          <button id="btnExportPNG" class="btn btn-primary">Exportar PNG</button>
+          <button id="btnExportCSV" class="btn btn-ghost">Exportar CSV</button>
+          <a href="history.html" class="btn" style="background:#eef2ff;color:#1e3a8a;font-weight:800;border:1px solid #c7d2fe;text-decoration:none;padding:10px 14px;border-radius:10px">Volver</a>
+        </div>
       </div>
       <canvas id="ordersChart" height="160"></canvas>
     </div>
@@ -152,32 +158,56 @@
       const formatCurrency = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
       const canvas = document.getElementById('ordersChart');
       const ctx = canvas.getContext('2d');
-      const cfg = new Chart(ctx, {
-        type:'bar',
-        data: chartData,
-        options:{
-          responsive:true,
-          plugins:{
-            tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } }
-          },
-          scales:{
-            x: { stacked: false },
-            y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } }
-          }
-        }
-      });
+      let chartInstance = null;
+
+      // aggregated sumsByDate is already computed above
+      function renderAggregated(){
+        const totalSum = Object.values(sumsByDate).reduce((acc, v) => acc + (v.ventas||0), 0);
+        const saldoSum = Object.values(sumsByDate).reduce((acc, v) => acc + (v.pendiente||0), 0);
+        const data = { labels: ['Ventas','Pendiente'], datasets: [{ data: [Math.round(totalSum), Math.round(saldoSum)], backgroundColor: ['#16a34a', '#dc2626'] }] };
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, { type:'bar', data, options:{ responsive:true, plugins:{ tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${formatCurrency(ctx.parsed.y)}` } } }, scales:{ y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } } } } });
+      }
+
+      function renderByDate(){
+        const data = chartData;
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, { type:'bar', data, options:{ responsive:true, plugins:{ tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } } }, scales:{ x:{ stacked:false }, y:{ beginAtZero:true, ticks:{ callback: v => formatCurrency(v) } } } } });
+      }
+
+      // initial render: if multiple dates show by-date, otherwise aggregated
+      if (labels.length > 1) renderByDate(); else renderAggregated();
+
+      // View toggle handlers
+      document.getElementById('btnViewByDate').addEventListener('click', function(){ renderByDate(); });
+      document.getElementById('btnViewTotal').addEventListener('click', function(){ renderAggregated(); });
 
       document.getElementById('btnExportPNG').addEventListener('click', function(){
-        try{ const url = cfg.toBase64Image(); const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove(); }
+        try{ const url = chartInstance.toBase64Image(); const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove(); }
         catch(e){ console.error(e); alert('Error exportando PNG') }
       });
 
       document.getElementById('btnExportCSV').addEventListener('click', function(){
         try{
-          const csv = `Metric;Value\nTotal Venta;${Math.round(totalSum)}\nSaldo Pendiente;${Math.round(saldoSum)}\n`;
+          const isAgg = chartInstance.data && chartInstance.data.labels && chartInstance.data.labels.length === 2 && chartInstance.data.labels[0] === 'Ventas';
+          let csv = '';
+          if (isAgg) {
+            const v = chartInstance.data.datasets[0].data[0] || 0;
+            const s = chartInstance.data.datasets[0].data[1] || 0;
+            csv = `Metric;Value\nTotal Venta;${Math.round(v)}\nSaldo Pendiente;${Math.round(s)}\n`;
+          } else {
+            csv = `Fecha;Ventas;Pendiente\n`;
+            const labs = chartInstance.data.labels || [];
+            const dsVentas = chartInstance.data.datasets.find(d => d.label === 'Ventas') || chartInstance.data.datasets[0];
+            const dsPend = chartInstance.data.datasets.find(d => d.label === 'Pendiente') || chartInstance.data.datasets[1];
+            labs.forEach((lab,i)=>{
+              const vv = dsVentas.data[i]||0; const ss = dsPend.data[i]||0;
+              csv += `${lab};${Math.round(vv)};${Math.round(ss)}\n`;
+            });
+          }
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
           const url = URL.createObjectURL(blob);
-          const a = document.createElement('a'); a.href = url; a.download = 'ventas_aggregado.csv'; document.body.appendChild(a); a.click(); a.remove();
+          const a = document.createElement('a'); a.href = url; a.download = 'ventas_export.csv'; document.body.appendChild(a); a.click(); a.remove();
           URL.revokeObjectURL(url);
         }catch(e){ console.error(e); alert('Error exportando CSV') }
       });
