@@ -6,8 +6,8 @@
   <title>Gráfico de Ventas - Marquetería</title>
   <link rel="stylesheet" href="css/styles.css">
   <style>
-    body{font-family:Inter,Segoe UI,sans-serif;background:#f1f5f9;color:#1e293b;padding:24px}
-    .card{background:#fff;padding:28px;border-radius:12px;border:1px solid #e6eef8}
+    body{font-family:Inter,Segoe UI,sans-serif;background:#f1f5f9;color:#1e293b;padding:18px}
+    .card{background:#fff;padding:18px;border-radius:12px;border:1px solid #e6eef8}
     .actions{display:flex;gap:10px;align-items:center;margin-bottom:12px}
     .btn{padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
     .btn-primary{background:#4f46e5;color:#fff}
@@ -35,7 +35,7 @@
         </div>
       </div>
       <div style="width:100%;">
-        <canvas id="ordersChart" style="width:100%;height:80vh;display:block"></canvas>
+        <canvas id="ordersChart" style="width:100%;height:60vh;display:block"></canvas>
       </div>
     </div>
   </div>
@@ -176,9 +176,9 @@
               const label = formatCurrency(value);
               const position = element.tooltipPosition();
               ctx.fillStyle = '#0f172a';
-              ctx.font = '800 16px Inter, Roboto, sans-serif';
+              ctx.font = '700 12px Inter, Roboto, sans-serif';
               ctx.textAlign = 'center';
-              ctx.fillText(label, position.x, position.y - 12);
+              ctx.fillText(label, position.x, position.y - 10);
             });
           });
           ctx.restore();
@@ -198,13 +198,13 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { labels: { font: { size: 16 } } },
+              legend: { labels: { font: { size: 12 } } },
               tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${formatCurrency(ctx.parsed.y)}` } }
             },
             scales: {
-              y: { beginAtZero: true, ticks: { callback: v => formatCurrency(v), font: { size: 14 } } }
+              y: { beginAtZero: true, ticks: { callback: v => formatCurrency(v), font: { size: 12 } } }
             },
-            layout: { padding: { top: 14, bottom: 10 } }
+            layout: { padding: { top: 10, bottom: 8 } }
           },
           plugins: [valueLabelPlugin]
         });
@@ -220,14 +220,14 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { labels: { font: { size: 16 } } },
+              legend: { labels: { font: { size: 12 } } },
               tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } }
             },
             scales: {
-              x: { stacked: false, ticks: { maxRotation: 40, minRotation: 20, font: { size: 13 } } },
-              y: { beginAtZero: true, ticks: { callback: v => formatCurrency(v), font: { size: 14 } } }
+              x: { stacked: false, ticks: { maxRotation: 35, minRotation: 10, font: { size: 11 } } },
+              y: { beginAtZero: true, ticks: { callback: v => formatCurrency(v), font: { size: 12 } } }
             },
-            layout: { padding: { top: 14, bottom: 10 } }
+            layout: { padding: { top: 10, bottom: 8 } }
           },
           plugins: [valueLabelPlugin]
         });
