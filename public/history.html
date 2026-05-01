@@ -14,20 +14,9 @@
             --secondary-blue: #3b82f6;
             --success-green: #059669;
             --danger-red: #e11d48;
-            <script>
-            (function(){
-                window.showOrdersChart = function(){
-                    const desde = document.getElementById('fechaDesde')?.value || '';
-                    const hasta = document.getElementById('fechaHasta')?.value || '';
-                    const params = new URLSearchParams();
-                    if (desde) params.set('desde', desde);
-                    if (hasta) params.set('hasta', hasta);
-                    const url = '/charts.html' + (params.toString() ? ('?' + params.toString()) : '');
-                    window.open(url, '_blank');
-                };
-            })();
-            </script>
-
+            --bg-light: #f8fafc;
+            --border-color: #e2e8f0;
+        }
         .date-filters { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; }
         .date-filters input { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); color: #475569; }
 
@@ -166,59 +155,67 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script src="js/history.js?v=30"></script>
-        <script src="/js/prepareChartData.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script>
-        (function(){
-            let ordersChartInstance;
-            async function ensureAndDrawChart(){
-                if (ordersChartInstance) return;
-                let invoices = (window.todasLasFacturas && Array.isArray(window.todasLasFacturas)) ? window.todasLasFacturas : [];
-                if (!invoices.length) {
-                    try {
-                        const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
-                        const res = await fetch(base + '/invoices');
-                        invoices = await res.json();
-                    } catch(e){ console.error('Error cargando facturas para gráfico', e); invoices = []; }
-                }
-                // Aplicar filtros de fecha si el usuario los puso en la UI
+    <script src="/js/prepareChartData.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    (function(){
+        let ordersChartInstance;
+
+        async function ensureAndDrawChart(){
+            if (ordersChartInstance) return;
+
+            let invoices = (window.todasLasFacturas && Array.isArray(window.todasLasFacturas)) ? window.todasLasFacturas : [];
+            if (!invoices.length) {
                 try {
-                    const desdeVal = document.getElementById('fechaDesde')?.value || '';
-                    const hastaVal = document.getElementById('fechaHasta')?.value || '';
-                    let desde = null;
-                    let hasta = null;
-                    if (desdeVal) { desde = new Date(desdeVal); desde.setHours(0,0,0,0); }
-                    if (hastaVal) { hasta = new Date(hastaVal); hasta.setHours(23,59,59,999); }
-                    if (desde || hasta) {
-                        invoices = invoices.filter(inv => {
-                            const raw = inv.fecha || inv.date || inv.createdAt;
-                            const d = raw ? new Date(raw) : null;
-                            if (!d || isNaN(d)) return false;
-                            if (desde && d < desde) return false;
-                            if (hasta && d > hasta) return false;
-                            return true;
-                        });
-                    }
-                } catch (e) { console.warn('Error aplicando filtros de fecha para gráfico', e); }
-
-                const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
-                const ctx = document.getElementById('ordersChart').getContext('2d');
-                ordersChartInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: chartData,
-                    options: { responsive:true, interaction:{ mode:'index', intersect:false }, scales:{ y:{ beginAtZero:true } } }
-                });
+                    const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
+                    const res = await fetch(base + '/invoices');
+                    invoices = await res.json();
+                } catch(e){
+                    console.error('Error cargando facturas para gráfico', e);
+                    invoices = [];
+                }
             }
-            window.showOrdersChart = async function(){
-                const section = document.getElementById('chartSection');
-                if (!section) return;
-                if (section.style.display === 'none' || section.style.display === '') section.style.display = 'block';
-                await ensureAndDrawChart();
-                section.scrollIntoView({ behavior:'smooth' });
-            };
-        })();
-        </script>
-</body>
 
+            try {
+                const desdeVal = document.getElementById('fechaDesde')?.value || '';
+                const hastaVal = document.getElementById('fechaHasta')?.value || '';
+                let desde = null;
+                let hasta = null;
+                if (desdeVal) { desde = new Date(desdeVal); desde.setHours(0,0,0,0); }
+                if (hastaVal) { hasta = new Date(hastaVal); hasta.setHours(23,59,59,999); }
+                if (desde || hasta) {
+                    invoices = invoices.filter(inv => {
+                        const raw = inv.fecha || inv.date || inv.createdAt;
+                        const d = raw ? new Date(raw) : null;
+                        if (!d || isNaN(d)) return false;
+                        if (desde && d < desde) return false;
+                        if (hasta && d > hasta) return false;
+                        return true;
+                    });
+                }
+            } catch (e) {
+                console.warn('Error aplicando filtros de fecha para gráfico', e);
+            }
+
+            const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
+            const canvas = document.getElementById('ordersChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ordersChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: { responsive:true, interaction:{ mode:'index', intersect:false }, scales:{ y:{ beginAtZero:true } } }
+            });
+        }
+
+        window.showOrdersChart = async function(){
+            const section = document.getElementById('chartSection');
+            if (!section) return;
+            if (section.style.display === 'none' || section.style.display === '') section.style.display = 'block';
+            await ensureAndDrawChart();
+            section.scrollIntoView({ behavior:'smooth' });
+        };
+    })();
+    </script>
 </body>
 </html>
