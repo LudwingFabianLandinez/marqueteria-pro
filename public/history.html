@@ -17,6 +17,12 @@
             --bg-light: #f8fafc;
             --border-color: #e2e8f0;
         }
+        .search-container { margin: 16px 0; display:flex; gap:12px; align-items:center; flex-wrap:nowrap; background: var(--bg-light); padding:12px; border-radius:12px; border:1px solid var(--border-color); }
+        .search-box { flex: 1; min-width: 260px; display:flex; align-items:center; background: white; padding: 8px 12px; border-radius:8px; border:1px solid var(--border-color); }
+        .search-box input { border: none; outline: none; width: 100%; margin-left: 10px; }
+        .date-filters { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; font-weight: 600; }
+        .date-filters input { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); color: #475569; }
+        .date-filters .btn { padding:8px 12px; border-radius:8px; cursor:pointer; border:none; font-weight:700; }
         /* Header action buttons (restore previous aesthetics) */
         .header-actions > div { display:flex; gap:10px; align-items:center; }
         .btn-report { background: #4f46e5; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; }
@@ -73,11 +79,8 @@
 
     <main class="main-content">
         <div class="history-container">
-            <div class="header-actions">
-                <h2 style="color: #1e3a8a; margin: 0; font-size: 1.75rem; font-weight: 800;">
-                    <i class="fas fa-clipboard-list" style="margin-right: 12px; color: var(--secondary-blue);"></i> Historial de Órdenes
-                </h2>
-                <div style="display: flex; gap: 10px;">
+            <div class="header-actions" style="align-items:center; gap:14px;">
+                <div style="display:flex; gap:10px; align-items:center;">
                     <button id="btn-graph" class="btn-excel" onclick="showOrdersChart()">
                         <i class="fas fa-chart-bar"></i> GRÁFICO
                     </button>
@@ -85,6 +88,9 @@
                         <i class="fas fa-file-invoice-dollar"></i> REPORTE HOY
                     </button>
                 </div>
+                <h2 style="color: #1e3a8a; margin: 0; font-size: 1.75rem; font-weight: 800; flex:1; display:flex; align-items:center;">
+                    <i class="fas fa-clipboard-list" style="margin-right: 12px; color: var(--secondary-blue);"></i> Historial de Órdenes
+                </h2>
             </div>
             <!-- Chart section (hidden until user requests it) -->
             <div id="chartSection" style="display:none; margin-top:18px;">
