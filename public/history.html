@@ -166,7 +166,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script src="js/history.js?v=30"></script>
-    <script src="/js/prepareChartData.js"></script>
+    <script src="js/prepareChartData.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
     (function(){
@@ -178,7 +178,11 @@
             let invoices = (window.todasLasFacturas && Array.isArray(window.todasLasFacturas)) ? window.todasLasFacturas : [];
             if (!invoices.length) {
                 try {
-                    const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
+                                        const base = (typeof window.resolveApiBase === 'function')
+                                            ? window.resolveApiBase()
+                                            : ((['localhost','127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+                                                    ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+                                                    : `${window.location.origin}/.netlify/functions/server`);
                     const res = await fetch(base + '/invoices');
                     invoices = await res.json();
                 } catch(e){
