@@ -20,7 +20,13 @@ async function fetchPurchases() {
     if (!tableBody) return;
     
     try {
-        const response = await fetch(`/api/inventory/all-purchases?t=${Date.now()}`); 
+        const base = (typeof window.resolveApiBase === 'function')
+            ? window.resolveApiBase()
+            : ((['localhost','127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:')
+                ? 'https://marqueterialachica.netlify.app/.netlify/functions/server'
+                : `${window.location.origin}/.netlify/functions/server`);
+
+        const response = await fetch(base + '/inventory/all-purchases?t=' + Date.now());
         const result = await response.json();
 
         console.log("🔍 Respuesta del servidor:", result);
