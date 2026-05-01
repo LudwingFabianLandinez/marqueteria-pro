@@ -71,15 +71,21 @@ window.API = {
         
         try {
             console.log(`🚀 Conectando v13.7.0 - VEREDICTO FINAL: ${url}`);
+            const headers = {
+                'Accept': 'application/json'
+            };
+
+            if (options.body) {
+                headers['Content-Type'] = 'application/json';
+            }
+
+            if (options.headers) {
+                Object.assign(headers, options.headers);
+            }
+
             const response = await fetch(url, {
                 ...options,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache',
-                    ...options.headers
-                }
+                headers
             });
 
             const result = await window.API._safeParse(response, path);
