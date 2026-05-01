@@ -47,32 +47,45 @@
                         const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
                         if (mname && String(mname).toUpperCase().includes(String(item.materialNombre || '').toUpperCase())) return true;
                     } catch (e) {}
-                    return false;
-                });
-                return { success: true, data: filtered };
-            } catch (err) {
-                return { success: false, data: [] };
-            }
-        },
-        deleteMaterial: (id) => fetch(`${window.API_URL}/inventory/${id}`, { method: 'DELETE' }).then(r => r.json())
-    };
+                    try {
+                        // Prefer server-side history for the specific material (returns entradas y salidas)
+                        const histResp = await fetch(window.API_URL + '/inventory/history/' + encodeURIComponent(idRecibido) + '?t=' + Date.now());
+                        let histJson = null;
+                        if (histResp.ok) histJson = await histResp.json();
+                        const serverHistory = histJson && histJson.data ? histJson.data : null;
 
-// Wrapper to open the existing Ajuste modal safely from a row button
-window.abrirAjusteDesdeFila = function(id) {
-    try {
-        const idStr = String(id || '').trim();
-        const m = (window.todosLosMateriales || []).find(mat => String(mat._id || mat.id || mat.id_referencia) === idStr || String(mat.id) === idStr);
-        if (!m) {
-            console.warn('abrirAjusteDesdeFila: material no encontrado en memoria:', id);
-            alert('Material no cargado en memoria. Recarga la lista e intenta de nuevo.');
-            return;
-        }
+                        let filtrados = [];
 
-        const stockActual = parseFloat(m.stock_actual_m2 || m.stock_total_m2 || m.stock || m.cantidad_m2 || 0) || 0;
-        const stockMinimo = parseFloat(m.stock_minimo || m.minimo || 0) || 0;
+                        if (serverHistory && Array.isArray(serverHistory) && serverHistory.length > 0) {
+                            filtrados = serverHistory;
+                        } else {
+                            // Fallback: fetch all purchases and filter by id/name (legacy behavior)
+                            const allResp = await fetch(window.API_URL + '/inventory/all-purchases?t=' + Date.now());
+                            if (!allResp.ok) throw new Error('No se pudo obtener movimientos (status ' + allResp.status + ')');
+                            const allJson = await allResp.json();
+                            const all = allJson && allJson.data ? allJson.data : (Array.isArray(allJson) ? allJson : []);
 
-        // Si el modal de ajuste no existe en el DOM, creamos uno mínimo para que
-        // `prepararAjuste` pueda poblar los campos y mostrarse.
+                            const idStr = String(idRecibido || '').trim();
+                            const nombreUpper = String(nombre || '').toUpperCase();
+
+                            filtrados = all.filter(item => {
+                                try {
+                                    const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
+                                    if (mid && String(mid).trim() === idStr) return true;
+                                    const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
+                                    if (mname && String(mname).toUpperCase().includes(nombreUpper)) return true;
+                                } catch (e) {}
+                                return false;
+                            });
+                        }
+
+                        if (!filtrados || filtrados.length === 0) {
+                            contenedor.innerHTML = '<div style="color:#64748b; padding:30px; text-align:center;'>No se encontraron movimientos.</div>';
+                            return;
+                        }
+
+                        const money = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+                        contenedor.innerHTML = filtrados.map(h => {
         if (!document.getElementById('modalAjuste')) {
             const modal = document.createElement('div');
             modal.id = 'modalAjuste';
