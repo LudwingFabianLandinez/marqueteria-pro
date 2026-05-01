@@ -159,11 +159,34 @@
       const ventasData = sortedDates.map(d => Math.round(sumsByDate[d].ventas || 0));
       const pendienteData = sortedDates.map(d => Math.round(sumsByDate[d].pendiente || 0));
 
-      const chartData = {
+      // Prepare per-day chart data (kept for completeness)
+      const chartDataDay = {
         labels,
         datasets: [
           { label: 'Ventas', data: ventasData, backgroundColor: '#16a34a', borderColor: '#16a34a' },
           { label: 'Pendiente', data: pendienteData, backgroundColor: '#dc2626', borderColor: '#dc2626' }
+        ]
+      };
+
+      // Also prepare per-month aggregation (YYYY-MM)
+      const sumsByMonth = {};
+      Object.keys(sumsByDate).forEach(dayKey => {
+        const monthKey = dayKey.slice(0,7); // YYYY-MM
+        if (!sumsByMonth[monthKey]) sumsByMonth[monthKey] = { ventas:0, pendiente:0 };
+        sumsByMonth[monthKey].ventas += sumsByDate[dayKey].ventas || 0;
+        sumsByMonth[monthKey].pendiente += sumsByDate[dayKey].pendiente || 0;
+      });
+
+      const monthKeys = Object.keys(sumsByMonth).sort();
+      const monthLabels = monthKeys.map(m => m);
+      const ventasMonth = monthKeys.map(m => Math.round(sumsByMonth[m].ventas || 0));
+      const pendienteMonth = monthKeys.map(m => Math.round(sumsByMonth[m].pendiente || 0));
+
+      const chartDataMonth = {
+        labels: monthLabels,
+        datasets: [
+          { label: 'Ventas', data: ventasMonth, backgroundColor: '#16a34a', borderColor: '#16a34a' },
+          { label: 'Pendiente', data: pendienteMonth, backgroundColor: '#dc2626', borderColor: '#dc2626' }
         ]
       };
 
@@ -221,7 +244,8 @@
       }
 
       function renderByDate(){
-        const data = chartData;
+          // Render by MONTH (user requested grouping by month instead of day)
+          const data = chartDataMonth;
         if (chartInstance) chartInstance.destroy();
         chartInstance = new Chart(ctx, {
           type: 'bar',
