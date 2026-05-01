@@ -1156,6 +1156,44 @@ if (formCompra) {
         if(modal) modal.style.display = 'flex';
     };
 
+    // Abrir ajuste desde la fila (botón AJUSTE)
+    window.abrirAjusteDesdeFila = function(idRecibido) {
+        try {
+            const idLimpio = String(idRecibido || '').trim();
+            let m = (window.todosLosMateriales || []).find(mat =>
+                String(mat.id) === idLimpio || String(mat._id) === idLimpio || String(mat.id_referencia) === idLimpio
+            );
+
+            if (!m) {
+                // intentamos recargar el inventario una vez y reintentar
+                if (typeof fetchInventory === 'function') {
+                    fetchInventory().then(() => {
+                        m = (window.todosLosMateriales || []).find(mat =>
+                            String(mat.id) === idLimpio || String(mat._id) === idLimpio || String(mat.id_referencia) === idLimpio
+                        );
+                        if (m) {
+                            const stockActual = parseFloat(m.stock_actual || m.stock_total_m2 || 0) || 0;
+                            const stockMinimo = parseFloat(m.stock_minimo || m.stockMinimo || 0) || 0;
+                            window.prepararAjuste(m._id || m.id || idLimpio, m.nombre || '', stockActual, stockMinimo);
+                        } else {
+                            alert('Material no encontrado para ajuste');
+                        }
+                    }).catch(() => alert('Error al cargar inventario para ajuste'));
+                } else {
+                    alert('Material no encontrado para ajuste');
+                }
+                return;
+            }
+
+            const stockActual = parseFloat(m.stock_actual || m.stock_total_m2 || 0) || 0;
+            const stockMinimo = parseFloat(m.stock_minimo || m.stockMinimo || 0) || 0;
+            window.prepararAjuste(m._id || m.id || idLimpio, m.nombre || '', stockActual, stockMinimo);
+        } catch (err) {
+            console.error('Error en abrirAjusteDesdeFila:', err);
+            alert('Error al abrir ajuste. Revisa la consola.');
+        }
+    };
+
     window.prepararEdicionMaterial = function(id) {
     const m = window.todosLosMateriales.find(mat => mat.id === id);
     if (!m) return;

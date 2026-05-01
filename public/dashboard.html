@@ -551,6 +551,32 @@
     </div>
 </div>
 
+<!-- MODAL AJUSTE DE STOCK -->
+<div id="modalAjuste" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">AJUSTE DE STOCK</div>
+        <form id="formAjusteStock" class="modal-body">
+            <input type="hidden" id="adjustId" value="">
+            <div class="form-group">
+                <label>Material</label>
+                <div id="adjustMaterialNombre" style="font-weight:700; margin-bottom:8px;">-</div>
+            </div>
+            <div class="form-group">
+                <label>Nueva cantidad (m² / ml)</label>
+                <input type="number" id="adjustCantidad" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Punto de reorden (stock mínimo)</label>
+                <input type="number" id="adjustReorden" step="0.01">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:16px;">
+                <button type="submit" class="btn-action btn-green" style="flex:1;">Aplicar Ajuste</button>
+                <button type="button" class="btn-action" style="flex:1; background:#e2e8f0; color:#4a5568;" onclick="document.getElementById('modalAjuste').style.display='none'">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script src="js/api.js"></script>
 <script src="js/inventory_v7.js?v=20260501.1"></script>
 <script>
