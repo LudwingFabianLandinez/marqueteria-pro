@@ -121,12 +121,21 @@
                     <i class="fas fa-clipboard-list" style="margin-right: 12px; color: var(--secondary-blue);"></i> Historial de Órdenes
                 </h2>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-excel" onclick="exportarExcel()">
-                        <i class="fas fa-file-excel"></i> EXCEL
+                    <button id="btn-graph" class="btn-excel" onclick="showOrdersChart()">
+                        <i class="fas fa-chart-bar"></i> GRÁFICO
                     </button>
                     <button class="btn-report" onclick="generarReporteDiario()">
                         <i class="fas fa-file-invoice-dollar"></i> REPORTE HOY
                     </button>
+                </div>
+            </div>
+            <!-- Chart section (hidden until user requests it) -->
+            <div id="chartSection" style="display:none; margin-top:18px;">
+                <div style="background:#ffffff; padding:18px; border-radius:12px; border:1px solid var(--border-color);">
+                    <h3 style="margin:0 0 12px 0; color:var(--primary-blue); font-size:1.05rem;">Ventas vs Saldo pendiente (por día)</h3>
+                    <div style="width:100%;">
+                        <canvas id="ordersChart" height="120"></canvas>
+                    </div>
                 </div>
             </div>
             
@@ -194,6 +203,38 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script src="js/history.js?v=30"></script>
+        <script src="/js/prepareChartData.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+        (function(){
+            let ordersChartInstance;
+            async function ensureAndDrawChart(){
+                if (ordersChartInstance) return;
+                let invoices = (window.todasLasFacturas && Array.isArray(window.todasLasFacturas)) ? window.todasLasFacturas : [];
+                if (!invoices.length) {
+                    try {
+                        const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
+                        const res = await fetch(base + '/invoices');
+                        invoices = await res.json();
+                    } catch(e){ console.error('Error cargando facturas para gráfico', e); invoices = []; }
+                }
+                const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
+                const ctx = document.getElementById('ordersChart').getContext('2d');
+                ordersChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: chartData,
+                    options: { responsive:true, interaction:{ mode:'index', intersect:false }, scales:{ y:{ beginAtZero:true } } }
+                });
+            }
+            window.showOrdersChart = async function(){
+                const section = document.getElementById('chartSection');
+                if (!section) return;
+                if (section.style.display === 'none' || section.style.display === '') section.style.display = 'block';
+                await ensureAndDrawChart();
+                section.scrollIntoView({ behavior:'smooth' });
+            };
+        })();
+        </script>
 </body>
 
 </body>
