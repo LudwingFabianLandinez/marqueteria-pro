@@ -259,6 +259,28 @@ module.exports = {
         const data = await Material.find({ $expr: { $lt: ["$stock_actual", "$stock_minimo"] } }).limit(10).lean();
         res.json({ success: true, data });
     },
+    deletePurchase: async (req, res) => {
+        try {
+            const id = req.params.id;
+            console.log(`🗑️ Solicitud de eliminación de compra ID: ${id}`);
+            const trx = await Transaction.findById(id).lean();
+            if (!trx) return res.status(404).json({ success: false, message: 'Compra no encontrada' });
+            if (trx.tipo !== 'COMPRA') return res.status(400).json({ success: false, message: 'No es una compra' });
+
+            const mId = trx.materialId;
+            const resta = Number(trx.cantidad_m2 || trx.cantidad || 0);
+            if (mId && resta) {
+                await Material.updateOne({ _id: mId }, { $inc: { stock_actual: -(resta) } });
+            }
+
+            await Transaction.findByIdAndDelete(id);
+            console.log(`✅ Compra ${id} eliminada y stock actualizado (-${resta}).`);
+            res.json({ success: true, message: 'Compra eliminada' });
+        } catch (error) {
+            console.error('🚨 Error eliminando compra:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
     manualAdjustment: async (req, res) => {
         const { materialId, nuevaCantidad } = req.body;
         await Material.findByIdAndUpdate(materialId, { stock_actual: nuevaCantidad });

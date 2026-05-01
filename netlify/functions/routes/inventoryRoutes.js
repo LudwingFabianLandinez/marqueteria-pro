@@ -85,6 +85,13 @@ router.get('/all-purchases', (req, res, next) => {
     res.json({ success: true, data: [] });
 });
 
+// Delete a purchase (and restore inventory accordingly)
+router.delete('/purchase/:id', async (req, res, next) => {
+    const fn = inventoryController.deletePurchase;
+    if (typeof fn === 'function') return fn(req, res, next);
+    res.status(500).json({ success: false, error: 'Delete handler not implemented' });
+});
+
 /**
  * 📊 RUTAS DE ANALÍTICA (Dashboard Superior)
  */
