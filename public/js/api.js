@@ -248,7 +248,8 @@ window.API = {
     },
 
     deleteMaterial: function(id) { return window.API._request(`/inventory/${id}`, { method: 'DELETE' }); },
-    updateStock: function(id, data) { return window.API._request(`/inventory/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
+    // El servidor expone PUT /materials/:id (server.js) — usar esa ruta para actualizar stock/metadata
+    updateStock: function(id, data) { return window.API._request(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
     getHistory: function(id) { return window.API._request(`/inventory/history/${id}`); },
     saveInvoice: function(data) { return window.API._request('/invoices', { method: 'POST', body: JSON.stringify(data) }); }
 };
