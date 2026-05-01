@@ -320,12 +320,13 @@ router.post('/invoices', async (req, res) => {
             throw new Error(`Error de validación en Atlas: ${saveError.message}`);
         }
 
-        // --- DESCUENTO DE STOCK (MANTENIDO INTACTO) ---
+        // --- DESCUENTO DE STOCK ---
         if (facturaData.items) {
             for (const item of facturaData.items) {
                 if (item.productoId) {
                     const area = parseFloat(item.area_m2) || ((parseFloat(item.ancho || 0) * parseFloat(item.largo || 0)) / 10000);
-                    await Material.findByIdAndUpdate(item.productoId, { $inc: { stock_actual: -area } });
+                    // Usar updateOne para evitar el hook pre('findOneAndUpdate') del modelo Material
+                    await Material.updateOne({ _id: item.productoId }, { $inc: { stock_actual: -area } });
                 }
             }
         }
@@ -719,12 +720,78 @@ router.post('/inventory/purchase', async (req, res) => {
     }
 });
 
-// --- RUTAS DE MANTENIMIENTO (INTACTAS) ---
+// --- ELIMINACIÓN DE OT CON RESTAURACIÓN DE STOCK ---
 router.delete('/invoices/:id', async (req, res) => {
     try {
-        await Invoice.findByIdAndDelete(req.params.id);
-        res.json({ success: true, message: "Orden eliminada" });
+        const id = req.params.id;
+        console.log(`[DELETE OT] Iniciando eliminación de OT: ${id}`);
+
+        const factura = await Invoice.findById(id).lean();
+        if (!factura) {
+            return res.status(404).json({ success: false, error: 'Factura no encontrada' });
+        }
+
+        const items = Array.isArray(factura.items) ? factura.items : [];
+        console.log(`[DELETE OT] OT encontrada: ${factura.numeroFactura || id} | Items: ${items.length}`);
+
+        let restaurados = 0;
+        const sinRestaurar = [];
+
+        for (const item of items) {
+            try {
+                const productoId = item && item.productoId;
+                if (!productoId) {
+                    console.warn(`[DELETE OT] Item sin productoId: ${item && (item.materialNombre || item.nombre)}`);
+                    sinRestaurar.push(item && (item.materialNombre || item.nombre) || 'desconocido');
+                    continue;
+                }
+
+                // Usar EXACTAMENTE el mismo campo y orden de prioridad que al descontar stock
+                // (creación usa: parseFloat(item.area_m2) || ((ancho * largo) / 10000))
+                const cantidadARestaurar = parseFloat(item.area_m2) ||
+                    ((parseFloat(item.ancho || 0) * parseFloat(item.largo || 0)) / 10000) ||
+                    parseFloat(item.cantidadUsada) || 0;
+
+                if (cantidadARestaurar <= 0) {
+                    console.warn(`[DELETE OT] Cantidad 0 para: ${item.materialNombre || item.nombre} | area_m2=${item.area_m2}`);
+                    sinRestaurar.push(item.materialNombre || item.nombre || 'desconocido');
+                    continue;
+                }
+
+                console.log(`[DELETE OT] Restaurando: ${item.materialNombre || item.nombre} | productoId=${productoId} | cantidad=${cantidadARestaurar}`);
+
+                // Usar Material.updateOne para evitar el hook pre('findOneAndUpdate')
+                // que puede corromper el update al agregar campos extra
+                const resultado = await Material.updateOne(
+                    { _id: productoId },
+                    { $inc: { stock_actual: cantidadARestaurar } }
+                );
+
+                if (resultado.matchedCount === 0) {
+                    console.warn(`[DELETE OT] Material no encontrado en BD: ${productoId}`);
+                    sinRestaurar.push(item.materialNombre || item.nombre || String(productoId));
+                } else {
+                    console.log(`[DELETE OT] ✅ Stock restaurado: +${cantidadARestaurar} para ${item.materialNombre || item.nombre}`);
+                    restaurados++;
+                }
+            } catch (errItem) {
+                const nombreItem = item && (item.materialNombre || item.nombre) || 'desconocido';
+                console.error(`[DELETE OT] Error en item ${nombreItem}:`, errItem.message);
+                sinRestaurar.push(nombreItem);
+            }
+        }
+
+        await Invoice.findByIdAndDelete(id);
+
+        console.log(`[DELETE OT] ✅ Eliminada OT ${factura.numeroFactura || id}. Restaurados: ${restaurados}/${items.length}`);
+        res.json({
+            success: true,
+            message: `Orden eliminada. Stock restaurado para ${restaurados} de ${items.length} material(es).`,
+            detalles: sinRestaurar.length > 0 ? { sinRestaurar } : undefined
+        });
+
     } catch (error) {
+        console.error('[DELETE OT] Error general:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });

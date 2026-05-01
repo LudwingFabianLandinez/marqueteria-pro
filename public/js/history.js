@@ -620,6 +620,23 @@ function configurarBuscador() {
 async function eliminarFactura(id, numero) {
     if (confirm(`¿Eliminar Orden ${numero}?`)) {
         const res = await fetch(`${HISTORY_API_BASE}/invoices/${id}`, { method: 'DELETE' });
-        if (res.ok) { alert("Orden eliminada"); fetchInvoices(); }
+        if (res.ok) {
+            alert("Orden eliminada");
+            fetchInvoices();
+
+            try {
+                const inventarioResp = await fetch(`${HISTORY_API_BASE}/inventory`, { cache: 'no-store' });
+                if (inventarioResp.ok) {
+                    const inventarioJson = await inventarioResp.json();
+                    const inventarioActualizado = Array.isArray(inventarioJson)
+                        ? inventarioJson
+                        : (Array.isArray(inventarioJson.data) ? inventarioJson.data : []);
+                    localStorage.setItem('inventory', JSON.stringify(inventarioActualizado));
+                    window.dispatchEvent(new CustomEvent('inventoryUpdated', { detail: inventarioActualizado }));
+                }
+            } catch (errorInventario) {
+                console.warn('No se pudo refrescar el inventario tras eliminar la OT:', errorInventario);
+            }
+        }
     }
 }
