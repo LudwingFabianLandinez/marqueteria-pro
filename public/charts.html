@@ -44,11 +44,13 @@
 
     // Fetch invoices
     let invoices = [];
+    let fetchError = false;
     try{
       const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
       const res = await fetch(base + '/invoices');
+      if (!res.ok) { console.warn('Fetch invoices status', res.status); fetchError = true; }
       invoices = await res.json();
-    }catch(e){ console.error('No se pudieron cargar facturas', e); invoices = []; }
+    }catch(e){ console.error('No se pudieron cargar facturas', e); invoices = []; fetchError = true; }
 
     // Apply date filters from query params (if any)
     try{
@@ -68,10 +70,48 @@
       }
     }catch(e){ console.warn('Error aplicando filtros en charts.html', e); }
 
-    const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
+    const noDataEl = document.createElement('div');
+    noDataEl.style.padding = '18px';
+    noDataEl.style.color = '#475569';
+    noDataEl.style.fontWeight = '600';
+    if (fetchError || !invoices || invoices.length === 0) {
+      noDataEl.textContent = fetchError ? 'No fue posible cargar las órdenes. Revisa la consola.' : 'No hay órdenes para el rango seleccionado.';
+      document.querySelector('.card').appendChild(noDataEl);
+      // hide export buttons
+      document.getElementById('btnExportPNG').style.display = 'none';
+      document.getElementById('btnExportCSV').style.display = 'none';
+    } else {
+      const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
+      const canvas = document.getElementById('ordersChart');
+      const ctx = canvas.getContext('2d');
+      const cfg = new Chart(ctx, { type:'bar', data: chartData, options:{ responsive:true, interaction:{mode:'index',intersect:false}, scales:{ y:{ beginAtZero:true } } } });
 
-    const ctx = document.getElementById('ordersChart').getContext('2d');
-    const cfg = new Chart(ctx, { type:'bar', data: chartData, options:{ responsive:true, interaction:{mode:'index',intersect:false}, scales:{ y:{ beginAtZero:true } } } });
+      document.getElementById('btnExportPNG').addEventListener('click', function(){
+        try{
+          const url = cfg.toBase64Image();
+          const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove();
+        }catch(e){ console.error(e); alert('Error exportando PNG') }
+      });
+
+      document.getElementById('btnExportCSV').addEventListener('click', function(){
+        try{
+          const labels = chartData.labels || [];
+          const dsTotal = (chartData.datasets && chartData.datasets[0]) ? chartData.datasets[0].data : [];
+          const dsSaldo = (chartData.datasets && chartData.datasets[1]) ? chartData.datasets[1].data : [];
+          let csv = 'Fecha;Total;Saldo\n';
+          for(let i=0;i<labels.length;i++){
+            const l = labels[i];
+            const t = dsTotal[i] != null ? dsTotal[i] : '';
+            const s = dsSaldo[i] != null ? dsSaldo[i] : '';
+            csv += `${l};${t};${s}\n`;
+          }
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = 'ventas.csv'; document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(url);
+        }catch(e){ console.error(e); alert('Error exportando CSV') }
+      });
+    }
 
     document.getElementById('btnExportPNG').addEventListener('click', function(){
       try{

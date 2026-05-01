@@ -80,6 +80,9 @@
     <main class="main-content">
         <div class="history-container">
             <div class="header-actions" style="align-items:center; gap:14px;">
+                <h2 style="color: #1e3a8a; margin: 0; font-size: 1.75rem; font-weight: 800; display:flex; align-items:center;">
+                    <i class="fas fa-clipboard-list" style="margin-right: 12px; color: var(--secondary-blue);"></i> Historial de Órdenes
+                </h2>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <button id="btn-graph" class="btn-excel" onclick="showOrdersChart()">
                         <i class="fas fa-chart-bar"></i> GRÁFICO
@@ -88,9 +91,6 @@
                         <i class="fas fa-file-invoice-dollar"></i> REPORTE HOY
                     </button>
                 </div>
-                <h2 style="color: #1e3a8a; margin: 0; font-size: 1.75rem; font-weight: 800; flex:1; display:flex; align-items:center;">
-                    <i class="fas fa-clipboard-list" style="margin-right: 12px; color: var(--secondary-blue);"></i> Historial de Órdenes
-                </h2>
             </div>
             <!-- Chart section (hidden until user requests it) -->
             <div id="chartSection" style="display:none; margin-top:18px;">
