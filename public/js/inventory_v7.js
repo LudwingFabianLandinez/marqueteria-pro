@@ -34,24 +34,6 @@
             return { success: false, data: [] };
         }
     });
-                } catch (err) {
-                    console.error('Error al guardar ajuste (fallback):', err);
-                    alert('Error al guardar ajuste. Revisa la consola.');
-                }
-            });
-        }
-
-        if (typeof window.prepararAjuste === 'function') {
-            window.prepararAjuste(m._id || m.id || idStr, m.nombre || '', stockActual, stockMinimo);
-        } else {
-            console.warn('abrirAjusteDesdeFila: prepararAjuste no está definida');
-            alert('Función de ajuste no disponible en esta página.');
-        }
-    } catch (err) {
-        console.error('Error en abrirAjusteDesdeFila:', err);
-        alert('Error al abrir ajuste. Revisa la consola.');
-    }
-};
 
     // 1. VARIABLES GLOBALES
     window.todosLosMateriales = [];
