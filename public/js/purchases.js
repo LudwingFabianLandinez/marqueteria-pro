@@ -58,6 +58,7 @@ async function fetchPurchases() {
             </tr>`;
     }
 }
+function setupChartButton() {
     const btn = document.getElementById('chartReportBtn');
     if (!btn) return;
     btn.addEventListener('click', async () => {
