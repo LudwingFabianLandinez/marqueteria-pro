@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gráfico de Ventas - Marquetería</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body{font-family:Inter,Segoe UI,sans-serif;background:#f1f5f9;color:#1e293b;padding:24px}
+    .card{background:#fff;padding:20px;border-radius:12px;border:1px solid #e6eef8}
+    .actions{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+    .btn{padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+    .btn-primary{background:#4f46e5;color:#fff}
+    .btn-ghost{background:#f1f5f9;color:#334155}
+    .muted{color:#64748b;font-size:0.95rem}
+  </style>
+</head>
+<body>
+  <div style="max-width:1100px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h2 style="margin:0;color:#1e3a8a">Ventas — Gráfico</h2>
+      <div class="muted" id="rangeLabel">Cargando rango...</div>
+    </div>
+
+    <div class="card">
+      <div class="actions">
+        <button id="btnExportPNG" class="btn btn-primary">Exportar PNG</button>
+        <button id="btnExportCSV" class="btn btn-ghost">Exportar CSV</button>
+        <a href="history.html" class="btn" style="background:#eef2ff;color:#1e3a8a;font-weight:800;border:1px solid #c7d2fe;text-decoration:none;padding:10px 14px;border-radius:10px">Volver</a>
+      </div>
+      <canvas id="ordersChart" height="160"></canvas>
+    </div>
+  </div>
+
+  <script src="/js/prepareChartData.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+  (async function(){
+    function getParam(name){ const u = new URLSearchParams(location.search); return u.get(name) || '' }
+    const desdeParam = getParam('desde');
+    const hastaParam = getParam('hasta');
+    const rangeLabel = document.getElementById('rangeLabel');
+    rangeLabel.textContent = (desdeParam || hastaParam) ? `Rango: ${desdeParam||'--'} → ${hastaParam||'--'}` : 'Rango: Todas las OT';
+
+    // Fetch invoices
+    let invoices = [];
+    try{
+      const base = window.resolveApiBase ? window.resolveApiBase() : '/.netlify/functions';
+      const res = await fetch(base + '/invoices');
+      invoices = await res.json();
+    }catch(e){ console.error('No se pudieron cargar facturas', e); invoices = []; }
+
+    // Apply date filters from query params (if any)
+    try{
+      let desde = desdeParam ? new Date(desdeParam) : null;
+      let hasta = hastaParam ? new Date(hastaParam) : null;
+      if (desde) { desde.setHours(0,0,0,0); }
+      if (hasta) { hasta.setHours(23,59,59,999); }
+      if (desde || hasta) {
+        invoices = invoices.filter(inv => {
+          const raw = inv.fecha || inv.date || inv.createdAt;
+          const d = raw ? new Date(raw) : null;
+          if (!d || isNaN(d)) return false;
+          if (desde && d < desde) return false;
+          if (hasta && d > hasta) return false;
+          return true;
+        });
+      }
+    }catch(e){ console.warn('Error aplicando filtros en charts.html', e); }
+
+    const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
+
+    const ctx = document.getElementById('ordersChart').getContext('2d');
+    const cfg = new Chart(ctx, { type:'bar', data: chartData, options:{ responsive:true, interaction:{mode:'index',intersect:false}, scales:{ y:{ beginAtZero:true } } } });
+
+    document.getElementById('btnExportPNG').addEventListener('click', function(){
+      try{
+        const url = cfg.toBase64Image();
+        const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove();
+      }catch(e){ console.error(e); alert('Error exportando PNG') }
+    });
+
+    document.getElementById('btnExportCSV').addEventListener('click', function(){
+      try{
+        const labels = chartData.labels || [];
+        const dsTotal = (chartData.datasets && chartData.datasets[0]) ? chartData.datasets[0].data : [];
+        const dsSaldo = (chartData.datasets && chartData.datasets[1]) ? chartData.datasets[1].data : [];
+        let csv = 'Fecha;Total;Saldo\n';
+        for(let i=0;i<labels.length;i++){
+          const l = labels[i];
+          const t = dsTotal[i] != null ? dsTotal[i] : '';
+          const s = dsSaldo[i] != null ? dsSaldo[i] : '';
+          csv += `${l};${t};${s}\n`;
+        }
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'ventas.csv'; document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      }catch(e){ console.error(e); alert('Error exportando CSV') }
+    });
+  })();
+  </script>
+</body>
+</html>

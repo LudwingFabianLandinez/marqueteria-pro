@@ -14,56 +14,19 @@
             --secondary-blue: #3b82f6;
             --success-green: #059669;
             --danger-red: #e11d48;
-            --bg-light: #f8fafc;
-            --border-color: #e2e8f0;
-        }
-
-        body { font-family: 'Inter', 'Segoe UI', sans-serif; background-color: #f1f5f9; margin: 0; display: flex; color: #1e293b; }
-        
-        .sidebar { width: 260px; height: 100vh; background: var(--primary-blue); color: white; position: fixed; z-index: 100; }
-        .main-content { margin-left: 260px; flex-grow: 1; padding: 40px; min-height: 100vh; }
-
-        .history-container {
-            background: white;
-            padding: 32px;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        .header-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-
-        .btn-report { background: #4f46e5; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; }
-        .btn-excel { background: #107c41; color: white; padding: 12px 20px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; }
-        .btn-report:hover { background: #4338ca; transform: translateY(-2px); }
-
-        .search-container {
-            margin: 24px 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-            background: var(--bg-light);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-        }
-
-        .search-box {
-            flex: 1;
-            min-width: 300px;
-            display: flex;
-            align-items: center;
-            background: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-        .search-box input { border: none; outline: none; width: 100%; margin-left: 10px; }
+            <script>
+            (function(){
+                window.showOrdersChart = function(){
+                    const desde = document.getElementById('fechaDesde')?.value || '';
+                    const hasta = document.getElementById('fechaHasta')?.value || '';
+                    const params = new URLSearchParams();
+                    if (desde) params.set('desde', desde);
+                    if (hasta) params.set('hasta', hasta);
+                    const url = '/charts.html' + (params.toString() ? ('?' + params.toString()) : '');
+                    window.open(url, '_blank');
+                };
+            })();
+            </script>
 
         .date-filters { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; }
         .date-filters input { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); color: #475569; }
