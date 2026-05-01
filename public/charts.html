@@ -85,63 +85,57 @@
       document.getElementById('btnExportPNG').style.display = 'none';
       document.getElementById('btnExportCSV').style.display = 'none';
     } else {
-      const chartData = prepareOrdersChartData(invoices, { dateField:'fecha', totalField:'total', saldoField:'saldo', locale:'es-CO' });
+      // Aggregate totals across filtered invoices and draw a 2-bar chart: Total Venta vs Saldo Pendiente
+      function parseNumberValueSimple(v){
+        if (v == null) return 0;
+        if (typeof v === 'number') return v;
+        let s = String(v).trim();
+        s = s.replace(/[^0-9.,-]/g, '');
+        if (!s) return 0;
+        if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) { s = s.replace(/\./g, '').replace(/,/g, '.'); }
+        else if (s.indexOf('.') !== -1 && s.indexOf(',') === -1) { s = s.replace(/\./g, ''); }
+        else if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) { s = s.replace(/,/g, '.'); }
+        const n = Number(s);
+        return isNaN(n) ? 0 : n;
+      }
+
+      let totalSum = 0;
+      let saldoSum = 0;
+      invoices.forEach(f => {
+        const totalVal = parseNumberValueSimple(f.totalFactura || f.total || 0);
+        let saldoVal = parseNumberValueSimple(f.saldo || f.saldoPendiente || f.saldo_pendiente || 0);
+        if (!saldoVal) {
+          const pagado = parseNumberValueSimple(f.totalPagado || f.abono || f.total_pagado || 0);
+          saldoVal = totalVal - pagado;
+        }
+        totalSum += totalVal;
+        saldoSum += saldoVal;
+      });
+
+      const chartData = {
+        labels: ['Total Venta','Saldo Pendiente'],
+        datasets: [{ label: 'Comparativo', data: [Math.round(totalSum), Math.round(saldoSum)], backgroundColor: ['#1e3a8a','#dc2626'] }]
+      };
+
       const canvas = document.getElementById('ordersChart');
       const ctx = canvas.getContext('2d');
-      const cfg = new Chart(ctx, { type:'bar', data: chartData, options:{ responsive:true, interaction:{mode:'index',intersect:false}, scales:{ y:{ beginAtZero:true } } } });
+      const cfg = new Chart(ctx, { type:'bar', data: chartData, options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } } });
 
       document.getElementById('btnExportPNG').addEventListener('click', function(){
-        try{
-          const url = cfg.toBase64Image();
-          const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove();
-        }catch(e){ console.error(e); alert('Error exportando PNG') }
+        try{ const url = cfg.toBase64Image(); const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove(); }
+        catch(e){ console.error(e); alert('Error exportando PNG') }
       });
 
       document.getElementById('btnExportCSV').addEventListener('click', function(){
         try{
-          const labels = chartData.labels || [];
-          const dsTotal = (chartData.datasets && chartData.datasets[0]) ? chartData.datasets[0].data : [];
-          const dsSaldo = (chartData.datasets && chartData.datasets[1]) ? chartData.datasets[1].data : [];
-          let csv = 'Fecha;Total;Saldo\n';
-          for(let i=0;i<labels.length;i++){
-            const l = labels[i];
-            const t = dsTotal[i] != null ? dsTotal[i] : '';
-            const s = dsSaldo[i] != null ? dsSaldo[i] : '';
-            csv += `${l};${t};${s}\n`;
-          }
+          const csv = `Metric;Value\nTotal Venta;${Math.round(totalSum)}\nSaldo Pendiente;${Math.round(saldoSum)}\n`;
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
           const url = URL.createObjectURL(blob);
-          const a = document.createElement('a'); a.href = url; a.download = 'ventas.csv'; document.body.appendChild(a); a.click(); a.remove();
+          const a = document.createElement('a'); a.href = url; a.download = 'ventas_aggregado.csv'; document.body.appendChild(a); a.click(); a.remove();
           URL.revokeObjectURL(url);
         }catch(e){ console.error(e); alert('Error exportando CSV') }
       });
     }
-
-    document.getElementById('btnExportPNG').addEventListener('click', function(){
-      try{
-        const url = cfg.toBase64Image();
-        const a = document.createElement('a'); a.href = url; a.download = 'ventas_grafico.png'; document.body.appendChild(a); a.click(); a.remove();
-      }catch(e){ console.error(e); alert('Error exportando PNG') }
-    });
-
-    document.getElementById('btnExportCSV').addEventListener('click', function(){
-      try{
-        const labels = chartData.labels || [];
-        const dsTotal = (chartData.datasets && chartData.datasets[0]) ? chartData.datasets[0].data : [];
-        const dsSaldo = (chartData.datasets && chartData.datasets[1]) ? chartData.datasets[1].data : [];
-        let csv = 'Fecha;Total;Saldo\n';
-        for(let i=0;i<labels.length;i++){
-          const l = labels[i];
-          const t = dsTotal[i] != null ? dsTotal[i] : '';
-          const s = dsSaldo[i] != null ? dsSaldo[i] : '';
-          csv += `${l};${t};${s}\n`;
-        }
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'ventas.csv'; document.body.appendChild(a); a.click(); a.remove();
-        URL.revokeObjectURL(url);
-      }catch(e){ console.error(e); alert('Error exportando CSV') }
-    });
   })();
   </script>
 </body>
