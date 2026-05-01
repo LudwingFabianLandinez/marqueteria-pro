@@ -125,11 +125,21 @@
         const d = raw ? new Date(raw) : null;
         if (!d || isNaN(d)) return;
         const key = d.toISOString().slice(0,10);
-        const totalVal = parseNumberValueSimple(f.totalFactura || f.total || f.totalFactura || 0);
-        let saldoVal = parseNumberValueSimple(f.saldoPendiente || f.saldo || f.saldo_pendiente || 0);
-        if (!saldoVal) {
-          const pagado = parseNumberValueSimple(f.totalPagado || f.abono || f.total_pagado || 0);
-          saldoVal = totalVal - pagado;
+        const totalVal = parseNumberValueSimple(f.totalFactura || f.total || f.totalVenta || 0);
+        const pagadoVal = parseNumberValueSimple(f.totalPagado || f.total_pagado || f.abono || f.totalPagado || 0);
+        const saldoField = (f.saldoPendiente !== undefined) ? f.saldoPendiente : (f.saldo || f.saldo_pendiente || null);
+        const saldoFieldVal = (saldoField != null) ? parseNumberValueSimple(saldoField) : null;
+
+        let saldoVal = 0;
+        // Prefer explicit totalPagado when present
+        if (pagadoVal && pagadoVal > 0) {
+          saldoVal = Math.max(0, totalVal - pagadoVal);
+        } else if (saldoFieldVal !== null && !isNaN(saldoFieldVal) && saldoFieldVal <= totalVal) {
+          // Use provided saldo if it looks valid
+          saldoVal = saldoFieldVal;
+        } else {
+          // Fallback: assume not paid
+          saldoVal = totalVal - pagadoVal;
         }
         if (!sumsByDate[key]) sumsByDate[key] = { ventas: 0, pendiente: 0 };
         sumsByDate[key].ventas += totalVal;
