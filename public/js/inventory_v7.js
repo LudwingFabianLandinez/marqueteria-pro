@@ -45,47 +45,14 @@
                         const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
                         if (mid && String(mid).trim() === idStr) return true;
                         const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
-                        if (mname && String(mname).toUpperCase().includes(String(item.materialNombre || '').toUpperCase())) return true;
+                        if (mname && String(mname).toUpperCase().includes(idStr.toUpperCase())) return true;
                     } catch (e) {}
-                    try {
-                        // Prefer server-side history for the specific material (returns entradas y salidas)
-                        const histResp = await fetch(window.API_URL + '/inventory/history/' + encodeURIComponent(idRecibido) + '?t=' + Date.now());
-                        let histJson = null;
-                        if (histResp.ok) histJson = await histResp.json();
-                        const serverHistory = histJson && histJson.data ? histJson.data : null;
-
-                        let filtrados = [];
-
-                        if (serverHistory && Array.isArray(serverHistory) && serverHistory.length > 0) {
-                            filtrados = serverHistory;
-                        } else {
-                            // Fallback: fetch all purchases and filter by id/name (legacy behavior)
-                            const allResp = await fetch(window.API_URL + '/inventory/all-purchases?t=' + Date.now());
-                            if (!allResp.ok) throw new Error('No se pudo obtener movimientos (status ' + allResp.status + ')');
-                            const allJson = await allResp.json();
-                            const all = allJson && allJson.data ? allJson.data : (Array.isArray(allJson) ? allJson : []);
-
-                            const idStr = String(idRecibido || '').trim();
-                            const nombreUpper = String(nombre || '').toUpperCase();
-
-                            filtrados = all.filter(item => {
-                                try {
-                                    const mid = (item.materialId && (item.materialId._id || item.materialId.id)) || item.materialId || item.materialNombre || item.nombreMaterial || '';
-                                    if (mid && String(mid).trim() === idStr) return true;
-                                    const mname = (item.materialId && item.materialId.nombre) || item.materialNombre || item.nombreMaterial || '';
-                                    if (mname && String(mname).toUpperCase().includes(nombreUpper)) return true;
-                                } catch (e) {}
-                                return false;
-                            });
-                        }
-
-                        if (!filtrados || filtrados.length === 0) {
-                            contenedor.innerHTML = '<div style="color:#64748b; padding:30px; text-align:center;'>No se encontraron movimientos.</div>';
-                            return;
-                        }
-
-                        const money = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-                        contenedor.innerHTML = filtrados.map(h => {
+                    return false;
+                });
+                return { success: true, data: filtered };
+            } catch (err) {
+                return { success: false, data: [] };
+            }
         if (!document.getElementById('modalAjuste')) {
             const modal = document.createElement('div');
             modal.id = 'modalAjuste';
