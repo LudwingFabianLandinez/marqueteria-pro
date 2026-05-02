@@ -108,6 +108,17 @@
             font-weight: 600;
         }
         .price-text { font-weight: bold; color: #059669; }
+        /* Ajustes móviles específicos para evitar distorsión en pantallas pequeñas */
+        @media (max-width: 768px) {
+            .main-container { padding: 12px; }
+            .content-card { padding: 14px; }
+            .header-flex { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .search-wrapper { max-width: 100%; width: 100%; }
+            .custom-table th, .custom-table td { padding: 10px; font-size: 0.9rem; }
+            .btn-regresar { width: 100%; justify-content: center; }
+            #purchasesChartModal > div { width: 95%; padding: 12px; }
+            #purchasesChartModal canvas { width: 100% !important; height: auto !important; }
+        }
     </style>
 </head>
 <body>

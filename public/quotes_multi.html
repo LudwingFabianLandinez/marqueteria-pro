@@ -245,6 +245,20 @@
             .cuadro-descripcion-row { flex-direction: column; }
             .cuadro-footer-row { flex-direction: column; }
         }
+        /* Mobile override para anular !important definidos arriba y evitar distorsión */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0 !important;
+                width: 100% !important;
+                padding: 12px !important;
+                box-sizing: border-box;
+            }
+            .sidebar { display: none !important; }
+            #barra-total-global { display: flex !important; padding: 8px 12px; border-radius: 8px; }
+            .btn-agregar-cuadro { padding: 12px; }
+            .cliente-grid { grid-template-columns: 1fr !important; }
+            .page-header h2 { font-size: 1.2rem; }
+        }
     </style>
 </head>
 <body>
